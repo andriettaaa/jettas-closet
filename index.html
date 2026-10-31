@@ -1568,9 +1568,9 @@ function openEditor(id, opts = {}) {
       </div>
       <h3 style="font-size:17px">Care</h3>
       <div class="caregroups">${CARE.map(([k, label, opts2]) => `<div><span class="lbl">${label}</span><div class="togglegroup">${opts2.map(o => `<button type="button" class="chip" data-care="${k}" data-v="${esc(o)}" aria-pressed="${it.care[k] === o}">${esc(o)}</button>`).join('')}</div></div>`).join('')}
-        <div class="field"><label for="f-carenotes">Care notes</label><textarea id="f-carenotes" placeholder="Anything from the label, e.g. wash inside out">${esc(it.careNotes)}</textarea></div></div>
-      <div id="discardConfirm"></div>`,
-    foot: `<span class="busy" id="saveStatus"></span><div class="spacer"></div>${review ? '<button class="btn danger" id="discard">Discard</button><button class="btn" id="saveWish">Save to wishlist</button>' : '<button class="btn" data-close>Cancel</button>'}<button class="btn primary" id="saveItem">${review || buying || (!id && !wishMode) ? 'Add to closet' : !id ? 'Add to wishlist' : 'Save changes'}</button>`
+        <div class="field"><label for="f-carenotes">Care notes</label><textarea id="f-carenotes" placeholder="Anything from the label, e.g. wash inside out">${esc(it.careNotes)}</textarea></div></div>`,
+    // the discard question sits in the always-visible footer: at the end of the long form nobody saw it
+    foot: `${review ? '<div class="confirm" id="discardConfirm" hidden style="flex-basis:100%">Remove this piece from the tray? <button class="btn small danger" id="discardYes">Discard</button><button class="btn small" id="discardNo">Keep it</button></div>' : ''}<span class="busy" id="saveStatus"></span><div class="spacer"></div>${review ? '<button class="btn danger" id="discard">Discard</button><button class="btn" id="saveWish">Save to wishlist</button>' : '<button class="btn" data-close>Cancel</button>'}<button class="btn primary" id="saveItem">${review || buying || (!id && !wishMode) ? 'Add to closet' : !id ? 'Add to wishlist' : 'Save changes'}</button>`
   });
   if (!review && !buying) {
     const stEl = $('#f-status', sh);
@@ -1602,9 +1602,14 @@ function openEditor(id, opts = {}) {
     const cd = e.target.closest('[data-cond]'); if (cd) { it.condition = it.condition === cd.dataset.cond ? '' : cd.dataset.cond; $$('[data-cond]', sh).forEach(b => b.setAttribute('aria-pressed', it.condition === b.dataset.cond)); }
     const m = e.target.closest('[data-multi]'); if (m) { const arr = it[m.dataset.multi]; toggleIn(arr, m.dataset.v); m.setAttribute('aria-pressed', arr.includes(m.dataset.v)); }
     const cr = e.target.closest('[data-care]'); if (cr) { const k = cr.dataset.care; it.care[k] = it.care[k] === cr.dataset.v ? '' : cr.dataset.v; $$(`[data-care="${k}"]`, sh).forEach(b => b.setAttribute('aria-pressed', it.care[k] === b.dataset.v)); }
-    if (e.target.closest('#discard')) $('#discardConfirm', sh).innerHTML = `<div class="confirm">Remove this piece from the tray? <button class="btn small danger" id="discardYes">Discard</button><button class="btn small" id="discardNo">Keep it</button></div>`;
-    if (e.target.closest('#discardNo')) $('#discardConfirm', sh).innerHTML = '';
-    if (e.target.closest('#discardYes')) { try { await DB.del('items', id); new Set([base?.photo, ...(base?.candidates || [])]).forEach(deletePhoto); closeSheet(); toast('Discarded'); } catch (err) { saveErr(err, 'Could not discard. Try again.'); } }
+    if (e.target.closest('#discard')) $('#discardConfirm', sh).hidden = false;
+    if (e.target.closest('#discardNo')) $('#discardConfirm', sh).hidden = true;
+    if (e.target.closest('#discardYes')) {
+      try {
+        await DB.del('items', id); new Set([base?.photo, ...(base?.candidates || [])]).forEach(deletePhoto); closeSheet(); toast('Discarded');
+        const next = inboxItems()[0]; if (next) setTimeout(() => openEditor(next.id), 80);
+      } catch (err) { saveErr(err, 'Could not discard. Try again.'); }
+    }
   });
   const photoArea = $('#photoArea', sh);
   const showPicker = () => {
