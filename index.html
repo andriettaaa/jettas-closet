@@ -38,6 +38,8 @@
   --danger: #A8392B;
   --check-a: #FFFCF8;
   --check-b: #ECE3D8;
+  /* chart series, in fixed order (checked for colour-blind separation); "not set" slices use --none */
+  --c1: #A85A22; --c2: #00869C; --c3: #E0A93E; --c4: #B8466E; --c5: #5F9E3A; --c6: #6E6FD0; --c7: #D86A3A; --c8: #A88F7A; --none: #E2D8CD;
   --shadow: 0 1px 2px rgba(43,30,22,.07), 0 8px 24px rgba(43,30,22,.09);
   --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
   --body: "Figtree", -apple-system, "Segoe UI", system-ui, sans-serif;
@@ -50,6 +52,7 @@
     --bg: #17110D; --surface: #211913; --surface-2: #2C2219; --stage: #261D16; --ink: #F1E7DC; --muted: #B29C88;
     --line: #3A2E24; --accent: #C99A6B; --accent-ink: #1E140C; --tag: #5A4029; --tag-ink: #F2DBBE;
     --warn: #E0A85A; --danger: #EE8A78; --check-a: #2A2119; --check-b: #211913;
+    --c1: #BF7838; --c2: #1F9EA6; --c3: #B48C2C; --c4: #CC648A; --c5: #62973E; --c6: #8183DE; --c7: #CC6A3C; --c8: #8C7867; --none: #3A2E24;
     --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.3); color-scheme: dark;
   }
 }
@@ -159,6 +162,7 @@ dl.props dd .chip.link { margin-right: 6px; }
 .card .meta { padding: 10px 12px 12px; display: grid; gap: 2px; min-width: 0; }
 .card .meta b { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card .meta span { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .meta span.wrap { white-space: normal; }
 .card.gone { opacity: .55; }
 .hangtag { position: absolute; top: 10px; right: 10px; background: var(--tag); color: var(--tag-ink); font-family: var(--mono); font-size: 11px; line-height: 1.2; padding: 5px 8px 5px 16px; border-radius: 3px 6px 6px 3px; transform: rotate(4deg); transform-origin: left center; box-shadow: 0 2px 4px rgba(0,0,0,.1); clip-path: polygon(8px 0, 100% 0, 100% 100%, 8px 100%, 0 50%); }
 .hangtag::before { content: ""; position: absolute; left: 6px; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%; background: var(--stage); }
@@ -355,6 +359,53 @@ dl.props dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 @media (max-width: 720px) { .toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); } }
 .muted { color: var(--muted); }
 .mono { font-family: var(--mono); }
+
+/* weather */
+.day .wx { position: absolute; top: 5px; right: 5px; z-index: 3; font-family: var(--mono); font-size: 10px; line-height: 16px; background: color-mix(in srgb, var(--surface) 82%, transparent); border-radius: 6px; padding: 0 3px; white-space: nowrap; }
+@media (max-width: 520px) { .day .wx { top: 24px; left: 4px; right: auto; font-size: 9.5px; } }
+.wxstrip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 18px; scrollbar-width: none; }
+.wxstrip::-webkit-scrollbar { display: none; }
+.wxnow { flex: 0 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; display: grid; gap: 2px; min-width: 150px; }
+.wxnow .lbl { font-size: 10.5px; }
+.wxnow b { font-family: var(--display); font-size: 22px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.wxnow span { font-size: 12.5px; color: var(--muted); }
+.wxday { flex: 0 0 58px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 4px; display: grid; justify-items: center; gap: 1px; font-size: 12px; }
+.wxday .lbl { font-size: 10px; }
+.wxday .ic { font-size: 20px; line-height: 26px; }
+.wxday b { font-family: var(--mono); font-weight: 500; font-size: 12.5px; }
+.wxday span { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.wxline { color: var(--muted); font-size: 13px; margin: -8px 0 12px; }
+.wxcities { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.wxcities > div { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; font-size: 13.5px; }
+.wxcities b { font-family: var(--mono); font-weight: 500; }
+
+/* stats charts and tables */
+.statseg { margin-bottom: 16px; }
+.donut { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 14px; align-items: center; }
+@media (max-width: 380px) { .donut { grid-template-columns: 112px minmax(0, 1fr); gap: 10px; } }
+.donut svg { width: 100%; height: auto; display: block; }
+.donut svg path { stroke: var(--surface); stroke-width: 2; }
+.donut svg path[data-go] { cursor: pointer; }
+.donut .ctr { font-family: var(--display); font-weight: 800; font-size: 22px; fill: var(--ink); }
+.donut .ctr2 { font-family: var(--mono); font-size: 8.5px; fill: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.dlegend { display: grid; gap: 3px; min-width: 0; }
+.dlegend button, .dlegend div { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 7px; align-items: center; border: 0; background: none; padding: 2px 0; text-align: left; font-size: 13px; min-width: 0; }
+.dlegend i { width: 10px; height: 10px; border-radius: 3px; display: block; }
+.dlegend span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dlegend em { font-style: normal; font-family: var(--mono); font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dlegend button:hover span { text-decoration: underline; text-underline-offset: 3px; }
+.tblwrap { overflow-x: auto; margin: 0 -4px; }
+table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 400; text-align: right; padding: 4px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tbl td { padding: 6px 4px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); text-align: right; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tbl th:first-child, .tbl td:first-child { text-align: left; font-family: var(--body); font-size: 13px; white-space: normal; }
+.tbl td:first-child button { border: 0; background: none; padding: 0; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; text-align: left; }
+.tbl tfoot td { border-bottom: 0; font-weight: 600; color: var(--ink); }
+.goneact { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13.5px; }
+.confirm.calm { background: color-mix(in srgb, var(--tag) 30%, var(--surface)); }
+.confirm input { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 5px 8px; min-width: 0; }
+.confirm input[type="date"] { width: 150px; }
+.confirm input.amt { width: 90px; }
 </style>
 </head>
 <body>
@@ -560,7 +611,7 @@ async function refresh() {
   if (!UID) return;
   try { await loadAll(); } catch { if (S.status !== 'ok') { S.status = 'offline'; render(); } }
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { refresh(); wxRefresh(); } });
 window.addEventListener('online', refresh);
 async function saveErr(e, fallback) {
   if (!navigator.onLine) toast("You're offline. Try again when you're connected.");
@@ -607,7 +658,8 @@ function go(v) {
   try { history.replaceState(null, '', '#' + v); } catch {}
   $('#main').innerHTML = ''; render(); window.scrollTo(0, 0);
 }
-document.addEventListener('click', e => { const b = e.target.closest('[data-view]'); if (b) go(b.dataset.view); });
+// only the tab buttons: the view container carries data-view too
+document.addEventListener('click', e => { const b = e.target.closest('nav [data-view]'); if (b) go(b.dataset.view); });
 
 /* ---------- main render ---------- */
 function render() {
@@ -676,6 +728,8 @@ const TYPES = {
 };
 const FITS = ['Slim', 'Regular', 'Relaxed', 'Oversized', 'Fitted', 'Cropped', 'Longline', 'High-waisted', 'Mid-rise', 'Low-rise', 'Wide-leg', 'Straight', 'Skinny', 'Flared', 'Bootcut'];
 const MATERIALS = ['Cotton', 'Linen', 'Wool', 'Merino', 'Cashmere', 'Alpaca', 'Mohair', 'Silk', 'Satin', 'Denim', 'Leather', 'Faux leather', 'Suede', 'Polyester', 'Viscose', 'Lyocell', 'Nylon', 'Acrylic', 'Elastane', 'Knit', 'Mesh', 'Velvet', 'Corduroy', 'Fleece', 'Down'];
+const ACQUIRED = ['New', 'Secondhand'];
+const PLACES = ['Online', 'In store'];
 const CONDITIONS = ['New with tags', 'New without tags', 'Like new', 'Very good', 'Good', 'Fair', 'Needs repair'];
 const one = v => (v == null || String(v).trim() === '') ? [] : [String(v).trim()];
 // Every property you can tap to filter by; within one property any match counts, across properties all must match
@@ -690,6 +744,8 @@ const FACETS = [
   { k: 'care', label: 'Care', get: careTags, order: CARE.flatMap(c => c[2]) },
   { k: 'materials', label: 'Material', get: it => it.materials || [], order: MATERIALS },
   { k: 'condition', label: 'Condition', get: it => one(it.condition), order: CONDITIONS },
+  { k: 'acquired', label: 'New/secondhand', get: it => one(it.acquired), order: ACQUIRED },
+  { k: 'purchasePlace', label: 'Where bought', get: it => one(it.purchasePlace), order: PLACES },
   { k: 'shop', label: 'Shop', get: it => one(it.shop) },
   { k: 'tags', label: 'Tag', get: it => it.tags || [] }
 ];
@@ -728,7 +784,7 @@ function matches(it, f, skipFacet) {
     if (!have.some(v => want.includes(v))) return false;
   }
   const q = norm(f.q);
-  return !q || [it.name, it.brand, it.sub, it.cat, it.material, it.shop, it.size, it.why, it.notes, it.condition, ...(it.tags || []), ...(it.colors || []), ...(it.occasions || []), ...(it.fits || []), ...(it.materials || [])].join(' ').toLowerCase().includes(q);
+  return !q || [it.name, it.brand, it.sub, it.cat, it.material, it.shop, it.size, it.articleNo, it.why, it.notes, it.condition, it.acquired, it.purchasePlace, ...(it.tags || []), ...(it.colors || []), ...(it.occasions || []), ...(it.fits || []), ...(it.materials || [])].join(' ').toLowerCase().includes(q);
 }
 // tapping any property in a piece's details opens the closet or wishlist filtered on it
 function goFilter(view, k, value) {
@@ -742,14 +798,14 @@ const fchip = (k, v, label = v) => `<button class="chip link" data-go="${k}" dat
 function itemCard(it, extraCls = '') {
   const w = wearCount(it), c = cpw(it), inbox = isInbox(it), wish = isWish(it);
   const sub = inbox ? [it.brand || it.shop, it.price ? eur(it.price) : ''].filter(Boolean).join(' · ')
-    : wish ? [it.brand, daysOn(it) != null ? `${daysOn(it)} days on list` : ''].filter(Boolean).join(' · ')
+    : wish ? [it.brand, it.price > 0 ? eur(it.price) + (saving(it) ? ` (was ${eur0(it.origPrice)})` : '') : '', daysOn(it) != null ? `${daysOn(it)} days on list` : ''].filter(Boolean).join(' · ')
     : [it.brand, w ? `worn ${w}×` : 'not worn yet'].filter(Boolean).join(' · ');
   const tag = inbox ? `<div class="hangtag"><small>from</small>${esc((it.shop || 'link').slice(0, 14))}</div>`
-    : wish ? (it.price > 0 ? `<div class="hangtag"><small>${saving(it) ? `<s>${eur0(it.origPrice)}</s>` : 'price'}</small>${eur(it.price)}</div>` : '')
+    : wish ? ''
     : c != null ? `<div class="hangtag"><small>per wear</small>${eur(c)}</div>` : '';
   return `<button class="card ${inCloset(it) || inbox || wish ? '' : 'gone'} ${extraCls}" data-item="${esc(it.id)}">
     <div class="stage">${it.photo ? pimg(it.photo, it.name, 'loading="lazy"') : PH}</div>${tag}
-    <div class="meta"><b>${esc(it.name || 'Untitled piece')}</b><span>${esc(sub)}</span></div>
+    <div class="meta"><b>${esc(it.name || 'Untitled piece')}</b><span ${wish ? 'class="wrap"' : ''}>${esc(sub)}</span></div>
   </button>`;
 }
 function renderRail(host) {
@@ -759,8 +815,9 @@ function renderRail(host) {
     host.innerHTML = `
       ${view === 'closet' ? '<div id="trayHost"></div>' : ''}
       <div class="viewhead"><h1>${view === 'wishlist' ? 'Wishlist' : 'Closet'}</h1><span class="sub" id="railSub"></span></div>
+      ${view === 'closet' ? '<p class="wxline" id="wxLine" hidden></p>' : ''}
       <div class="tools">
-        <div class="search">${I.search}<input id="q" type="search" placeholder="Search name, brand, size, colour, tag" aria-label="Search"></div>
+        <div class="search">${I.search}<input id="q" type="search" placeholder="Search name, brand, size, article no., tag" aria-label="Search"></div>
         <select class="pill" id="sort" aria-label="Sort">${SORTS[view].map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
       </div>
       <div class="chips" id="catChips" role="group" aria-label="Category"></div>
@@ -794,6 +851,8 @@ function fillRail(host) {
     if (tray.some(i => !i.scored && (i.candidates || []).length > 1)) setTimeout(autoPickPhotos, 0);
     $('#trayHost', host).innerHTML = tray.length ? `<div class="tray"><h2>New from your links · ${tray.length}</h2><p>Check the details and cut-out, then add each piece to your closet or wishlist.</p><div class="hscroll">${tray.map(it => itemCard(it)).join('')}</div></div>` : '';
   }
+  const wl = $('#wxLine', host);
+  if (wl) { const ws = CITIES.map(c => [c, wxDay(today(), c.k)]).filter(x => x[1]); wl.hidden = !ws.length; wl.textContent = ws.length ? 'Today: ' + ws.map(([c, w]) => `${c.name} ${wmo(w.c)[1]} ${w.hi}° / ${w.lo}°`).join(' · ') : ''; }
   const base = baseList(view, f);
   // categories: counts as if no category were picked, so you can see where the other pieces are
   const counts = {}; let all = 0;
@@ -857,6 +916,7 @@ function renderOutfits(host) {
     host.dataset.built = '1';
     host.innerHTML = `<div class="viewhead"><h1>Outfits</h1><span class="sub" id="outSub"></span><div class="spacer"></div>
       <div class="tools" style="margin:0"><button class="btn" data-shuffle>${I.shuffle} Shuffle an outfit</button><button class="btn primary" data-newoutfit>${I.plus} New outfit</button></div></div>
+      <div id="wxHost"></div>
       <div id="looksHost"></div>
       <div id="outGrid"></div>`;
     host.addEventListener('click', e => {
@@ -868,6 +928,7 @@ function renderOutfits(host) {
     });
   }
   $('#outSub', host).textContent = S.outfits.length ? `${S.outfits.length} saved` : '';
+  $('#wxHost', host).innerHTML = wxStrip();
   const looks = lookPhotos().slice(0, 24);
   $('#looksHost', host).innerHTML = `<div class="looks"><div class="viewhead" style="margin-bottom:8px"><h2 style="font-size:20px">Your looks</h2><span class="sub">${looks.length ? `${lookPhotos().length} photos of you wearing it` : 'a mirror selfie or any photo of you in an outfit'}</span></div>
     <div class="row"><button class="look add" data-addlook>${I.camera}<span>Add a look</span></button>${looks.map(l => `<button class="look" data-day="${l.date}">${pimg(l.path, 'Your look', 'loading="lazy"')}<span>${shortDate(l.date)}${l.outfit && S.outById[l.outfit] ? ' · ' + esc(S.outById[l.outfit].name) : ''}</span></button>`).join('')}</div></div>`;
@@ -883,6 +944,63 @@ function renderOutfits(host) {
     return `<button class="card ocard" data-outfit="${esc(o.id)}">${ph ? `<div class="photo">${pimg(ph.path, '', 'loading="lazy"')}${boardHTML(o.pieces)}</div>` : boardHTML(o.pieces)}
       <div class="meta"><b>${esc(o.name || 'Untitled outfit')}</b><span>${o.occasion ? `<span class="occ">${esc(o.occasion)}</span> · ` : ''}${w ? `worn ${w}×` : 'not worn yet'}</span></div></button>`;
   }).join('');
+}
+
+/* ---------- weather (Open-Meteo: free, no key) ---------- */
+const CITIES = [{ k: 'ams', name: 'Amsterdam', lat: 52.37, lon: 4.90 }, { k: 'alm', name: 'Almere', lat: 52.37, lon: 5.22 }];
+// WMO weather codes, matched on the first upper bound that fits
+const WMO = [[0, '☀️', 'Clear'], [1, '🌤️', 'Mostly clear'], [2, '⛅', 'Partly cloudy'], [3, '☁️', 'Cloudy'], [48, '🌫️', 'Fog'], [57, '🌦️', 'Drizzle'], [67, '🌧️', 'Rain'], [77, '🌨️', 'Snow'], [82, '🌧️', 'Showers'], [86, '🌨️', 'Snow showers'], [99, '⛈️', 'Thunderstorm']];
+const wmo = c => WMO.find(w => c <= w[0]) || WMO[WMO.length - 1];
+const WX_DAILY = 'daily=weather_code,temperature_2m_max,temperature_2m_min';
+// kept on this device per city and day, so the calendar and today's strip work offline too
+const WX = { days: {}, at: 0, months: [], ...pref.get('wx', {}) };
+const wxDay = (date, city = 'ams') => WX.days[city]?.[date];
+let wxBusy = false;
+const wxAsked = new Set();
+function wxStore(json) {
+  (Array.isArray(json) ? json : [json]).forEach((r, i) => {
+    const d = r.daily, box = WX.days[CITIES[i].k] = WX.days[CITIES[i].k] || {};
+    (d?.time || []).forEach((t, j) => {
+      if (d.temperature_2m_max[j] == null) return;
+      box[t] = { c: d.weather_code[j], hi: Math.round(d.temperature_2m_max[j]), lo: Math.round(d.temperature_2m_min[j]), p: d.precipitation_probability_max?.[j] ?? box[t]?.p ?? null };
+    });
+  });
+  pref.set('wx', WX);
+}
+async function wxFetch(base, extra) {
+  const r = await fetch(`${base}?latitude=${CITIES.map(c => c.lat).join(',')}&longitude=${CITIES.map(c => c.lon).join(',')}&timezone=Europe%2FAmsterdam&${extra}`);
+  if (!r.ok) throw new Error('weather ' + r.status);
+  return r.json();
+}
+// the last month plus 16 days ahead, refreshed every 3 hours
+async function wxRefresh() {
+  if (wxBusy || Date.now() - WX.at < 3 * 36e5) return;
+  wxBusy = true;
+  try { wxStore(await wxFetch('https://api.open-meteo.com/v1/forecast', `${WX_DAILY},precipitation_probability_max&past_days=31&forecast_days=16`)); WX.at = Date.now(); pref.set('wx', WX); render(); }
+  catch (e) { console.warn(e); } finally { wxBusy = false; }
+}
+// older months come from the archive, once, when you page back in the calendar
+async function wxMonth(y, mo) {
+  const key = iso(new Date(y, mo, 1)).slice(0, 7), first = iso(new Date(y, mo, 1)), last = iso(new Date(y, mo + 1, 0));
+  const t = new Date(), cutoff = iso(new Date(t.getFullYear(), t.getMonth(), t.getDate() - 30));
+  if (first >= cutoff || WX.months.includes(key) || wxAsked.has(key)) return;
+  wxAsked.add(key);
+  try {
+    wxStore(await wxFetch('https://archive-api.open-meteo.com/v1/archive', `${WX_DAILY}&start_date=${first}&end_date=${last < cutoff ? last : cutoff}`));
+    if (last < cutoff) WX.months.push(key);
+    pref.set('wx', WX); render();
+  } catch (e) { console.warn(e); }
+}
+const wxText = w => `${wmo(w.c)[2]} · ${w.hi}° / ${w.lo}°${w.p != null ? ` · ${w.p}% rain` : ''}`;
+function wxStrip() {
+  const t = today(), now = CITIES.map(c => [c, wxDay(t, c.k)]).filter(x => x[1]);
+  if (!now.length) return '';
+  const b = new Date(), next = [];
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date(b.getFullYear(), b.getMonth(), b.getDate() + i), k = iso(d), w = wxDay(k);
+    if (w) next.push(`<button class="wxday" data-day="${k}" aria-label="${d.toLocaleDateString('en-GB', { weekday: 'long' })}: ${esc(wxText(w))}"><span class="lbl">${d.toLocaleDateString('en-GB', { weekday: 'short' })}</span><span class="ic" aria-hidden="true">${wmo(w.c)[1]}</span><b>${w.hi}°</b><span>${w.lo}°</span></button>`);
+  }
+  return `<div class="wxstrip">${now.map(([c, w]) => `<div class="wxnow"><span class="lbl">Today · ${c.name}</span><b><span aria-hidden="true">${wmo(w.c)[1]}</span> ${w.hi}°</b><span>${esc(wmo(w.c)[2])} · low ${w.lo}°${w.p != null ? ` · ${w.p}% rain` : ''}</span></div>`).join('')}${next.join('')}</div>`;
 }
 
 /* ---------- calendar ---------- */
@@ -918,10 +1036,12 @@ function fillCal(host) {
       else if (o) thumb = boardHTML(o.pieces);
       else { const ids = dayItems(rec).filter(id => S.byId[id]?.photo); if (ids.length === 1) thumb = pimg(S.byId[ids[0]].photo, '', 'class="single" loading="lazy"'); else if (ids.length) thumb = boardHTML(autoLayout(ids)); }
     }
-    html += `<button class="day ${d.getMonth() !== mo ? 'out' : ''} ${k === t ? 'today' : ''}" data-day="${k}" aria-label="${d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}${rec ? ', outfit logged' : ''}">
-      <span class="num">${d.getDate()}</span>${thumb ? `<div class="thumb">${thumb}</div>` : ''}${rec && k > t ? '<span class="plan">plan</span>' : ''}</button>`;
+    const w = wxDay(k);
+    html += `<button class="day ${d.getMonth() !== mo ? 'out' : ''} ${k === t ? 'today' : ''}" data-day="${k}" aria-label="${d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}${w ? ', ' + esc(wmo(w.c)[2]) + ' ' + w.hi + '°' : ''}${rec ? ', outfit logged' : ''}">
+      <span class="num">${d.getDate()}</span>${w ? `<span class="wx" aria-hidden="true">${wmo(w.c)[1]}${w.hi}°</span>` : ''}${thumb ? `<div class="thumb">${thumb}</div>` : ''}${rec && k > t ? '<span class="plan">plan</span>' : ''}</button>`;
   }
   $('#calGrid', host).innerHTML = html;
+  wxMonth(y, mo);
   const prefix = `${y}-${String(mo + 1).padStart(2, '0')}`;
   const logged = Object.entries(S.days).filter(([k]) => k.startsWith(prefix) && k <= t);
   const distinct = new Set(logged.flatMap(([, v]) => dayItems(v)));
@@ -937,9 +1057,77 @@ function autoLayout(ids) {
 }
 
 /* ---------- stats ---------- */
+const SERIES = [1, 2, 3, 4, 5, 6, 7].map(n => `var(--c${n})`);
+const isGone = it => it.status === 'sold' || it.status === 'donated';
+const owned = () => S.items.filter(i => !isInbox(i) && !isWish(i));
+// values of one property across pieces; pieces without it become a grey "Not set" slice
+function countBy(list, get) {
+  const m = new Map(); let none = 0;
+  for (const it of list) { const vs = get(it); if (!vs.length) none++; for (const v of vs) m.set(v, (m.get(v) || 0) + 1); }
+  return [...[...m].map(([label, n]) => ({ label, n })), ...(none ? [{ label: 'Not set', n: none, none: true }] : [])];
+}
+// A donut with a tappable legend. Series colours go in fixed order (or follow `order`, or the piece's own swatch);
+// past seven slices the rest fold into "Other".
+function donut(entries, { k, order, swatch, unit = 'pieces', empty = 'Nothing to show yet.' } = {}) {
+  const none = entries.filter(e => e.none && e.n);
+  let list = entries.filter(e => !e.none && e.n > 0).sort((a, b) => order ? (order.indexOf(a.label) + 1 || 99) - (order.indexOf(b.label) + 1 || 99) : b.n - a.n);
+  if (list.length > 8) { const rest = list.splice(7); list.push({ label: `Other (${rest.length})`, n: rest.reduce((a, e) => a + e.n, 0), other: true }); }
+  list.forEach((e, i) => {
+    if (e.other) { e.color = 'var(--c8)'; return; }
+    if (swatch) { e.bg = swatchBg(e.label); e.color = COLOR_HEX[e.label] === 'multi' ? 'url(#gMulti)' : e.bg; return; }
+    const oi = order ? order.indexOf(e.label) : i;
+    e.color = SERIES[oi >= 0 && oi < 7 ? oi : i % 7];
+  });
+  const all = [...list, ...none.map(e => ({ ...e, color: 'var(--none)' }))];
+  const sum = all.reduce((a, e) => a + e.n, 0);
+  if (!sum || !list.length) return `<p class="muted">${empty}</p>`;
+  const R = 50, r = 31, c = 60, pt = (rad, a) => `${(c + rad * Math.cos(a)).toFixed(2)} ${(c + rad * Math.sin(a)).toFixed(2)}`;
+  let a0 = -Math.PI / 2;
+  const paths = all.map(e => {
+    const a1 = a0 + Math.min(e.n / sum, 0.9999) * 2 * Math.PI, big = a1 - a0 > Math.PI ? 1 : 0;
+    const d = `M${pt(R, a0)} A${R} ${R} 0 ${big} 1 ${pt(R, a1)} L${pt(r, a1)} A${r} ${r} 0 ${big} 0 ${pt(r, a0)} Z`;
+    a0 = a0 + e.n / sum * 2 * Math.PI;
+    const go = k && !e.other && !e.none ? ` data-go="${k}" data-v="${esc(e.label)}"` : '';
+    return `<path d="${d}" fill="${e.color}"${go}><title>${esc(e.label)}: ${e.n} (${Math.round(e.n / sum * 100)}%)</title></path>`;
+  }).join('');
+  const total = list.reduce((a, e) => a + e.n, 0) + none.reduce((a, e) => a + e.n, 0);
+  const leg = all.map(e => {
+    const inner = `<i style="background:${e.bg || e.color}${swatch ? ';box-shadow:inset 0 0 0 1px var(--line)' : ''}"></i><span>${esc(e.label)}</span><em>${e.n} · ${Math.round(e.n / sum * 100)}%</em>`;
+    return k && !e.other && !e.none ? `<button data-go="${k}" data-v="${esc(e.label)}">${inner}</button>` : `<div>${inner}</div>`;
+  }).join('');
+  return `<div class="donut"><svg viewBox="0 0 120 120" role="img" aria-label="${esc(all.map(e => `${e.label} ${e.n}`).join(', '))}">
+    ${swatch ? '<defs><linearGradient id="gMulti" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c23b33"/><stop offset=".33" stop-color="#e8c547"/><stop offset=".66" stop-color="#4f7a4a"/><stop offset="1" stop-color="#4a78c2"/></linearGradient></defs>' : ''}
+    ${paths}<text class="ctr" x="60" y="62" text-anchor="middle">${total}</text><text class="ctr2" x="60" y="76" text-anchor="middle">${unit}</text></svg>
+    <div class="dlegend">${leg}</div></div>`;
+}
+const tbl = (head, rows, footRow) => `<div class="tblwrap"><table class="tbl"><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>${footRow ? `<tfoot><tr>${footRow.map(c => `<td>${c}</td>`).join('')}</tr></tfoot>` : ''}</table></div>`;
+const rank = (list, val, sub = i => esc(i.brand || i.cat || ''), empty = 'Log some outfits on the calendar and this fills in.') => list.length ? `<div class="rank">${list.map(i => `<button class="rankrow" data-item="${esc(i.id)}"><div class="th">${i.photo ? pimg(i.photo) : ''}</div><div style="min-width:0"><b>${esc(i.name)}</b><span>${sub(i)}</span></div><span class="num">${val(i)}</span></button>`).join('')}</div>` : `<p class="muted">${empty}</p>`;
+// the last 12 months as columns, filled by a per-item amount on a date field
+function monthCols(list, dateOf, amount) {
+  const now = new Date(), months = [];
+  for (let k = 11; k >= 0; k--) { const d = new Date(now.getFullYear(), now.getMonth() - k, 1); months.push({ key: iso(d).slice(0, 7), label: d.toLocaleDateString('en-GB', { month: 'short' }).slice(0, 3), v: 0 }); }
+  for (const i of list) { const ds = dateOf(i), a = amount(i); if (!ds || !(a > 0)) continue; const m = months.find(x => x.key === ds.slice(0, 7)); if (m) m.v += a; }
+  const max = Math.max(1, ...months.map(m => m.v));
+  return { total: months.reduce((a, m) => a + m.v, 0), html: `<div class="months">${months.map(m => `<div class="col"><span class="amt">${m.v ? eur0(m.v) : ''}</span><div class="b ${m.v ? '' : 'zero'}" style="height:${Math.max(2, m.v / max * 120)}px"></div><span class="m">${m.label}</span></div>`).join('')}</div>` };
+}
+const STATS_TABS = [['overview', 'Overview'], ['breakdown', 'Breakdown'], ['money', 'Money']];
 function renderStats(host) {
+  const tab = S.statsTab = S.statsTab || pref.get('statsTab', 'overview');
+  host.innerHTML = `<div class="viewhead"><h1>Stats</h1><span class="sub">What your wardrobe really costs, and what it's actually used for</span></div>
+    <div class="seg statseg" role="group" aria-label="Stats section">${STATS_TABS.map(([k, l]) => `<button data-stab="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>
+    <div id="statsBody"></div>`;
+  host.onclick = e => {
+    const st = e.target.closest('[data-stab]'); if (st) { S.statsTab = st.dataset.stab; pref.set('statsTab', S.statsTab); renderStats(host); return; }
+    const gf = e.target.closest('[data-go]'); if (gf) return goFilter(gf.dataset.gv || 'closet', gf.dataset.go, gf.dataset.v);
+    const it = e.target.closest('[data-item]'); if (it) openItem(it.dataset.item);
+  };
+  const body = $('#statsBody', host);
+  if (tab === 'breakdown') statsBreakdown(body); else if (tab === 'money') statsMoney(body); else statsOverview(body);
+}
+function statsOverview(host) {
   const live = S.items.filter(inCloset);
-  const gone = S.items.filter(i => i.status === 'sold' || i.status === 'donated').length;
+  const gone = S.items.filter(isGone).length;
+  const back = S.items.filter(i => i.status === 'sold').reduce((a, i) => a + (Number(i.soldPrice) || 0), 0);
   const value = live.reduce((a, i) => a + (Number(i.price) || 0), 0);
   const saved = live.reduce((a, i) => a + saving(i), 0);
   const priced = live.filter(i => i.price > 0);
@@ -957,16 +1145,11 @@ function renderStats(host) {
   const colorCount = {}; for (const i of live) for (const c of (i.colors || []).slice(0, 1)) colorCount[c] = (colorCount[c] || 0) + 1;
   const colorList = Object.entries(colorCount).sort((a, b) => b[1] - a[1]);
   const colorTotal = colorList.reduce((a, x) => a + x[1], 0);
-  const now = new Date(), months = [];
-  for (let k = 11; k >= 0; k--) { const d = new Date(now.getFullYear(), now.getMonth() - k, 1); months.push({ key: iso(d).slice(0, 7), label: d.toLocaleDateString('en-GB', { month: 'short' }).slice(0, 3), v: 0 }); }
-  for (const i of S.items) { if (isInbox(i) || !i.bought || !(i.price > 0)) continue; const m = months.find(x => x.key === i.bought.slice(0, 7)); if (m) m.v += Number(i.price); }
-  const maxM = Math.max(1, ...months.map(m => m.v)), spent12 = months.reduce((a, m) => a + m.v, 0);
-  const rank = (list, val) => list.length ? `<div class="rank">${list.map(i => `<button class="rankrow" data-item="${esc(i.id)}"><div class="th">${i.photo ? pimg(i.photo) : ''}</div><div style="min-width:0"><b>${esc(i.name)}</b><span>${esc(i.brand || i.cat || '')}</span></div><span class="num">${val(i)}</span></button>`).join('')}</div>` : `<p class="muted">Log some outfits on the calendar and this fills in.</p>`;
+  const spend = monthCols(S.items.filter(i => !isInbox(i) && !isWish(i)), i => i.bought, i => Number(i.price));
 
-  host.innerHTML = `<div class="viewhead"><h1>Stats</h1><span class="sub">What your wardrobe really costs, and what it's actually used for</span></div>
-    <div class="tiles">
-      <div class="tile"><div class="k">On the rail</div><div class="v">${live.length}</div><div class="h">${gone} sold or donated</div></div>
-      <div class="tile"><div class="k">Closet value</div><div class="v">${eur0(value)}</div><div class="h">${saved ? `what you paid · ${eur0(saved)} saved on sales` : 'what you paid'}</div></div>
+  host.innerHTML = `<div class="tiles">
+      <div class="tile"><div class="k">On the rail</div><div class="v">${live.length}</div><div class="h">${gone} sold or donated${back ? ` · ${eur0(back)} back` : ''}</div></div>
+      <div class="tile"><div class="k">Closet value</div><div class="v">${eur0(value)}</div><div class="h">${saved ? `what you paid · ${eur0(saved)} saved vs original price` : 'what you paid'}</div></div>
       <div class="tile"><div class="k">Avg cost per wear</div><div class="v">${avgCpw == null ? '—' : eur(avgCpw)}</div><div class="h">across priced pieces</div></div>
       <div class="tile"><div class="k">Worn last 30 days</div><div class="v">${live.length ? Math.round(worn30 / live.length * 100) : 0}%</div><div class="h">${worn30} of ${live.length} pieces</div></div>
     </div>
@@ -981,14 +1164,12 @@ function renderStats(host) {
       <div class="panel"><h3>Colour palette</h3><p class="hint">Main colour of each piece.</p>
         ${colorList.length ? `<div class="colorstrip">${colorList.map(([c, n]) => `<div title="${esc(c)}: ${n}" style="flex:${n};background:${swatchBg(c)}"></div>`).join('')}</div>
           <div class="legend">${colorList.map(([c, n]) => `<span><i style="background:${swatchBg(c)}"></i>${esc(c)} <span class="mono muted">${Math.round(n / colorTotal * 100)}%</span></span>`).join('')}</div>` : `<p class="muted">Add colours to your pieces to see your palette.</p>`}</div>
-      <div class="panel"><h3>Spending</h3><p class="hint">By purchase date, last 12 months: ${eur0(spent12)}.</p>
-        <div class="months">${months.map(m => `<div class="col"><span class="amt">${m.v ? eur0(m.v) : ''}</span><div class="b ${m.v ? '' : 'zero'}" style="height:${Math.max(2, m.v / maxM * 120)}px"></div><span class="m">${m.label}</span></div>`).join('')}</div></div>
+      <div class="panel"><h3>Spending</h3><p class="hint">By purchase date, last 12 months: ${eur0(spend.total)}.</p>${spend.html}</div>
       <div class="panel wide"><h3>Account &amp; backup</h3><p class="hint">Signed in as ${esc(EMAIL)}. Photos and data live in your Supabase project.</p>
         <div id="storage" class="muted">Checking photo storage…</div>
         <div id="importStatus" class="busy" style="margin-top:6px">${esc(S.importMsg || '')}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn" id="exportBtn">Download backup (.json)</button><button class="btn" id="importBtn" type="button">Import from file</button><input type="file" id="importFile" class="vh" accept=".json,application/json"><button class="btn ghost" id="signOut">Sign out on this device</button></div></div>
     </div>`;
-  host.onclick = e => { const it = e.target.closest('[data-item]'); if (it) openItem(it.dataset.item); };
   $('#exportBtn', host).addEventListener('click', exportBackup);
   $('#importBtn', host).addEventListener('click', () => $('#importFile', host).click());
   $('#importFile', host).addEventListener('change', async e => {
@@ -1005,6 +1186,71 @@ function renderStats(host) {
     const bytes = (data || []).reduce((a, f) => a + (f.metadata?.size || 0), 0), max = 1024 ** 3;
     el.innerHTML = `${data.length} photos · ${(bytes / 1048576).toFixed(1)} MB of 1 GB free storage<div class="meter"><div style="width:${Math.min(100, bytes / max * 100)}%"></div></div>`;
   });
+}
+function statsBreakdown(host) {
+  const live = S.items.filter(inCloset);
+  if (!live.length) { host.innerHTML = `<p class="muted">Add pieces to your closet to see how it breaks down.</p>`; return; }
+  const panel = (title, hint, html, wide) => `<div class="panel${wide ? ' wide' : ''}"><h3>${title}</h3><p class="hint">${hint}</p>${html}</div>`;
+  const catOrder = [...cats(), ...new Set(live.map(i => i.cat).filter(c => c && !cats().includes(c)))];
+  const priceSum = l => l.reduce((a, i) => a + (Number(i.price) || 0), 0);
+  const avgCpwOf = l => { const p = l.filter(i => i.price > 0), w = p.reduce((a, i) => a + wearCount(i), 0); return w ? eur(priceSum(p) / w) : '—'; };
+  const goBtn = (k, v) => `<button data-go="${k}" data-v="${esc(v)}">${esc(v)}</button>`;
+  const catRows = catOrder.map(c => ({ c, l: live.filter(i => i.cat === c) })).filter(x => x.l.length);
+  const catTable = tbl(['Category', 'Pieces', 'Value', 'Wears', 'Per wear'],
+    catRows.map(({ c, l }) => [goBtn('cat', c), l.length, eur0(priceSum(l)), l.reduce((a, i) => a + wearCount(i), 0), avgCpwOf(l)]),
+    ['Total', live.length, eur0(priceSum(live)), live.reduce((a, i) => a + wearCount(i), 0), avgCpwOf(live)]);
+  // brands: everything you've bought, including what has gone since
+  const all = owned(), bm = new Map();
+  for (const i of all) { const b = String(i.brand || '').trim(); if (!b) continue; const e = bm.get(b.toLowerCase()) || { b, l: [] }; e.l.push(i); bm.set(b.toLowerCase(), e); }
+  const brands = [...bm.values()].sort((x, y) => priceSum(y.l) - priceSum(x.l) || y.l.length - x.l.length);
+  const brandTable = brands.length ? tbl(['Brand', 'Pieces', 'Spent', 'Avg price', 'Wears'],
+    brands.slice(0, 25).map(({ b, l }) => { const p = l.filter(i => i.price > 0); return [goBtn('brand', b), l.length, eur0(priceSum(l)), p.length ? eur0(priceSum(p) / p.length) : '—', l.reduce((a, i) => a + wearCount(i), 0)]; }))
+    + (brands.length > 25 ? `<p class="muted" style="font-size:12.5px">Top 25 of ${brands.length} brands by spend.</p>` : '') : `<p class="muted">Add brands to your pieces to see this.</p>`;
+  const multiHint = 'A piece with more than one counts once for each.';
+  host.innerHTML = `<div class="panels">
+    ${panel('Categories', 'Pieces in your closet. Tap a slice or name to see them.', donut(countBy(live, i => one(i.cat)), { k: 'cat', order: catOrder.length <= 7 ? catOrder : null }))}
+    ${panel('Colours', multiHint, donut(countBy(live, i => i.colors || []), { k: 'colors', swatch: true, unit: 'colours', empty: 'Add colours to your pieces to see this.' }))}
+    ${panel('Materials', multiHint, donut(countBy(live, i => i.materials || []), { k: 'materials', unit: 'materials', empty: 'Tap materials on your pieces to see this.' }))}
+    ${panel('Brands', 'Pieces in your closet per brand.', donut(countBy(live, i => one(i.brand)), { k: 'brand' }))}
+    ${panel('Condition', 'How your pieces are holding up.', donut(countBy(live, i => one(i.condition)), { k: 'condition', order: CONDITIONS }))}
+    ${panel('New or secondhand', 'How you got your pieces.', donut(countBy(live, i => one(i.acquired)), { k: 'acquired', order: ACQUIRED }))}
+    ${panel('Online or in store', 'Where you bought them.', donut(countBy(live, i => one(i.purchasePlace)), { k: 'purchasePlace', order: PLACES }))}
+    ${panel('Shops', 'Where your pieces come from.', donut(countBy(live, i => one(i.shop)), { k: 'shop', empty: 'Add a shop or store name to your pieces to see this.' }))}
+    ${panel('Per category', 'What each category is worth and how hard it works. Per wear = what you paid ÷ wears, for priced pieces.', catTable, true)}
+    ${panel('Per brand', 'Everything you bought, including pieces you have sold or given away.', brandTable, true)}
+  </div>`;
+}
+function statsMoney(host) {
+  const all = owned();
+  const deals = all.filter(i => saving(i) > 0);
+  const sh = deals.filter(i => i.acquired === 'Secondhand'), sale = deals.filter(i => i.acquired !== 'Secondhand');
+  const sum = l => l.reduce((a, i) => a + saving(i), 0);
+  const paidOf = l => l.reduce((a, i) => a + (Number(i.price) || 0), 0);
+  const origOf = l => l.reduce((a, i) => a + (Number(i.origPrice) || 0), 0);
+  const pct = i => Math.round(saving(i) / i.origPrice * 100);
+  const avgPct = deals.length ? Math.round(sum(deals) / origOf(deals) * 100) : 0;
+  const perMonth = monthCols(deals, i => i.bought, saving);
+  const undated = deals.filter(i => !i.bought).length;
+  const top = [...deals].sort((a, b) => saving(b) - saving(a)).slice(0, 10);
+  const wishSale = S.items.filter(i => isWish(i) && saving(i) > 0).sort((a, b) => pct(b) - pct(a));
+  const sold = all.filter(i => i.status === 'sold'), donated = all.filter(i => i.status === 'donated');
+  const back = sold.reduce((a, i) => a + (Number(i.soldPrice) || 0), 0);
+  const gone = [...sold, ...donated].sort((a, b) => String(b.goneDate || '').localeCompare(String(a.goneDate || '')));
+  const backMonths = monthCols(sold, i => i.goneDate, i => Number(i.soldPrice));
+  const dealSub = i => esc([i.acquired === 'Secondhand' ? 'Secondhand' : 'Sale', i.brand].filter(Boolean).join(' · ')) + ` · paid ${eur0(i.price)} of ${eur0(i.origPrice)}`;
+  host.innerHTML = `<div class="tiles">
+      <div class="tile"><div class="k">Total saved</div><div class="v">${eur0(sum(deals))}</div><div class="h">on ${deals.length} ${deals.length === 1 ? 'piece' : 'pieces'} vs the original price</div></div>
+      <div class="tile"><div class="k">On sales</div><div class="v">${eur0(sum(sale))}</div><div class="h">${sale.length} new ${sale.length === 1 ? 'piece' : 'pieces'} bought on sale</div></div>
+      <div class="tile"><div class="k">Secondhand</div><div class="v">${eur0(sum(sh))}</div><div class="h">${sh.length} ${sh.length === 1 ? 'piece' : 'pieces'} where the new price is known</div></div>
+      <div class="tile"><div class="k">Money back</div><div class="v">${eur0(back)}</div><div class="h">${sold.length} sold · ${donated.length} donated</div></div>
+    </div>
+    <div class="panels">
+      <div class="panel"><h3>Saved per month</h3><p class="hint">By purchase date, last 12 months: ${eur0(perMonth.total)}. Average discount ${avgPct}%.${undated ? ` ${undated} ${undated === 1 ? 'deal has' : 'deals have'} no purchase date.` : ''}</p>${perMonth.html}</div>
+      <div class="panel"><h3>Best deals</h3><p class="hint">Biggest savings on the original price. Fill in "Original price" on a piece to count it.</p>${rank(top, i => `−${eur0(saving(i))} <span class="muted">${pct(i)}%</span>`, dealSub, 'No deals yet. Add an original price to pieces you bought on sale or secondhand.')}</div>
+      <div class="panel"><h3>Wishlist on sale now</h3><p class="hint">${wishSale.length ? `Buying all of these now would save ${eur0(sum(wishSale))}.` : 'Pieces on your wishlist that are cheaper than their original price.'}</p>${rank(wishSale, i => `${eur0(i.price)} <span class="muted">−${pct(i)}%</span>`, i => esc(i.brand || i.shop || '') + ` · was ${eur0(i.origPrice)}`, 'Nothing on your wishlist is on sale right now.')}</div>
+      <div class="panel"><h3>Sold &amp; donated</h3><p class="hint">${sold.length ? `${eur0(back)} back from ${sold.length} sold ${sold.length === 1 ? 'piece' : 'pieces'} you paid ${eur0(paidOf(sold))} for.` : 'Mark a piece as sold or donated from its details.'}</p>
+        ${gone.length ? backMonths.html + `<div style="margin-top:14px">${rank(gone, i => i.status === 'sold' ? (i.soldPrice > 0 ? eur0(i.soldPrice) : 'sold') : 'donated', i => esc(i.status === 'sold' ? 'Sold' : 'Donated') + (i.goneDate ? ' ' + shortDate(i.goneDate) : ''))}</div>` : ''}</div>
+    </div>`;
 }
 // Adds pieces from a backup or import file; pieces already here (same id or import key) are skipped
 async function importFile(file, progress) {
@@ -1170,17 +1416,27 @@ function openCategories() {
 function openItem(id) {
   const it = S.byId[id]; if (!it) return;
   const wish = isWish(it), view = wish ? 'wishlist' : 'closet';
-  const sh = sheet({ title: it.name || 'Piece', body: '<div id="itemBody"></div>', foot: wish ? `
+  const foot = cur => wish ? `
     <button class="btn primary" data-act="buy">I bought it</button>
-    ${it.link ? `<a class="btn" href="${esc(it.link)}" target="_blank" rel="noopener">Open shop</a>` : ''}
+    ${cur.link ? `<a class="btn" href="${esc(cur.link)}" target="_blank" rel="noopener">Open shop</a>` : ''}
     <button class="btn" data-act="edit">Edit</button><div class="spacer"></div>
     <button class="btn danger" data-act="del">Delete</button>` : `
-    <button class="btn primary" data-act="worn">Worn today</button>
-    <button class="btn" data-act="outfit">Style it</button>
+    ${inCloset(cur) ? `<button class="btn primary" data-act="worn">Worn today</button>
+    <button class="btn" data-act="outfit">Style it</button>` : ''}
     <button class="btn" data-act="edit">Edit</button><div class="spacer"></div>
-    <button class="btn danger" data-act="del">Delete</button>` });
+    <button class="btn danger" data-act="del">Delete</button>`;
+  const sh = sheet({ title: it.name || 'Piece', body: '<div id="itemBody"></div><div id="goneBox"></div>', foot: foot(it) });
+  // sold / donated: an inline confirm with the date, kept out of draw() so a sync doesn't wipe what you typed
+  const G = { mode: null };
+  const drawGone = () => {
+    const cur = S.byId[id], el = $('#goneBox', sh); if (!cur || !el || wish) return;
+    el.innerHTML = G.mode ? `<div class="confirm calm"><b>${G.mode === 'sold' ? 'Sold' : 'Donated'}</b> on <input type="date" id="g-date" value="${today()}" aria-label="Date">${G.mode === 'sold' ? `for € <input class="amt" id="g-price" inputmode="decimal" placeholder="optional" aria-label="Sale price, optional">` : ''}<button class="btn small primary" data-act="goneyes">Save</button><button class="btn small" data-act="goneno">Cancel</button></div>`
+      : inCloset(cur) ? `<div class="goneact"><span class="muted">Not in your closet anymore?</span><button class="btn small" data-act="sold">Sold</button><button class="btn small" data-act="donated">Donated</button></div>`
+      : `<div class="goneact"><span class="muted">${cur.status === 'sold' ? 'Sold' : 'Donated'}${cur.goneDate ? ' on ' + niceDate(cur.goneDate) : ''}${cur.status === 'sold' && cur.soldPrice > 0 ? ' for ' + eur(cur.soldPrice) : ''}</span><button class="btn small" data-act="undogone">Back to my closet</button></div>`;
+  };
   const draw = () => {
     const cur = S.byId[id]; if (!cur) { closeSheet(); return; }
+    $('.sf', sh).innerHTML = foot(cur);
     const w = wearCount(cur), c = cpw(cur), sv = saving(cur);
     const outfits = S.outfits.filter(o => (o.pieces || []).some(p => p.id === id));
     const row = (label, html) => html ? `<dt>${label}</dt><dd>${html}</dd>` : '';
@@ -1201,12 +1457,16 @@ function openItem(id) {
           ${row('Type', cur.sub ? fchip('sub', cur.sub) : '')}
           ${row('Colour', list('colors', cur.colors) || '—')}
           ${row('Size', cur.size ? fchip('size', cur.size) : '—')}
+          ${row('Article no.', cur.articleNo ? `<span class="mono">${esc(cur.articleNo)}</span> <button class="chip link" data-copy="${esc(cur.articleNo)}">copy</button>` : '')}
           ${row('Fit', list('fits', cur.fits))}
           ${row('Condition', cur.condition ? fchip('condition', cur.condition) : '')}
+          ${row('New or 2nd-hand', cur.acquired ? fchip('acquired', cur.acquired) : '')}
+          ${row(wish ? 'Where to buy' : 'Where bought', cur.purchasePlace ? fchip('purchasePlace', cur.purchasePlace) : '')}
           ${row('Occasion', list('occasions', cur.occasions))}
           ${row('Season', list('seasons', cur.seasons) || 'All year')}
           ${row('Material', [list('materials', cur.materials), cur.material ? `<span class="muted">${esc(cur.material)}</span>` : ''].filter(Boolean).join(' '))}
           ${wish ? row('On list since', cur.wishSince ? niceDate(cur.wishSince) : '') : row('Bought', niceDate(cur.bought))}
+          ${!wish && !inCloset(cur) ? row(cur.status === 'sold' ? 'Sold on' : 'Donated on', niceDate(cur.goneDate) + (cur.status === 'sold' && cur.soldPrice > 0 ? ` · for <b>${eur(cur.soldPrice)}</b>` : '')) : ''}
           ${row('Tags', list('tags', cur.tags))}
           ${row('Shop', cur.shop ? fchip('shop', cur.shop) + (cur.link ? ` · <a href="${esc(cur.link)}" target="_blank" rel="noopener">view</a>` : '') : cur.link ? `<a href="${esc(cur.link)}" target="_blank" rel="noopener">View in shop</a>` : '')}
           ${row('Notes', cur.notes ? esc(cur.notes) : '')}
@@ -1215,11 +1475,14 @@ function openItem(id) {
         ${outfits.length ? `<div><span class="lbl" style="display:block;margin-bottom:6px">In ${outfits.length} outfit${outfits.length > 1 ? 's' : ''}</span><div class="outpick">${outfits.map(o => `<button data-goout="${esc(o.id)}">${boardHTML(o.pieces)}<span>${esc(o.name || 'Outfit')}</span></button>`).join('')}</div></div>` : ''}
         <div id="delConfirm"></div>
       </div></div>`;
+    if (!G.mode) drawGone();
   };
   draw(); S.sheetRefresh = draw;
   sh.addEventListener('click', async e => {
     const og = e.target.closest('[data-goout]'); if (og) return openOutfit(og.dataset.goout);
     const gf = e.target.closest('[data-go]'); if (gf) return goFilter(view, gf.dataset.go, gf.dataset.v);
+    const cp = e.target.closest('[data-copy]');
+    if (cp) { try { await navigator.clipboard.writeText(cp.dataset.copy); toast('Article number copied'); } catch { toast(cp.dataset.copy); } return; }
     const a = e.target.closest('[data-act]')?.dataset.act; if (!a) return;
     if (a === 'worn') { try { await addToDay(today(), [id]); toast('Logged for today'); } catch (err) { saveErr(err, 'Could not log that. Try again.'); } }
     if (a === 'edit') openEditor(id);
@@ -1227,6 +1490,18 @@ function openItem(id) {
     if (a === 'outfit') openBuilder(null, autoLayout([id]));
     if (a === 'del') $('#delConfirm', sh).innerHTML = `<div class="confirm">Delete this piece and its photo for good? <button class="btn small danger" data-act="delyes">Delete</button><button class="btn small" data-act="delno">Keep it</button></div>`;
     if (a === 'delno') $('#delConfirm', sh).innerHTML = '';
+    if (a === 'sold' || a === 'donated') { G.mode = a; drawGone(); $('#g-date', sh)?.focus(); }
+    if (a === 'goneno') { G.mode = null; drawGone(); }
+    if (a === 'goneyes' || a === 'undogone') {
+      const { id: _, goneDate, soldPrice, ...data } = S.byId[id];
+      let doc = { ...data, status: 'closet', updated: Date.now() };
+      if (a === 'goneyes') {
+        const v = ($('#g-price', sh)?.value || '').trim().replace(/[\s€]/g, '').replace(',', '.');
+        doc = { ...doc, status: G.mode, goneDate: $('#g-date', sh).value || today(), ...(G.mode === 'sold' ? { soldPrice: v ? Number(v) || 0 : null } : {}) };
+      }
+      try { await DB.put('items', id, doc); G.mode = null; drawGone(); toast(doc.status === 'sold' ? 'Marked as sold' : doc.status === 'donated' ? 'Marked as donated' : 'Back in your closet'); }
+      catch (err) { saveErr(err, 'Could not save that. Try again.'); }
+    }
     if (a === 'delyes') {
       const cur = S.byId[id];
       try { await DB.del('items', id); deletePhoto(cur?.photo); closeSheet(); toast('Piece deleted'); }
@@ -1267,6 +1542,7 @@ function openEditor(id, opts = {}) {
         <div class="field"><label for="f-sub">Type</label><input id="f-sub" value="${esc(it.sub)}" placeholder="e.g. Jumper, wide-leg jeans" autocomplete="off">${sugRow('sub', [])}</div>
         <div class="field"><label for="f-brand">Brand</label><input id="f-brand" value="${esc(it.brand)}" autocomplete="off">${sugRow('brand', [])}</div>
         <div class="field"><label for="f-size">Size</label><input id="f-size" value="${esc(it.size)}" placeholder="e.g. M, 38, 27/30" autocomplete="off">${sugRow('size', [])}</div>
+        <div class="field"><label for="f-art">Article number</label><input id="f-art" value="${esc(it.articleNo)}" placeholder="from the label or shop page" autocomplete="off" autocapitalize="characters"></div>
         <div class="field"><label for="f-price">${wishMode ? 'Price now (€)' : 'Price paid (€)'}</label><input id="f-price" inputmode="decimal" value="${money2(it.price)}" placeholder="0,00"></div>
         <div class="field"><label for="f-orig">Original price (€)</label><input id="f-orig" inputmode="decimal" value="${money2(it.origPrice)}" placeholder="before any sale"></div>
         ${wishMode ? `<div class="field"><label for="f-since">On wishlist since</label><input id="f-since" type="date" value="${esc(it.wishSince)}"></div>`
@@ -1277,11 +1553,16 @@ function openEditor(id, opts = {}) {
         <div class="field full"><span class="lbl">Colours · tap all that apply</span><div class="togglegroup" id="f-colors">${COLORS.map(([n]) => `<button type="button" class="chip" data-color="${n}" aria-pressed="${it.colors.includes(n)}"><i class="dot" style="background:${swatchBg(n)}"></i>${n}</button>`).join('')}</div><span class="muted" id="f-colornames" style="font-size:12.5px"></span></div>
         <div class="field full"><span class="lbl">Fit · tap all that apply</span><div class="togglegroup">${FITS.map(s => `<button type="button" class="chip" data-multi="fits" data-v="${s}" aria-pressed="${it.fits.includes(s)}">${s}</button>`).join('')}</div></div>
         <div class="field full"><span class="lbl">Material · tap all that apply</span><div class="togglegroup">${MATERIALS.map(s => `<button type="button" class="chip" data-multi="materials" data-v="${s}" aria-pressed="${it.materials.includes(s)}">${s}</button>`).join('')}</div></div>
+        <div class="field"><span class="lbl">New or secondhand</span><div class="togglegroup">${ACQUIRED.map(v => `<button type="button" class="chip" data-one="acquired" data-v="${v}" aria-pressed="${it.acquired === v}">${v}</button>`).join('')}</div></div>
+        <div class="field"><span class="lbl">${wishMode ? 'Where to buy' : 'Where bought'}</span><div class="togglegroup">${PLACES.map(v => `<button type="button" class="chip" data-one="purchasePlace" data-v="${v}" aria-pressed="${it.purchasePlace === v}">${v}</button>`).join('')}</div></div>
+        <div class="field full"><label for="f-shop">Shop or store name</label><input id="f-shop" value="${esc(it.shop)}" placeholder="e.g. Zara, Vinted, a vintage store" autocomplete="off">${sugRow('shop', [])}</div>
         ${wishMode ? '' : `<div class="field full"><span class="lbl">Condition</span><div class="togglegroup">${CONDITIONS.map(c => `<button type="button" class="chip" data-cond="${c}" aria-pressed="${it.condition === c}">${c}</button>`).join('')}</div></div>`}
         <div class="field full"><span class="lbl">Occasion</span><div class="togglegroup">${OCCASIONS.map(s => `<button type="button" class="chip" data-multi="occasions" data-v="${s}" aria-pressed="${it.occasions.includes(s)}">${s}</button>`).join('')}</div></div>
         <div class="field full"><span class="lbl">Season</span><div class="togglegroup">${SEASONS.map(s => `<button type="button" class="chip" data-multi="seasons" data-v="${s}" aria-pressed="${it.seasons.includes(s)}">${s}</button>`).join('')}</div></div>
         <div class="field"><label for="f-tags">Tags</label><input id="f-tags" value="${esc(it.tags.join(', '))}" placeholder="work, going out, cosy"></div>
         <div class="field" ${review || buying ? 'hidden' : ''}><label for="f-status">Status</label><select id="f-status"><option value="closet">In my closet</option><option value="wishlist">On my wishlist</option><option value="sold">Sold</option><option value="donated">Donated</option></select></div>
+        <div class="field" id="goneF" hidden><label for="f-gone">Sold or donated on</label><input id="f-gone" type="date" value="${esc(it.goneDate)}"></div>
+        <div class="field" id="soldF" hidden><label for="f-sold">Sold for (€)</label><input id="f-sold" inputmode="decimal" value="${money2(it.soldPrice)}" placeholder="optional"></div>
         <div class="field full"><label for="f-link">Shop link</label><input id="f-link" type="url" value="${esc(it.link)}" placeholder="https://"></div>
         <div class="field full"><label for="f-notes">Notes</label><textarea id="f-notes" placeholder="Fit, what it goes with">${esc(it.notes)}</textarea></div>
       </div>
@@ -1291,13 +1572,21 @@ function openEditor(id, opts = {}) {
       <div id="discardConfirm"></div>`,
     foot: `<span class="busy" id="saveStatus"></span><div class="spacer"></div>${review ? '<button class="btn danger" id="discard">Discard</button><button class="btn" id="saveWish">Save to wishlist</button>' : '<button class="btn" data-close>Cancel</button>'}<button class="btn primary" id="saveItem">${review || buying || (!id && !wishMode) ? 'Add to closet' : !id ? 'Add to wishlist' : 'Save changes'}</button>`
   });
-  if (!review && !buying) $('#f-status', sh).value = it.status || 'closet';
+  if (!review && !buying) {
+    const stEl = $('#f-status', sh);
+    stEl.value = it.status || 'closet';
+    const syncGone = () => {
+      const v = stEl.value; $('#goneF', sh).hidden = v !== 'sold' && v !== 'donated'; $('#soldF', sh).hidden = v !== 'sold';
+      if (!$('#goneF', sh).hidden && !$('#f-gone', sh).value) $('#f-gone', sh).value = today();
+    };
+    syncGone(); stEl.addEventListener('change', syncGone);
+  }
   const colorNames = () => { $('#f-colornames', sh).textContent = it.colors.length ? `Picked: ${it.colors.join(', ')}` : ''; };
   colorNames();
   // remembered values offered as taps under brand, type, size and material
   const known = {
     brand: () => allBrands().map(b => b.name),
-    sub: () => [...new Set([...(TYPES[catKey($('#f-cat', sh).value)] || []), ...valuesOf('sub')])], size: () => valuesOf('size')
+    sub: () => [...new Set([...(TYPES[catKey($('#f-cat', sh).value)] || []), ...valuesOf('sub')])], size: () => valuesOf('size'), shop: () => valuesOf('shop')
   };
   const drawSug = key => {
     const inp = $(`#f-${key}`, sh), t = norm(inp.value);
@@ -1309,6 +1598,7 @@ function openEditor(id, opts = {}) {
   sh.addEventListener('click', async e => {
     const sg = e.target.closest('[data-sug]'); if (sg) { $(`#f-${sg.dataset.sug}`, sh).value = sg.dataset.v; drawSug(sg.dataset.sug); return; }
     const c = e.target.closest('[data-color]'); if (c) { toggleIn(it.colors, c.dataset.color); c.setAttribute('aria-pressed', it.colors.includes(c.dataset.color)); colorNames(); }
+    const o1 = e.target.closest('[data-one]'); if (o1) { const k = o1.dataset.one; it[k] = it[k] === o1.dataset.v ? '' : o1.dataset.v; $$(`[data-one="${k}"]`, sh).forEach(b => b.setAttribute('aria-pressed', it[k] === b.dataset.v)); }
     const cd = e.target.closest('[data-cond]'); if (cd) { it.condition = it.condition === cd.dataset.cond ? '' : cd.dataset.cond; $$('[data-cond]', sh).forEach(b => b.setAttribute('aria-pressed', it.condition === b.dataset.cond)); }
     const m = e.target.closest('[data-multi]'); if (m) { const arr = it[m.dataset.multi]; toggleIn(arr, m.dataset.v); m.setAttribute('aria-pressed', arr.includes(m.dataset.v)); }
     const cr = e.target.closest('[data-care]'); if (cr) { const k = cr.dataset.care; it.care[k] = it.care[k] === cr.dataset.v ? '' : cr.dataset.v; $$(`[data-care="${k}"]`, sh).forEach(b => b.setAttribute('aria-pressed', it.care[k] === b.dataset.v)); }
@@ -1356,18 +1646,19 @@ function openEditor(id, opts = {}) {
       const status = asWish ? 'wishlist' : review || buying ? 'closet' : $('#f-status', sh).value;
       const doc = {
         name, cat: $('#f-cat', sh).value, sub: $('#f-sub', sh).value.trim(), brand: $('#f-brand', sh).value.trim(),
-        size: $('#f-size', sh).value.trim(), price: num('#f-price'), origPrice: num('#f-orig'),
+        size: $('#f-size', sh).value.trim(), articleNo: $('#f-art', sh).value.trim(), price: num('#f-price'), origPrice: num('#f-orig'),
         bought: $('#f-bought', sh)?.value ?? it.bought ?? '', pastWears: Math.max(0, parseInt($('#f-past', sh)?.value, 10) || 0),
         material: $('#f-material', sh).value.trim(), colors: it.colors, seasons: it.seasons, occasions: it.occasions,
-        fits: it.fits, materials: it.materials, condition: it.condition || '',
+        fits: it.fits, materials: it.materials, condition: it.condition || '', acquired: it.acquired || '', purchasePlace: it.purchasePlace || '',
         tags: $('#f-tags', sh).value.split(',').map(s => s.trim()).filter(Boolean),
         care: it.care, careNotes: $('#f-carenotes', sh).value.trim(),
         why: $('#f-why', sh)?.value.trim() ?? it.why ?? '', wishSince: $('#f-since', sh)?.value ?? it.wishSince ?? '',
-        status, notes: $('#f-notes', sh).value.trim(), link: $('#f-link', sh).value.trim(), shop: it.shop || '',
+        status, notes: $('#f-notes', sh).value.trim(), link: $('#f-link', sh).value.trim(), shop: $('#f-shop', sh).value.trim(),
         importKey: it.importKey || '', photo: it.photo || '',
         created: review || buying ? Date.now() : (it.created || Date.now()), updated: Date.now()
       };
       if (status === 'wishlist' && !doc.wishSince) doc.wishSince = today();
+      if (status === 'sold' || status === 'donated') { doc.goneDate = $('#f-gone', sh)?.value || it.goneDate || today(); if (status === 'sold') doc.soldPrice = num('#f-sold'); }
       const oldPhoto = it.photo;
       if (PE.cur && PE.changed) { st.textContent = 'Uploading photo…'; doc.photo = await uploadPhoto(await peExport()); }
       st.textContent = 'Saving…';
@@ -1728,7 +2019,8 @@ function openDay(date, opts = {}) {
   const future = date > today();
   const sh = sheet({
     title: fromISO(date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }),
-    body: `<div><span class="lbl">Your look</span><div class="daypics" id="dayPics"></div>
+    body: `${CITIES.some(c => wxDay(date, c.k)) ? `<div class="wxcities">${CITIES.map(c => { const w = wxDay(date, c.k); return w ? `<div><span class="lbl" style="display:block">${c.name}</span><span aria-hidden="true">${wmo(w.c)[1]}</span> ${esc(wmo(w.c)[2])} · <b>${w.hi}° / ${w.lo}°</b>${w.p != null ? ` · ${w.p}% rain` : ''}</div>` : ''; }).join('')}</div>` : ''}
+      <div><span class="lbl">Your look</span><div class="daypics" id="dayPics"></div>
         <input type="file" id="lookFile" class="vh" accept="image/*" multiple>
         <p class="muted" style="font-size:12.5px;margin:6px 0 0">A mirror selfie or any photo of you wearing it. Up to 4 per day.</p></div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="muted">${future ? 'Plan what you will wear.' : 'What you wore. Each piece counts one wear.'}</span><div class="spacer"></div>
@@ -1814,7 +2106,7 @@ async function start(session) {
   UID = session.user.id; EMAIL = session.user.email || '';
   S.status = cacheLoad() ? 'ok' : 'connecting';
   derive(); $('#main').innerHTML = ''; render();
-  subscribeLive();
+  subscribeLive(); wxRefresh();
   try { await loadAll(); } catch (e) { console.error(e); S.status = 'offline'; render(); }
 }
 if (!window.supabase || !CFG.url || !CFG.key || /YOUR-/.test(CFG.url + CFG.key)) {
