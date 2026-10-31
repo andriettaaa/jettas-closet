@@ -109,6 +109,14 @@ select.pill { border: 1px solid var(--line); background: var(--surface); border-
 .chip[aria-pressed="true"] .n { color: inherit; opacity: .7; }
 .chip.zero:not([aria-pressed="true"]) { color: var(--muted); }
 .chip.ghost { background: transparent; border-style: dashed; color: var(--accent); }
+.chip.tab { border-radius: 8px; }
+.chip.tab .badge { margin-left: 2px; }
+.chip.on { background: var(--tag); color: var(--tag-ink); border-color: transparent; }
+.chips.facets { margin-bottom: 6px; }
+.carelist { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.caregroups { display: grid; gap: 12px; }
+.caregroups .togglegroup .chip { font-size: 13px; padding: 5px 11px; }
+dl.props dd .chip.link { margin-right: 6px; }
 .chip svg { width: 14px; height: 14px; }
 .chip .dot { margin-right: 0; }
 .rowlbl { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); align-self: center; padding-right: 2px; flex: none; }
@@ -226,7 +234,7 @@ select.pill { border: 1px solid var(--line); background: var(--surface); border-
 nav.bottom { display: none; }
 @media (max-width: 720px) {
   nav.tabs { display: none; }
-  nav.bottom { display: grid; grid-template-columns: repeat(4, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; background: var(--surface); border-top: 1px solid var(--line); padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); }
+  nav.bottom { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; background: var(--surface); border-top: 1px solid var(--line); padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); }
   nav.bottom button { border: 0; background: none; display: grid; justify-items: center; gap: 2px; font-size: 11.5px; font-weight: 600; color: var(--muted); padding: 6px 0; position: relative; }
   nav.bottom button svg { width: 22px; height: 22px; }
   nav.bottom button .badge { position: absolute; top: 0; left: calc(50% + 6px); }
@@ -391,6 +399,7 @@ const SLOT = {
 };
 const VIEWS = [
   ['closet', 'Closet', '<path d="M12 5.5a2 2 0 1 1 2.6 1.9c-.6.2-1 .7-1 1.3v.6L3.4 16.6c-1 .7-.5 2.4.8 2.4h15.6c1.3 0 1.8-1.7.8-2.4L13.6 9.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'],
+  ['wishlist', 'Wishlist', '<path d="M12 19.5s-7.5-4.6-7.5-10.2A4.1 4.1 0 0 1 12 7a4.1 4.1 0 0 1 7.5 2.3c0 5.6-7.5 10.2-7.5 10.2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'],
   ['outfits', 'Outfits', '<path d="M8 3 4 6l2 4 2-1v12h8V9l2 1 2-4-4-3c-.5 1.5-2 2.5-4 2.5S8.5 4.5 8 3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'],
   ['calendar', 'Calendar', '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
   ['stats', 'Stats', '<path d="M5 20V11M12 20V4M19 20v-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>']
@@ -404,7 +413,7 @@ let sb = null, UID = null, EMAIL = '';
 const S = {
   view: 'closet', status: 'connecting',
   items: [], outfits: [], days: {}, cats: DEFAULT_CATS.map(c => ({ ...c })), byId: {}, outById: {}, wears: {}, lastWorn: {},
-  f: { cat: 'All', q: '', sort: 'new', colors: [], brands: [], seasons: [], showGone: false, panel: false },
+  fv: null,
   prefs: {},
   calMonth: null, sheetRefresh: null
 };
@@ -614,7 +623,7 @@ function render() {
   if (!host || host.dataset.view !== S.view) {
     host?.remove(); host = document.createElement('div'); host.id = 'viewHost'; host.dataset.view = S.view; m.appendChild(host);
   }
-  ({ closet: renderCloset, outfits: renderOutfits, calendar: renderCalendar, stats: renderStats })[S.view](host);
+  ({ closet: renderRail, wishlist: renderRail, outfits: renderOutfits, calendar: renderCalendar, stats: renderStats })[S.view](host);
   S.sheetRefresh?.();
 }
 
@@ -640,109 +649,167 @@ function renderLogin(msg = '') {
   });
 }
 
-/* ---------- closet ---------- */
-function closetList() {
-  const f = S.f, q = f.q.trim().toLowerCase();
-  let list = S.items.filter(it => !isInbox(it) && (f.showGone || inCloset(it)));
-  if (f.cat !== 'All') list = list.filter(it => it.cat === f.cat);
-  if (f.colors.length) list = list.filter(it => (it.colors || []).some(c => f.colors.includes(c)));
-  if (f.brands.length) list = list.filter(it => f.brands.some(b => sameBrand(b, it.brand)));
-  if (f.seasons.length) list = list.filter(it => !(it.seasons || []).length || it.seasons.some(s => f.seasons.includes(s)));
-  if (q) list = list.filter(it => [it.name, it.brand, it.sub, it.cat, it.material, it.shop, ...(it.tags || []), ...(it.colors || [])].join(' ').toLowerCase().includes(q));
-  const by = {
-    new: (a, b) => (b.created || 0) - (a.created || 0),
-    worn: (a, b) => wearCount(b) - wearCount(a),
-    least: (a, b) => wearCount(a) - wearCount(b),
-    cpw: (a, b) => (cpw(b) ?? -1) - (cpw(a) ?? -1),
-    price: (a, b) => (b.price || 0) - (a.price || 0),
-    name: (a, b) => String(a.name).localeCompare(String(b.name))
-  }[f.sort] || ((a, b) => (b.created || 0) - (a.created || 0));
-  return list.sort(by);
+/* ---------- closet & wishlist ---------- */
+const OCCASIONS = ['Casual', 'Officewear', 'Formal', 'Going out', 'Loungewear', 'Activewear', 'Beachwear'];
+const CARE = [
+  ['wash', 'Washing', ['Machine 30°', 'Machine 40°', 'Machine 60°', 'Delicate cycle', 'Hand wash', 'Do not wash']],
+  ['dry', 'Drying', ['Tumble dry low', 'Tumble dry', 'No tumble dry', 'Line dry', 'Dry flat']],
+  ['iron', 'Ironing', ['Iron low', 'Iron medium', 'Iron high', 'Steam only', 'Do not iron']],
+  ['bleach', 'Bleach', ['No bleach', 'Bleach OK']],
+  ['clean', 'Dry cleaning', ['Dry clean', 'Dry clean only', 'No dry clean']]
+];
+const careTags = it => CARE.map(([k]) => it.care?.[k]).filter(Boolean);
+const one = v => (v == null || String(v).trim() === '') ? [] : [String(v).trim()];
+// Every property you can tap to filter by; within one property any match counts, across properties all must match
+const FACETS = [
+  { k: 'colors', label: 'Colour', get: it => it.colors || [], order: COLORS.map(c => c[0]) },
+  { k: 'brand', label: 'Brand', get: it => one(it.brand) },
+  { k: 'size', label: 'Size', get: it => one(it.size) },
+  { k: 'sub', label: 'Type', get: it => one(it.sub) },
+  { k: 'occasions', label: 'Occasion', get: it => it.occasions || [], order: OCCASIONS },
+  { k: 'seasons', label: 'Season', get: it => it.seasons || [], order: SEASONS },
+  { k: 'care', label: 'Care', get: careTags, order: CARE.flatMap(c => c[2]) },
+  { k: 'material', label: 'Material', get: it => one(it.material) },
+  { k: 'shop', label: 'Shop', get: it => one(it.shop) },
+  { k: 'tags', label: 'Tag', get: it => it.tags || [] }
+];
+const FACET = Object.fromEntries(FACETS.map(f => [f.k, f]));
+const norm = v => String(v ?? '').trim().toLowerCase();
+const newFilter = sort => ({ cat: 'All', q: '', sort, sel: {}, facet: 'colors', showGone: false });
+const FV = () => S.fv[S.view === 'wishlist' ? 'wishlist' : 'closet'];
+const isWish = it => it.status === 'wishlist';
+const daysOn = it => it.wishSince ? Math.max(0, Math.round((Date.now() - fromISO(it.wishSince)) / 864e5)) : it.created ? Math.max(0, Math.round((Date.now() - it.created) / 864e5)) : null;
+const saving = it => it.origPrice > 0 && it.price > 0 && it.origPrice > it.price ? it.origPrice - it.price : 0;
+const SORTS = {
+  closet: [['new', 'Newest first'], ['worn', 'Most worn'], ['least', 'Least worn'], ['cpw', 'Highest cost per wear'], ['price', 'Price'], ['name', 'Name A–Z']],
+  wishlist: [['new', 'Newest first'], ['old', 'Longest on wishlist'], ['price', 'Price high–low'], ['cheap', 'Price low–high'], ['sale', 'Biggest discount'], ['name', 'Name A–Z']]
+};
+const SORTFN = {
+  new: (a, b) => (b.created || 0) - (a.created || 0),
+  old: (a, b) => (daysOn(b) ?? 0) - (daysOn(a) ?? 0),
+  worn: (a, b) => wearCount(b) - wearCount(a),
+  least: (a, b) => wearCount(a) - wearCount(b),
+  cpw: (a, b) => (cpw(b) ?? -1) - (cpw(a) ?? -1),
+  price: (a, b) => (b.price || 0) - (a.price || 0),
+  cheap: (a, b) => (a.price ?? 1e9) - (b.price ?? 1e9),
+  sale: (a, b) => saving(b) - saving(a),
+  name: (a, b) => String(a.name).localeCompare(String(b.name))
+};
+function baseList(view, f) {
+  return S.items.filter(it => view === 'wishlist' ? isWish(it) : !isInbox(it) && !isWish(it) && (f.showGone || inCloset(it)));
 }
+function matches(it, f, skipFacet) {
+  if (skipFacet !== 'cat' && f.cat !== 'All' && it.cat !== f.cat) return false;
+  for (const fc of FACETS) {
+    if (fc.k === skipFacet) continue;
+    const want = f.sel[fc.k]; if (!want?.length) continue;
+    const have = fc.get(it).map(norm);
+    if (fc.k === 'seasons' && !have.length) continue; // no season set = all year
+    if (!have.some(v => want.includes(v))) return false;
+  }
+  const q = norm(f.q);
+  return !q || [it.name, it.brand, it.sub, it.cat, it.material, it.shop, it.size, it.why, it.notes, ...(it.tags || []), ...(it.colors || []), ...(it.occasions || [])].join(' ').toLowerCase().includes(q);
+}
+// tapping any property in a piece's details opens the closet or wishlist filtered on it
+function goFilter(view, k, value) {
+  const f = S.fv[view];
+  Object.assign(f, { cat: 'All', q: '', sel: {} });
+  if (k === 'cat') f.cat = value; else { f.sel[k] = [norm(value)]; f.facet = k; }
+  closeSheet();
+  if (S.view === view) { $('#main').innerHTML = ''; render(); window.scrollTo(0, 0); } else go(view);
+}
+const fchip = (k, v, label = v) => `<button class="chip link" data-go="${k}" data-v="${esc(v)}">${k === 'colors' ? `<i class="dot" style="background:${swatchBg(v)}"></i>` : ''}${esc(label)}</button>`;
 function itemCard(it, extraCls = '') {
-  const w = wearCount(it), c = cpw(it), inbox = isInbox(it);
-  const sub = inbox ? [it.brand || it.shop, it.price ? eur(it.price) : ''].filter(Boolean).join(' · ') : [it.brand, w ? `worn ${w}×` : 'not worn yet'].filter(Boolean).join(' · ');
-  return `<button class="card ${inCloset(it) || inbox ? '' : 'gone'} ${extraCls}" data-item="${esc(it.id)}">
-    <div class="stage">${it.photo ? pimg(it.photo, it.name, 'loading="lazy"') : PH}</div>
-    ${inbox ? `<div class="hangtag"><small>from</small>${esc((it.shop || 'link').slice(0, 14))}</div>` : c != null ? `<div class="hangtag"><small>per wear</small>${eur(c)}</div>` : ''}
+  const w = wearCount(it), c = cpw(it), inbox = isInbox(it), wish = isWish(it);
+  const sub = inbox ? [it.brand || it.shop, it.price ? eur(it.price) : ''].filter(Boolean).join(' · ')
+    : wish ? [it.brand, daysOn(it) != null ? `${daysOn(it)} days on list` : ''].filter(Boolean).join(' · ')
+    : [it.brand, w ? `worn ${w}×` : 'not worn yet'].filter(Boolean).join(' · ');
+  const tag = inbox ? `<div class="hangtag"><small>from</small>${esc((it.shop || 'link').slice(0, 14))}</div>`
+    : wish ? (it.price > 0 ? `<div class="hangtag"><small>${saving(it) ? `<s>${eur0(it.origPrice)}</s>` : 'price'}</small>${eur(it.price)}</div>` : '')
+    : c != null ? `<div class="hangtag"><small>per wear</small>${eur(c)}</div>` : '';
+  return `<button class="card ${inCloset(it) || inbox || wish ? '' : 'gone'} ${extraCls}" data-item="${esc(it.id)}">
+    <div class="stage">${it.photo ? pimg(it.photo, it.name, 'loading="lazy"') : PH}</div>${tag}
     <div class="meta"><b>${esc(it.name || 'Untitled piece')}</b><span>${esc(sub)}</span></div>
   </button>`;
 }
-function renderCloset(host) {
+function renderRail(host) {
+  const view = S.view, f = FV();
   if (!host.dataset.built) {
     host.dataset.built = '1';
     host.innerHTML = `
-      <div id="trayHost"></div>
-      <div class="viewhead"><h1>Closet</h1><span class="sub" id="closetSub"></span></div>
+      ${view === 'closet' ? '<div id="trayHost"></div>' : ''}
+      <div class="viewhead"><h1>${view === 'wishlist' ? 'Wishlist' : 'Closet'}</h1><span class="sub" id="railSub"></span></div>
       <div class="tools">
-        <div class="search">${I.search}<input id="q" type="search" placeholder="Search name, brand, colour, tag" aria-label="Search the closet"></div>
-        <select class="pill" id="sort" aria-label="Sort">
-          <option value="new">Newest first</option><option value="worn">Most worn</option><option value="least">Least worn</option>
-          <option value="cpw">Highest cost per wear</option><option value="price">Price</option><option value="name">Name A–Z</option>
-        </select>
-        <button class="btn" id="filtersBtn">Filters <span class="mono" id="fcount"></span></button>
-      </div>
-      <div class="filterpanel" id="fpanel" hidden>
-        <div><span class="lbl">Season</span><div class="togglegroup" id="fseasons"></div></div>
-        <div><label class="chip" style="cursor:pointer"><input type="checkbox" id="fgone"> Show sold &amp; donated pieces</label></div>
+        <div class="search">${I.search}<input id="q" type="search" placeholder="Search name, brand, size, colour, tag" aria-label="Search"></div>
+        <select class="pill" id="sort" aria-label="Sort">${SORTS[view].map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
       </div>
       <div class="chips" id="catChips" role="group" aria-label="Category"></div>
-      <div class="chips" id="colorChips" role="group" aria-label="Colour"></div>
-      <div class="chips" id="brandChips" role="group" aria-label="Brand"></div>
-      <div id="closetGrid"></div>`;
-    const q = $('#q', host); q.value = S.f.q;
-    q.addEventListener('input', () => { S.f.q = q.value; fillCloset(host); });
-    const so = $('#sort', host); so.value = S.f.sort;
-    so.addEventListener('change', () => { S.f.sort = so.value; pref.set('sort', so.value); fillCloset(host); });
-    $('#filtersBtn', host).addEventListener('click', () => { S.f.panel = !S.f.panel; fillCloset(host); });
-    $('#fgone', host).addEventListener('change', e => { S.f.showGone = e.target.checked; fillCloset(host); });
+      <div class="chips facets" id="facetTabs" role="group" aria-label="Filter by"></div>
+      <div class="chips" id="facetVals" role="group"></div>
+      <div class="chips" id="activeF" role="group" aria-label="Active filters"></div>
+      <div id="railGrid"></div>`;
+    const q = $('#q', host); q.value = f.q;
+    q.addEventListener('input', () => { f.q = q.value; fillRail(host); });
+    const so = $('#sort', host); so.value = SORTS[view].some(s => s[0] === f.sort) ? f.sort : 'new';
+    so.addEventListener('change', () => { f.sort = so.value; pref.set('sort:' + view, so.value); fillRail(host); });
     host.addEventListener('click', e => {
-      if (e.target.closest('[data-editcats]')) return openCategories();
-      const c = e.target.closest('[data-cat]'); if (c) { S.f.cat = c.dataset.cat; fillCloset(host); return; }
-      const col = e.target.closest('[data-fcolor]'); if (col) { toggleIn(S.f.colors, col.dataset.fcolor); fillCloset(host); return; }
-      const br = e.target.closest('[data-fbrand]'); if (br) { const b = br.dataset.fbrand, i = S.f.brands.findIndex(x => sameBrand(x, b)); i >= 0 ? S.f.brands.splice(i, 1) : S.f.brands.push(b); fillCloset(host); return; }
-      if (e.target.closest('[data-clearcolors]')) { S.f.colors = []; fillCloset(host); return; }
-      if (e.target.closest('[data-clearbrands]')) { S.f.brands = []; fillCloset(host); return; }
-      const se = e.target.closest('[data-fseason]'); if (se) { toggleIn(S.f.seasons, se.dataset.fseason); fillCloset(host); return; }
-      const it = e.target.closest('[data-item]'); if (it) { const x = S.byId[it.dataset.item]; return x && isInbox(x) ? openEditor(x.id) : openItem(it.dataset.item); }
-      if (e.target.closest('[data-add]')) openEditor();
+      const t = e.target;
+      if (t.closest('[data-editcats]')) return openCategories();
+      const c = t.closest('[data-cat]'); if (c) { f.cat = c.dataset.cat; return fillRail(host); }
+      const ft = t.closest('[data-facet]'); if (ft) { f.facet = ft.dataset.facet; return fillRail(host); }
+      const fv = t.closest('[data-fval]'); if (fv) { const k = fv.dataset.fk; f.sel[k] = f.sel[k] || []; toggleIn(f.sel[k], fv.dataset.fval); return fillRail(host); }
+      const un = t.closest('[data-unf]'); if (un) { const k = un.dataset.unf; if (k === 'cat') f.cat = 'All'; else toggleIn(f.sel[k], un.dataset.fval); return fillRail(host); }
+      if (t.closest('[data-clearall]')) { f.sel = {}; f.cat = 'All'; return fillRail(host); }
+      if (t.closest('[data-gone]')) { f.showGone = !f.showGone; return fillRail(host); }
+      const it = t.closest('[data-item]'); if (it) { const x = S.byId[it.dataset.item]; return x && isInbox(x) ? openEditor(x.id) : openItem(it.dataset.item); }
+      if (t.closest('[data-add]')) openEditor(null, view === 'wishlist' ? { wish: true } : {});
     });
   }
-  fillCloset(host);
+  fillRail(host);
 }
-function fillCloset(host) {
-  const tray = inboxItems();
-  if (tray.some(i => !i.scored && (i.candidates || []).length > 1)) setTimeout(autoPickPhotos, 0);
-  $('#trayHost', host).innerHTML = tray.length ? `<div class="tray"><h2>New from your links · ${tray.length}</h2><p>Check the details and cut-out, then add each piece to your closet.</p><div class="hscroll">${tray.map(it => itemCard(it)).join('')}</div></div>` : '';
-  const active = S.items.filter(it => !isInbox(it) && (S.f.showGone || inCloset(it)));
-  const counts = {}; for (const it of active) counts[it.cat] = (counts[it.cat] || 0) + 1;
+function fillRail(host) {
+  const view = S.view, f = FV();
+  if (view === 'closet') {
+    const tray = inboxItems();
+    if (tray.some(i => !i.scored && (i.candidates || []).length > 1)) setTimeout(autoPickPhotos, 0);
+    $('#trayHost', host).innerHTML = tray.length ? `<div class="tray"><h2>New from your links · ${tray.length}</h2><p>Check the details and cut-out, then add each piece to your closet or wishlist.</p><div class="hscroll">${tray.map(it => itemCard(it)).join('')}</div></div>` : '';
+  }
+  const base = baseList(view, f);
+  // categories: counts as if no category were picked, so you can see where the other pieces are
+  const counts = {}; let all = 0;
+  for (const it of base) if (matches(it, f, 'cat')) { counts[it.cat] = (counts[it.cat] || 0) + 1; all++; }
   const extra = Object.keys(counts).filter(c => !cats().includes(c));
   $('#catChips', host).innerHTML = `<button class="chip ghost" data-editcats aria-label="Edit categories">${I.pencil} Edit</button>` + ['All', ...cats(), ...extra].map(c =>
-    `<button class="chip ${c !== 'All' && !counts[c] ? 'zero' : ''}" data-cat="${esc(c)}" aria-pressed="${S.f.cat === c}">${esc(c)} <span class="n">${c === 'All' ? active.length : counts[c] || 0}</span></button>`).join('')
-;
-  $('#fpanel', host).hidden = !S.f.panel;
-  // colour and brand rows list only what's actually in your closet, with counts
-  const colorCount = {}; for (const it of active) for (const c of it.colors || []) colorCount[c] = (colorCount[c] || 0) + 1;
-  const colorRow = COLORS.filter(([n]) => colorCount[n] || S.f.colors.includes(n));
-  $('#colorChips', host).hidden = !colorRow.length;
-  $('#colorChips', host).innerHTML = `<span class="rowlbl">Colour</span>` + colorRow.map(([n]) => `<button class="chip" data-fcolor="${n}" aria-pressed="${S.f.colors.includes(n)}"><i class="dot" style="background:${swatchBg(n)}"></i>${n} <span class="n">${colorCount[n] || 0}</span></button>`).join('')
-    + (S.f.colors.length ? `<button class="chip ghost" data-clearcolors>Clear</button>` : '');
-  const brandCount = new Map(); for (const it of active) if (it.brand) { const k = it.brand.trim().toLowerCase(); brandCount.set(k, (brandCount.get(k) || 0) + 1); }
-  const brandRow = allBrands().filter(b => brandCount.get(b.name.toLowerCase()) || S.f.brands.some(x => sameBrand(x, b.name)));
-  $('#brandChips', host).hidden = !brandRow.length;
-  $('#brandChips', host).innerHTML = `<span class="rowlbl">Brand</span>` + brandRow.map(b => `<button class="chip" data-fbrand="${esc(b.name)}" aria-pressed="${S.f.brands.some(x => sameBrand(x, b.name))}">${esc(b.name)} <span class="n">${brandCount.get(b.name.toLowerCase()) || 0}</span></button>`).join('')
-    + (S.f.brands.length ? `<button class="chip ghost" data-clearbrands>Clear</button>` : '');
-  $('#fseasons', host).innerHTML = SEASONS.map(s => `<button class="chip" data-fseason="${s}" aria-pressed="${S.f.seasons.includes(s)}">${s}</button>`).join('');
-  const nf = S.f.seasons.length + (S.f.showGone ? 1 : 0);
-  $('#fcount', host).textContent = nf ? `(${nf})` : '';
-  const live = S.items.filter(inCloset);
-  $('#closetSub', host).textContent = live.length ? `${live.length} pieces · ${eur0(live.reduce((a, i) => a + (Number(i.price) || 0), 0))} on the rail` : '';
-  const grid = $('#closetGrid', host);
-  if (S.status === 'connecting' && !S.items.length) { grid.className = ''; grid.innerHTML = `<p class="busy">Loading your closet…</p>`; return; }
-  if (!active.length && !S.f.showGone && !live.length) { grid.className = ''; grid.innerHTML = emptyCloset(); return; }
-  const list = closetList();
+    `<button class="chip ${c !== 'All' && !counts[c] ? 'zero' : ''}" data-cat="${esc(c)}" aria-pressed="${f.cat === c}">${esc(c)} <span class="n">${c === 'All' ? all : counts[c] || 0}</span></button>`).join('');
+  // the other properties: each lists its values among the pieces the rest of the filters leave
+  const avail = FACETS.map(fc => {
+    const vals = new Map();
+    for (const it of base) if (matches(it, f, fc.k)) for (const v of fc.get(it)) { const k = norm(v); if (!k) continue; const e = vals.get(k) || { label: v, n: 0 }; e.n++; vals.set(k, e); }
+    for (const s of f.sel[fc.k] || []) if (!vals.has(s)) vals.set(s, { label: s, n: 0 });
+    return { fc, vals };
+  }).filter(a => a.vals.size);
+  if (!avail.some(a => a.fc.k === f.facet)) f.facet = avail[0]?.fc.k || 'colors';
+  $('#facetTabs', host).innerHTML = `<span class="rowlbl">Filter by</span>` + avail.map(({ fc }) => { const n = (f.sel[fc.k] || []).length; return `<button class="chip tab" data-facet="${fc.k}" aria-pressed="${f.facet === fc.k}">${fc.label}${n ? ` <span class="badge">${n}</span>` : ''}</button>`; }).join('')
+    + (view === 'closet' && S.items.some(i => i.status === 'sold' || i.status === 'donated') ? `<button class="chip" data-gone aria-pressed="${f.showGone}">Sold &amp; donated</button>` : '');
+  const cur = avail.find(a => a.fc.k === f.facet);
+  if (cur) {
+    const order = cur.fc.order;
+    const vals = [...cur.vals.entries()].sort((a, b) => order ? (order.indexOf(a[1].label) + 1 || 999) - (order.indexOf(b[1].label) + 1 || 999) : b[1].n - a[1].n || a[1].label.localeCompare(b[1].label));
+    $('#facetVals', host).innerHTML = vals.map(([k, v]) => `<button class="chip" data-fk="${cur.fc.k}" data-fval="${esc(k)}" aria-pressed="${(f.sel[cur.fc.k] || []).includes(k)}">${cur.fc.k === 'colors' ? `<i class="dot" style="background:${swatchBg(v.label)}"></i>` : ''}${esc(v.label)} <span class="n">${v.n}</span></button>`).join('');
+  } else $('#facetVals', host).innerHTML = '';
+  $('#facetVals', host).hidden = !cur;
+  const active = FACETS.flatMap(fc => (f.sel[fc.k] || []).map(v => ({ fc, v, label: avail.find(a => a.fc.k === fc.k)?.vals.get(v)?.label || v })));
+  $('#activeF', host).hidden = !active.length && f.cat === 'All';
+  $('#activeF', host).innerHTML = (f.cat !== 'All' ? `<button class="chip on" data-unf="cat">${esc(f.cat)} ×</button>` : '') + active.map(a => `<button class="chip on" data-unf="${a.fc.k}" data-fval="${esc(a.v)}">${a.fc.label}: ${esc(a.label)} ×</button>`).join('') + `<button class="chip ghost" data-clearall>Clear all</button>`;
+  const live = view === 'wishlist' ? base : S.items.filter(inCloset);
+  const total = live.reduce((a, i) => a + (Number(i.price) || 0), 0);
+  $('#railSub', host).textContent = live.length ? (view === 'wishlist' ? `${live.length} pieces · ${eur0(total)} in total` : `${live.length} pieces · ${eur0(total)} on the rail`) : '';
+  const grid = $('#railGrid', host);
+  if (S.status === 'connecting' && !S.items.length) { grid.className = ''; grid.innerHTML = `<p class="busy">Loading…</p>`; return; }
+  if (!base.length) { grid.className = ''; grid.innerHTML = view === 'wishlist' ? emptyWishlist() : emptyCloset(); return; }
+  const list = base.filter(it => matches(it, f)).sort(SORTFN[f.sort] || SORTFN.new);
   grid.className = list.length ? 'grid' : '';
-  grid.innerHTML = list.length ? list.map(it => itemCard(it)).join('') : `<p class="muted">No pieces match these filters.</p>`;
+  grid.innerHTML = list.length ? list.map(it => itemCard(it)).join('') : `<p class="muted">No pieces match these filters. <button class="chip ghost" data-clearall>Clear all</button></p>`;
 }
 function emptyCloset() {
   return `<div class="empty">${HANGER}<h2>Your rail is empty</h2>
@@ -753,6 +820,11 @@ function emptyCloset() {
       <div><b>Or share a link</b>Share a shop page to "Add to Closet" on your phone. It lands in your review tray.</div>
       <div><b>Wear &amp; log</b>Build outfits, log what you wore on the calendar, and watch cost per wear drop.</div>
     </div></div>`;
+}
+function emptyWishlist() {
+  return `<div class="empty">${HANGER}<h2>Nothing on your wishlist yet</h2>
+    <p>Add pieces you're thinking about. When you buy one, tap "I bought it" and it moves into your closet with its photo and details.</p>
+    <button class="btn primary" data-add>${I.plus} Add to wishlist</button></div>`;
 }
 
 /* ---------- outfits ---------- */
@@ -849,6 +921,7 @@ function renderStats(host) {
   const live = S.items.filter(inCloset);
   const gone = S.items.filter(i => i.status === 'sold' || i.status === 'donated').length;
   const value = live.reduce((a, i) => a + (Number(i.price) || 0), 0);
+  const saved = live.reduce((a, i) => a + saving(i), 0);
   const priced = live.filter(i => i.price > 0);
   const totalWears = priced.reduce((a, i) => a + wearCount(i), 0);
   const avgCpw = totalWears ? priced.reduce((a, i) => a + i.price, 0) / totalWears : null;
@@ -873,7 +946,7 @@ function renderStats(host) {
   host.innerHTML = `<div class="viewhead"><h1>Stats</h1><span class="sub">What your wardrobe really costs, and what it's actually used for</span></div>
     <div class="tiles">
       <div class="tile"><div class="k">On the rail</div><div class="v">${live.length}</div><div class="h">${gone} sold or donated</div></div>
-      <div class="tile"><div class="k">Closet value</div><div class="v">${eur0(value)}</div><div class="h">what you paid</div></div>
+      <div class="tile"><div class="k">Closet value</div><div class="v">${eur0(value)}</div><div class="h">${saved ? `what you paid · ${eur0(saved)} saved on sales` : 'what you paid'}</div></div>
       <div class="tile"><div class="k">Avg cost per wear</div><div class="v">${avgCpw == null ? '—' : eur(avgCpw)}</div><div class="h">across priced pieces</div></div>
       <div class="tile"><div class="k">Worn last 30 days</div><div class="v">${live.length ? Math.round(worn30 / live.length * 100) : 0}%</div><div class="h">${worn30} of ${live.length} pieces</div></div>
     </div>
@@ -892,10 +965,18 @@ function renderStats(host) {
         <div class="months">${months.map(m => `<div class="col"><span class="amt">${m.v ? eur0(m.v) : ''}</span><div class="b ${m.v ? '' : 'zero'}" style="height:${Math.max(2, m.v / maxM * 120)}px"></div><span class="m">${m.label}</span></div>`).join('')}</div></div>
       <div class="panel wide"><h3>Account &amp; backup</h3><p class="hint">Signed in as ${esc(EMAIL)}. Photos and data live in your Supabase project.</p>
         <div id="storage" class="muted">Checking photo storage…</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn" id="exportBtn">Download backup (.json)</button><button class="btn ghost" id="signOut">Sign out on this device</button></div></div>
+        <div id="importStatus" class="busy" style="margin-top:6px">${esc(S.importMsg || '')}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn" id="exportBtn">Download backup (.json)</button><label class="btn" for="importFile">Import from file</label><input type="file" id="importFile" accept=".json,application/json" hidden><button class="btn ghost" id="signOut">Sign out on this device</button></div></div>
     </div>`;
   host.onclick = e => { const it = e.target.closest('[data-item]'); if (it) openItem(it.dataset.item); };
   $('#exportBtn', host).addEventListener('click', exportBackup);
+  $('#importFile', host).addEventListener('change', async e => {
+    const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+    // the page redraws after every piece, so the message lives in state rather than in the element
+    const say = msg => { S.importMsg = msg; const el = $('#importStatus'); if (el) el.textContent = msg; };
+    try { const r = await importFile(file, say); say(`Imported ${r.done} pieces${r.skipped ? `, skipped ${r.skipped} already here` : ''}.`); toast(`Imported ${r.done} pieces`); }
+    catch (err) { console.error(err); say("That file couldn't be imported. Use a Jetta's Closet backup or import file."); }
+  });
   $('#signOut', host).addEventListener('click', async () => { await sb.auth.signOut(); });
   sb.storage.from('photos').list(UID, { limit: 1000 }).then(({ data, error }) => {
     const el = $('#storage', host); if (!el) return;
@@ -903,6 +984,28 @@ function renderStats(host) {
     const bytes = (data || []).reduce((a, f) => a + (f.metadata?.size || 0), 0), max = 1024 ** 3;
     el.innerHTML = `${data.length} photos · ${(bytes / 1048576).toFixed(1)} MB of 1 GB free storage<div class="meter"><div style="width:${Math.min(100, bytes / max * 100)}%"></div></div>`;
   });
+}
+// Adds pieces from a backup or import file; pieces already here (same id or import key) are skipped
+async function importFile(file, progress) {
+  const data = JSON.parse(await file.text());
+  const items = Array.isArray(data.items) ? data.items : [];
+  const haveKeys = new Set(S.items.map(i => i.importKey).filter(Boolean)), haveIds = new Set(S.items.map(i => i.id));
+  const todo = items.filter(i => !(i.importKey && haveKeys.has(i.importKey)) && !(i.id && haveIds.has(i.id)));
+  let done = 0;
+  const brands = new Set((S.prefs.brands || []).map(norm)), newBrands = [];
+  for (const raw of todo) {
+    const { id, photoData, catKey, ...rest } = raw;
+    const doc = { colors: [], seasons: [], tags: [], occasions: [], care: {}, ...rest, updated: Date.now() };
+    if (catKey && catName(catKey)) doc.cat = catName(catKey);
+    if (!doc.cat) doc.cat = cats()[0];
+    progress(`Importing ${done + 1} of ${todo.length}: ${doc.name || 'piece'}…`);
+    if (photoData) doc.photo = await uploadPhoto(await (await fetch(photoData)).blob());
+    await DB.put('items', id || uuid(), doc);
+    if (doc.brand && !brands.has(norm(doc.brand))) { brands.add(norm(doc.brand)); newBrands.push(doc.brand); }
+    done++;
+  }
+  if (newBrands.length) await DB.savePrefs({ brands: [...(S.prefs.brands || []), ...newBrands] }).catch(console.error);
+  return { done, skipped: items.length - todo.length };
 }
 function exportBackup() {
   const name = `jettas-closet-backup-${today()}.json`;
@@ -1036,7 +1139,7 @@ function openCategories() {
     try {
       await DB.savePrefs({ categories: C.map(c => ({ key: c.key, name: c.name, words: c.words })) });
       await DB.putMany('items', rows);
-      if (S.f.cat !== 'All' && !cats().includes(S.f.cat)) S.f.cat = moves[S.f.cat] || 'All';
+      for (const f of Object.values(S.fv)) if (f.cat !== 'All' && !cats().includes(f.cat)) f.cat = moves[f.cat] || 'All';
       closeSheet(); toast('Categories saved'); render();
     } catch (err) { saveErr(err, 'Could not save categories. Try again.'); st.textContent = ''; btn.disabled = false; }
   });
@@ -1045,31 +1148,47 @@ function openCategories() {
 /* ---------- item detail ---------- */
 function openItem(id) {
   const it = S.byId[id]; if (!it) return;
-  const sh = sheet({ title: it.name || 'Piece', body: '<div id="itemBody"></div>', foot: `
+  const wish = isWish(it), view = wish ? 'wishlist' : 'closet';
+  const sh = sheet({ title: it.name || 'Piece', body: '<div id="itemBody"></div>', foot: wish ? `
+    <button class="btn primary" data-act="buy">I bought it</button>
+    ${it.link ? `<a class="btn" href="${esc(it.link)}" target="_blank" rel="noopener">Open shop</a>` : ''}
+    <button class="btn" data-act="edit">Edit</button><div class="spacer"></div>
+    <button class="btn danger" data-act="del">Delete</button>` : `
     <button class="btn primary" data-act="worn">Worn today</button>
     <button class="btn" data-act="outfit">Style it</button>
     <button class="btn" data-act="edit">Edit</button><div class="spacer"></div>
     <button class="btn danger" data-act="del">Delete</button>` });
   const draw = () => {
     const cur = S.byId[id]; if (!cur) { closeSheet(); return; }
-    const w = wearCount(cur), c = cpw(cur);
+    const w = wearCount(cur), c = cpw(cur), sv = saving(cur);
     const outfits = S.outfits.filter(o => (o.pieces || []).some(p => p.id === id));
+    const row = (label, html) => html ? `<dt>${label}</dt><dd>${html}</dd>` : '';
+    const list = (k, vals) => (vals || []).map(v => fchip(k, v)).join(' ');
+    const tagrow = wish
+      ? `<div><small>Price</small><b>${eur(cur.price)}</b></div><div><small>Original</small><b>${cur.origPrice > 0 ? eur(cur.origPrice) : '—'}</b></div><div><small>${sv ? 'Sale' : 'Saving'}</small><b>${sv ? '−' + Math.round(sv / cur.origPrice * 100) + '%' : '—'}</b></div><div><small>On list</small><b>${daysOn(cur) ?? '—'} days</b></div>`
+      : `<div><small>Paid</small><b>${eur(cur.price)}</b></div><div><small>Worn</small><b>${w}×</b></div><div><small>Per wear</small><b>${c == null ? '—' : eur(c)}</b></div><div><small>Last worn</small><b>${S.lastWorn[id] ? fromISO(S.lastWorn[id]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}</b></div>`;
+    const care = careTags(cur);
     $('#itemBody', sh).innerHTML = `<div class="detail">
       <div class="stage">${cur.photo ? pimg(cur.photo, cur.name) : PH}</div>
       <div style="display:grid;gap:14px;align-content:start;min-width:0">
-        <div><h2 style="font-size:24px">${esc(cur.name || 'Untitled piece')}</h2><span class="muted">${cur.brand ? `<button class="chip link" data-gobrand="${esc(cur.brand)}">${esc(cur.brand)}</button> · ` : ''}${esc(cur.sub || cur.cat || '')}${inCloset(cur) ? '' : ` · <b>${cur.status === 'sold' ? 'Sold' : 'Donated'}</b>`}</span></div>
-        <div class="tagrow"><div><small>Paid</small><b>${eur(cur.price)}</b></div><div><small>Worn</small><b>${w}×</b></div><div><small>Per wear</small><b>${c == null ? '—' : eur(c)}</b></div><div><small>Last worn</small><b>${S.lastWorn[id] ? fromISO(S.lastWorn[id]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}</b></div></div>
+        <div><h2 style="font-size:24px">${esc(cur.name || 'Untitled piece')}</h2><span class="muted">${cur.brand ? fchip('brand', cur.brand) + ' · ' : ''}${cur.sub ? fchip('sub', cur.sub) : esc(cur.cat || '')}${inCloset(cur) || wish ? '' : ` · <b>${cur.status === 'sold' ? 'Sold' : 'Donated'}</b>`}</span></div>
+        <div class="tagrow">${tagrow}</div>
+        ${!wish && cur.origPrice > 0 ? `<div class="note">Original price ${eur(cur.origPrice)}${sv ? ` · you saved <b>${eur(sv)}</b> (${Math.round(sv / cur.origPrice * 100)}%)` : ''}</div>` : ''}
+        ${wish && cur.why ? `<div class="note"><span class="lbl" style="display:block">Why I want it</span>${esc(cur.why)}</div>` : ''}
         <dl class="props">
-          <dt>Category</dt><dd>${esc(cur.cat || '—')}${cur.sub ? ' · ' + esc(cur.sub) : ''}</dd>
-          <dt>Colour</dt><dd>${(cur.colors || []).map(n => `<button class="chip link" data-gocolor="${esc(n)}" style="margin-right:10px"><i class="dot" style="background:${swatchBg(n)}"></i>${esc(n)}</button>`).join('') || '—'}</dd>
-          <dt>Season</dt><dd>${esc((cur.seasons || []).join(', ') || 'All year')}</dd>
-          <dt>Size</dt><dd>${esc(cur.size || '—')}</dd>
-          <dt>Material</dt><dd>${esc(cur.material || '—')}</dd>
-          <dt>Bought</dt><dd>${niceDate(cur.bought)}</dd>
-          ${(cur.tags || []).length ? `<dt>Tags</dt><dd>${esc(cur.tags.join(', '))}</dd>` : ''}
-          ${cur.link ? `<dt>Shop</dt><dd><a href="${esc(cur.link)}" target="_blank" rel="noopener">${esc(cur.shop || 'View in shop')}</a></dd>` : ''}
-          ${cur.notes ? `<dt>Notes</dt><dd>${esc(cur.notes)}</dd>` : ''}
+          ${row('Category', cur.cat ? `<button class="chip link" data-go="cat" data-v="${esc(cur.cat)}">${esc(cur.cat)}</button>` : '—')}
+          ${row('Type', cur.sub ? fchip('sub', cur.sub) : '')}
+          ${row('Colour', list('colors', cur.colors) || '—')}
+          ${row('Size', cur.size ? fchip('size', cur.size) : '—')}
+          ${row('Occasion', list('occasions', cur.occasions))}
+          ${row('Season', list('seasons', cur.seasons) || 'All year')}
+          ${row('Material', cur.material ? fchip('material', cur.material) : '')}
+          ${wish ? row('On list since', cur.wishSince ? niceDate(cur.wishSince) : '') : row('Bought', niceDate(cur.bought))}
+          ${row('Tags', list('tags', cur.tags))}
+          ${row('Shop', cur.shop ? fchip('shop', cur.shop) + (cur.link ? ` · <a href="${esc(cur.link)}" target="_blank" rel="noopener">view</a>` : '') : cur.link ? `<a href="${esc(cur.link)}" target="_blank" rel="noopener">View in shop</a>` : '')}
+          ${row('Notes', cur.notes ? esc(cur.notes) : '')}
         </dl>
+        ${care.length || cur.careNotes ? `<div><span class="lbl" style="display:block;margin-bottom:6px">Care</span><div class="carelist">${care.map(v => fchip('care', v)).join(' ')}</div>${cur.careNotes ? `<p class="muted" style="margin:6px 0 0;font-size:13.5px">${esc(cur.careNotes)}</p>` : ''}</div>` : ''}
         ${outfits.length ? `<div><span class="lbl" style="display:block;margin-bottom:6px">In ${outfits.length} outfit${outfits.length > 1 ? 's' : ''}</span><div class="outpick">${outfits.map(o => `<button data-goout="${esc(o.id)}">${boardHTML(o.pieces)}<span>${esc(o.name || 'Outfit')}</span></button>`).join('')}</div></div>` : ''}
         <div id="delConfirm"></div>
       </div></div>`;
@@ -1077,16 +1196,11 @@ function openItem(id) {
   draw(); S.sheetRefresh = draw;
   sh.addEventListener('click', async e => {
     const og = e.target.closest('[data-goout]'); if (og) return openOutfit(og.dataset.goout);
-    // tapping a brand or colour shows every piece that shares it
-    const gb = e.target.closest('[data-gobrand]'), gc = e.target.closest('[data-gocolor]');
-    if (gb || gc) {
-      Object.assign(S.f, { cat: 'All', q: '', colors: gc ? [gc.dataset.gocolor] : [], brands: gb ? [gb.dataset.gobrand] : [] });
-      closeSheet(); if (S.view === 'closet') { $('#main').innerHTML = ''; render(); } else go('closet');
-      return;
-    }
+    const gf = e.target.closest('[data-go]'); if (gf) return goFilter(view, gf.dataset.go, gf.dataset.v);
     const a = e.target.closest('[data-act]')?.dataset.act; if (!a) return;
     if (a === 'worn') { try { await addToDay(today(), [id]); toast('Logged for today'); } catch (err) { saveErr(err, 'Could not log that. Try again.'); } }
     if (a === 'edit') openEditor(id);
+    if (a === 'buy') openEditor(id, { buy: true });
     if (a === 'outfit') openBuilder(null, autoLayout([id]));
     if (a === 'del') $('#delConfirm', sh).innerHTML = `<div class="confirm">Delete this piece and its photo for good? <button class="btn small danger" data-act="delyes">Delete</button><button class="btn small" data-act="delno">Keep it</button></div>`;
     if (a === 'delno') $('#delConfirm', sh).innerHTML = '';
@@ -1104,53 +1218,72 @@ async function addToDay(date, ids) {
 
 /* ---------- item editor + photo cut-out ---------- */
 const PE = { canvas: null, ctx: null, w: 0, h: 0, orig: null, cur: null, hist: [], autoBefore: null, changed: false, mode: 'view', tol: 34 };
-function openEditor(id) {
+function openEditor(id, opts = {}) {
   const base = id ? S.byId[id] : null;
-  const it = base ? JSON.parse(JSON.stringify(base)) : { cat: S.f.cat !== 'All' ? S.f.cat : cats()[0], colors: [], seasons: [], tags: [], status: 'closet' };
-  it.colors = it.colors || []; it.seasons = it.seasons || []; it.tags = it.tags || [];
+  const it = base ? JSON.parse(JSON.stringify(base)) : { cat: FV().cat !== 'All' ? FV().cat : cats()[0], status: opts.wish ? 'wishlist' : 'closet', wishSince: opts.wish ? today() : '' };
+  for (const k of ['colors', 'seasons', 'tags', 'occasions']) it[k] = it[k] || [];
+  it.care = it.care || {};
   const review = it.status === 'inbox';
+  const buying = !!opts.buy;
+  if (buying) { it.status = 'closet'; it.bought = it.bought || today(); }
+  const wishMode = it.status === 'wishlist';
   Object.assign(PE, { canvas: null, orig: null, cur: null, hist: [], autoBefore: null, changed: false, mode: 'view', tol: pref.get('tol', 34) });
+  const title = review ? 'Review piece' : buying ? 'Bought it: add to closet' : id ? 'Edit piece' : wishMode ? 'Add to wishlist' : 'Add a piece';
+  const money2 = v => v != null && v !== '' ? String(v).replace('.', ',') : '';
+  const sugRow = (key, vals) => `<div class="brandsugs" data-sugfor="${key}">${vals.map(v => `<button type="button" class="chip" data-sug="${key}" data-v="${esc(v)}">${esc(v)}</button>`).join('')}</div>`;
   const sh = sheet({
-    title: review ? 'Review piece' : id ? 'Edit piece' : 'Add a piece', wide: true,
+    title, wide: true,
     body: `${review ? `<div class="note">From <b>${esc(it.shop || 'a link')}</b>${it.link ? ` · <a href="${esc(it.link)}" target="_blank" rel="noopener">open the shop page</a>` : ''}. Check the category and colour, and the cut-out below.${it.importNote ? ` <br><span class="muted">${esc(it.importNote)}: fill in what's missing.</span>` : ''}</div>` : ''}
+      ${buying ? `<div class="note">Nice! Check the price you paid and the cut-out, then it moves from your wishlist into your closet.</div>` : ''}
       ${review && (it.candidates || []).length > 1 ? `<div><span class="lbl">Shop photos · tap the one that shows just the item</span><div class="cands" id="cands"></div></div>` : ''}
       <div id="photoArea"></div>
       <h3 style="font-size:17px">Details</h3>
       <div class="form">
         <div class="field full"><label for="f-name">Name</label><input id="f-name" value="${esc(it.name)}" placeholder="e.g. Cream cable-knit jumper"></div>
         <div class="field"><label for="f-cat">Category</label><select id="f-cat">${catOptions(it.cat)}</select></div>
-        <div class="field"><label for="f-sub">Type</label><input id="f-sub" value="${esc(it.sub)}" placeholder="e.g. Jumper, wide-leg jeans"></div>
-        <div class="field"><label for="f-brand">Brand</label><input id="f-brand" value="${esc(it.brand)}" list="brandList" autocomplete="off"><datalist id="brandList">${allBrands().map(b => `<option value="${esc(b.name)}">`).join('')}</datalist><div class="brandsugs" id="brandSugs"></div></div>
-        <div class="field"><label for="f-size">Size</label><input id="f-size" value="${esc(it.size)}" placeholder="e.g. M, 38, 27/30"></div>
-        <div class="field"><label for="f-price">Price paid (€)</label><input id="f-price" inputmode="decimal" value="${it.price != null && it.price !== '' ? String(it.price).replace('.', ',') : ''}" placeholder="0,00"></div>
-        <div class="field"><label for="f-bought">Bought on</label><input id="f-bought" type="date" value="${esc(it.bought)}"></div>
-        <div class="field"><label for="f-material">Material</label><input id="f-material" value="${esc(it.material)}" placeholder="e.g. 100% wool"></div>
-        <div class="field"><label for="f-past">Worn before adding</label><input id="f-past" type="number" min="0" inputmode="numeric" value="${esc(it.pastWears || '')}" placeholder="0"></div>
+        <div class="field"><label for="f-sub">Type</label><input id="f-sub" value="${esc(it.sub)}" placeholder="e.g. Jumper, wide-leg jeans" autocomplete="off">${sugRow('sub', [])}</div>
+        <div class="field"><label for="f-brand">Brand</label><input id="f-brand" value="${esc(it.brand)}" autocomplete="off">${sugRow('brand', [])}</div>
+        <div class="field"><label for="f-size">Size</label><input id="f-size" value="${esc(it.size)}" placeholder="e.g. M, 38, 27/30" autocomplete="off">${sugRow('size', [])}</div>
+        <div class="field"><label for="f-price">${wishMode ? 'Price now (€)' : 'Price paid (€)'}</label><input id="f-price" inputmode="decimal" value="${money2(it.price)}" placeholder="0,00"></div>
+        <div class="field"><label for="f-orig">Original price (€)</label><input id="f-orig" inputmode="decimal" value="${money2(it.origPrice)}" placeholder="before any sale"></div>
+        ${wishMode ? `<div class="field"><label for="f-since">On wishlist since</label><input id="f-since" type="date" value="${esc(it.wishSince)}"></div>`
+          : `<div class="field"><label for="f-bought">Bought on</label><input id="f-bought" type="date" value="${esc(it.bought)}"></div>
+             <div class="field"><label for="f-past">Worn before adding</label><input id="f-past" type="number" min="0" inputmode="numeric" value="${esc(it.pastWears || '')}" placeholder="0"></div>`}
+        <div class="field"><label for="f-material">Material</label><input id="f-material" value="${esc(it.material)}" placeholder="e.g. 100% wool" autocomplete="off">${sugRow('material', [])}</div>
+        ${wishMode ? `<div class="field full"><label for="f-why">Why do I want it?</label><textarea id="f-why" placeholder="What makes it worth it">${esc(it.why)}</textarea></div>` : ''}
         <div class="field full"><span class="lbl">Colour</span><div class="swatches" id="f-colors">${COLORS.map(([n, h]) => `<button type="button" class="sw ${h === 'multi' ? 'multi' : ''}" style="background:${h === 'multi' ? '' : h}" data-color="${n}" aria-pressed="${it.colors.includes(n)}" title="${n}" aria-label="${n}"></button>`).join('')}</div><span class="muted" id="f-colornames" style="font-size:12.5px"></span></div>
-        <div class="field full"><span class="lbl">Season</span><div class="togglegroup" id="f-seasons">${SEASONS.map(s => `<button type="button" class="chip" data-season="${s}" aria-pressed="${it.seasons.includes(s)}">${s}</button>`).join('')}</div></div>
+        <div class="field full"><span class="lbl">Occasion</span><div class="togglegroup">${OCCASIONS.map(s => `<button type="button" class="chip" data-multi="occasions" data-v="${s}" aria-pressed="${it.occasions.includes(s)}">${s}</button>`).join('')}</div></div>
+        <div class="field full"><span class="lbl">Season</span><div class="togglegroup">${SEASONS.map(s => `<button type="button" class="chip" data-multi="seasons" data-v="${s}" aria-pressed="${it.seasons.includes(s)}">${s}</button>`).join('')}</div></div>
         <div class="field"><label for="f-tags">Tags</label><input id="f-tags" value="${esc(it.tags.join(', '))}" placeholder="work, going out, cosy"></div>
-        <div class="field" ${review ? 'hidden' : ''}><label for="f-status">Status</label><select id="f-status"><option value="closet">In my closet</option><option value="sold">Sold</option><option value="donated">Donated</option></select></div>
+        <div class="field" ${review || buying ? 'hidden' : ''}><label for="f-status">Status</label><select id="f-status"><option value="closet">In my closet</option><option value="wishlist">On my wishlist</option><option value="sold">Sold</option><option value="donated">Donated</option></select></div>
         <div class="field full"><label for="f-link">Shop link</label><input id="f-link" type="url" value="${esc(it.link)}" placeholder="https://"></div>
-        <div class="field full"><label for="f-notes">Notes</label><textarea id="f-notes" placeholder="Fit, care, what it goes with">${esc(it.notes)}</textarea></div>
+        <div class="field full"><label for="f-notes">Notes</label><textarea id="f-notes" placeholder="Fit, what it goes with">${esc(it.notes)}</textarea></div>
       </div>
+      <h3 style="font-size:17px">Care</h3>
+      <div class="caregroups">${CARE.map(([k, label, opts2]) => `<div><span class="lbl">${label}</span><div class="togglegroup">${opts2.map(o => `<button type="button" class="chip" data-care="${k}" data-v="${esc(o)}" aria-pressed="${it.care[k] === o}">${esc(o)}</button>`).join('')}</div></div>`).join('')}
+        <div class="field"><label for="f-carenotes">Care notes</label><textarea id="f-carenotes" placeholder="Anything from the label, e.g. wash inside out">${esc(it.careNotes)}</textarea></div></div>
       <div id="discardConfirm"></div>`,
-    foot: `<span class="busy" id="saveStatus"></span><div class="spacer"></div>${review ? '<button class="btn danger" id="discard">Discard</button>' : '<button class="btn" data-close>Cancel</button>'}<button class="btn primary" id="saveItem">${review || !id ? 'Add to closet' : 'Save changes'}</button>`
+    foot: `<span class="busy" id="saveStatus"></span><div class="spacer"></div>${review ? '<button class="btn danger" id="discard">Discard</button><button class="btn" id="saveWish">Save to wishlist</button>' : '<button class="btn" data-close>Cancel</button>'}<button class="btn primary" id="saveItem">${review || buying || (!id && !wishMode) ? 'Add to closet' : !id ? 'Add to wishlist' : 'Save changes'}</button>`
   });
-  if (!review) $('#f-status', sh).value = it.status || 'closet';
+  if (!review && !buying) $('#f-status', sh).value = it.status || 'closet';
   const colorNames = () => { $('#f-colornames', sh).textContent = it.colors.join(', '); };
-  const brandInput = $('#f-brand', sh);
-  const drawBrands = () => {
-    const t = brandInput.value.trim().toLowerCase();
-    const list = allBrands().filter(b => b.name.toLowerCase() !== t && (!t || b.name.toLowerCase().includes(t))).slice(0, 12);
-    $('#brandSugs', sh).innerHTML = list.map(b => `<button type="button" class="chip" data-brandsug="${esc(b.name)}">${esc(b.name)}</button>`).join('');
-  };
-  drawBrands();
-  brandInput.addEventListener('input', drawBrands);
   colorNames();
+  // remembered values offered as taps under brand, type, size and material
+  const known = {
+    brand: () => allBrands().map(b => b.name),
+    sub: () => valuesOf('sub'), size: () => valuesOf('size'), material: () => valuesOf('material')
+  };
+  const drawSug = key => {
+    const inp = $(`#f-${key}`, sh), t = norm(inp.value);
+    const vals = known[key]().filter(v => norm(v) !== t && (!t || norm(v).includes(t))).slice(0, 10);
+    $(`[data-sugfor="${key}"]`, sh).innerHTML = vals.map(v => `<button type="button" class="chip" data-sug="${key}" data-v="${esc(v)}">${esc(v)}</button>`).join('');
+  };
+  for (const key of Object.keys(known)) { drawSug(key); $(`#f-${key}`, sh).addEventListener('input', () => drawSug(key)); }
   sh.addEventListener('click', async e => {
-    const bs = e.target.closest('[data-brandsug]'); if (bs) { brandInput.value = bs.dataset.brandsug; drawBrands(); return; }
+    const sg = e.target.closest('[data-sug]'); if (sg) { $(`#f-${sg.dataset.sug}`, sh).value = sg.dataset.v; drawSug(sg.dataset.sug); return; }
     const c = e.target.closest('[data-color]'); if (c) { toggleIn(it.colors, c.dataset.color); c.setAttribute('aria-pressed', it.colors.includes(c.dataset.color)); colorNames(); }
-    const s = e.target.closest('[data-season]'); if (s) { toggleIn(it.seasons, s.dataset.season); s.setAttribute('aria-pressed', it.seasons.includes(s.dataset.season)); }
+    const m = e.target.closest('[data-multi]'); if (m) { const arr = it[m.dataset.multi]; toggleIn(arr, m.dataset.v); m.setAttribute('aria-pressed', arr.includes(m.dataset.v)); }
+    const cr = e.target.closest('[data-care]'); if (cr) { const k = cr.dataset.care; it.care[k] = it.care[k] === cr.dataset.v ? '' : cr.dataset.v; $$(`[data-care="${k}"]`, sh).forEach(b => b.setAttribute('aria-pressed', it.care[k] === b.dataset.v)); }
     if (e.target.closest('#discard')) $('#discardConfirm', sh).innerHTML = `<div class="confirm">Remove this piece from the tray? <button class="btn small danger" id="discardYes">Discard</button><button class="btn small" id="discardNo">Keep it</button></div>`;
     if (e.target.closest('#discardNo')) $('#discardConfirm', sh).innerHTML = '';
     if (e.target.closest('#discardYes')) { try { await DB.del('items', id); new Set([base?.photo, ...(base?.candidates || [])]).forEach(deletePhoto); closeSheet(); toast('Discarded'); } catch (err) { saveErr(err, 'Could not discard. Try again.'); } }
@@ -1183,47 +1316,57 @@ function openEditor(id) {
     const b = e.target.closest('[data-cand]'); if (!b || b.dataset.cand === it.photo) return;
     it.photo = b.dataset.cand; drawCands(); loadPhoto(photoURL(it.photo), true);
   });
-  if (it.photo) loadPhoto(photoURL(it.photo), review); else showPicker();
+  if (it.photo) loadPhoto(photoURL(it.photo), review || buying); else showPicker();
 
-  $('#saveItem', sh).addEventListener('click', async () => {
+  const num = sel => { const el = $(sel, sh); if (!el) return null; const v = el.value.trim().replace(/[\s€]/g, '').replace(',', '.'); return v ? Number(v) || 0 : null; };
+  const save = async asWish => {
     const btn = $('#saveItem', sh), st = $('#saveStatus', sh);
     const name = $('#f-name', sh).value.trim();
     if (!name) { $('#f-name', sh).focus(); st.textContent = 'Give the piece a name first.'; return; }
     btn.disabled = true;
     try {
-      const priceRaw = $('#f-price', sh).value.trim().replace(/[\s€]/g, '').replace(',', '.');
+      const status = asWish ? 'wishlist' : review || buying ? 'closet' : $('#f-status', sh).value;
       const doc = {
         name, cat: $('#f-cat', sh).value, sub: $('#f-sub', sh).value.trim(), brand: $('#f-brand', sh).value.trim(),
-        size: $('#f-size', sh).value.trim(), price: priceRaw ? Number(priceRaw) || 0 : null, bought: $('#f-bought', sh).value || '',
-        material: $('#f-material', sh).value.trim(), pastWears: Math.max(0, parseInt($('#f-past', sh).value, 10) || 0),
-        colors: it.colors, seasons: it.seasons, tags: $('#f-tags', sh).value.split(',').map(s => s.trim()).filter(Boolean),
-        status: review ? 'closet' : $('#f-status', sh).value, notes: $('#f-notes', sh).value.trim(),
-        link: $('#f-link', sh).value.trim(), shop: it.shop || '',
-        photo: it.photo || '', created: review ? Date.now() : (it.created || Date.now()), updated: Date.now()
+        size: $('#f-size', sh).value.trim(), price: num('#f-price'), origPrice: num('#f-orig'),
+        bought: $('#f-bought', sh)?.value ?? it.bought ?? '', pastWears: Math.max(0, parseInt($('#f-past', sh)?.value, 10) || 0),
+        material: $('#f-material', sh).value.trim(), colors: it.colors, seasons: it.seasons, occasions: it.occasions,
+        tags: $('#f-tags', sh).value.split(',').map(s => s.trim()).filter(Boolean),
+        care: it.care, careNotes: $('#f-carenotes', sh).value.trim(),
+        why: $('#f-why', sh)?.value.trim() ?? it.why ?? '', wishSince: $('#f-since', sh)?.value ?? it.wishSince ?? '',
+        status, notes: $('#f-notes', sh).value.trim(), link: $('#f-link', sh).value.trim(), shop: it.shop || '',
+        importKey: it.importKey || '', photo: it.photo || '',
+        created: review || buying ? Date.now() : (it.created || Date.now()), updated: Date.now()
       };
+      if (status === 'wishlist' && !doc.wishSince) doc.wishSince = today();
       const oldPhoto = it.photo;
-      if (PE.cur && PE.changed) {
-        st.textContent = 'Uploading photo…';
-        doc.photo = await uploadPhoto(await peExport());
-      }
+      if (PE.cur && PE.changed) { st.textContent = 'Uploading photo…'; doc.photo = await uploadPhoto(await peExport()); }
       st.textContent = 'Saving…';
       // "cos" and "COS" are the same brand: keep the spelling you used first
-      const known = doc.brand && allBrands().find(b => sameBrand(b.name, doc.brand));
-      if (known) doc.brand = known.name;
+      const kb = doc.brand && allBrands().find(b => sameBrand(b.name, doc.brand));
+      if (kb) doc.brand = kb.name;
       const newId = id || uuid();
       await DB.put('items', newId, doc);
       if (doc.brand && !(S.prefs.brands || []).some(b => sameBrand(b, doc.brand))) DB.savePrefs({ brands: [...(S.prefs.brands || []), doc.brand] }).catch(console.error);
       if (oldPhoto && doc.photo !== oldPhoto) deletePhoto(oldPhoto);
       (base?.candidates || []).forEach(p => { if (p !== doc.photo && p !== oldPhoto) deletePhoto(p); });
-      closeSheet(); toast(review || !id ? 'Added to your closet' : 'Saved');
+      closeSheet(); toast(status === 'wishlist' ? (id && !review ? 'Saved' : 'On your wishlist') : review || buying || !id ? 'Added to your closet' : 'Saved');
       const next = inboxItems()[0];
       if (review && next) setTimeout(() => openEditor(next.id), 80);
-      else if (!id) setTimeout(() => openItem(newId), 80);
+      else if (!id || buying) setTimeout(() => openItem(newId), 80);
     } catch (e) {
       st.textContent = !navigator.onLine ? "You're offline. Try again when you're connected." : 'Could not save. Check your connection and try again.';
       console.error(e); btn.disabled = false;
     }
-  });
+  };
+  $('#saveItem', sh).addEventListener('click', () => save(false));
+  $('#saveWish', sh)?.addEventListener('click', () => save(true));
+}
+// distinct values you've used for a property, most used first
+function valuesOf(k) {
+  const m = new Map();
+  for (const i of S.items) { const v = String(i[k] || '').trim(); if (!v) continue; const key = v.toLowerCase(); const e = m.get(key) || { v, n: 0 }; e.n++; m.set(key, e); }
+  return [...m.values()].sort((a, b) => b.n - a.n).map(e => e.v);
 }
 
 function loadImage(src) {
@@ -1632,8 +1775,8 @@ function openDay(date, opts = {}) {
 }
 
 /* ---------- boot ---------- */
-$('#addBtn').addEventListener('click', () => openEditor());
-S.f.sort = pref.get('sort', 'new');
+$('#addBtn').addEventListener('click', () => openEditor(null, S.view === 'wishlist' ? { wish: true } : {}));
+S.fv = { closet: newFilter(pref.get('sort:closet', pref.get('sort', 'new'))), wishlist: newFilter(pref.get('sort:wishlist', 'new')) };
 const h = (location.hash || '').slice(1);
 S.view = VIEWS.some(v => v[0] === h) ? h : pref.get('view', 'closet');
 
