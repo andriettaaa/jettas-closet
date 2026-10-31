@@ -1619,22 +1619,23 @@ function openEditor(id, opts = {}) {
     drop.addEventListener('dragleave', () => drop.classList.remove('over'));
     drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) loadPhoto(f); });
   };
-  const loadPhoto = async (src, autoCut) => {
+  const loadPhoto = async (src, autoCut, shot) => {
     photoArea.innerHTML = `<p class="busy">Opening photo…</p>`;
     try { await peLoad(src); } catch { toast("This photo can't be opened here. Save it as JPEG or PNG and try again."); showPicker(); return; }
     const fresh = typeof src !== 'string';
     if (fresh) PE.changed = true;
     peUI(photoArea, showPicker);
-    if ((fresh || autoCut) && !peHasAlpha()) peAuto();
-    if (autoCut) $('.tip', photoArea).textContent = 'Background removed automatically from the shop photo. Tap Original to keep it as it was.';
+    if ((fresh || autoCut) && !peHasAlpha()) { peAuto(); if (shot) { keepMainPiece(); peDraw(); } }
+    if (shot) $('.tip', photoArea).textContent = 'Cut out of your screenshot automatically. Not right? Tap Original, or crop the screenshot in Photos and share it again.';
+    else if (autoCut) $('.tip', photoArea).textContent = 'Background removed automatically from the shop photo. Tap Original to keep it as it was.';
   };
   const drawCands = () => { const el = $('#cands', sh); if (el) el.innerHTML = it.candidates.map(p => `<button type="button" class="cand" data-cand="${esc(p)}" aria-pressed="${p === it.photo}" aria-label="Use this shop photo">${pimg(p, '', 'loading="lazy"')}</button>`).join(''); };
   drawCands();
   $('#cands', sh)?.addEventListener('click', e => {
     const b = e.target.closest('[data-cand]'); if (!b || b.dataset.cand === it.photo) return;
-    it.photo = b.dataset.cand; drawCands(); loadPhoto(photoURL(it.photo), true);
+    it.photo = b.dataset.cand; drawCands(); loadPhoto(photoURL(it.photo), true, it.photo === it.shot);
   });
-  if (it.photo) loadPhoto(photoURL(it.photo), review || buying); else showPicker();
+  if (it.photo) loadPhoto(photoURL(it.photo), review || buying, review && !!it.shot && it.photo === it.shot); else showPicker();
 
   const num = sel => { const el = $(sel, sh); if (!el) return null; const v = el.value.trim().replace(/[\s€]/g, '').replace(',', '.'); return v ? Number(v) || 0 : null; };
   const save = async asWish => {
@@ -1769,6 +1770,29 @@ function despeckle() {
   let big = 0; for (const s of sizes) if (s > big) big = s;
   const min = Math.max(120, big * 0.02);
   for (let i = 0; i < n; i++) if (lab[i] && sizes[lab[i]] < min) d[i * 4 + 3] = 0;
+}
+// Screenshots: keep the piece itself and drop what's left of the shop app around it (buttons, prices, icons).
+// Separate parts close to the piece and at least a fifth of its size stay, like the second shoe of a pair.
+function keepMainPiece() {
+  const d = PE.cur.data, w = PE.w, n = w * PE.h, lab = new Int32Array(n), st = new Int32Array(n), comps = [null];
+  for (let i = 0; i < n; i++) {
+    if (lab[i] || d[i * 4 + 3] < 16) continue;
+    const L = comps.length, c = { size: 0, x0: w, y0: PE.h, x1: 0, y1: 0 }; comps.push(c);
+    let sp = 0; st[sp++] = i; lab[i] = L;
+    while (sp) {
+      const p = st[--sp], x = p % w, y = (p - x) / w; c.size++;
+      if (x < c.x0) c.x0 = x; if (x > c.x1) c.x1 = x; if (y < c.y0) c.y0 = y; if (y > c.y1) c.y1 = y;
+      if (x > 0 && !lab[p - 1] && d[(p - 1) * 4 + 3] >= 16) { lab[p - 1] = L; st[sp++] = p - 1; }
+      if (x < w - 1 && !lab[p + 1] && d[(p + 1) * 4 + 3] >= 16) { lab[p + 1] = L; st[sp++] = p + 1; }
+      if (p >= w && !lab[p - w] && d[(p - w) * 4 + 3] >= 16) { lab[p - w] = L; st[sp++] = p - w; }
+      if (p < n - w && !lab[p + w] && d[(p + w) * 4 + 3] >= 16) { lab[p + w] = L; st[sp++] = p + w; }
+    }
+  }
+  if (comps.length < 3) return;
+  let main = 1; for (let k = 2; k < comps.length; k++) if (comps[k].size > comps[main].size) main = k;
+  const M = comps[main], mx = (M.x1 - M.x0) * 0.1, my = (M.y1 - M.y0) * 0.1;
+  const keep = comps.map((c, k) => k === main || (!!c && c.size >= M.size * 0.2 && c.x1 >= M.x0 - mx && c.x0 <= M.x1 + mx && c.y1 >= M.y0 - my && c.y0 <= M.y1 + my));
+  for (let i = 0; i < n; i++) if (lab[i] && !keep[lab[i]]) d[i * 4 + 3] = 0;
 }
 function peAuto() {
   if (!PE.autoBefore) { pushHist(); PE.autoBefore = alphaSnap(); } else alphaRestore(PE.autoBefore);
