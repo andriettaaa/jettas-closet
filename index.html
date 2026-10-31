@@ -55,6 +55,8 @@
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+/* file pickers stay technically visible: Safari won't open a file field that is display:none */
+.vh { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip: rect(0 0 0 0); pointer-events: none; }
 html, body { background: var(--bg); color: var(--ink); margin: 0; }
 body { font-family: var(--body); font-size: 15px; line-height: 1.45; -webkit-font-smoothing: antialiased; padding-top: env(safe-area-inset-top, 0px); -webkit-tap-highlight-color: transparent; }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
@@ -984,10 +986,11 @@ function renderStats(host) {
       <div class="panel wide"><h3>Account &amp; backup</h3><p class="hint">Signed in as ${esc(EMAIL)}. Photos and data live in your Supabase project.</p>
         <div id="storage" class="muted">Checking photo storage…</div>
         <div id="importStatus" class="busy" style="margin-top:6px">${esc(S.importMsg || '')}</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn" id="exportBtn">Download backup (.json)</button><label class="btn" for="importFile">Import from file</label><input type="file" id="importFile" accept=".json,application/json" hidden><button class="btn ghost" id="signOut">Sign out on this device</button></div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn" id="exportBtn">Download backup (.json)</button><button class="btn" id="importBtn" type="button">Import from file</button><input type="file" id="importFile" class="vh" accept=".json,application/json"><button class="btn ghost" id="signOut">Sign out on this device</button></div></div>
     </div>`;
   host.onclick = e => { const it = e.target.closest('[data-item]'); if (it) openItem(it.dataset.item); };
   $('#exportBtn', host).addEventListener('click', exportBackup);
+  $('#importBtn', host).addEventListener('click', () => $('#importFile', host).click());
   $('#importFile', host).addEventListener('change', async e => {
     const file = e.target.files[0]; e.target.value = ''; if (!file) return;
     // the page redraws after every piece, so the message lives in state rather than in the element
@@ -1315,7 +1318,7 @@ function openEditor(id, opts = {}) {
   });
   const photoArea = $('#photoArea', sh);
   const showPicker = () => {
-    photoArea.innerHTML = `<label class="drop" id="drop"><input type="file" id="file" accept="image/*" hidden>
+    photoArea.innerHTML = `<label class="drop" id="drop"><input type="file" id="file" class="vh" accept="image/*">
       ${HANGER.replace('class="hanger"', 'class="hanger" style="width:64px;height:40px;color:var(--accent)"')}
       <span class="btn primary">Choose a photo</span>
       <p>Lay the piece flat or hang it against a plain wall. On iPhone or iPad you can take the photo right here.</p>
@@ -1726,7 +1729,7 @@ function openDay(date, opts = {}) {
   const sh = sheet({
     title: fromISO(date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }),
     body: `<div><span class="lbl">Your look</span><div class="daypics" id="dayPics"></div>
-        <input type="file" id="lookFile" accept="image/*" multiple hidden>
+        <input type="file" id="lookFile" class="vh" accept="image/*" multiple>
         <p class="muted" style="font-size:12.5px;margin:6px 0 0">A mirror selfie or any photo of you wearing it. Up to 4 per day.</p></div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="muted">${future ? 'Plan what you will wear.' : 'What you wore. Each piece counts one wear.'}</span><div class="spacer"></div>
       <div class="seg" role="group"><button data-mode="outfit">Saved outfit</button><button data-mode="pieces">Pick pieces</button></div></div>
