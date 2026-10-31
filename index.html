@@ -659,6 +659,22 @@ const CARE = [
   ['clean', 'Dry cleaning', ['Dry clean', 'Dry clean only', 'No dry clean']]
 ];
 const careTags = it => CARE.map(([k]) => it.care?.[k]).filter(Boolean);
+// Ready-made options per category, so a piece is a tap away from its exact type
+const TYPES = {
+  tops: ['T-shirt', 'Top', 'Tank top', 'Blouse', 'Shirt', 'Longsleeve', 'Bodysuit', 'Crop top', 'Polo', 'Corset top'],
+  bottoms: ['Jeans', 'Trousers', 'Wide-leg trousers', 'Skirt', 'Mini skirt', 'Midi skirt', 'Maxi skirt', 'Shorts', 'Jorts', 'Leggings', 'Sweatpants', 'Cargo pants'],
+  dresses: ['Mini dress', 'Midi dress', 'Maxi dress', 'Slip dress', 'Shirt dress', 'Knit dress', 'Jumpsuit', 'Playsuit'],
+  knitwear: ['Jumper', 'Cardigan', 'Vest', 'Turtleneck', 'Hoodie', 'Sweatshirt', 'Poncho', 'Knitted top'],
+  outerwear: ['Coat', 'Trench coat', 'Puffer', 'Jacket', 'Blazer', 'Leather jacket', 'Bomber', 'Denim jacket', 'Gilet', 'Raincoat'],
+  shoes: ['Sneakers', 'Boots', 'Ankle boots', 'Loafers', 'Ballet flats', 'Heels', 'Sandals', 'Mules', 'Slippers'],
+  bags: ['Handbag', 'Shoulder bag', 'Crossbody', 'Tote', 'Clutch', 'Backpack', 'Wallet'],
+  accessories: ['Belt', 'Scarf', 'Hat', 'Cap', 'Sunglasses', 'Necklace', 'Earrings', 'Bracelet', 'Ring', 'Watch', 'Hair accessory', 'Socks', 'Tights'],
+  activewear: ['Sports bra', 'Leggings', 'Sports top', 'Running shorts', 'Track jacket', 'Sweatpants'],
+  swim: ['Bikini', 'Swimsuit', 'Pyjamas', 'Robe', 'Loungewear set', 'Nightdress']
+};
+const FITS = ['Slim', 'Regular', 'Relaxed', 'Oversized', 'Fitted', 'Cropped', 'Longline', 'High-waisted', 'Mid-rise', 'Low-rise', 'Wide-leg', 'Straight', 'Skinny', 'Flared', 'Bootcut'];
+const MATERIALS = ['Cotton', 'Linen', 'Wool', 'Merino', 'Cashmere', 'Alpaca', 'Mohair', 'Silk', 'Satin', 'Denim', 'Leather', 'Faux leather', 'Suede', 'Polyester', 'Viscose', 'Lyocell', 'Nylon', 'Acrylic', 'Elastane', 'Knit', 'Mesh', 'Velvet', 'Corduroy', 'Fleece', 'Down'];
+const CONDITIONS = ['New with tags', 'New without tags', 'Like new', 'Very good', 'Good', 'Fair', 'Needs repair'];
 const one = v => (v == null || String(v).trim() === '') ? [] : [String(v).trim()];
 // Every property you can tap to filter by; within one property any match counts, across properties all must match
 const FACETS = [
@@ -666,10 +682,12 @@ const FACETS = [
   { k: 'brand', label: 'Brand', get: it => one(it.brand) },
   { k: 'size', label: 'Size', get: it => one(it.size) },
   { k: 'sub', label: 'Type', get: it => one(it.sub) },
+  { k: 'fits', label: 'Fit', get: it => it.fits || [], order: FITS },
   { k: 'occasions', label: 'Occasion', get: it => it.occasions || [], order: OCCASIONS },
   { k: 'seasons', label: 'Season', get: it => it.seasons || [], order: SEASONS },
   { k: 'care', label: 'Care', get: careTags, order: CARE.flatMap(c => c[2]) },
-  { k: 'material', label: 'Material', get: it => one(it.material) },
+  { k: 'materials', label: 'Material', get: it => it.materials || [], order: MATERIALS },
+  { k: 'condition', label: 'Condition', get: it => one(it.condition), order: CONDITIONS },
   { k: 'shop', label: 'Shop', get: it => one(it.shop) },
   { k: 'tags', label: 'Tag', get: it => it.tags || [] }
 ];
@@ -708,7 +726,7 @@ function matches(it, f, skipFacet) {
     if (!have.some(v => want.includes(v))) return false;
   }
   const q = norm(f.q);
-  return !q || [it.name, it.brand, it.sub, it.cat, it.material, it.shop, it.size, it.why, it.notes, ...(it.tags || []), ...(it.colors || []), ...(it.occasions || [])].join(' ').toLowerCase().includes(q);
+  return !q || [it.name, it.brand, it.sub, it.cat, it.material, it.shop, it.size, it.why, it.notes, it.condition, ...(it.tags || []), ...(it.colors || []), ...(it.occasions || []), ...(it.fits || []), ...(it.materials || [])].join(' ').toLowerCase().includes(q);
 }
 // tapping any property in a piece's details opens the closet or wishlist filtered on it
 function goFilter(view, k, value) {
@@ -1180,9 +1198,11 @@ function openItem(id) {
           ${row('Type', cur.sub ? fchip('sub', cur.sub) : '')}
           ${row('Colour', list('colors', cur.colors) || '—')}
           ${row('Size', cur.size ? fchip('size', cur.size) : '—')}
+          ${row('Fit', list('fits', cur.fits))}
+          ${row('Condition', cur.condition ? fchip('condition', cur.condition) : '')}
           ${row('Occasion', list('occasions', cur.occasions))}
           ${row('Season', list('seasons', cur.seasons) || 'All year')}
-          ${row('Material', cur.material ? fchip('material', cur.material) : '')}
+          ${row('Material', [list('materials', cur.materials), cur.material ? `<span class="muted">${esc(cur.material)}</span>` : ''].filter(Boolean).join(' '))}
           ${wish ? row('On list since', cur.wishSince ? niceDate(cur.wishSince) : '') : row('Bought', niceDate(cur.bought))}
           ${row('Tags', list('tags', cur.tags))}
           ${row('Shop', cur.shop ? fchip('shop', cur.shop) + (cur.link ? ` · <a href="${esc(cur.link)}" target="_blank" rel="noopener">view</a>` : '') : cur.link ? `<a href="${esc(cur.link)}" target="_blank" rel="noopener">View in shop</a>` : '')}
@@ -1221,7 +1241,7 @@ const PE = { canvas: null, ctx: null, w: 0, h: 0, orig: null, cur: null, hist: [
 function openEditor(id, opts = {}) {
   const base = id ? S.byId[id] : null;
   const it = base ? JSON.parse(JSON.stringify(base)) : { cat: FV().cat !== 'All' ? FV().cat : cats()[0], status: opts.wish ? 'wishlist' : 'closet', wishSince: opts.wish ? today() : '' };
-  for (const k of ['colors', 'seasons', 'tags', 'occasions']) it[k] = it[k] || [];
+  for (const k of ['colors', 'seasons', 'tags', 'occasions', 'fits', 'materials']) it[k] = it[k] || [];
   it.care = it.care || {};
   const review = it.status === 'inbox';
   const buying = !!opts.buy;
@@ -1249,9 +1269,12 @@ function openEditor(id, opts = {}) {
         ${wishMode ? `<div class="field"><label for="f-since">On wishlist since</label><input id="f-since" type="date" value="${esc(it.wishSince)}"></div>`
           : `<div class="field"><label for="f-bought">Bought on</label><input id="f-bought" type="date" value="${esc(it.bought)}"></div>
              <div class="field"><label for="f-past">Worn before adding</label><input id="f-past" type="number" min="0" inputmode="numeric" value="${esc(it.pastWears || '')}" placeholder="0"></div>`}
-        <div class="field"><label for="f-material">Material</label><input id="f-material" value="${esc(it.material)}" placeholder="e.g. 100% wool" autocomplete="off">${sugRow('material', [])}</div>
+        <div class="field"><label for="f-material">Material details</label><input id="f-material" value="${esc(it.material)}" placeholder="e.g. 80% wool, 20% nylon" autocomplete="off"></div>
         ${wishMode ? `<div class="field full"><label for="f-why">Why do I want it?</label><textarea id="f-why" placeholder="What makes it worth it">${esc(it.why)}</textarea></div>` : ''}
-        <div class="field full"><span class="lbl">Colour</span><div class="swatches" id="f-colors">${COLORS.map(([n, h]) => `<button type="button" class="sw ${h === 'multi' ? 'multi' : ''}" style="background:${h === 'multi' ? '' : h}" data-color="${n}" aria-pressed="${it.colors.includes(n)}" title="${n}" aria-label="${n}"></button>`).join('')}</div><span class="muted" id="f-colornames" style="font-size:12.5px"></span></div>
+        <div class="field full"><span class="lbl">Colours · tap all that apply</span><div class="togglegroup" id="f-colors">${COLORS.map(([n]) => `<button type="button" class="chip" data-color="${n}" aria-pressed="${it.colors.includes(n)}"><i class="dot" style="background:${swatchBg(n)}"></i>${n}</button>`).join('')}</div><span class="muted" id="f-colornames" style="font-size:12.5px"></span></div>
+        <div class="field full"><span class="lbl">Fit · tap all that apply</span><div class="togglegroup">${FITS.map(s => `<button type="button" class="chip" data-multi="fits" data-v="${s}" aria-pressed="${it.fits.includes(s)}">${s}</button>`).join('')}</div></div>
+        <div class="field full"><span class="lbl">Material · tap all that apply</span><div class="togglegroup">${MATERIALS.map(s => `<button type="button" class="chip" data-multi="materials" data-v="${s}" aria-pressed="${it.materials.includes(s)}">${s}</button>`).join('')}</div></div>
+        ${wishMode ? '' : `<div class="field full"><span class="lbl">Condition</span><div class="togglegroup">${CONDITIONS.map(c => `<button type="button" class="chip" data-cond="${c}" aria-pressed="${it.condition === c}">${c}</button>`).join('')}</div></div>`}
         <div class="field full"><span class="lbl">Occasion</span><div class="togglegroup">${OCCASIONS.map(s => `<button type="button" class="chip" data-multi="occasions" data-v="${s}" aria-pressed="${it.occasions.includes(s)}">${s}</button>`).join('')}</div></div>
         <div class="field full"><span class="lbl">Season</span><div class="togglegroup">${SEASONS.map(s => `<button type="button" class="chip" data-multi="seasons" data-v="${s}" aria-pressed="${it.seasons.includes(s)}">${s}</button>`).join('')}</div></div>
         <div class="field"><label for="f-tags">Tags</label><input id="f-tags" value="${esc(it.tags.join(', '))}" placeholder="work, going out, cosy"></div>
@@ -1266,22 +1289,24 @@ function openEditor(id, opts = {}) {
     foot: `<span class="busy" id="saveStatus"></span><div class="spacer"></div>${review ? '<button class="btn danger" id="discard">Discard</button><button class="btn" id="saveWish">Save to wishlist</button>' : '<button class="btn" data-close>Cancel</button>'}<button class="btn primary" id="saveItem">${review || buying || (!id && !wishMode) ? 'Add to closet' : !id ? 'Add to wishlist' : 'Save changes'}</button>`
   });
   if (!review && !buying) $('#f-status', sh).value = it.status || 'closet';
-  const colorNames = () => { $('#f-colornames', sh).textContent = it.colors.join(', '); };
+  const colorNames = () => { $('#f-colornames', sh).textContent = it.colors.length ? `Picked: ${it.colors.join(', ')}` : ''; };
   colorNames();
   // remembered values offered as taps under brand, type, size and material
   const known = {
     brand: () => allBrands().map(b => b.name),
-    sub: () => valuesOf('sub'), size: () => valuesOf('size'), material: () => valuesOf('material')
+    sub: () => [...new Set([...(TYPES[catKey($('#f-cat', sh).value)] || []), ...valuesOf('sub')])], size: () => valuesOf('size')
   };
   const drawSug = key => {
     const inp = $(`#f-${key}`, sh), t = norm(inp.value);
-    const vals = known[key]().filter(v => norm(v) !== t && (!t || norm(v).includes(t))).slice(0, 10);
+    const vals = known[key]().filter(v => norm(v) !== t && (!t || norm(v).includes(t))).slice(0, key === 'sub' ? 18 : 10);
     $(`[data-sugfor="${key}"]`, sh).innerHTML = vals.map(v => `<button type="button" class="chip" data-sug="${key}" data-v="${esc(v)}">${esc(v)}</button>`).join('');
   };
   for (const key of Object.keys(known)) { drawSug(key); $(`#f-${key}`, sh).addEventListener('input', () => drawSug(key)); }
+  $('#f-cat', sh).addEventListener('change', () => drawSug('sub'));
   sh.addEventListener('click', async e => {
     const sg = e.target.closest('[data-sug]'); if (sg) { $(`#f-${sg.dataset.sug}`, sh).value = sg.dataset.v; drawSug(sg.dataset.sug); return; }
     const c = e.target.closest('[data-color]'); if (c) { toggleIn(it.colors, c.dataset.color); c.setAttribute('aria-pressed', it.colors.includes(c.dataset.color)); colorNames(); }
+    const cd = e.target.closest('[data-cond]'); if (cd) { it.condition = it.condition === cd.dataset.cond ? '' : cd.dataset.cond; $$('[data-cond]', sh).forEach(b => b.setAttribute('aria-pressed', it.condition === b.dataset.cond)); }
     const m = e.target.closest('[data-multi]'); if (m) { const arr = it[m.dataset.multi]; toggleIn(arr, m.dataset.v); m.setAttribute('aria-pressed', arr.includes(m.dataset.v)); }
     const cr = e.target.closest('[data-care]'); if (cr) { const k = cr.dataset.care; it.care[k] = it.care[k] === cr.dataset.v ? '' : cr.dataset.v; $$(`[data-care="${k}"]`, sh).forEach(b => b.setAttribute('aria-pressed', it.care[k] === b.dataset.v)); }
     if (e.target.closest('#discard')) $('#discardConfirm', sh).innerHTML = `<div class="confirm">Remove this piece from the tray? <button class="btn small danger" id="discardYes">Discard</button><button class="btn small" id="discardNo">Keep it</button></div>`;
@@ -1331,6 +1356,7 @@ function openEditor(id, opts = {}) {
         size: $('#f-size', sh).value.trim(), price: num('#f-price'), origPrice: num('#f-orig'),
         bought: $('#f-bought', sh)?.value ?? it.bought ?? '', pastWears: Math.max(0, parseInt($('#f-past', sh)?.value, 10) || 0),
         material: $('#f-material', sh).value.trim(), colors: it.colors, seasons: it.seasons, occasions: it.occasions,
+        fits: it.fits, materials: it.materials, condition: it.condition || '',
         tags: $('#f-tags', sh).value.split(',').map(s => s.trim()).filter(Boolean),
         care: it.care, careNotes: $('#f-carenotes', sh).value.trim(),
         why: $('#f-why', sh)?.value.trim() ?? it.why ?? '', wishSince: $('#f-since', sh)?.value ?? it.wishSince ?? '',
@@ -1801,7 +1827,13 @@ if (!window.supabase || !CFG.url || !CFG.key || /YOUR-/.test(CFG.url + CFG.key))
     else if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') { channel?.unsubscribe(); renderLogin(); }
   });
 }
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  // when an updated version takes over, reload once so you see it straight away
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloading) { reloading = true; location.reload(); } });
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
+}
 })();
 </script>
 </body>

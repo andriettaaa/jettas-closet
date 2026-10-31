@@ -1,10 +1,11 @@
 // Keeps Jetta’s Closet opening offline: the app itself and your photos are cached; sign-in and data always go to Supabase.
-const VERSION = 'hangtag-v4';
+const VERSION = 'hangtag-v5';
 const SHELL = ['./', './index.html', './config.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.js'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: 'reload' skips GitHub's 10-minute browser cache, so a new version really is new
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== 'hangtag-photos').map(k => caches.delete(k)))).then(() => self.clients.claim()));
@@ -29,7 +30,7 @@ self.addEventListener('fetch', e => {
   // show the cached app at once, fetch the newest version in the background for next time
   e.respondWith(caches.open(VERSION).then(async c => {
     const hit = await c.match(req, { ignoreSearch: req.mode === 'navigate' });
-    const net = fetch(req).then(res => { if (res.ok) c.put(req, res.clone()); return res; }).catch(() => hit);
+    const net = fetch(req, { cache: 'no-cache' }).then(res => { if (res.ok) c.put(req, res.clone()); return res; }).catch(() => hit);
     return hit || net;
   }));
 });
