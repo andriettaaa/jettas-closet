@@ -244,8 +244,8 @@ dl.props dd .chip.link { margin-right: 6px; }
 nav.bottom { display: none; }
 @media (max-width: 720px) {
   nav.tabs { display: none; }
-  nav.bottom { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; background: var(--surface); border-top: 1px solid var(--line); padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); }
-  nav.bottom button { border: 0; background: none; display: grid; justify-items: center; gap: 2px; font-size: 11.5px; font-weight: 600; color: var(--muted); padding: 6px 0; position: relative; }
+  nav.bottom { display: grid; grid-template-columns: repeat(6, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; background: var(--surface); border-top: 1px solid var(--line); padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); }
+  nav.bottom button { border: 0; background: none; display: grid; justify-items: center; gap: 2px; font-size: 11px; font-weight: 600; color: var(--muted); padding: 6px 0; position: relative; }
   nav.bottom button svg { width: 22px; height: 22px; }
   nav.bottom button .badge { position: absolute; top: 0; left: calc(50% + 6px); }
   nav.bottom button[aria-current="page"] { color: var(--accent); }
@@ -405,6 +405,45 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .tbl th:first-child, .tbl td:first-child { text-align: left; font-family: var(--body); font-size: 13px; white-space: normal; }
 .tbl td:first-child button { border: 0; background: none; padding: 0; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; text-align: left; }
 .tbl tfoot td { border-bottom: 0; font-weight: 600; color: var(--ink); }
+/* trips */
+.day .tripmark { position: absolute; bottom: 4px; left: 4px; z-index: 3; font-size: 10px; line-height: 15px; background: var(--accent); color: var(--accent-ink); border-radius: 4px; padding: 0 4px; }
+.tripgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.tripcard .meta { padding: 14px 16px; gap: 4px; }
+.tripcard .meta b { font-family: var(--display); font-size: 18px; }
+.tripcard .meta .twxrow { font-size: 15px; letter-spacing: 2px; min-height: 4px; }
+.triph2 { font-size: 20px; margin: 8px 0 10px; }
+.tdays { display: grid; gap: 12px; }
+.tday { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; min-width: 0; }
+.tdh { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.twx { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.chip.small { padding: 4px 10px; font-size: 12.5px; }
+.tslots { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.tslot { flex: 0 0 116px; border: 1px solid var(--line); background: var(--bg); border-radius: 12px; padding: 6px; display: grid; gap: 4px; text-align: left; align-content: start; }
+.tslot .lbl { font-size: 10px; }
+.tthumb { aspect-ratio: 3 / 4; background: var(--stage); border-radius: 8px; overflow: hidden; display: grid; place-items: center; position: relative; font-size: 12px; text-align: center; padding: 4px; }
+.tthumb .board { position: absolute; inset: 0; aspect-ratio: auto; height: 100%; border-radius: 0; }
+.tthumb img.single { position: absolute; inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); object-fit: contain; }
+.tslot .tn { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 16px; }
+.tslot.add { place-items: center; align-content: center; border-style: dashed; color: var(--accent); font-weight: 600; font-size: 13px; min-height: 180px; background: transparent; }
+.tslot.add svg { width: 22px; height: 22px; }
+.note.tnote { margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+.tbag { font-family: var(--mono); font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 16px 0 8px; }
+.plist { display: grid; gap: 6px; }
+.prow { display: flex; gap: 10px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; min-width: 0; }
+.prow .pname { flex: 1; min-width: 0; }
+.prow .pname b { display: block; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prow .pname span { display: block; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pcheck { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--bg); color: transparent; font-weight: 700; display: grid; place-items: center; padding: 0; }
+.pcheck[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.pcheck[aria-pressed="true"] ~ .pname b { text-decoration: line-through; color: var(--muted); }
+.pth { flex: none; width: 40px; height: 48px; border: 0; padding: 2px; border-radius: 8px; background: var(--stage); overflow: hidden; }
+.pth img { width: 100%; height: 100%; object-fit: contain; }
+.iconbtn.small { width: 30px; height: 30px; }
+.iconbtn.small svg { width: 14px; height: 14px; }
+.tadd { display: flex; gap: 8px; margin-bottom: 10px; }
+.tadd input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 9px 14px; }
+.geo { display: flex; flex-wrap: wrap; gap: 6px; }
+.geo:empty { display: none; }
 .goneact { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13.5px; }
 .confirm.calm { background: color-mix(in srgb, var(--tag) 30%, var(--surface)); }
 .confirm input { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 5px 8px; min-width: 0; }
@@ -459,6 +498,7 @@ const VIEWS = [
   ['wishlist', 'Wishlist', '<path d="M12 19.5s-7.5-4.6-7.5-10.2A4.1 4.1 0 0 1 12 7a4.1 4.1 0 0 1 7.5 2.3c0 5.6-7.5 10.2-7.5 10.2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'],
   ['outfits', 'Outfits', '<path d="M8 3 4 6l2 4 2-1v12h8V9l2 1 2-4-4-3c-.5 1.5-2 2.5-4 2.5S8.5 4.5 8 3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'],
   ['calendar', 'Calendar', '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
+  ['trips', 'Trips', '<rect x="4" y="7.5" width="16" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 7.5V5.8A1.5 1.5 0 0 1 10.5 4.3h3A1.5 1.5 0 0 1 15 5.8v1.7M4 13h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
   ['stats', 'Stats', '<path d="M5 20V11M12 20V4M19 20v-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>']
 ];
 const HANGER = '<svg class="hanger" viewBox="0 0 64 40" aria-hidden="true"><path d="M28 7a4 4 0 1 1 6 3.5c-1.3.8-2 1.6-2 3V15L5 31.5c-2.2 1.4-1.2 4.5 1.4 4.5h51.2c2.6 0 3.6-3.1 1.4-4.5L32 15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -572,7 +612,7 @@ const DB = {
     if (error) throw error;
     S.prefs = data;
     if (data.categories) S.cats = data.categories;
-    cacheSave(); render();
+    cacheSave(); derive(); render(); // trips in prefs can change wear counts
   },
   async put(table, id, data) {
     const row = table === 'days' ? { user_id: UID, day: id, data, updated_at: new Date().toISOString() } : { user_id: UID, id, data, updated_at: new Date().toISOString() };
@@ -607,7 +647,7 @@ function subscribeLive() {
   }
   channel.on('postgres_changes', { event: '*', schema: 'public', table: 'prefs' }, p => {
     if (!p.new?.data) return;
-    S.prefs = p.new.data; const pc = S.prefs.categories; if (Array.isArray(pc) && pc.length) S.cats = pc; cacheSave(); render();
+    S.prefs = p.new.data; const pc = S.prefs.categories; if (Array.isArray(pc) && pc.length) S.cats = pc; cacheSave(); derive(); render();
   });
   channel.subscribe();
 }
@@ -637,6 +677,15 @@ function derive() {
   for (const [date, d] of Object.entries(S.days)) {
     if (date > t) continue;
     for (const id of dayItems(d)) { wears[id] = (wears[id] || 0) + 1; if (!last[id] || date > last[id]) last[id] = date; }
+  }
+  // trip outfits count too once the day has passed (on top of whatever was logged that day)
+  for (const tr of S.prefs.trips || []) {
+    if (tr.countWears === false || !tr.start) continue;
+    tripDates(tr).forEach((date, i) => {
+      if (date > t) return;
+      const logged = new Set(dayItems(S.days[date]));
+      for (const id of tripDayPieces(tr, i)) if (!logged.has(id)) { wears[id] = (wears[id] || 0) + 1; if (!last[id] || date > last[id]) last[id] = date; }
+    });
   }
   S.wears = wears; S.lastWorn = last;
 }
@@ -681,7 +730,7 @@ function render() {
   if (!host || host.dataset.view !== S.view) {
     host?.remove(); host = document.createElement('div'); host.id = 'viewHost'; host.dataset.view = S.view; m.appendChild(host);
   }
-  ({ closet: renderRail, wishlist: renderRail, outfits: renderOutfits, calendar: renderCalendar, stats: renderStats })[S.view](host);
+  ({ closet: renderRail, wishlist: renderRail, outfits: renderOutfits, calendar: renderCalendar, trips: renderTrips, stats: renderStats })[S.view](host);
   S.sheetRefresh?.();
 }
 
@@ -1040,9 +1089,11 @@ function fillCal(host) {
       else if (o) thumb = boardHTML(o.pieces);
       else { const ids = dayItems(rec).filter(id => S.byId[id]?.photo); if (ids.length === 1) thumb = pimg(S.byId[ids[0]].photo, '', 'class="single" loading="lazy"'); else if (ids.length) thumb = boardHTML(autoLayout(ids)); }
     }
+    const tr = tripOn(k);
+    if (!thumb && tr) thumb = thumbFor(tripDayPieces(tr, tripDates(tr).indexOf(k)));
     const w = wxDay(k);
     html += `<button class="day ${d.getMonth() !== mo ? 'out' : ''} ${k === t ? 'today' : ''}" data-day="${k}" aria-label="${d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}${w ? ', ' + esc(wmo(w.c)[2]) + ' ' + w.hi + '°' : ''}${rec ? ', outfit logged' : ''}">
-      <span class="num">${d.getDate()}</span>${w ? `<span class="wx" aria-hidden="true">${wmo(w.c)[1]}${w.hi}°</span>` : ''}${thumb ? `<div class="thumb">${thumb}</div>` : ''}${rec && k > t ? '<span class="plan">plan</span>' : ''}</button>`;
+      <span class="num">${d.getDate()}</span>${w ? `<span class="wx" aria-hidden="true">${wmo(w.c)[1]}${w.hi}°</span>` : ''}${thumb ? `<div class="thumb">${thumb}</div>` : ''}${rec && k > t ? '<span class="plan">plan</span>' : ''}${tr ? `<span class="tripmark" title="${esc(tr.name || tr.dest?.name || 'Trip')}">✈︎</span>` : ''}</button>`;
   }
   $('#calGrid', host).innerHTML = html;
   wxMonth(y, mo);
@@ -1057,6 +1108,361 @@ function autoLayout(ids) {
     const it = S.byId[id]; const s = slotFor(it?.cat) || { x: 10 + (i % 3) * 30, y: 10 + Math.floor(i / 3) * 30, w: 30 };
     const n = used[it?.cat] = (used[it?.cat] || 0) + 1;
     return { id, x: s.x + (n - 1) * 8, y: s.y + (n - 1) * 6, w: s.w, z: i + 1 };
+  });
+}
+
+/* ---------- trips & packing ---------- */
+// Trips live in your settings (prefs.trips). A trip's plan is keyed by day number, not date, so moving the dates keeps your outfits.
+const TRIP_TYPES = ['City', 'Beach', 'Business', 'Wedding', 'Weekend away', 'Hiking', 'Ski', 'Festival'];
+const TYPE_OCC = { City: ['Casual', 'Going out'], Beach: ['Beachwear', 'Casual'], Business: ['Officewear'], Wedding: ['Formal', 'Going out'], 'Weekend away': ['Casual'], Hiking: ['Activewear', 'Casual'], Ski: ['Activewear', 'Casual'], Festival: ['Going out', 'Casual'] };
+const SLOT_LABELS = ['Travel', 'Daytime', 'Evening', 'Dinner', 'Active', 'Beach'];
+const ESSENTIALS = ['Passport / ID', 'Wallet', 'Phone charger', 'Headphones', 'Plug adapter', 'Toiletries', 'Make-up', 'Medication', 'Sunscreen', 'Sunglasses', 'Pyjamas', 'Underwear', 'Socks', 'Laptop'];
+const trips = () => S.prefs.trips || [];
+const tripById = id => trips().find(t => t.id === id);
+const tripDates = t => { const d = fromISO(t.start); return Array.from({ length: Math.max(1, t.days | 0) }, (_, i) => iso(new Date(d.getFullYear(), d.getMonth(), d.getDate() + i))); };
+const tripRange = t => { const ds = tripDates(t); return ds.length > 1 ? `${shortDate(ds[0])} – ${shortDate(ds[ds.length - 1])}` : shortDate(ds[0]); };
+const tripDayLabel = (t, i) => `Day ${i + 1} · ${fromISO(tripDates(t)[i]).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}`;
+const tripOn = date => trips().find(t => t.start && tripDates(t).includes(date));
+const slotPieces = s => [...new Set([...(s.pieces || []), ...((s.outfit && S.outById[s.outfit]?.pieces) || []).map(p => p.id)])];
+const tripDaySlots = (t, i) => t.plan?.[i]?.slots || [];
+const tripDayPieces = (t, i) => [...new Set(tripDaySlots(t, i).flatMap(slotPieces))];
+async function saveTrip(t) {
+  try { await DB.savePrefs({ trips: [...trips().filter(x => x.id !== t.id), t] }); return true; }
+  catch (e) { saveErr(e, 'Could not save the trip. Try again.'); return false; }
+}
+const editTrip = (id, fn) => { const t = JSON.parse(JSON.stringify(tripById(id))); fn(t); return saveTrip(t); };
+// planned vs packed: outfit pieces you haven't packed (travel outfits are worn, not packed) and packed pieces no outfit uses
+function tripChecks(t) {
+  const packed = new Set((t.pack || []).map(p => p.id)), planned = new Set(), needPack = new Set();
+  tripDates(t).forEach((_, i) => tripDaySlots(t, i).forEach(s => slotPieces(s).forEach(id => { planned.add(id); if (s.label !== 'Travel') needPack.add(id); })));
+  return { unplanned: [...packed].filter(id => !planned.has(id) && S.byId[id]), unpacked: [...needPack].filter(id => !packed.has(id) && S.byId[id]) };
+}
+function tripProgress(t, home) {
+  const k = home ? 'home' : 'packed', all = [...(t.pack || []).filter(p => S.byId[p.id]), ...(t.extras || [])];
+  return { done: all.filter(x => x[k]).length, total: all.length };
+}
+
+/* weather at the destination: the forecast where it reaches, otherwise last year's weather on the same dates */
+const TWX = pref.get('twx', {});
+const twxKey = t => t.dest?.lat != null ? `${(+t.dest.lat).toFixed(2)},${(+t.dest.lon).toFixed(2)}` : null;
+const tripWxDay = (t, date) => TWX[twxKey(t)]?.days?.[date];
+const twxBusy = new Set();
+async function ensureTripWx(t) {
+  const key = twxKey(t); if (!key || twxBusy.has(key)) return;
+  const c = TWX[key] = TWX[key] || { at: 0, days: {} };
+  const n = new Date(), off = k => iso(new Date(n.getFullYear(), n.getMonth(), n.getDate() + k));
+  const minF = off(-31), maxF = off(15), stale = Date.now() - c.at > 6 * 36e5;
+  const need = tripDates(t).filter(d => !c.days[d] || (d >= off(0) && d <= maxF && (c.days[d].typical || stale)));
+  if (!need.length) return;
+  twxBusy.add(key);
+  const base = `latitude=${t.dest.lat}&longitude=${t.dest.lon}&timezone=auto&daily=weather_code,temperature_2m_max,temperature_2m_min`;
+  const get = async url => { const r = await fetch(url); if (!r.ok) throw new Error('weather ' + r.status); return r.json(); };
+  const store = (j, shift) => { const d = j.daily; (d?.time || []).forEach((day, i) => { if (d.temperature_2m_max[i] == null) return; const k = shift ? iso(new Date(+day.slice(0, 4) + 1, +day.slice(5, 7) - 1, +day.slice(8, 10))) : day; c.days[k] = { c: d.weather_code[i], hi: Math.round(d.temperature_2m_max[i]), lo: Math.round(d.temperature_2m_min[i]), p: d.precipitation_probability_max?.[i] ?? null, typical: !!shift }; }); };
+  const yearBack = s => `${+s.slice(0, 4) - 1}${s.slice(4)}`;
+  try {
+    if (need.some(d => d >= minF && d <= maxF)) { store(await get(`https://api.open-meteo.com/v1/forecast?${base},precipitation_probability_max&past_days=31&forecast_days=16`)); c.at = Date.now(); }
+    const old = need.filter(d => d < minF); if (old.length) store(await get(`https://archive-api.open-meteo.com/v1/archive?${base}&start_date=${old[0]}&end_date=${old[old.length - 1]}`));
+    const fut = need.filter(d => d > maxF); if (fut.length) store(await get(`https://archive-api.open-meteo.com/v1/archive?${base}&start_date=${yearBack(fut[0])}&end_date=${yearBack(fut[fut.length - 1])}`), true);
+    pref.set('twx', TWX); render();
+  } catch (e) { console.warn(e); } finally { twxBusy.delete(key); }
+}
+const wxBadge = w => w ? `<span class="twx" title="${esc(wmo(w.c)[2])}${w.typical ? ' (last year on this date)' : ''}">${wmo(w.c)[1]} ${w.hi}°/${w.lo}°${w.typical ? '*' : ''}</span>` : '';
+
+/* capsule: enough for the longest stretch between laundry days, matching the weather and the kind of trip */
+function suggestCapsule(t) {
+  const w = tripDates(t).map(d => tripWxDay(t, d)).filter(Boolean);
+  const avgHi = w.length ? w.reduce((a, x) => a + x.hi, 0) / w.length : null, minLo = w.length ? Math.min(...w.map(x => x.lo)) : null;
+  const seasons = avgHi == null ? [seasonNow()] : avgHi >= 22 ? ['Summer'] : avgHi >= 15 ? ['Spring', 'Summer', 'Autumn'] : avgHi >= 8 ? ['Autumn', 'Spring', 'Winter'] : ['Winter', 'Autumn'];
+  const occ = new Set((t.types || []).flatMap(x => TYPE_OCC[x] || [])); if (!occ.size) occ.add('Casual');
+  const days = Math.max(1, t.days | 0), cuts = [...(t.laundry || [])].map(Number).sort((a, b) => a - b);
+  let D = 0, prev = 0; for (const c of [...cuts, days - 1]) { D = Math.max(D, c - prev + 1); prev = c + 1; }
+  D = Math.max(1, Math.min(D, days));
+  const want = {
+    tops: Math.min(7, Math.ceil(D * 0.8)), bottoms: Math.min(4, Math.ceil(D / 3) + 1),
+    dresses: occ.has('Formal') || occ.has('Going out') || occ.has('Beachwear') ? Math.min(3, Math.ceil(D / 3)) : 0,
+    knitwear: avgHi == null || avgHi < 17 ? Math.min(3, Math.ceil(D / 4) + 1) : 0, outerwear: minLo == null || minLo < 14 ? 1 : 0,
+    shoes: Math.min(3, 1 + (occ.size > 1 ? 1 : 0) + (D > 4 ? 1 : 0)), bags: occ.has('Going out') || occ.has('Formal') ? 2 : 1, accessories: 2,
+    activewear: occ.has('Activewear') ? Math.min(3, Math.ceil(D / 2)) : 0, swim: occ.has('Beachwear') ? 2 : 0
+  };
+  const have = new Set((t.pack || []).map(p => p.id));
+  const fits = it => !(it.seasons || []).length || it.seasons.some(s => seasons.includes(s));
+  const score = it => ((it.occasions || []).some(o => occ.has(o)) ? 3 : 0) + ((it.seasons || []).length ? 1 : 0) + Math.min(wearCount(it), 20) / 10;
+  const list = [];
+  for (const [key, n] of Object.entries(want)) {
+    if (!n) continue;
+    const inCat = S.items.filter(i => inCloset(i) && catKey(i.cat) === key);
+    const already = inCat.filter(i => have.has(i.id)).length;
+    list.push(...inCat.filter(i => !have.has(i.id) && fits(i)).sort((a, b) => score(b) - score(a)).slice(0, Math.max(0, n - already)));
+  }
+  const why = [avgHi != null ? `around ${Math.round(avgHi)}°${w.some(x => x.typical) ? ' (last year)' : ''}` : 'no weather yet', [...occ].join(', ').toLowerCase(), `outfits for ${D} day${D > 1 ? 's' : ''}${cuts.length ? ' between laundry days' : ''}`].join(' · ');
+  return { list, why };
+}
+
+function renderTrips(host) {
+  const ui = S.tripUI = S.tripUI || { id: null, tab: 'plan', home: false };
+  const t = ui.id && tripById(ui.id);
+  if (!t) ui.id = null;
+  host.innerHTML = t ? tripHTML(t, ui) : tripListHTML();
+  host.onclick = e => tripClick(e, host);
+  host.onsubmit = e => tripSubmit(e);
+  if (t) ensureTripWx(t); else trips().filter(x => tripDates(x).slice(-1)[0] >= today()).forEach(ensureTripWx);
+}
+function tripCard(t) {
+  const p = tripProgress(t), ds = tripDates(t), td = today();
+  const state = ds[0] > td ? `in ${Math.round((fromISO(ds[0]) - fromISO(td)) / 864e5)} days` : ds[ds.length - 1] < td ? 'done' : 'now';
+  return `<button class="card tripcard" data-topen="${esc(t.id)}"><div class="meta"><b>${esc(t.name || t.dest?.name || 'Trip')}</b>
+    <span>${tripRange(t)} · ${t.days} day${t.days > 1 ? 's' : ''} · ${state}</span>
+    <span class="twxrow">${ds.slice(0, 8).map(d => { const w = tripWxDay(t, d); return w ? wmo(w.c)[1] : ''; }).join(' ')}</span>
+    ${p.total ? `<div class="meter"><div style="width:${p.done / p.total * 100}%"></div></div><span>${p.done} of ${p.total} packed</span>` : '<span>Nothing on the packing list yet</span>'}</div></button>`;
+}
+function tripListHTML() {
+  const all = [...trips()].sort((a, b) => String(a.start).localeCompare(String(b.start)));
+  const up = all.filter(t => tripDates(t).slice(-1)[0] >= today()), past = all.filter(t => !up.includes(t)).reverse();
+  return `<div class="viewhead"><h1>Trips</h1><span class="sub">Plan outfits per day and pack without forgetting anything</span><div class="spacer"></div><button class="btn primary" data-tnew>${I.plus} New trip</button></div>
+    ${all.length ? `${up.length ? `<div class="tripgrid">${up.map(tripCard).join('')}</div>` : '<p class="muted">No upcoming trips.</p>'}
+      ${past.length ? `<h2 class="triph2">Past trips</h2><div class="tripgrid">${past.map(tripCard).join('')}</div>` : ''}`
+    : `<div class="empty">${HANGER}<h2>No trips yet</h2><p>Add where you're going and for how many days. Then plan an outfit or two per day, pack from your closet and tick things off as they go in your suitcase.</p><button class="btn primary" data-tnew>${I.plus} Plan a trip</button></div>`}`;
+}
+function tripHTML(t, ui) {
+  const p = tripProgress(t), chk = tripChecks(t);
+  const tabs = [['plan', 'Calendar'], ['pack', `Pack ${p.total ? `${tripProgress(t, ui.home).done}/${p.total}` : ''}`], ['extras', 'Essentials'], ['buy', 'To buy']];
+  return `<div style="margin-bottom:8px"><button class="btn small ghost" data-tback>${I.left} All trips</button></div>
+    <div class="viewhead"><h1>${esc(t.name || t.dest?.name || 'Trip')}</h1><span class="sub">${tripRange(t)} · ${t.days} day${t.days > 1 ? 's' : ''}${(t.types || []).length ? ' · ' + esc(t.types.join(', ')) : ''}</span><div class="spacer"></div>
+      <div class="tools" style="margin:0"><button class="btn small" data-tshare>Share list</button><button class="btn small" data-tedit>${I.pencil} Edit trip</button></div></div>
+    <div class="seg statseg" role="group" aria-label="Trip section">${tabs.map(([k, l]) => `<button data-ttab="${k}" aria-pressed="${ui.tab === k}">${l}</button>`).join('')}</div>
+    ${ui.tab === 'pack' ? tripPackHTML(t, ui, chk) : ui.tab === 'extras' ? tripExtrasHTML(t, ui) : ui.tab === 'buy' ? tripBuyHTML(t) : tripPlanHTML(t, chk)}`;
+}
+const thumbFor = ids => { const ps = ids.filter(id => S.byId[id]?.photo); return ps.length === 1 ? pimg(S.byId[ps[0]].photo, '', 'class="single" loading="lazy"') : ps.length ? boardHTML(autoLayout(ps)) : ''; };
+function checksHTML(chk, where) {
+  const names = ids => ids.slice(0, 4).map(id => esc(S.byId[id].name)).join(', ') + (ids.length > 4 ? ` +${ids.length - 4}` : '');
+  return (chk.unpacked.length ? `<div class="note tnote"><b>Not packed yet:</b> ${names(chk.unpacked)} — in an outfit but not on your packing list. <button class="btn small" data-addmissing>Add ${chk.unpacked.length === 1 ? 'it' : `all ${chk.unpacked.length}`} to the list</button></div>` : '')
+    + (where === 'pack' && chk.unplanned.length ? `<div class="note tnote"><b>Packed but not planned:</b> ${names(chk.unplanned)} — not in any outfit yet. Plan it in or leave it home.</div>` : '');
+}
+function tripPlanHTML(t, chk) {
+  const laundry = new Set((t.laundry || []).map(Number));
+  return `${checksHTML(chk, 'plan')}<div class="tdays">${tripDates(t).map((date, i) => {
+    const slots = tripDaySlots(t, i);
+    return `<div class="tday"><div class="tdh"><b>${tripDayLabel(t, i)}</b>${wxBadge(tripWxDay(t, date))}<div class="spacer"></div><button class="chip small" data-laundry="${i}" aria-pressed="${laundry.has(i)}" title="Laundry day: pieces can be worn again after it">🧺 Laundry</button></div>
+      <div class="tslots">${slots.map((s, si) => { const ids = slotPieces(s), o = s.outfit && S.outById[s.outfit]; return `<button class="tslot" data-slot="${i}:${si}"><span class="lbl">${esc(s.label || 'Outfit')}</span><div class="tthumb">${o ? boardHTML(o.pieces) : thumbFor(ids) || '<span class="muted">Tap to plan</span>'}</div><span class="tn">${o ? esc(o.name || 'Saved outfit') : ids.length ? `${ids.length} piece${ids.length > 1 ? 's' : ''}` : ''}</span></button>`; }).join('')}
+        <button class="tslot add" data-addslot="${i}">${I.plus}<span>Outfit</span></button></div></div>`;
+  }).join('')}</div>
+  <p class="calnote">${t.dest?.lat == null ? 'Pick a destination from the list when editing the trip to see its weather.' : 'Weather marked * is what it was on these dates last year; the forecast takes over 16 days before.'}${t.countWears !== false ? ' Outfits on days that have passed count as wears in your closet.' : ''}</p>`;
+}
+function tripPackHTML(t, ui, chk) {
+  const k = ui.home ? 'home' : 'packed', p = tripProgress(t, ui.home);
+  const bags = t.bags?.length ? t.bags : ['Carry-on', 'Checked'], pack = (t.pack || []).filter(x => S.byId[x.id]);
+  const groups = bags.map(b => [b, pack.filter(x => (bags.includes(x.bag) ? x.bag : bags[0]) === b)]).filter(([, l]) => l.length);
+  return `<div class="tools"><button class="btn primary" data-addpieces>${I.plus} Add pieces</button><button class="btn" data-suggest>✨ Suggest a capsule</button><div class="spacer"></div>
+      <div class="seg" role="group" aria-label="Packing direction"><button data-thome="0" aria-pressed="${!ui.home}">Going there</button><button data-thome="1" aria-pressed="${ui.home}">Going home</button></div></div>
+    ${p.total ? `<div class="meter" style="height:10px"><div style="width:${p.done / p.total * 100}%"></div></div><p class="muted" style="margin:0 0 12px;font-size:13px">${p.done} of ${p.total} ${ui.home ? 'repacked for home' : 'packed'}, essentials included${p.done === p.total ? ' · all done ✓' : ''}</p>` : ''}
+    ${checksHTML(chk, 'pack')}
+    ${pack.length ? groups.map(([b, l]) => `<h3 class="tbag">${esc(b)} · ${l.length}</h3><div class="plist">${l.map(x => { const it = S.byId[x.id]; return `<div class="prow">
+      <button class="pcheck" data-pk="${esc(x.id)}" aria-pressed="${!!x[k]}" aria-label="${x[k] ? 'Packed' : 'Not packed'}: ${esc(it.name)}">✓</button>
+      <button class="pth" data-item="${esc(it.id)}">${it.photo ? pimg(it.photo, '', 'loading="lazy"') : ''}</button>
+      <div class="pname"><b>${esc(it.name)}</b><span>${esc([it.brand, it.cat].filter(Boolean).join(' · '))}</span></div>
+      ${bags.length > 1 ? `<button class="chip small" data-pbag="${esc(x.id)}" title="Move to another bag">${esc(bags.includes(x.bag) ? x.bag : bags[0])}</button>` : ''}
+      <button class="iconbtn small" data-prm="${esc(x.id)}" aria-label="Take ${esc(it.name)} off the list">${I.x}</button></div>`; }).join('')}</div>`).join('')
+    : `<p class="muted">Nothing on the list yet. Add pieces from your closet, or let the app suggest a capsule for the weather and the kind of trip.</p>`}`;
+}
+function tripExtrasHTML(t, ui) {
+  const k = ui.home ? 'home' : 'packed', bags = t.bags?.length ? t.bags : ['Carry-on', 'Checked'], ex = t.extras || [];
+  const have = new Set(ex.map(x => norm(x.t)));
+  return `<form class="tadd" data-form="extra"><input name="t" placeholder="Add something, e.g. passport" autocomplete="off" aria-label="New essential"><button class="btn primary">Add</button></form>
+    <div class="brandsugs" style="margin-bottom:12px">${ESSENTIALS.filter(e => !have.has(norm(e))).map(e => `<button class="chip" data-esug="${esc(e)}">+ ${esc(e)}</button>`).join('')}</div>
+    <p class="muted" style="font-size:13px;margin:0 0 8px">Ticking here counts for "${ui.home ? 'Going home' : 'Going there'}" (switch on the Pack tab).</p>
+    <div class="plist">${ex.map((x, i) => `<div class="prow"><button class="pcheck" data-ek="${i}" aria-pressed="${!!x[k]}" aria-label="${esc(x.t)}">✓</button><div class="pname"><b>${esc(x.t)}</b></div>
+      ${bags.length > 1 ? `<button class="chip small" data-ebag="${i}">${esc(bags.includes(x.bag) ? x.bag : bags[0])}</button>` : ''}<button class="iconbtn small" data-erm="${i}" aria-label="Remove ${esc(x.t)}">${I.x}</button></div>`).join('') || '<p class="muted">Nothing here yet.</p>'}</div>`;
+}
+function tripBuyHTML(t) {
+  const list = t.buy || [];
+  return `<form class="tadd" data-form="buy"><input name="t" placeholder="Something to buy before you go" autocomplete="off" aria-label="New thing to buy"><button class="btn primary">Add</button></form>
+    <div style="margin-bottom:12px"><button class="btn small" data-buywish>${I.plus} From my wishlist</button></div>
+    <div class="plist">${list.map((x, i) => { const w = x.wish && S.byId[x.wish]; return `<div class="prow"><button class="pcheck" data-bk="${i}" aria-pressed="${!!x.done}" aria-label="Bought: ${esc(x.t)}">✓</button>
+      ${w ? `<button class="pth" data-item="${esc(w.id)}">${w.photo ? pimg(w.photo, '', 'loading="lazy"') : ''}</button>` : ''}<div class="pname"><b>${esc(x.t)}</b>${w ? `<span>${esc([w.brand, w.price > 0 ? eur(w.price) : ''].filter(Boolean).join(' · '))}</span>` : ''}</div>
+      <button class="iconbtn small" data-brm="${i}" aria-label="Remove ${esc(x.t)}">${I.x}</button></div>`; }).join('') || '<p class="muted">Nothing to buy yet.</p>'}</div>`;
+}
+function tripSubmit(e) {
+  const f = e.target.closest('[data-form]'); if (!f) return;
+  e.preventDefault();
+  const v = f.elements.t.value.trim(); if (!v) return;
+  const id = S.tripUI.id;
+  if (f.dataset.form === 'extra') editTrip(id, t => { t.extras = [...(t.extras || []), { t: v, bag: (t.bags || [])[0] || 'Carry-on' }]; });
+  else editTrip(id, t => { t.buy = [...(t.buy || []), { t: v }]; });
+}
+function tripClick(e, host) {
+  const ui = S.tripUI, q = s => e.target.closest(s), id = ui.id;
+  const nextBag = (t, cur) => { const b = t.bags?.length ? t.bags : ['Carry-on', 'Checked']; return b[(b.indexOf(cur) + 1) % b.length] || b[0]; };
+  const flag = ui.home ? 'home' : 'packed';
+  let el;
+  if (q('[data-tnew]')) return openTripEditor(null);
+  if ((el = q('[data-topen]'))) { ui.id = el.dataset.topen; ui.tab = 'plan'; renderTrips(host); return window.scrollTo(0, 0); }
+  if (q('[data-tback]')) { ui.id = null; renderTrips(host); return window.scrollTo(0, 0); }
+  if (q('[data-tedit]')) return openTripEditor(id);
+  if (q('[data-tshare]')) return shareTrip(tripById(id));
+  if ((el = q('[data-ttab]'))) { ui.tab = el.dataset.ttab; return renderTrips(host); }
+  if ((el = q('[data-thome]'))) { ui.home = el.dataset.thome === '1'; return renderTrips(host); }
+  if ((el = q('[data-slot]'))) { const [d, s] = el.dataset.slot.split(':').map(Number); return openSlot(id, d, s); }
+  if ((el = q('[data-addslot]'))) return openSlot(id, +el.dataset.addslot, null);
+  if ((el = q('[data-laundry]'))) { const i = +el.dataset.laundry; return editTrip(id, t => { const l = new Set((t.laundry || []).map(Number)); l.has(i) ? l.delete(i) : l.add(i); t.laundry = [...l]; }); }
+  if (q('[data-addpieces]')) return openPackPicker(id);
+  if (q('[data-suggest]')) return openSuggest(id);
+  if (q('[data-buywish]')) return openWishPicker(id);
+  if (q('[data-addmissing]')) return editTrip(id, t => { const b = (t.bags || [])[0] || 'Carry-on'; t.pack = [...(t.pack || []), ...tripChecks(t).unpacked.map(pid => ({ id: pid, bag: b }))]; });
+  if ((el = q('[data-pk]'))) return editTrip(id, t => { const x = t.pack.find(p => p.id === el.dataset.pk); if (x) x[flag] = !x[flag]; });
+  if ((el = q('[data-pbag]'))) return editTrip(id, t => { const x = t.pack.find(p => p.id === el.dataset.pbag); if (x) x.bag = nextBag(t, x.bag); });
+  if ((el = q('[data-prm]'))) return editTrip(id, t => { t.pack = t.pack.filter(p => p.id !== el.dataset.prm); });
+  if ((el = q('[data-ek]'))) return editTrip(id, t => { const x = t.extras[+el.dataset.ek]; if (x) x[flag] = !x[flag]; });
+  if ((el = q('[data-ebag]'))) return editTrip(id, t => { const x = t.extras[+el.dataset.ebag]; if (x) x.bag = nextBag(t, x.bag); });
+  if ((el = q('[data-erm]'))) return editTrip(id, t => { t.extras.splice(+el.dataset.erm, 1); });
+  if ((el = q('[data-esug]'))) return editTrip(id, t => { t.extras = [...(t.extras || []), { t: el.dataset.esug, bag: (t.bags || [])[0] || 'Carry-on' }]; });
+  if ((el = q('[data-bk]'))) return editTrip(id, t => { const x = t.buy[+el.dataset.bk]; if (x) x.done = !x.done; });
+  if ((el = q('[data-brm]'))) return editTrip(id, t => { t.buy.splice(+el.dataset.brm, 1); });
+  if ((el = q('[data-item]'))) return openItem(el.dataset.item);
+}
+function shareTrip(t) {
+  const bags = t.bags?.length ? t.bags : ['Carry-on', 'Checked'], box = b => b ? '☑' : '☐';
+  const lines = [`${t.name || t.dest?.name || 'Trip'} · ${tripRange(t)} (${t.days} day${t.days > 1 ? 's' : ''})`, ''];
+  for (const b of bags) {
+    const l = (t.pack || []).filter(x => S.byId[x.id] && (bags.includes(x.bag) ? x.bag : bags[0]) === b), e = (t.extras || []).filter(x => (bags.includes(x.bag) ? x.bag : bags[0]) === b);
+    if (!l.length && !e.length) continue;
+    lines.push(b.toUpperCase(), ...l.map(x => `${box(x.packed)} ${S.byId[x.id].name}${S.byId[x.id].brand ? ` (${S.byId[x.id].brand})` : ''}`), ...e.map(x => `${box(x.packed)} ${x.t}`), '');
+  }
+  if ((t.buy || []).length) lines.push('TO BUY', ...t.buy.map(x => `${box(x.done)} ${x.t}`), '');
+  const text = lines.join('\n').trim();
+  if (navigator.share) navigator.share({ title: t.name || 'Packing list', text }).catch(() => {});
+  else navigator.clipboard.writeText(text).then(() => toast('Packing list copied'), () => toast("Couldn't copy the list"));
+}
+
+function openTripEditor(id) {
+  const base = id ? tripById(id) : null;
+  const T = base ? JSON.parse(JSON.stringify(base)) : { id: uuid(), start: iso(new Date(Date.now() + 7 * 864e5)), days: 4, types: [], bags: ['Carry-on', 'Checked'], countWears: true, pack: [], extras: [], buy: [], plan: {}, laundry: [] };
+  let results = [], timer = null;
+  const others = trips().filter(t => t.id !== T.id && ((t.pack || []).length || (t.extras || []).length));
+  const sh = sheet({
+    title: id ? 'Edit trip' : 'New trip',
+    body: `<div class="form">
+      <div class="field full"><label for="t-dest">Where are you going?</label><input id="t-dest" value="${esc(T.dest?.name || '')}" placeholder="City or place, e.g. Lisbon" autocomplete="off"><div class="geo" id="t-geo"></div><span class="muted" id="t-place" style="font-size:12.5px">${T.dest?.lat != null ? `📍 ${esc([T.dest.name, T.dest.region, T.dest.country].filter(Boolean).join(', '))}` : ''}</span></div>
+      <div class="field"><label for="t-start">First day</label><input id="t-start" type="date" value="${esc(T.start)}"></div>
+      <div class="field"><label for="t-days">Number of days</label><input id="t-days" type="number" min="1" max="60" inputmode="numeric" value="${T.days}"></div>
+      <div class="field full"><label for="t-name">Name (optional)</label><input id="t-name" value="${esc(T.name || '')}" placeholder="e.g. Girls' weekend Lisbon"></div>
+      <div class="field full"><span class="lbl">Kind of trip · tap all that apply</span><div class="togglegroup">${TRIP_TYPES.map(x => `<button type="button" class="chip" data-ttype="${x}" aria-pressed="${T.types.includes(x)}">${x}</button>`).join('')}</div></div>
+      <div class="field full"><label for="t-bags">Bags</label><input id="t-bags" value="${esc((T.bags || []).join(', '))}" placeholder="Carry-on, Checked"><span class="muted" style="font-size:12.5px">Separate with commas. Pieces and essentials can be divided over these.</span></div>
+      ${!id && others.length ? `<div class="field full"><label for="t-copy">Start from an earlier trip</label><select id="t-copy"><option value="">Start empty</option>${others.map(o => `<option value="${esc(o.id)}">${esc(o.name || o.dest?.name || 'Trip')} (${tripRange(o)})</option>`).join('')}</select><span class="muted" style="font-size:12.5px">Copies its packing list, essentials and bags (all unticked).</span></div>` : ''}
+      <label class="field full" style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" id="t-wears" ${T.countWears !== false ? 'checked' : ''} style="width:auto"> Count trip outfits as wears once the days have passed</label>
+    </div><div id="tDelConfirm"></div>`,
+    foot: `<span class="busy" id="tStatus"></span>${id ? '<button class="btn danger" id="tDel">Delete trip</button>' : ''}<div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" id="tSave">${id ? 'Save' : 'Create trip'}</button>`
+  });
+  const geo = $('#t-geo', sh), destIn = $('#t-dest', sh);
+  const drawGeo = () => { geo.innerHTML = results.map((r, i) => `<button type="button" class="chip" data-geo="${i}">${esc([r.name, r.admin1, r.country].filter(Boolean).join(', '))}</button>`).join(''); };
+  destIn.addEventListener('input', () => {
+    T.dest = { name: destIn.value.trim() }; $('#t-place', sh).textContent = '';
+    clearTimeout(timer); const q = destIn.value.trim(); if (q.length < 2) { results = []; drawGeo(); return; }
+    timer = setTimeout(async () => {
+      try { const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=en&format=json`); results = (await r.json()).results || []; } catch { results = []; }
+      if (destIn.value.trim() === q) drawGeo();
+    }, 350);
+  });
+  sh.addEventListener('click', async e => {
+    const g = e.target.closest('[data-geo]');
+    if (g) { const r = results[+g.dataset.geo]; T.dest = { name: r.name, region: r.admin1 || '', country: r.country || '', lat: r.latitude, lon: r.longitude }; destIn.value = r.name; results = []; drawGeo(); $('#t-place', sh).textContent = `📍 ${[r.name, r.admin1, r.country].filter(Boolean).join(', ')}`; return; }
+    const ty = e.target.closest('[data-ttype]'); if (ty) { toggleIn(T.types, ty.dataset.ttype); ty.setAttribute('aria-pressed', T.types.includes(ty.dataset.ttype)); return; }
+    if (e.target.closest('#tDel')) { $('#tDelConfirm', sh).innerHTML = `<div class="confirm">Delete this trip with its plan and packing list? Your pieces stay in your closet. <button class="btn small danger" id="tDelYes">Delete</button><button class="btn small" id="tDelNo">Keep it</button></div>`; $('#tDelConfirm', sh).scrollIntoView({ block: 'nearest' }); return; }
+    if (e.target.closest('#tDelNo')) { $('#tDelConfirm', sh).innerHTML = ''; return; }
+    if (e.target.closest('#tDelYes')) { try { await DB.savePrefs({ trips: trips().filter(x => x.id !== T.id) }); S.tripUI.id = null; closeSheet(); toast('Trip deleted'); } catch (err) { saveErr(err, 'Could not delete. Try again.'); } return; }
+    if (!e.target.closest('#tSave')) return;
+    const st = $('#tStatus', sh);
+    if (!T.dest?.name) { st.textContent = 'Where are you going?'; destIn.focus(); return; }
+    T.start = $('#t-start', sh).value || today();
+    T.days = clamp(parseInt($('#t-days', sh).value, 10) || 1, 1, 60);
+    T.name = $('#t-name', sh).value.trim();
+    T.bags = $('#t-bags', sh).value.split(',').map(s => s.trim()).filter(Boolean); if (!T.bags.length) T.bags = ['Carry-on'];
+    T.countWears = $('#t-wears', sh).checked;
+    const from = $('#t-copy', sh)?.value && tripById($('#t-copy', sh).value);
+    if (from) { T.pack = (from.pack || []).map(p => ({ id: p.id, bag: p.bag })); T.extras = (from.extras || []).map(x => ({ t: x.t, bag: x.bag })); T.bags = from.bags?.length ? [...from.bags] : T.bags; }
+    if (!id) for (let i = 0; i < T.days; i++) T.plan[i] = { slots: [{ label: i === 0 || i === T.days - 1 ? 'Travel' : 'Daytime', pieces: [] }] };
+    T.laundry = (T.laundry || []).filter(i => +i < T.days);
+    $('#tSave', sh).disabled = true; st.textContent = 'Saving…';
+    if (await saveTrip(T)) { closeSheet(); toast(id ? 'Trip saved' : 'Trip created'); S.tripUI = { ...(S.tripUI || {}), id: T.id, tab: S.tripUI?.tab || 'plan', home: false }; if (S.view !== 'trips') go('trips'); else render(); }
+    else { $('#tSave', sh).disabled = false; st.textContent = ''; }
+  });
+  if (!id) setTimeout(() => destIn.focus(), 50);
+}
+// pieces to pick from, packed ones first; `only` limits the grid to what's on the packing list
+function pickGridHTML(pool, sel, cat, attr) {
+  return `<div class="pickgrid">${pool.filter(i => cat === 'All' || i.cat === cat).map(i => `<button class="pick" ${attr}="${esc(i.id)}" aria-pressed="${sel.includes(i.id)}" title="${esc(i.name)}">${i.photo ? pimg(i.photo, i.name, 'loading="lazy"') : `<span style="font-size:11px">${esc(i.name)}</span>`}</button>`).join('') || '<p class="muted">No pieces here.</p>'}</div>`;
+}
+const catChips = (pool, cur, attr) => { const n = {}; pool.forEach(i => n[i.cat] = (n[i.cat] || 0) + 1); return `<div class="chips">${['All', ...cats()].filter(c => c === 'All' || n[c]).map(c => `<button class="chip" ${attr}="${esc(c)}" aria-pressed="${cur === c}">${esc(c)}</button>`).join('')}</div>`; };
+function openSlot(tid, di, si) {
+  const t0 = tripById(tid); if (!t0) return;
+  const cur = si != null ? tripDaySlots(t0, di)[si] : { label: tripDaySlots(t0, di).length ? 'Evening' : 'Daytime', pieces: [] };
+  const D = { label: cur.label || 'Daytime', pieces: [...(cur.pieces || [])], outfit: cur.outfit || null, cat: 'All', only: (t0.pack || []).length > 0 };
+  D.mode = D.outfit ? 'outfit' : 'pieces';
+  const sh = sheet({
+    title: `${tripDayLabel(t0, di)}${si == null ? ' · new outfit' : ''}`,
+    body: `<div><span class="lbl">What's it for</span><div class="togglegroup" id="sLabels" style="margin-top:6px"></div></div>
+      <div class="seg" role="group"><button data-smode="pieces">Pick pieces</button><button data-smode="outfit">Saved outfit</button></div><div id="sPick"></div>`,
+    foot: `${si != null ? '<button class="btn danger" id="sDel">Remove outfit</button>' : ''}<div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" id="sSave">Save</button>`
+  });
+  const draw = () => {
+    $('#sLabels', sh).innerHTML = [...new Set([...SLOT_LABELS, D.label])].map(l => `<button type="button" class="chip" data-slabel="${esc(l)}" aria-pressed="${D.label === l}">${esc(l)}</button>`).join('');
+    $$('[data-smode]', sh).forEach(b => b.setAttribute('aria-pressed', b.dataset.smode === D.mode));
+    const host = $('#sPick', sh);
+    if (D.mode === 'outfit') { host.innerHTML = S.outfits.length ? `<div class="outpick">${S.outfits.map(o => `<button data-sout="${esc(o.id)}" aria-pressed="${D.outfit === o.id}">${boardHTML(o.pieces)}<span>${esc(o.name || 'Outfit')}</span></button>`).join('')}</div>` : '<p class="muted">No saved outfits yet. Pick pieces instead.</p>'; return; }
+    const packed = new Set((tripById(tid)?.pack || []).map(p => p.id));
+    const pool = S.items.filter(i => inCloset(i) && (!D.only || packed.has(i.id) || D.pieces.includes(i.id))).sort((a, b) => packed.has(b.id) - packed.has(a.id));
+    host.innerHTML = `${packed.size ? `<div class="chips"><button class="chip" data-sonly aria-pressed="${D.only}">Only what I'm packing</button></div>` : ''}${catChips(pool, D.cat, 'data-scat')}${pickGridHTML(pool, D.pieces, D.cat, 'data-spiece')}<p class="muted" style="font-size:13px;margin:6px 0 0">${D.pieces.length} selected</p>`;
+  };
+  draw();
+  sh.addEventListener('click', async e => {
+    const q = s => e.target.closest(s); let el;
+    if ((el = q('[data-slabel]'))) { D.label = el.dataset.slabel; return draw(); }
+    if ((el = q('[data-smode]'))) { D.mode = el.dataset.smode; return draw(); }
+    if (q('[data-sonly]')) { D.only = !D.only; D.cat = 'All'; return draw(); }
+    if ((el = q('[data-scat]'))) { D.cat = el.dataset.scat; return draw(); }
+    if ((el = q('[data-spiece]'))) { toggleIn(D.pieces, el.dataset.spiece); return draw(); }
+    if ((el = q('[data-sout]'))) { D.outfit = D.outfit === el.dataset.sout ? null : el.dataset.sout; return draw(); }
+    if (q('#sDel')) { if (await editTrip(tid, t => { t.plan[di].slots.splice(si, 1); })) closeSheet(); return; }
+    if (q('#sSave')) {
+      const v = { label: D.label, pieces: D.mode === 'pieces' ? D.pieces : [], outfit: D.mode === 'outfit' ? D.outfit : null };
+      if (await editTrip(tid, t => { t.plan = t.plan || {}; const day = t.plan[di] = t.plan[di] || { slots: [] }; si != null ? (day.slots[si] = v) : day.slots.push(v); })) closeSheet();
+    }
+  });
+}
+function openPackPicker(tid) {
+  const t0 = tripById(tid); const sel = (t0.pack || []).map(p => p.id); let cat = 'All';
+  const pool = S.items.filter(inCloset);
+  const sh = sheet({ title: 'What are you packing?', body: '<div id="ppHost"></div>', foot: `<span class="busy" id="ppN"></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" id="ppSave">Save packing list</button>` });
+  const draw = () => { $('#ppHost', sh).innerHTML = catChips(pool, cat, 'data-pcat') + pickGridHTML(pool, sel, cat, 'data-ppick'); $('#ppN', sh).textContent = `${sel.length} selected`; };
+  draw();
+  sh.addEventListener('click', async e => {
+    let el;
+    if ((el = e.target.closest('[data-pcat]'))) { cat = el.dataset.pcat; return draw(); }
+    if ((el = e.target.closest('[data-ppick]'))) { toggleIn(sel, el.dataset.ppick); return draw(); }
+    if (e.target.closest('#ppSave')) {
+      if (await editTrip(tid, t => { const keep = (t.pack || []).filter(p => sel.includes(p.id)), have = new Set(keep.map(p => p.id)); t.pack = [...keep, ...sel.filter(id => !have.has(id)).map(id => ({ id, bag: (t.bags || [])[0] || 'Carry-on' }))]; })) closeSheet();
+    }
+  });
+}
+function openSuggest(tid) {
+  const t0 = tripById(tid), { list, why } = suggestCapsule(t0), sel = list.map(i => i.id);
+  const sh = sheet({
+    title: 'Suggested capsule',
+    body: `<p class="muted" style="margin:0">${esc(why)}. Picked from your closet by season, occasion and what you wear most. Tap to leave pieces out.</p>${list.length ? `<div id="sgHost"></div>` : '<p>Your packing list already covers it, or there are no matching pieces in your closet.</p>'}`,
+    foot: `<div class="spacer"></div><button class="btn" data-close>Cancel</button>${list.length ? '<button class="btn primary" id="sgAdd">Add to packing list</button>' : ''}`
+  });
+  const draw = () => { $('#sgHost', sh) && ($('#sgHost', sh).innerHTML = pickGridHTML(list, sel, 'All', 'data-sg') + `<p class="muted" style="font-size:13px;margin:6px 0 0">${sel.length} of ${list.length} selected</p>`); };
+  draw();
+  sh.addEventListener('click', async e => {
+    const el = e.target.closest('[data-sg]'); if (el) { toggleIn(sel, el.dataset.sg); return draw(); }
+    if (e.target.closest('#sgAdd')) { if (await editTrip(tid, t => { const have = new Set((t.pack || []).map(p => p.id)); t.pack = [...(t.pack || []), ...sel.filter(id => !have.has(id)).map(id => ({ id, bag: (t.bags || [])[0] || 'Carry-on' }))]; })) { closeSheet(); toast(`${sel.length} pieces added`); } }
+  });
+}
+function openWishPicker(tid) {
+  const pool = S.items.filter(isWish), sel = [];
+  const sh = sheet({ title: 'Buy from your wishlist', body: pool.length ? pickGridHTML(pool, sel, 'All', 'data-wp') : '<p class="muted">Your wishlist is empty.</p>', foot: `<div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" id="wpAdd">Add to buy list</button>` });
+  sh.addEventListener('click', async e => {
+    const el = e.target.closest('[data-wp]'); if (el) { toggleIn(sel, el.dataset.wp); el.setAttribute('aria-pressed', sel.includes(el.dataset.wp)); return; }
+    if (e.target.closest('#wpAdd')) { if (await editTrip(tid, t => { t.buy = [...(t.buy || []), ...sel.map(id => ({ t: S.byId[id].name, wish: id }))]; })) closeSheet(); }
   });
 }
 
@@ -2169,7 +2575,7 @@ function openDay(date, opts = {}) {
 }
 
 /* ---------- boot ---------- */
-$('#addBtn').addEventListener('click', () => openEditor(null, S.view === 'wishlist' ? { wish: true } : {}));
+$('#addBtn').addEventListener('click', () => S.view === 'trips' ? openTripEditor(null) : openEditor(null, S.view === 'wishlist' ? { wish: true } : {}));
 S.fv = { closet: newFilter(pref.get('sort:closet', pref.get('sort', 'new'))), wishlist: newFilter(pref.get('sort:wishlist', 'new')) };
 const h = (location.hash || '').slice(1);
 S.view = VIEWS.some(v => v[0] === h) ? h : pref.get('view', 'closet');
