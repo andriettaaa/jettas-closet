@@ -442,6 +442,9 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .iconbtn.small svg { width: 14px; height: 14px; }
 .tadd { display: flex; gap: 8px; margin-bottom: 10px; }
 .tadd input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 9px 14px; }
+.optadd { display: inline-flex; gap: 6px; align-items: center; }
+.optadd input[type="text"] { border: 1px solid var(--accent); background: var(--surface); border-radius: 999px; padding: 4px 12px; width: 160px; min-width: 0; }
+.optadd input[type="color"] { width: 32px; height: 32px; border: 0; padding: 0; background: none; border-radius: 50%; }
 .geo { display: flex; flex-wrap: wrap; gap: 6px; }
 .geo:empty { display: none; }
 .goneact { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13.5px; }
@@ -485,7 +488,7 @@ const COLORS = [
 ];
 const COLOR_HEX = Object.fromEntries(COLORS);
 const MULTI = 'conic-gradient(#c23b33,#e8c547,#4f7a4a,#4a78c2,#7f5aa6,#c23b33)';
-const swatchBg = n => COLOR_HEX[n] === 'multi' ? MULTI : (COLOR_HEX[n] || '#999');
+const swatchBg = n => COLOR_HEX[n] === 'multi' ? MULTI : (COLOR_HEX[n] || S.prefs.custom?.colorHex?.[n] || '#999');
 // Where a piece lands on a fresh outfit board (left %, top %, width %)
 const SLOT = {
   tops: { x: 20, y: 5, w: 46 }, knitwear: { x: 20, y: 5, w: 48 }, dresses: { x: 22, y: 4, w: 50 },
@@ -785,6 +788,40 @@ const ACQUIRED = ['New', 'Secondhand'];
 const PLACES = ['Online', 'In store'];
 const CONDITIONS = ['New with tags', 'New without tags', 'Like new', 'Very good', 'Good', 'Fair', 'Needs repair'];
 const one = v => (v == null || String(v).trim() === '') ? [] : [String(v).trim()];
+// Every group of tap-chips offers your own options next to the ready-made ones. They're kept in your settings
+// (prefs.custom[key]); a value a piece already has always shows too, so it can be tapped off.
+const optList = (key, base, cur = []) => { const out = [...base]; for (const v of [...(S.prefs.custom?.[key] || []), ...[].concat(cur || [])]) if (v && !out.some(b => norm(b) === norm(v))) out.push(v); return out; };
+const ownBtn = (key, chip) => `<button type="button" class="chip ghost" data-addopt="${esc(key)}" data-chip="${esc(chip)}">+ Add your own</button>`;
+// what a new chip looks like, matching the group's own chips so the group's tap handler picks it up
+function chipFor(kind, v, hex) {
+  const [type, k] = kind.split(':'), V = esc(v);
+  const attr = { color: `data-color="${V}"`, multi: `data-multi="${esc(k)}" data-v="${V}"`, one: `data-one="${esc(k)}" data-v="${V}"`, cond: `data-cond="${V}"`, care: `data-care="${esc(k)}" data-v="${V}"`, ttype: `data-ttype="${V}"`, slabel: `data-slabel="${V}"` }[type];
+  return `<button type="button" class="chip" ${attr} aria-pressed="false">${type === 'color' ? `<i class="dot" style="background:${esc(hex)}"></i>` : ''}${V}</button>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-addopt]'); if (!b) return;
+  const key = b.dataset.addopt, kind = b.dataset.chip, color = kind === 'color';
+  const wrap = document.createElement('span'); wrap.className = 'optadd';
+  wrap.innerHTML = `<input type="text" maxlength="40" placeholder="Your own…" aria-label="Your own option">${color ? '<input type="color" value="#8a6a4a" aria-label="Its colour">' : ''}<button type="button" class="chip on">Add</button>`;
+  b.replaceWith(wrap);
+  const inp = wrap.querySelector('input[type="text"]'); inp.focus();
+  const done = () => {
+    const v = inp.value.trim().replace(/\s+/g, ' ');
+    if (!v) { wrap.replaceWith(b); return; }
+    const group = wrap.parentElement;
+    const same = [...group.querySelectorAll('.chip:not([data-addopt])')].find(c => norm(c.textContent) === norm(v));
+    const hex = color ? wrap.querySelector('input[type="color"]').value : '';
+    const t = document.createElement('template'); t.innerHTML = chipFor(kind, v, hex);
+    const chip = same || t.content.firstElementChild;
+    wrap.replaceWith(...(same ? [b] : [chip, b]));
+    if (chip.getAttribute('aria-pressed') !== 'true') chip.click();
+    if (same) return;
+    const c = S.prefs.custom || {};
+    DB.savePrefs({ custom: { ...c, [key]: [...(c[key] || []), v], ...(color ? { colorHex: { ...(c.colorHex || {}), [v]: hex } } : {}) } }).catch(console.error);
+  };
+  wrap.querySelector('button').addEventListener('click', ev => { ev.stopPropagation(); done(); });
+  inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); done(); } if (ev.key === 'Escape') { ev.stopPropagation(); wrap.replaceWith(b); } });
+});
 // Every property you can tap to filter by; within one property any match counts, across properties all must match
 const FACETS = [
   { k: 'colors', label: 'Colour', get: it => it.colors || [], order: COLORS.map(c => c[0]) },
@@ -1345,7 +1382,7 @@ function openTripEditor(id) {
       <div class="field"><label for="t-start">First day</label><input id="t-start" type="date" value="${esc(T.start)}"></div>
       <div class="field"><label for="t-days">Number of days</label><input id="t-days" type="number" min="1" max="60" inputmode="numeric" value="${T.days}"></div>
       <div class="field full"><label for="t-name">Name (optional)</label><input id="t-name" value="${esc(T.name || '')}" placeholder="e.g. Girls' weekend Lisbon"></div>
-      <div class="field full"><span class="lbl">Kind of trip · tap all that apply</span><div class="togglegroup">${TRIP_TYPES.map(x => `<button type="button" class="chip" data-ttype="${x}" aria-pressed="${T.types.includes(x)}">${x}</button>`).join('')}</div></div>
+      <div class="field full"><span class="lbl">Kind of trip · tap all that apply</span><div class="togglegroup">${optList('tripTypes', TRIP_TYPES, T.types).map(x => `<button type="button" class="chip" data-ttype="${esc(x)}" aria-pressed="${T.types.includes(x)}">${esc(x)}</button>`).join('')}${ownBtn('tripTypes', 'ttype')}</div></div>
       <div class="field full"><label for="t-bags">Bags</label><input id="t-bags" value="${esc((T.bags || []).join(', '))}" placeholder="Carry-on, Checked"><span class="muted" style="font-size:12.5px">Separate with commas. Pieces and essentials can be divided over these.</span></div>
       ${!id && others.length ? `<div class="field full"><label for="t-copy">Start from an earlier trip</label><select id="t-copy"><option value="">Start empty</option>${others.map(o => `<option value="${esc(o.id)}">${esc(o.name || o.dest?.name || 'Trip')} (${tripRange(o)})</option>`).join('')}</select><span class="muted" style="font-size:12.5px">Copies its packing list, essentials and bags (all unticked).</span></div>` : ''}
       <label class="field full" style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" id="t-wears" ${T.countWears !== false ? 'checked' : ''} style="width:auto"> Count trip outfits as wears once the days have passed</label>
@@ -1404,7 +1441,7 @@ function openSlot(tid, di, si) {
     foot: `${si != null ? '<button class="btn danger" id="sDel">Remove outfit</button>' : ''}<div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" id="sSave">Save</button>`
   });
   const draw = () => {
-    $('#sLabels', sh).innerHTML = [...new Set([...SLOT_LABELS, D.label])].map(l => `<button type="button" class="chip" data-slabel="${esc(l)}" aria-pressed="${D.label === l}">${esc(l)}</button>`).join('');
+    $('#sLabels', sh).innerHTML = optList('slotLabels', SLOT_LABELS, D.label).map(l => `<button type="button" class="chip" data-slabel="${esc(l)}" aria-pressed="${D.label === l}">${esc(l)}</button>`).join('') + ownBtn('slotLabels', 'slabel');
     $$('[data-smode]', sh).forEach(b => b.setAttribute('aria-pressed', b.dataset.smode === D.mode));
     const host = $('#sPick', sh);
     if (D.mode === 'outfit') { host.innerHTML = S.outfits.length ? `<div class="outpick">${S.outfits.map(o => `<button data-sout="${esc(o.id)}" aria-pressed="${D.outfit === o.id}">${boardHTML(o.pieces)}<span>${esc(o.name || 'Outfit')}</span></button>`).join('')}</div>` : '<p class="muted">No saved outfits yet. Pick pieces instead.</p>'; return; }
@@ -2000,16 +2037,16 @@ function openEditor(id, opts = {}) {
              <div class="field"><label for="f-past">Worn before adding</label><input id="f-past" type="number" min="0" inputmode="numeric" value="${esc(it.pastWears || '')}" placeholder="0"></div>`}
         <div class="field"><label for="f-material">Material details</label><input id="f-material" value="${esc(it.material)}" placeholder="e.g. 80% wool, 20% nylon" autocomplete="off"></div>
         ${wishMode ? `<div class="field full"><label for="f-why">Why do I want it?</label><textarea id="f-why" placeholder="What makes it worth it">${esc(it.why)}</textarea></div>` : ''}
-        <div class="field full"><span class="lbl">Colours · tap all that apply</span><div class="togglegroup" id="f-colors">${COLORS.map(([n]) => `<button type="button" class="chip" data-color="${n}" aria-pressed="${it.colors.includes(n)}"><i class="dot" style="background:${swatchBg(n)}"></i>${n}</button>`).join('')}</div><span class="muted" id="f-colornames" style="font-size:12.5px"></span></div>
-        <div class="field full"><span class="lbl">Fit · tap all that apply</span><div class="togglegroup">${FITS.map(s => `<button type="button" class="chip" data-multi="fits" data-v="${s}" aria-pressed="${it.fits.includes(s)}">${s}</button>`).join('')}</div></div>
-        <div class="field full"><span class="lbl">Material · tap all that apply</span><div class="togglegroup">${MATERIALS.map(s => `<button type="button" class="chip" data-multi="materials" data-v="${s}" aria-pressed="${it.materials.includes(s)}">${s}</button>`).join('')}</div></div>
-        <div class="field"><span class="lbl">New or secondhand</span><div class="togglegroup">${ACQUIRED.map(v => `<button type="button" class="chip" data-one="acquired" data-v="${v}" aria-pressed="${it.acquired === v}">${v}</button>`).join('')}</div></div>
-        <div class="field"><span class="lbl">${wishMode ? 'Where to buy' : 'Where bought'}</span><div class="togglegroup">${PLACES.map(v => `<button type="button" class="chip" data-one="purchasePlace" data-v="${v}" aria-pressed="${it.purchasePlace === v}">${v}</button>`).join('')}</div></div>
+        <div class="field full"><span class="lbl">Colours · tap all that apply</span><div class="togglegroup" id="f-colors">${optList('colors', COLORS.map(c => c[0]), it.colors).map(n => `<button type="button" class="chip" data-color="${esc(n)}" aria-pressed="${it.colors.includes(n)}"><i class="dot" style="background:${swatchBg(n)}"></i>${esc(n)}</button>`).join('')}${ownBtn('colors', 'color')}</div><span class="muted" id="f-colornames" style="font-size:12.5px"></span></div>
+        <div class="field full"><span class="lbl">Fit · tap all that apply</span><div class="togglegroup">${optList('fits', FITS, it.fits).map(s => `<button type="button" class="chip" data-multi="fits" data-v="${esc(s)}" aria-pressed="${it.fits.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('fits', 'multi:fits')}</div></div>
+        <div class="field full"><span class="lbl">Material · tap all that apply</span><div class="togglegroup">${optList('materials', MATERIALS, it.materials).map(s => `<button type="button" class="chip" data-multi="materials" data-v="${esc(s)}" aria-pressed="${it.materials.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('materials', 'multi:materials')}</div></div>
+        <div class="field"><span class="lbl">New or secondhand</span><div class="togglegroup">${optList('acquired', ACQUIRED, it.acquired).map(v => `<button type="button" class="chip" data-one="acquired" data-v="${esc(v)}" aria-pressed="${it.acquired === v}">${esc(v)}</button>`).join('')}${ownBtn('acquired', 'one:acquired')}</div></div>
+        <div class="field"><span class="lbl">${wishMode ? 'Where to buy' : 'Where bought'}</span><div class="togglegroup">${optList('purchasePlace', PLACES, it.purchasePlace).map(v => `<button type="button" class="chip" data-one="purchasePlace" data-v="${esc(v)}" aria-pressed="${it.purchasePlace === v}">${esc(v)}</button>`).join('')}${ownBtn('purchasePlace', 'one:purchasePlace')}</div></div>
         <div class="field full"><label for="f-shop">Shop or store name</label><input id="f-shop" value="${esc(it.shop)}" placeholder="e.g. Zara, Vinted, a vintage store" autocomplete="off">${sugRow('shop', [])}</div>
-        ${wishMode ? '' : `<div class="field full"><span class="lbl">Condition</span><div class="togglegroup">${CONDITIONS.map(c => `<button type="button" class="chip" data-cond="${c}" aria-pressed="${it.condition === c}">${c}</button>`).join('')}</div></div>`}
-        <div class="field full"><span class="lbl">Occasion</span><div class="togglegroup">${OCCASIONS.map(s => `<button type="button" class="chip" data-multi="occasions" data-v="${s}" aria-pressed="${it.occasions.includes(s)}">${s}</button>`).join('')}</div></div>
-        <div class="field full"><span class="lbl">Season</span><div class="togglegroup">${SEASONS.map(s => `<button type="button" class="chip" data-multi="seasons" data-v="${s}" aria-pressed="${it.seasons.includes(s)}">${s}</button>`).join('')}</div></div>
-        <div class="field"><label for="f-tags">Tags</label><input id="f-tags" value="${esc(it.tags.join(', '))}" placeholder="work, going out, cosy"></div>
+        ${wishMode ? '' : `<div class="field full"><span class="lbl">Condition</span><div class="togglegroup">${optList('condition', CONDITIONS, it.condition).map(c => `<button type="button" class="chip" data-cond="${esc(c)}" aria-pressed="${it.condition === c}">${esc(c)}</button>`).join('')}${ownBtn('condition', 'cond')}</div></div>`}
+        <div class="field full"><span class="lbl">Occasion</span><div class="togglegroup">${optList('occasions', OCCASIONS, it.occasions).map(s => `<button type="button" class="chip" data-multi="occasions" data-v="${esc(s)}" aria-pressed="${it.occasions.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('occasions', 'multi:occasions')}</div></div>
+        <div class="field full"><span class="lbl">Season</span><div class="togglegroup">${optList('seasons', SEASONS, it.seasons).map(s => `<button type="button" class="chip" data-multi="seasons" data-v="${esc(s)}" aria-pressed="${it.seasons.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('seasons', 'multi:seasons')}</div></div>
+        <div class="field full"><span class="lbl">Tags</span><div class="togglegroup">${optList('tags', [...new Set(S.items.flatMap(i => i.tags || []))], it.tags).map(s => `<button type="button" class="chip" data-multi="tags" data-v="${esc(s)}" aria-pressed="${it.tags.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('tags', 'multi:tags')}</div></div>
         <div class="field" ${review || buying ? 'hidden' : ''}><label for="f-status">Status</label><select id="f-status"><option value="closet">In my closet</option><option value="wishlist">On my wishlist</option><option value="sold">Sold</option><option value="donated">Donated</option></select></div>
         <div class="field" id="goneF" hidden><label for="f-gone">Sold or donated on</label><input id="f-gone" type="date" value="${esc(it.goneDate)}"></div>
         <div class="field" id="soldF" hidden><label for="f-sold">Sold for (€)</label><input id="f-sold" inputmode="decimal" value="${money2(it.soldPrice)}" placeholder="optional"></div>
@@ -2017,7 +2054,7 @@ function openEditor(id, opts = {}) {
         <div class="field full"><label for="f-notes">Notes</label><textarea id="f-notes" placeholder="Fit, what it goes with">${esc(it.notes)}</textarea></div>
       </div>
       <h3 style="font-size:17px">Care</h3>
-      <div class="caregroups">${CARE.map(([k, label, opts2]) => `<div><span class="lbl">${label}</span><div class="togglegroup">${opts2.map(o => `<button type="button" class="chip" data-care="${k}" data-v="${esc(o)}" aria-pressed="${it.care[k] === o}">${esc(o)}</button>`).join('')}</div></div>`).join('')}
+      <div class="caregroups">${CARE.map(([k, label, opts2]) => `<div><span class="lbl">${label}</span><div class="togglegroup">${optList('care.' + k, opts2, it.care[k]).map(o => `<button type="button" class="chip" data-care="${k}" data-v="${esc(o)}" aria-pressed="${it.care[k] === o}">${esc(o)}</button>`).join('')}${ownBtn('care.' + k, 'care:' + k)}</div></div>`).join('')}
         <div class="field"><label for="f-carenotes">Care notes</label><textarea id="f-carenotes" placeholder="Anything from the label, e.g. wash inside out">${esc(it.careNotes)}</textarea></div></div>`,
     // the discard question sits in the always-visible footer: at the end of the long form nobody saw it
     foot: `${review ? '<div class="confirm" id="discardConfirm" hidden style="flex-basis:100%">Remove this piece from the tray? <button class="btn small danger" id="discardYes">Discard</button><button class="btn small" id="discardNo">Keep it</button></div>' : ''}<span class="busy" id="saveStatus"></span><div class="spacer"></div>${review ? '<button class="btn danger" id="discard">Discard</button><button class="btn" id="saveWish">Save to wishlist</button>' : '<button class="btn" data-close>Cancel</button>'}<button class="btn primary" id="saveItem">${review || buying || (!id && !wishMode) ? 'Add to closet' : !id ? 'Add to wishlist' : 'Save changes'}</button>`
@@ -2106,7 +2143,7 @@ function openEditor(id, opts = {}) {
         bought: $('#f-bought', sh)?.value ?? it.bought ?? '', pastWears: Math.max(0, parseInt($('#f-past', sh)?.value, 10) || 0),
         material: $('#f-material', sh).value.trim(), colors: it.colors, seasons: it.seasons, occasions: it.occasions,
         fits: it.fits, materials: it.materials, condition: it.condition || '', acquired: it.acquired || '', purchasePlace: it.purchasePlace || '',
-        tags: $('#f-tags', sh).value.split(',').map(s => s.trim()).filter(Boolean),
+        tags: it.tags,
         care: it.care, careNotes: $('#f-carenotes', sh).value.trim(),
         why: $('#f-why', sh)?.value.trim() ?? it.why ?? '', wishSince: $('#f-since', sh)?.value ?? it.wishSince ?? '',
         status, notes: $('#f-notes', sh).value.trim(), link: $('#f-link', sh).value.trim(), shop: $('#f-shop', sh).value.trim(),
