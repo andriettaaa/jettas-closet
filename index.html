@@ -1264,18 +1264,58 @@ async function importFile(file, progress) {
   let done = 0;
   const brands = new Set((S.prefs.brands || []).map(norm)), newBrands = [];
   for (const raw of todo) {
-    const { id, photoData, catKey, ...rest } = raw;
+    const { id, photoData, catKey, cutout, ...rest } = raw;
     const doc = { colors: [], seasons: [], tags: [], occasions: [], care: {}, ...rest, updated: Date.now() };
     if (catKey && catName(catKey)) doc.cat = catName(catKey);
     if (!doc.cat) doc.cat = cats()[0];
     progress(`Importing ${done + 1} of ${todo.length}: ${doc.name || 'piece'}…`);
-    if (photoData) doc.photo = await uploadPhoto(await (await fetch(photoData)).blob());
+    if (photoData) {
+      let blob = await (await fetch(photoData)).blob();
+      // photos on a plain background (e.g. from Indyx screenshots) get the same cut-out as the editor's "Remove background"
+      if (cutout) blob = await cutOut(blob).catch(() => blob);
+      doc.photo = await uploadPhoto(blob);
+    }
     await DB.put('items', id || uuid(), doc);
     if (doc.brand && !brands.has(norm(doc.brand))) { brands.add(norm(doc.brand)); newBrands.push(doc.brand); }
     done++;
   }
   if (newBrands.length) await DB.savePrefs({ brands: [...(S.prefs.brands || []), ...newBrands] }).catch(console.error);
   return { done, skipped: items.length - todo.length };
+}
+// Import cut-out. A dark piece keeps about the same shape at any sensitivity; a white top on a white background
+// mostly disappears at the normal one, so then a much gentler fill is used. Background enclosed by the piece
+// (inside a bag handle, between a strap and a shoe) is cleared afterwards.
+async function cutOut(blob) {
+  Object.assign(PE, { changed: false, mode: 'view' });
+  await peLoad(blob);
+  if (peHasAlpha()) return (await peExport()) || blob;
+  const n = PE.w * PE.h;
+  const run = tol => { PE.tol = tol; PE.autoBefore = null; PE.cur = new ImageData(new Uint8ClampedArray(PE.orig.data), PE.w, PE.h); peAuto(); let k = 0; for (let i = 3; i < PE.cur.data.length; i += 4) if (PE.cur.data[i] > 12) k++; return k / n; };
+  const normal = pref.get('tol', 34), gentle = 8;
+  const kGentle = run(gentle), kNormal = run(normal);
+  const tol = kGentle > kNormal * 2 && kGentle > 0.05 ? gentle : normal;
+  if (tol !== normal) run(tol);
+  clearHoles(Math.min(20, tol * 0.6));
+  const out = await peExport();
+  PE.cur = null; PE.tol = pref.get('tol', 34);
+  return out || blob;
+}
+function clearHoles(tol) {
+  const d = PE.orig.data, a = PE.cur.data, w = PE.w, n = w * PE.h, T = tol * tol;
+  const border = []; for (let x = 0; x < w; x++) border.push(x, n - w + x); for (let y = 1; y < PE.h - 1; y++) border.push(y * w, y * w + w - 1);
+  const med = ch => { const v = border.map(p => d[p * 4 + ch]).sort((x, y) => x - y); return v[v.length >> 1]; };
+  const m = [med(0), med(1), med(2)];
+  const near = p => a[p * 4 + 3] > 12 && (d[p * 4] - m[0]) ** 2 + (d[p * 4 + 1] - m[1]) ** 2 + (d[p * 4 + 2] - m[2]) ** 2 < T;
+  const seen = new Uint8Array(n), st = new Int32Array(n), min = n * 0.002;
+  for (let i = 0; i < n; i++) {
+    if (seen[i] || !near(i)) continue;
+    const region = []; let sp = 0; st[sp++] = i; seen[i] = 1;
+    while (sp) {
+      const p = st[--sp], x = p % w; region.push(p);
+      for (const q of [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, p - w, p + w]) if (q >= 0 && q < n && !seen[q] && near(q)) { seen[q] = 1; st[sp++] = q; }
+    }
+    if (region.length > min) for (const p of region) a[p * 4 + 3] = 0;
+  }
 }
 function exportBackup() {
   const name = `jettas-closet-backup-${today()}.json`;
