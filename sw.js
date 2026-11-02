@@ -1,5 +1,5 @@
 // Keeps Jetta’s Closet opening offline: the app itself and your photos are cached; sign-in and data always go to Supabase.
-const VERSION = 'hangtag-v18';
+const VERSION = 'hangtag-v19';
 const SHELL = ['./', './index.html', './config.js', './life.js', './life.css', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.js'];
 
