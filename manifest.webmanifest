@@ -1,7 +1,7 @@
 {
   "name": "Jetta’s Closet",
   "short_name": "Jetta’s Closet",
-  "description": "Your wardrobe: pieces, outfits, what you wore and what it cost per wear.",
+  "description": "Your wardrobe, kitchen, home, self-care and fitness in one place.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
