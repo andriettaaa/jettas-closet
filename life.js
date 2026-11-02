@@ -158,11 +158,13 @@ const KINDS = {
       F('price', 'Price', 'money', { half: 1 }), F('qty', 'How many', 'num', { half: 1 }),
       F('bought', 'Bought on', 'date', { half: 1 }), F('opened', 'Opened on', 'date', { half: 1 }),
       F('expiry', 'Use before', 'date', { half: 1 }), F('rating', 'Rating', 'rating', { half: 1 }),
-      F('fav', 'Favourite', 'check', { half: 1 }), F('finished', 'Finished', 'check', { half: 1 }),
+      F('fav', 'Favourite', 'check', { half: 1 }), F('finished', 'Finished', 'check', { half: 1 }), F('wish', 'On my wishlist', 'check', { half: 1 }),
       F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['brand', 'Brand'], ['-rating', 'Best rated'], ['expiry', 'Use first'], ['-bought', 'Newest']],
+    filters: [['all', 'All'], ['own', 'I have'], ['want', 'Wishlist']],
+    filter: (r, f) => f === 'own' ? !r.wish : f === 'want' ? !!r.wish : true,
     hide: r => r.finished || r.archived, hideLabel: 'Show finished',
-    sub: r => [r.brand, r.type, r.texture, r.am && r.pm ? 'AM + PM' : r.am ? 'AM' : r.pm ? 'PM' : ''].filter(Boolean).join(' · '),
+    sub: r => [r.wish ? 'Wishlist' : '', r.brand, r.type, r.texture, r.am && r.pm ? 'AM + PM' : r.am ? 'AM' : r.pm ? 'PM' : ''].filter(Boolean).join(' · '),
     side: r => r.expiry ? (r.expiry < today() ? 'expired' : diffDays(today(), r.expiry) <= 30 ? 'use by ' + shortDate(r.expiry) : '') : ''
   },
   supplements: {
@@ -523,7 +525,7 @@ function careTile() {
   const cy = cycleStats();
   const appt = recs('appts').filter(a => !a.done && a.date && a.date >= t).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')))[0];
   // the routine that fits the time of day: morning until 3 pm, evening after
-  const eve = new Date().getHours() >= 15, prods = recs('beauty').filter(b => !b.finished && !b.archived && (eve ? b.pm : b.am));
+  const eve = new Date().getHours() >= 15, prods = recs('beauty').filter(b => !b.finished && !b.archived && !b.wish && (eve ? b.pm : b.am));
   const sl = recs('sleep').find(x => x.date === t), j = recs('journal').find(x => x.date === t);
   return tileBody([
     `<div class="lwater small"><button class="iconbtn small" data-act="water" data-v="-1" aria-label="One glass less" ${glasses ? '' : 'disabled'}>${svg(P.minus)}</button><div class="lwv"><b>${glasses}</b><span>of ${goal} glasses</span></div><button class="iconbtn small lplus" data-act="water" data-v="1" aria-label="One more glass">${svg(P.plus)}</button></div>`,
@@ -1318,7 +1320,7 @@ function careToday(host) {
   const times = ['AM', 'Midday', 'PM'].filter(tm => sups.some(s => [].concat(s.times?.length ? s.times : ['AM']).includes(tm)));
   const sl = recs('sleep').filter(s => s.date).sort((a, b) => b.date.localeCompare(a.date))[0];
   const cy = cycleStats(), j = recs('journal').find(x => x.date === t);
-  const prods = recs('beauty').filter(b => !b.finished && !b.archived);
+  const prods = recs('beauty').filter(b => !b.finished && !b.archived && !b.wish);
   const am = prods.filter(b => b.am), pm = prods.filter(b => b.pm);
   const soon = prods.filter(b => b.expiry && diffDays(t, b.expiry) <= 30).sort((a, b) => a.expiry.localeCompare(b.expiry));
   const appts = recs('appts').filter(a => !a.done && a.date && a.date >= t).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''))).slice(0, 3);
