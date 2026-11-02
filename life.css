@@ -252,6 +252,51 @@ button.lrow.lmain, .lrow > .lmain:only-child { padding-left: 12px; }
 .mcheck { display: flex; align-items: center; gap: 12px; }
 .mcheck .lmain { flex: 1; display: flex; flex-direction: column; } .mcheck .lmain span { color: var(--muted); font-size: 13px; }
 .mcheck input { width: 120px; text-align: right; }
+.mkick { color: var(--muted); margin: 0 0 2px; }
+.mneg { color: var(--danger); }
+.mchartwrap { position: relative; }
+.mticks { position: relative; height: 18px; font-size: 12.5px; color: var(--muted); }
+.mticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.mticks span:first-child { transform: none; } .mticks span:last-child { transform: translateX(-100%); }
+.mdot { fill: var(--surface); stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.mdot.in { fill: var(--c5); stroke: var(--c5); } .mdot.debt { fill: var(--c7); stroke: var(--c7); } .mdot.buy { fill: var(--danger); stroke: var(--danger); }
+.mdotk { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--accent); margin-right: 6px; vertical-align: -1px; }
+.mdotk.debt { background: var(--c7); border-color: var(--c7); } .mdotk.in { background: var(--c5); border-color: var(--c5); }
+.mwhatif { background: var(--stage); border-radius: 14px; padding: 14px 16px; margin-top: 12px; }
+.mwh { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.mslide { display: grid; grid-template-columns: 90px 1fr 80px; align-items: center; gap: 12px; margin: 8px 0; }
+.mslide input { width: 100%; accent-color: var(--accent); } .mslide b { text-align: right; }
+.myear { position: relative; display: flex; gap: 8px; height: 230px; align-items: stretch; }
+.mcol { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.mcol > span { height: 22px; font-size: 12px; text-align: center; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mbox { height: 200px; display: flex; align-items: flex-end; justify-content: center; }
+.mstack { width: 100%; max-width: 56px; display: flex; flex-direction: column; border-radius: 8px 8px 4px 4px; overflow: hidden; min-height: 3px; }
+.mstack i { display: block; background: var(--c8); min-height: 0; } .mstack i.odd { background: var(--c7); }
+.mavg { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--c5); pointer-events: none; }
+.mpot { gap: 10px; } .mpot .lmain b .mmuted { font-weight: 400; }
+.mdayhead { display: flex; justify-content: space-between; margin: 16px 0 6px; font-size: 14px; }
+.mmore { margin-top: 12px; }
+.morder { margin: 8px 0 12px; padding-left: 20px; } .morder li { margin: 4px 0; }
+.mhealth { display: flex; align-items: center; gap: 18px; margin-bottom: 8px; }
+.mgauge { width: 130px; height: 130px; flex: none; } .mgn { font-family: var(--display); font-weight: 800; font-size: 10px; fill: var(--ink); }
+.mpart { margin: 14px 0; } .mpart .mbl small { color: var(--muted); font-weight: 400; } .mpart .mmuted { margin-top: 6px; font-size: 13.5px; }
+.mpair.m3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 600px) { .mpair.m3 { grid-template-columns: 1fr; } }
+.mio { display: grid; grid-template-columns: 40px 1fr; gap: 8px 10px; align-items: center; margin: 14px 0; font-size: 14px; }
+.mio i { display: block; height: 14px; border-radius: 7px; min-width: 2px; }
+.mfacts p { display: flex; justify-content: space-between; gap: 12px; background: var(--stage); border-radius: 12px; padding: 10px 14px; margin: 8px 0; }
+.msankey { width: 100%; height: auto; display: block; }
+.mst { font-size: 17px; font-weight: 700; fill: var(--ink); } .mss { font-size: 15px; fill: var(--muted); }
+.mrev { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); }
+.meq { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 860px) { .mrev, .meq { grid-template-columns: 1fr; } }
+.magainst { display: flex; flex-direction: column; gap: 12px; }
+.mag { border: 0; background: none; color: inherit; font: inherit; text-align: left; padding: 0; cursor: pointer; }
+.mag .lprog { margin-top: 4px; height: 6px; } .mlast i { background: var(--tag) !important; }
+.m12 { display: flex; gap: 6px; height: 230px; }
+.mpair2 { gap: 3px; } .mpair2 i { display: block; width: 45%; max-width: 22px; border-radius: 5px 5px 2px 2px; min-height: 2px; }
+.mmon { min-width: 130px; text-align: center; }
+@media print { nav, .mjump, .viewhead .btn, .viewhead .iconbtn, .ltools { display: none !important; } }
 .lthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .lviews { margin-left: auto; }
 .lviews button { padding: 6px 10px; display: grid; place-items: center; }
