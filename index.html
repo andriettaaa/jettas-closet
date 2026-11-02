@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Jetta’s Closet</title>
+<title>A’s Life</title>
 <meta name="description" content="Your wardrobe, kitchen, home, self-care and fitness in one place.">
 <meta name="theme-color" content="#F3EEE8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#17110D" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Jetta’s Closet">
+<meta name="apple-mobile-web-app-title" content="A’s Life">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icon-192.png">
@@ -459,7 +459,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><svg viewBox="0 0 64 40" aria-hidden="true"><path d="M28 7a4 4 0 1 1 6 3.5c-1.3.8-2 1.6-2 3V15L5 31.5c-2.2 1.4-1.2 4.5 1.4 4.5h51.2c2.6 0 3.6-3.1 1.4-4.5L32 15" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>Jetta’s Closet</div>
+    <div class="brand"><svg viewBox="0 0 64 40" aria-hidden="true"><path d="M28 7a4 4 0 1 1 6 3.5c-1.3.8-2 1.6-2 3V15L5 31.5c-2.2 1.4-1.2 4.5 1.4 4.5h51.2c2.6 0 3.6-3.1 1.4-4.5L32 15" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>A’s Life</div>
     <nav class="tabs" id="tabsTop" aria-label="Sections"></nav>
     <div class="spacer"></div>
     <button class="btn primary" id="addBtn" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span class="addlabel">Add piece</span></button>
@@ -734,6 +734,8 @@ function go(v) {
   try { history.replaceState(null, '', '#' + v); } catch {}
   $('#main').innerHTML = ''; render(); window.scrollTo(0, 0);
 }
+// a typed or pasted #page link opens that page without a reload
+window.addEventListener('hashchange', () => { const v = (location.hash || '').slice(1); if (v && v !== S.view && okView(v)) go(v); });
 // only the tab buttons: the view container carries data-view too
 document.addEventListener('click', e => { const b = e.target.closest('nav [data-view]'); if (b) go(b.dataset.view); });
 // an area opens on the page you last had open there
@@ -763,12 +765,12 @@ function render() {
 
 /* ---------- sign-in & setup screens ---------- */
 function renderSetupMissing() {
-  $('#main').innerHTML = `<div class="login">${HANGER}<h1>Almost there</h1><p>This copy of Jetta’s Closet isn't connected to your Supabase project yet. Fill in your project address and publishable key in <span class="mono">config.js</span>, then upload it again.</p></div>`;
+  $('#main').innerHTML = `<div class="login">${HANGER}<h1>Almost there</h1><p>This copy of A’s Life isn't connected to your Supabase project yet. Fill in your project address and publishable key in <span class="mono">config.js</span>, then upload it again.</p></div>`;
   render();
 }
 function renderLogin(msg = '') {
   UID = null; render();
-  $('#main').innerHTML = `<div class="login">${HANGER}<h1>Jetta’s Closet</h1><p>Sign in once on this device. Your closet syncs between your Mac, iPhone and iPad.</p>
+  $('#main').innerHTML = `<div class="login">${HANGER}<h1>A’s Life</h1><p>Sign in once on this device. Everything syncs between your Mac, iPhone and iPad.</p>
     <form id="loginForm" novalidate>
       <div class="field"><label for="l-email">Email</label><input id="l-email" type="email" autocomplete="username" required></div>
       <div class="field"><label for="l-pass">Password</label><input id="l-pass" type="password" autocomplete="current-password" required></div>
@@ -861,13 +863,16 @@ const FACETS = [
   { k: 'acquired', label: 'New/secondhand', get: it => one(it.acquired), order: ACQUIRED },
   { k: 'purchasePlace', label: 'Where bought', get: it => one(it.purchasePlace), order: PLACES },
   { k: 'shop', label: 'Shop', get: it => one(it.shop) },
-  { k: 'tags', label: 'Tag', get: it => it.tags || [] }
+  { k: 'tags', label: 'Tag', get: it => it.tags || [], az: true }
 ];
 const FACET = Object.fromEntries(FACETS.map(f => [f.k, f]));
 const norm = v => String(v ?? '').trim().toLowerCase();
 const newFilter = sort => ({ cat: 'All', q: '', sort, sel: {}, facet: 'colors', showGone: false });
 const FV = () => S.fv[S.view === 'wishlist' ? 'wishlist' : 'closet'];
 const isWish = it => it.status === 'wishlist';
+const isPassed = it => it.status === 'passed'; // "no longer want it": archived wishlist piece
+const isWishAll = it => isWish(it) || isPassed(it);
+const azSort = (a, b) => String(a).localeCompare(String(b), undefined, { sensitivity: 'base' });
 const daysOn = it => it.wishSince ? Math.max(0, Math.round((Date.now() - fromISO(it.wishSince)) / 864e5)) : it.created ? Math.max(0, Math.round((Date.now() - it.created) / 864e5)) : null;
 const saving = it => it.origPrice > 0 && it.price > 0 && it.origPrice > it.price ? it.origPrice - it.price : 0;
 const SORTS = {
@@ -886,7 +891,7 @@ const SORTFN = {
   name: (a, b) => String(a.name).localeCompare(String(b.name))
 };
 function baseList(view, f) {
-  return S.items.filter(it => view === 'wishlist' ? isWish(it) : !isInbox(it) && !isWish(it) && (f.showGone || inCloset(it)));
+  return S.items.filter(it => view === 'wishlist' ? (f.showGone ? isPassed(it) : isWish(it)) : !isInbox(it) && !isWishAll(it) && (f.showGone || inCloset(it)));
 }
 function matches(it, f, skipFacet) {
   if (skipFacet !== 'cat' && f.cat !== 'All' && it.cat !== f.cat) return false;
@@ -910,7 +915,7 @@ function goFilter(view, k, value) {
 }
 const fchip = (k, v, label = v) => `<button class="chip link" data-go="${k}" data-v="${esc(v)}">${k === 'colors' ? `<i class="dot" style="background:${swatchBg(v)}"></i>` : ''}${esc(label)}</button>`;
 function itemCard(it, extraCls = '') {
-  const w = wearCount(it), c = cpw(it), inbox = isInbox(it), wish = isWish(it);
+  const w = wearCount(it), c = cpw(it), inbox = isInbox(it), wish = isWishAll(it);
   const sub = inbox ? [it.brand || it.shop, it.price ? eur(it.price) : ''].filter(Boolean).join(' · ')
     : wish ? [it.brand, it.price > 0 ? eur(it.price) + (saving(it) ? ` (was ${eur0(it.origPrice)})` : '') : '', daysOn(it) != null ? `${daysOn(it)} days on list` : ''].filter(Boolean).join(' · ')
     : [it.brand, w ? `worn ${w}×` : 'not worn yet'].filter(Boolean).join(' · ');
@@ -983,11 +988,12 @@ function fillRail(host) {
   }).filter(a => a.vals.size);
   if (!avail.some(a => a.fc.k === f.facet)) f.facet = avail[0]?.fc.k || 'colors';
   $('#facetTabs', host).innerHTML = `<span class="rowlbl">Filter by</span>` + avail.map(({ fc }) => { const n = (f.sel[fc.k] || []).length; return `<button class="chip tab" data-facet="${fc.k}" aria-pressed="${f.facet === fc.k}">${fc.label}${n ? ` <span class="badge">${n}</span>` : ''}</button>`; }).join('')
-    + (view === 'closet' && S.items.some(i => i.status === 'sold' || i.status === 'donated') ? `<button class="chip" data-gone aria-pressed="${f.showGone}">Sold &amp; donated</button>` : '');
+    + (view === 'closet' && S.items.some(i => i.status === 'sold' || i.status === 'donated') ? `<button class="chip" data-gone aria-pressed="${f.showGone}">Sold &amp; donated</button>` : '')
+    + (view === 'wishlist' && S.items.some(isPassed) ? `<button class="chip" data-gone aria-pressed="${f.showGone}">Archive · ${S.items.filter(isPassed).length}</button>` : '');
   const cur = avail.find(a => a.fc.k === f.facet);
   if (cur) {
     const order = cur.fc.order;
-    const vals = [...cur.vals.entries()].sort((a, b) => order ? (order.indexOf(a[1].label) + 1 || 999) - (order.indexOf(b[1].label) + 1 || 999) : b[1].n - a[1].n || a[1].label.localeCompare(b[1].label));
+    const vals = [...cur.vals.entries()].sort((a, b) => order ? (order.indexOf(a[1].label) + 1 || 999) - (order.indexOf(b[1].label) + 1 || 999) : cur.fc.az ? a[1].label.localeCompare(b[1].label, undefined, { sensitivity: 'base' }) : b[1].n - a[1].n || a[1].label.localeCompare(b[1].label));
     $('#facetVals', host).innerHTML = vals.map(([k, v]) => `<button class="chip" data-fk="${cur.fc.k}" data-fval="${esc(k)}" aria-pressed="${(f.sel[cur.fc.k] || []).includes(k)}">${cur.fc.k === 'colors' ? `<i class="dot" style="background:${swatchBg(v.label)}"></i>` : ''}${esc(v.label)} <span class="n">${v.n}</span></button>`).join('');
   } else $('#facetVals', host).innerHTML = '';
   $('#facetVals', host).hidden = !cur;
@@ -996,9 +1002,10 @@ function fillRail(host) {
   $('#activeF', host).innerHTML = (f.cat !== 'All' ? `<button class="chip on" data-unf="cat">${esc(f.cat)} ×</button>` : '') + active.map(a => `<button class="chip on" data-unf="${a.fc.k}" data-fval="${esc(a.v)}">${a.fc.label}: ${esc(a.label)} ×</button>`).join('') + `<button class="chip ghost" data-clearall>Clear all</button>`;
   const live = view === 'wishlist' ? base : S.items.filter(inCloset);
   const total = live.reduce((a, i) => a + (Number(i.price) || 0), 0);
-  $('#railSub', host).textContent = live.length ? (view === 'wishlist' ? `${live.length} pieces · ${eur0(total)} in total` : `${live.length} pieces · ${eur0(total)} on the rail`) : '';
+  $('#railSub', host).textContent = view === 'wishlist' && f.showGone ? `${base.length} archived · no longer wanted` : live.length ? (view === 'wishlist' ? `${live.length} pieces · ${eur0(total)} in total` : `${live.length} pieces · ${eur0(total)} on the rail`) : '';
   const grid = $('#railGrid', host);
   if (S.status === 'connecting' && !S.items.length) { grid.className = ''; grid.innerHTML = `<p class="busy">Loading…</p>`; return; }
+  if (!base.length && view === 'wishlist' && f.showGone) { f.showGone = false; return fillRail(host); }
   if (!base.length) { grid.className = ''; grid.innerHTML = view === 'wishlist' ? emptyWishlist() : emptyCloset(); return; }
   const list = base.filter(it => matches(it, f)).sort(SORTFN[f.sort] || SORTFN.new);
   grid.className = list.length ? 'grid' : '';
@@ -1530,7 +1537,7 @@ function openWishPicker(tid) {
 /* ---------- stats ---------- */
 const SERIES = [1, 2, 3, 4, 5, 6, 7].map(n => `var(--c${n})`);
 const isGone = it => it.status === 'sold' || it.status === 'donated';
-const owned = () => S.items.filter(i => !isInbox(i) && !isWish(i));
+const owned = () => S.items.filter(i => !isInbox(i) && !isWishAll(i));
 // values of one property across pieces; pieces without it become a grey "Not set" slice
 function countBy(list, get) {
   const m = new Map(); let none = 0;
@@ -1634,7 +1641,8 @@ function renderOverview(host) {
     <div class="dash">${cards.map(s => {
       const body = s.key === 'closet' ? closetTile() : window.LIFE?.tile(s.key) || `<p class="muted">Open ${esc(s.label)} to see what's there.</p>`;
       return `<section class="panel dtile"><div class="dhead"><button class="dtitle" data-gosec="${s.key}">${icon(s.icon)}<h2>${esc(s.label)}</h2></button><button class="chip link" data-gosec="${s.key}">Open</button></div>${body}</section>`;
-    }).join('')}</div>`;
+    }).join('')}</div>
+    ${window.LIFE ? '<div class="ltools"><button class="chip link" data-act="import">Import from Notion</button><button class="chip link" data-act="export">Back up kitchen, self-care, home &amp; fitness</button></div>' : ''}`;
   if (!host.dataset.wired) {
     host.dataset.wired = '1';
     host.addEventListener('click', e => {
@@ -1679,7 +1687,7 @@ function statsOverview(host) {
   const colorCount = {}; for (const i of live) for (const c of (i.colors || []).slice(0, 1)) colorCount[c] = (colorCount[c] || 0) + 1;
   const colorList = Object.entries(colorCount).sort((a, b) => b[1] - a[1]);
   const colorTotal = colorList.reduce((a, x) => a + x[1], 0);
-  const spend = monthCols(S.items.filter(i => !isInbox(i) && !isWish(i)), i => i.bought, i => Number(i.price));
+  const spend = monthCols(S.items.filter(i => !isInbox(i) && !isWishAll(i)), i => i.bought, i => Number(i.price));
 
   host.innerHTML = `<div class="tiles">
       <div class="tile"><div class="k">On the rail</div><div class="v">${live.length}</div><div class="h">${gone} sold or donated${back ? ` · ${eur0(back)} back` : ''}</div></div>
@@ -1711,7 +1719,7 @@ function statsOverview(host) {
     // the page redraws after every piece, so the message lives in state rather than in the element
     const say = msg => { S.importMsg = msg; const el = $('#importStatus'); if (el) el.textContent = msg; };
     try { const r = await importFile(file, say); say(`Imported ${r.done} pieces${r.skipped ? `, skipped ${r.skipped} already here` : ''}.`); toast(`Imported ${r.done} pieces`); }
-    catch (err) { console.error(err); say("That file couldn't be imported. Use a Jetta's Closet backup or import file."); }
+    catch (err) { console.error(err); say("That file couldn't be imported. Use an A’s Life (or Jetta’s Closet) backup or import file."); }
   });
   $('#signOut', host).addEventListener('click', async () => { await sb.auth.signOut(); });
   sb.storage.from('photos').list(UID, { limit: 1000 }).then(({ data, error }) => {
@@ -1989,9 +1997,13 @@ function openCategories() {
 /* ---------- item detail ---------- */
 function openItem(id) {
   const it = S.byId[id]; if (!it) return;
-  const wish = isWish(it), view = wish ? 'wishlist' : 'closet';
-  const foot = cur => wish ? `
+  const wish = isWishAll(it), view = wish ? 'wishlist' : 'closet';
+  const foot = cur => isPassed(cur) ? `
+    <button class="btn primary" data-act="unpass">Back to wishlist</button>
+    <button class="btn" data-act="edit">Edit</button><div class="spacer"></div>
+    <button class="btn danger" data-act="del">Delete</button>` : wish ? `
     <button class="btn primary" data-act="buy">I bought it</button>
+    <button class="btn" data-act="pass">No longer want it</button>
     ${cur.link ? `<a class="btn" href="${esc(cur.link)}" target="_blank" rel="noopener">Open shop</a>` : ''}
     <button class="btn" data-act="edit">Edit</button><div class="spacer"></div>
     <button class="btn danger" data-act="del">Delete</button>` : `
@@ -2040,8 +2052,9 @@ function openItem(id) {
           ${row('Season', list('seasons', cur.seasons) || 'All year')}
           ${row('Material', [list('materials', cur.materials), cur.material ? `<span class="muted">${esc(cur.material)}</span>` : ''].filter(Boolean).join(' '))}
           ${wish ? row('On list since', cur.wishSince ? niceDate(cur.wishSince) : '') : row('Bought', niceDate(cur.bought))}
+          ${isPassed(cur) ? row('Archived on', cur.passedDate ? niceDate(cur.passedDate) : 'yes') : ''}
           ${!wish && !inCloset(cur) ? row(cur.status === 'sold' ? 'Sold on' : 'Donated on', niceDate(cur.goneDate) + (cur.status === 'sold' && cur.soldPrice > 0 ? ` · for <b>${eur(cur.soldPrice)}</b>` : '')) : ''}
-          ${row('Tags', list('tags', cur.tags))}
+          ${row('Tags', list('tags', [...(cur.tags || [])].sort(azSort)))}
           ${row('Shop', cur.shop ? fchip('shop', cur.shop) + (cur.link ? ` · <a href="${esc(cur.link)}" target="_blank" rel="noopener">view</a>` : '') : cur.link ? `<a href="${esc(cur.link)}" target="_blank" rel="noopener">View in shop</a>` : '')}
           ${row('Notes', cur.notes ? esc(cur.notes) : '')}
         </dl>
@@ -2061,6 +2074,12 @@ function openItem(id) {
     if (a === 'worn') { try { await addToDay(today(), [id]); toast('Logged for today'); } catch (err) { saveErr(err, 'Could not log that. Try again.'); } }
     if (a === 'edit') openEditor(id);
     if (a === 'buy') openEditor(id, { buy: true });
+    if (a === 'pass' || a === 'unpass') {
+      const { id: _, passedDate, ...data } = S.byId[id];
+      const doc = a === 'pass' ? { ...data, status: 'passed', passedDate: today(), updated: Date.now() } : { ...data, status: 'wishlist', updated: Date.now() };
+      try { await DB.put('items', id, doc); toast(a === 'pass' ? 'Moved to the wishlist archive' : 'Back on your wishlist'); }
+      catch (err) { saveErr(err, 'Could not save that. Try again.'); }
+    }
     if (a === 'outfit') openBuilder(null, autoLayout([id]));
     if (a === 'del') $('#delConfirm', sh).innerHTML = `<div class="confirm">Delete this piece and its photo for good? <button class="btn small danger" data-act="delyes">Delete</button><button class="btn small" data-act="delno">Keep it</button></div>`;
     if (a === 'delno') $('#delConfirm', sh).innerHTML = '';
@@ -2098,7 +2117,7 @@ function openEditor(id, opts = {}) {
   const review = it.status === 'inbox';
   const buying = !!opts.buy;
   if (buying) { it.status = 'closet'; it.bought = it.bought || today(); }
-  const wishMode = it.status === 'wishlist';
+  const wishMode = it.status === 'wishlist' || it.status === 'passed';
   Object.assign(PE, { canvas: null, orig: null, cur: null, hist: [], autoBefore: null, changed: false, mode: 'view', tol: pref.get('tol', 34) });
   const title = review ? 'Review piece' : buying ? 'Bought it: add to closet' : id ? 'Edit piece' : wishMode ? 'Add to wishlist' : 'Add a piece';
   const money2 = v => v != null && v !== '' ? String(v).replace('.', ',') : '';
@@ -2133,8 +2152,8 @@ function openEditor(id, opts = {}) {
         ${wishMode ? '' : `<div class="field full"><span class="lbl">Condition</span><div class="togglegroup">${optList('condition', CONDITIONS, it.condition).map(c => `<button type="button" class="chip" data-cond="${esc(c)}" aria-pressed="${it.condition === c}">${esc(c)}</button>`).join('')}${ownBtn('condition', 'cond')}</div></div>`}
         <div class="field full"><span class="lbl">Occasion</span><div class="togglegroup">${optList('occasions', OCCASIONS, it.occasions).map(s => `<button type="button" class="chip" data-multi="occasions" data-v="${esc(s)}" aria-pressed="${it.occasions.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('occasions', 'multi:occasions')}</div></div>
         <div class="field full"><span class="lbl">Season</span><div class="togglegroup">${optList('seasons', SEASONS, it.seasons).map(s => `<button type="button" class="chip" data-multi="seasons" data-v="${esc(s)}" aria-pressed="${it.seasons.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('seasons', 'multi:seasons')}</div></div>
-        <div class="field full"><span class="lbl">Tags</span><div class="togglegroup">${optList('tags', [...new Set(S.items.flatMap(i => i.tags || []))], it.tags).map(s => `<button type="button" class="chip" data-multi="tags" data-v="${esc(s)}" aria-pressed="${it.tags.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('tags', 'multi:tags')}</div></div>
-        <div class="field" ${review || buying ? 'hidden' : ''}><label for="f-status">Status</label><select id="f-status"><option value="closet">In my closet</option><option value="wishlist">On my wishlist</option><option value="sold">Sold</option><option value="donated">Donated</option></select></div>
+        <div class="field full"><span class="lbl">Tags</span><div class="togglegroup">${optList('tags', [...new Set(S.items.flatMap(i => i.tags || []))], it.tags).sort(azSort).map(s => `<button type="button" class="chip" data-multi="tags" data-v="${esc(s)}" aria-pressed="${it.tags.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('tags', 'multi:tags')}</div></div>
+        <div class="field" ${review || buying ? 'hidden' : ''}><label for="f-status">Status</label><select id="f-status"><option value="closet">In my closet</option><option value="wishlist">On my wishlist</option><option value="passed">Wishlist archive (no longer want it)</option><option value="sold">Sold</option><option value="donated">Donated</option></select></div>
         <div class="field" id="goneF" hidden><label for="f-gone">Sold or donated on</label><input id="f-gone" type="date" value="${esc(it.goneDate)}"></div>
         <div class="field" id="soldF" hidden><label for="f-sold">Sold for (€)</label><input id="f-sold" inputmode="decimal" value="${money2(it.soldPrice)}" placeholder="optional"></div>
         <div class="field full"><label for="f-link">Shop link</label><input id="f-link" type="url" value="${esc(it.link)}" placeholder="https://"></div>
@@ -2238,6 +2257,7 @@ function openEditor(id, opts = {}) {
         created: review || buying ? Date.now() : (it.created || Date.now()), updated: Date.now()
       };
       if (status === 'wishlist' && !doc.wishSince) doc.wishSince = today();
+      if (status === 'passed' && !doc.passedDate) doc.passedDate = today();
       if (status === 'sold' || status === 'donated') { doc.goneDate = $('#f-gone', sh)?.value || it.goneDate || today(); if (status === 'sold') doc.soldPrice = num('#f-sold'); }
       const oldPhoto = it.photo;
       if (PE.cur && PE.changed) { st.textContent = 'Uploading photo…'; doc.photo = await uploadPhoto(await peExport()); }
