@@ -50,6 +50,7 @@ const P = {
   wrench: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5L4 16.6 7.4 20l5.3-5.3a4 4 0 0 0 5-5.4l-2.6 2.6-2.4-.6-.6-2.4Z"/>',
   run: '<circle cx="14.5" cy="4.8" r="1.8"/><path d="M5.5 20.5 9 15.5l3 2v3.5M8 11.5l3-3 3.5 1.5 2 3h3M11 8.5l1.2 5.5"/>',
   list: '<path d="M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/>',
+  grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
   scale: '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8.5 10a4.5 4.5 0 0 1 7 0L13 12.5"/>',
   check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
@@ -123,7 +124,7 @@ const KINDS = {
     one: 'item', many: 'Kitchen gear', facet: 'category',
     fields: [F('name', 'Name'), F('category', 'Category', 'select', { options: ['Kitchen Appliances', 'Cookware & Bakeware', 'Prep Tools & Essentials', 'Cooking Tools & Utensils', 'Organizing Essentials', 'Cleaning Supplies'] }),
       F('own', 'I have this', 'check'), F('price', 'Price', 'money', { half: 1 }), F('bought', 'Bought on', 'date', { half: 1 }),
-      F('url', 'Link', 'url'), F('notes', 'Notes', 'long')],
+      F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['category', 'Category']],
     filters: [['all', 'All'], ['own', 'I have'], ['want', 'Wishlist']],
     filter: (r, f) => f === 'own' ? !!r.own : f === 'want' ? !r.own : true,
@@ -156,7 +157,7 @@ const KINDS = {
       F('amount', 'How many per dose', 'num', { half: 1 }), F('times', 'When', 'multi', { options: ['AM', 'Midday', 'PM'], half: 1 }),
       F('bought', 'Bought on', 'date', { half: 1 }), F('expiry', 'Use before', 'date', { half: 1 }),
       F('price', 'Price', 'money', { half: 1 }), F('rating', 'Rating', 'rating', { half: 1 }),
-      F('finished', 'Finished', 'check'), F('url', 'Link', 'url'), F('notes', 'Notes', 'long')],
+      F('finished', 'Finished', 'check'), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['brand', 'Brand']],
     hide: r => r.finished, hideLabel: 'Show finished',
     sub: r => [r.brand, [].concat(r.times || []).join(' + '), r.amount && r.form ? `${r.amount} × ${r.form.toLowerCase()}` : r.form].filter(Boolean).join(' · ')
@@ -203,10 +204,10 @@ const KINDS = {
     one: 'appointment', many: 'Appointments', facet: 'type',
     fields: [F('what', 'What'), F('date', 'Date', 'date', { half: 1 }), F('time', 'Time', 'time', { half: 1 }),
       F('type', 'Type', 'select', { options: ['Doctor', 'Dentist', 'Physio', 'Hair', 'Nails', 'Beauty', 'Massage', 'Therapy', 'Other'] }),
-      F('provider', 'With', 'text', { half: 1 }), F('place', 'Where', 'text', { half: 1 }), F('done', 'Done', 'check'), F('notes', 'Notes', 'long')],
+      F('provider', 'With', 'text', { half: 1 }), F('place', 'Where', 'text', { half: 1 }), F('price', 'Price', 'money', { half: 1 }), F('done', 'Done', 'check', { half: 1 }), F('notes', 'Notes', 'long')],
     title: r => r.what || r.type || 'Appointment', sorts: [['date', 'Soonest'], ['-date', 'Newest']],
     hide: r => r.done, hideLabel: 'Show done',
-    sub: r => [r.date && `${dayName(r.date)} ${niceDate(r.date)}`, r.time, r.provider].filter(Boolean).join(' · '),
+    sub: r => [r.date && `${dayName(r.date)} ${niceDate(r.date)}`, r.time, r.provider, eur(r.price)].filter(Boolean).join(' · '),
     quick: r => ({ on: !!r.done, label: 'Done', act: () => save(r, { done: !r.done }) })
   },
   meditation: {
@@ -269,10 +270,12 @@ const KINDS = {
     fields: [F('name', 'Workout'), F('date', 'Date', 'date', { half: 1 }), F('minutes', 'Minutes', 'num', { half: 1 }),
       F('type', 'Type', 'select', { options: ['Strength', 'Cardio', 'HIIT', 'Pilates', 'Yoga', 'Walk', 'Run', 'Cycling', 'Stretching', 'Sport', 'Other'] }),
       F('intensity', 'Intensity', 'select', { options: ['Easy', 'Moderate', 'Hard'] }),
-      F('plan', 'Workout plan', 'rel', { to: 'plans' }), F('done', 'Done', 'check'), F('notes', 'Notes', 'long')],
+      F('plan', 'Workout plan', 'rel', { to: 'plans' }), F('exercises', 'Exercises', 'rel', { to: 'exercises', multi: 1 }),
+      F('done', 'Done', 'check', { half: 1 }), F('skipped', 'Skipped', 'check', { half: 1 }), F('notes', 'Notes', 'long')],
     title: r => r.name || relName(r.plan) || r.type || 'Workout', sorts: [['-date', 'Newest'], ['date', 'Oldest']],
-    sub: r => [r.date ? `${dayName(r.date)} ${niceDate(r.date)}` : '', r.type, r.minutes ? r.minutes + ' min' : ''].filter(Boolean).join(' · '),
-    quick: r => ({ on: !!r.done, label: 'Done', act: () => save(r, { done: !r.done }) })
+    hide: r => r.skipped, hideLabel: 'Show skipped',
+    sub: r => [r.date ? `${dayName(r.date)} ${niceDate(r.date)}` : '', r.type, r.minutes ? r.minutes + ' min' : '', r.exercises?.length ? plural(r.exercises.length, 'exercise') : '', r.skipped ? 'skipped' : ''].filter(Boolean).join(' · '),
+    quick: r => ({ on: !!r.done, label: 'Done', act: () => save(r, { done: !r.done, skipped: false }) })
   },
   plans: {
     one: 'plan', many: 'Plans', facet: 'type',
@@ -283,9 +286,9 @@ const KINDS = {
   exercises: {
     one: 'exercise', many: 'Exercises', facet: 'muscles',
     fields: [F('name', 'Name'), F('muscles', 'Muscles', 'multi', { options: ['Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Core', 'Glutes', 'Quads', 'Hamstrings', 'Calves', 'Full body', 'Cardio'] }),
-      F('equipment', 'Equipment', 'select', { options: ['Bodyweight', 'Dumbbells', 'Barbell', 'Kettlebell', 'Machine', 'Cable', 'Resistance band', 'Mat', 'Other'] }),
-      F('link', 'Video or how-to', 'url'), F('notes', 'Notes', 'long')],
-    sorts: [['name', 'A to Z']], sub: r => [[].concat(r.muscles || []).join(', '), r.equipment].filter(Boolean).join(' · '),
+      F('equipment', 'Equipment', 'multi', { options: ['Bodyweight', 'Dumbbells', 'Barbell', 'Kettlebell', 'Machine', 'Cable', 'Resistance band', 'Mat', 'Bench', 'Pull-up bar', 'Other'] }),
+      F('link', 'Video or how-to', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
+    sorts: [['name', 'A to Z']], sub: r => [[].concat(r.muscles || []).join(', '), [].concat(r.equipment || []).join(', ')].filter(Boolean).join(' · '),
     side: r => { const p = prOf(r.id); return p ? `PR ${p.weight} kg × ${p.reps || 1}` : ''; }
   },
   sets: {
@@ -308,7 +311,7 @@ const KINDS = {
     one: 'item', many: 'Fitness gear', facet: 'category',
     fields: [F('name', 'Name'), F('category', 'Category', 'select', { options: ['Weights', 'Mats & Props', 'Cardio', 'Bands', 'Clothing', 'Tech', 'Recovery', 'Other'] }),
       F('own', 'I have this', 'check'), F('price', 'Price', 'money', { half: 1 }), F('bought', 'Bought on', 'date', { half: 1 }),
-      F('url', 'Link', 'url'), F('notes', 'Notes', 'long')],
+      F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z']], filters: [['all', 'All'], ['own', 'I have'], ['want', 'Wishlist']],
     filter: (r, f) => f === 'own' ? !!r.own : f === 'want' ? !r.own : true,
     sub: r => [r.category, eur(r.price)].filter(Boolean).join(' · '),
@@ -318,12 +321,67 @@ const KINDS = {
 for (const [k, K] of Object.entries(KINDS)) K.kind = k;
 const titleOf = r => { const K = KINDS[r.kind]; return (K?.title ? K.title(r) : r.name) || 'Untitled'; };
 
+/* ---------- overview tiles ----------
+   Each area gives the overview page one small card: what matters today, with the quick ticks that work
+   everywhere (data-act). A new area only needs a `tile` in SECTIONS below to show up there too. */
+const tileBody = (bits) => bits.filter(Boolean).join('');
+const tileList = (list, n = 3) => list.length ? `<div class="lrows">${list.slice(0, n).map(row).join('')}</div>${list.length > n ? `<p class="lnone">+${list.length - n} more</p>` : ''}` : '';
+function kitchenTile() {
+  const t = today(), meals = recs('meals').filter(m => m.date === t), groc = recs('ingredients').filter(i => i.list).length;
+  return tileBody([
+    `<div class="lslots">${MEALS.filter(s => s !== 'Snack' || meals.some(m => m.slot === s)).map(s => { const m = meals.filter(x => x.slot === s); return `<div class="lslot"><span class="rowlbl">${s}</span>${m.map(x => `<button class="chip" data-act="open" data-id="${x.id}">${esc(titleOf(x))}</button>`).join('')}<button class="chip ghost" data-act="slot" data-date="${t}" data-slot="${s}" aria-label="Plan ${s.toLowerCase()}">+</button></div>`; }).join('')}</div>`,
+    `<button class="chip link" data-act="go" data-v="kitchen/groceries">${groc ? plural(groc, 'thing') + ' on your grocery list' : 'Grocery list is empty'}</button>`
+  ]);
+}
+function careTile() {
+  const t = today(), w = waterToday(), goal = Number(C.prefs().waterGoal) || 8, glasses = w?.glasses || 0;
+  const sups = recs('supplements').filter(s => !s.finished);
+  const doses = sups.reduce((n, s) => n + [].concat(s.times?.length ? s.times : ['AM']).length, 0);
+  const taken = recs('suplog').filter(l => l.date === t).length;
+  const cy = cycleStats();
+  const appt = recs('appts').filter(a => !a.done && a.date && a.date >= t).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')))[0];
+  // the routine that fits the time of day: morning until 3 pm, evening after
+  const eve = new Date().getHours() >= 15, prods = recs('beauty').filter(b => !b.finished && !b.archived && (eve ? b.pm : b.am));
+  const sl = recs('sleep').find(x => x.date === t), j = recs('journal').find(x => x.date === t);
+  return tileBody([
+    `<div class="lwater small"><button class="iconbtn small" data-act="water" data-v="-1" aria-label="One glass less" ${glasses ? '' : 'disabled'}>${svg(P.minus)}</button><div class="lwv"><b>${glasses}</b><span>of ${goal} glasses</span></div><button class="iconbtn small lplus" data-act="water" data-v="1" aria-label="One more glass">${svg(P.plus)}</button></div>`,
+    doses ? `<p class="dline"><span>Supplements</span><b>${Math.min(taken, doses)} of ${doses} taken</b></p>` : '',
+    cy.last ? `<p class="dline"><span>Cycle</span><b>${cy.open ? 'period, day ' + cy.day : 'day ' + cy.day + ', next ' + relDay(cy.next)}</b></p>` : '',
+    appt ? `<p class="dline"><span>Next appointment</span><b>${esc(titleOf(appt))}, ${esc(relDay(appt.date))}${appt.time ? ' ' + esc(appt.time) : ''}</b></p>` : '',
+    prods.length ? `<p class="dsub">${eve ? 'Evening' : 'Morning'} skincare</p><div class="lwrap">${prods.map(b => `<button class="chip" data-act="open" data-id="${b.id}">${esc(b.name)}</button>`).join('')}</div>` : '',
+    sl ? `<p class="dline"><span>Sleep</span><b>${esc([sl.hours ? sl.hours + ' h' : 'logged', sl.quality?.toLowerCase()].filter(Boolean).join(', '))}</b></p>` : '',
+    j ? `<p class="dline"><span>Journal</span><b><button class="chip link" data-act="open" data-id="${j.id}">${esc(titleOf(j))}</button></b></p>` : '',
+    sl && j ? '' : `<div class="dbtns">${sl ? '' : '<button class="btn small" data-act="new" data-v="sleep">Log last night</button>'}${j ? '' : '<button class="btn small" data-act="new" data-v="journal">Write today’s entry</button>'}</div>`
+  ]);
+}
+function homeTile() {
+  const t = today();
+  const chores = recs('chores').filter(c => choreDue(c) <= t).sort((a, b) => choreDue(a).localeCompare(choreDue(b)));
+  const plants = recs('plants').filter(p => plantDue(p) && plantDue(p) <= t);
+  return tileBody([
+    chores.length ? `<p class="dsub">Chores due</p>${tileList(chores)}` : `<p class="lnone">${recs('chores').length ? 'All chores done.' : 'No chores yet.'}</p>`,
+    plants.length ? `<p class="dsub">Plants to water</p>${tileList(plants, 2)}` : ''
+  ]);
+}
+function fitTile() {
+  const t = today(), ws = recs('workouts');
+  const now = ws.filter(w => w.date === t && !w.skipped);
+  const next = ws.filter(w => !w.done && !w.skipped && w.date && w.date > t).sort((a, b) => a.date.localeCompare(b.date))[0];
+  const wk = weekStart(0), week = ws.filter(w => w.done && w.date >= wk && w.date <= addDays(wk, 6)).length;
+  return tileBody([
+    now.length ? tileList(now) : '<p class="lnone">No workout today.</p>',
+    next && !now.length ? `<p class="dline"><span>Next</span><b>${esc(titleOf(next))}, ${esc(relDay(next.date))}</b></p>` : '',
+    `<p class="dline"><span>This week</span><b>${plural(week, 'workout')} done</b></p>`,
+    now.length ? '' : '<button class="btn small" data-act="new" data-v="workouts">Plan a workout</button>'
+  ]);
+}
+
 /* ---------- sections and their pages ---------- */
 const SECTIONS = [
-  { key: 'kitchen', label: 'Kitchen', icon: P.pot, views: [['today', 'Today', P.sun], ['recipes', 'Recipes', P.book], ['meals', 'Meal plan', P.calendar], ['groceries', 'Groceries', P.cart], ['pantry', 'Pantry', P.jar], ['gear', 'Gear', P.spoon]] },
-  { key: 'care', label: 'Self-care', icon: P.sparkle, views: [['today', 'Today', P.sun], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse]] },
-  { key: 'home', label: 'Home', icon: P.house, views: [['today', 'Today', P.sun], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
-  { key: 'fit', label: 'Fitness', icon: P.dumbbell, views: [['today', 'Today', P.sun], ['workouts', 'Workouts', P.run], ['plans', 'Plans', P.list], ['exercises', 'Exercises', P.dumbbell], ['body', 'Body', P.scale], ['gear', 'Gear', P.box]] }
+  { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile, views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book], ['meals', 'Meal plan', P.calendar], ['groceries', 'Groceries', P.cart], ['pantry', 'Pantry', P.jar], ['gear', 'Gear', P.spoon]] },
+  { key: 'care', label: 'Self-care', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse]] },
+  { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
+  { key: 'fit', label: 'Fitness', icon: P.dumbbell, tile: fitTile, views: [['today', 'Overview', P.grid], ['workouts', 'Workouts', P.run], ['plans', 'Plans', P.list], ['exercises', 'Exercises', P.dumbbell], ['body', 'Body', P.scale], ['gear', 'Gear', P.box]] }
 ];
 const PAGES = {
   'kitchen/today': { render: kitchenToday, adds: ['meals', 'recipes', 'ingredients', 'mealprep'] },
@@ -439,16 +497,23 @@ function cycleStats() {
 const waterToday = () => recs('water').find(w => w.date === today());
 
 /* ---------- shared bits of markup ---------- */
+// any list can show its records as rows or as photo cards; the choice is remembered per list on this device
+const hasPhotos = K => K.fields.some(f => f.type === 'photo');
+const photoOf = r => hasPhotos(KINDS[r.kind]) ? r.photo : '';
+const viewMode = K => { try { const v = localStorage.getItem('lview:' + K.kind); if (v === 'rows' || v === 'cards') return v; } catch {} return K.display === 'cards' ? 'cards' : 'rows'; };
+const setViewMode = (K, v) => { try { localStorage.setItem('lview:' + K.kind, v); } catch {} };
+const viewSwitch = K => `<div class="seg lviews" role="group" aria-label="Show as">${[['rows', 'List', P.list], ['cards', 'Cards', P.grid]].map(([v, l, ic]) => `<button data-act="lview" data-v="${v}" aria-pressed="${viewMode(K) === v}" aria-label="${l}" title="${l}">${svg(ic)}</button>`).join('')}</div>`;
 const tick = (label, on, attrs) => `<button class="lquick ${on ? 'on' : ''}" ${attrs} aria-pressed="${on}">${on ? svg(P.check) : ''}${esc(label)}</button>`;
 function row(r) {
   const K = KINDS[r.kind], q = K.quick?.(r), side = K.side?.(r);
-  return `<div class="lrow ${K.hide?.(r) ? 'gone' : ''}"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b>${K.sub?.(r) ? `<span>${esc(K.sub(r))}</span>` : ''}</button>${side ? `<span class="lside ${/overdue|expired|today/.test(side) ? 'hot' : ''}">${esc(side)}</span>` : ''}${q ? tick(q.label, q.on, `data-act="quick" data-id="${r.id}"`) : ''}</div>`;
+  const ph = photoOf(r);
+  return `<div class="lrow ${K.hide?.(r) ? 'gone' : ''}">${ph ? `<button class="lthumb" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true"><img src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : ''}<button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b>${K.sub?.(r) ? `<span>${esc(K.sub(r))}</span>` : ''}</button>${side ? `<span class="lside ${/overdue|expired|today/.test(side) ? 'hot' : ''}">${esc(side)}</span>` : ''}${q ? tick(q.label, q.on, `data-act="quick" data-id="${r.id}"`) : ''}</div>`;
 }
 function card(r) {
-  const K = KINDS[r.kind], ph = r[K.photo];
+  const K = KINDS[r.kind], ph = photoOf(r);
   return `<button class="lcard" data-act="open" data-id="${r.id}"><div class="lph"><span>${esc(titleOf(r).slice(0, 1))}</span>${ph ? `<img src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${r.fav ? '<i class="lfav" aria-label="Favourite">★</i>' : ''}</div><div class="meta"><b>${esc(titleOf(r))}</b><span>${esc(K.sub?.(r) || '')}</span></div></button>`;
 }
-const listHTML = (list, K) => !list.length ? '' : K.display === 'cards' ? `<div class="lgrid">${list.map(card).join('')}</div>` : `<div class="lrows">${list.map(row).join('')}</div>`;
+const listHTML = (list, K) => !list.length ? '' : viewMode(K) === 'cards' ? `<div class="lgrid">${list.map(card).join('')}</div>` : `<div class="lrows">${list.map(row).join('')}</div>`;
 const panel = (title, body, more) => `<section class="panel lpanel"><div class="lph3"><h3>${esc(title)}</h3>${more ? `<button class="chip link" data-act="go" data-v="${more[0]}">${esc(more[1])}</button>` : ''}</div>${body}</section>`;
 const quiet = t => `<p class="lnone">${esc(t)}</p>`;
 
@@ -485,7 +550,7 @@ function listPage(host, page) {
     host.innerHTML = `<div class="viewhead"><h1>${esc(cfg.title)}</h1><span class="sub" data-count></span></div>
       ${ss.length > 1 ? `<div class="seg lseg">${ss.map(s => `<button data-act="seg" data-v="${s.key}" aria-pressed="${s.key === seg.key}">${esc(s.label)}</button>`).join('')}</div>` : ''}
       ${seg.tools ? `<div class="tools"><label class="search">${svg(P.search)}<input type="search" data-lq placeholder="Search ${esc(K.many.toLowerCase())}" value="${esc(u.q)}" aria-label="Search"></label>
-        ${sorts.length > 1 ? `<select class="pill" data-lsort aria-label="Sort">${sorts.map(([k, l]) => `<option value="${k}" ${(u.sort[seg.key] || sorts[0][0]) === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}</div>
+        ${sorts.length > 1 ? `<select class="pill" data-lsort aria-label="Sort">${sorts.map(([k, l]) => `<option value="${k}" ${(u.sort[seg.key] || sorts[0][0]) === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}${viewSwitch(K)}</div>
         <div class="chips facets" data-facets></div>` : ''}
       <div data-lfill></div>`;
   }
@@ -678,7 +743,7 @@ function homeToday(host) {
 /* ---------- fitness ---------- */
 function fitToday(host) {
   const t = today(), ws = recs('workouts');
-  const planned = ws.filter(w => !w.done && w.date && w.date >= t).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5);
+  const planned = ws.filter(w => !w.done && !w.skipped && w.date && w.date >= t).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5);
   const wk = weekStart(0), week = ws.filter(w => w.done && w.date >= wk && w.date <= addDays(wk, 6));
   const minsWeek = week.reduce((s, w) => s + (num(w.minutes) || 0), 0);
   const body = recs('body').filter(b => b.date && num(b.weight) != null).sort((a, b) => a.date.localeCompare(b.date));
@@ -906,6 +971,7 @@ document.addEventListener('click', async e => {
     case 'facet': u.facet = u.facet === d.v ? '' : d.v; C.render(); break;
     case 'filter': u.filter[curSeg(page).key] = d.v; C.render(); break;
     case 'showall': u.all = !u.all; C.render(); break;
+    case 'lview': { const K = KINDS[curSeg(page).kind]; setViewMode(K, d.v); const host = b.closest('#viewHost'); if (host) host.dataset.sig = ''; C.render(); break; }
     case 'week': L.week = d.v === '0' ? 0 : L.week + Number(d.v); C.render(); break;
     case 'slot': openSlot(d.date, d.slot); break;
     case 'buy': { const r = L.byId[d.id]; if (r) { b.classList.add('on'); setTimeout(() => save(r, { list: false, stock: true }), 220); } break; }
@@ -938,6 +1004,14 @@ const sectionOf = view => SECTIONS.find(s => view.startsWith(s.key + '/'));
 return {
   sections: SECTIONS.map(s => ({ key: s.key, label: s.label, icon: G(s.icon), views: s.views.map(([k, l, ic]) => [s.key + '/' + k, l, G(ic)]) })),
   has: view => !!PAGES[view],
+  // one small card for the overview page; '' while the lists are still loading or missing
+  tile(key) {
+    const s = SECTIONS.find(x => x.key === key);
+    if (!s?.tile || !C) return '';
+    if (L.missing) return `<p class="lnone">Needs one step in Supabase.</p><button class="chip link" data-act="go" data-v="${key}/today">Set it up</button>`;
+    if (L.status === 'loading' && !L.all.length) return '<p class="lnone">Loading…</p>';
+    return s.tile();
+  },
   start(bridge) { C = bridge; L.all = []; L.byId = {}; L.missing = false; L.status = cacheLoad() ? 'ok' : 'loading'; subscribe(); return load().catch(e => { console.error(e); if (L.status !== 'ok') L.status = 'offline'; C.render(); }); },
   refresh() { if (C?.uid()) load().catch(() => {}); },
   stop() { channel?.unsubscribe(); channel = null; },
