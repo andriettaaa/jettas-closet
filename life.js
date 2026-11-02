@@ -507,11 +507,11 @@ const tick = (label, on, attrs) => `<button class="lquick ${on ? 'on' : ''}" ${a
 function row(r) {
   const K = KINDS[r.kind], q = K.quick?.(r), side = K.side?.(r);
   const ph = photoOf(r);
-  return `<div class="lrow ${K.hide?.(r) ? 'gone' : ''}">${ph ? `<button class="lthumb" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true"><img src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : ''}<button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b>${K.sub?.(r) ? `<span>${esc(K.sub(r))}</span>` : ''}</button>${side ? `<span class="lside ${/overdue|expired|today/.test(side) ? 'hot' : ''}">${esc(side)}</span>` : ''}${q ? tick(q.label, q.on, `data-act="quick" data-id="${r.id}"`) : ''}</div>`;
+  return `<div class="lrow ${K.hide?.(r) ? 'gone' : ''}">${ph ? `<button class="lthumb" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : ''}<button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b>${K.sub?.(r) ? `<span>${esc(K.sub(r))}</span>` : ''}</button>${side ? `<span class="lside ${/overdue|expired|today/.test(side) ? 'hot' : ''}">${esc(side)}</span>` : ''}${q ? tick(q.label, q.on, `data-act="quick" data-id="${r.id}"`) : ''}</div>`;
 }
 function card(r) {
   const K = KINDS[r.kind], ph = photoOf(r);
-  return `<button class="lcard" data-act="open" data-id="${r.id}"><div class="lph"><span>${esc(titleOf(r).slice(0, 1))}</span>${ph ? `<img src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${r.fav ? '<i class="lfav" aria-label="Favourite">★</i>' : ''}</div><div class="meta"><b>${esc(titleOf(r))}</b><span>${esc(K.sub?.(r) || '')}</span></div></button>`;
+  return `<button class="lcard" data-act="open" data-id="${r.id}"><div class="lph"><span>${esc(titleOf(r).slice(0, 1))}</span>${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${r.fav ? '<i class="lfav" aria-label="Favourite">★</i>' : ''}</div><div class="meta"><b>${esc(titleOf(r))}</b><span>${esc(K.sub?.(r) || '')}</span></div></button>`;
 }
 const listHTML = (list, K) => !list.length ? '' : viewMode(K) === 'cards' ? `<div class="lgrid">${list.map(card).join('')}</div>` : `<div class="lrows">${list.map(row).join('')}</div>`;
 const panel = (title, body, more) => `<section class="panel lpanel"><div class="lph3"><h3>${esc(title)}</h3>${more ? `<button class="chip link" data-act="go" data-v="${more[0]}">${esc(more[1])}</button>` : ''}</div>${body}</section>`;
@@ -653,7 +653,7 @@ function openRecipe(r) {
   const missing = ings.filter(i => !i.stock && !i.list);
   const sh = C.sheet({
     title: r.name || 'Recipe', wide: true,
-    body: `<div class="lrecipe">${r.photo ? `<img class="lrimg" src="${esc(C.photoURL(r.photo))}" alt="" onerror="this.remove()">` : ''}
+    body: `<div class="lrecipe">${r.photo ? `<img referrerpolicy="no-referrer" class="lrimg" src="${esc(C.photoURL(r.photo))}" alt="" onerror="this.remove()">` : ''}
       <div class="lrbody">
         <p class="lmeta">${esc([r.category, mins(totalTime(r)), r.servings ? plural(r.servings, 'serving') : '', r.protein ? r.protein + ' protein' : ''].filter(Boolean).join(' · '))}${r.rating ? ` <span class="lstars">${stars(r.rating)}</span>` : ''}</p>
         ${r.link ? `<a class="btn small" href="${esc(r.link)}" target="_blank" rel="noopener">${svg(P.link)} Open the recipe</a>` : ''}
@@ -800,7 +800,7 @@ function fieldInner(kind, f, D) {
     }
     case 'photo': {
       const src = D._preview || (v ? C.photoURL(v) : '');
-      return span + `<div class="lphoto">${src ? `<img src="${esc(src)}" alt="">` : ''}<div class="lphb"><label class="btn small">Choose photo<input type="file" accept="image/*" class="vh" data-photo="${f.k}"></label>${src ? `<button type="button" class="btn small ghost" data-photox="${f.k}">Remove</button>` : ''}</div><input type="url" inputmode="url" data-k="${f.k}" data-photourl value="${esc(/^https?:/.test(v || '') ? v : '')}" placeholder="or paste an image link" aria-label="Image link"></div>`;
+      return span + `<div class="lphoto">${src ? `<img referrerpolicy="no-referrer" src="${esc(src)}" alt="">` : ''}<div class="lphb"><label class="btn small">Choose photo<input type="file" accept="image/*" class="vh" data-photo="${f.k}"></label>${src ? `<button type="button" class="btn small ghost" data-photox="${f.k}">Remove</button>` : ''}</div><input type="url" inputmode="url" data-k="${f.k}" data-photourl value="${esc(/^https?:/.test(v || '') ? v : '')}" placeholder="or paste an image link" aria-label="Image link"></div>`;
     }
     case 'rel': {
       const ids = [].concat(v || []).filter(x => L.byId[x]);
@@ -901,11 +901,13 @@ async function importFile(file) {
     rows = (Array.isArray(j) ? j : j.records || []).filter(r => r && r.id && KINDS[r.kind] && r.data && typeof r.data === 'object');
   } catch { rows = null; }
   if (!rows?.length) { C.toast('That file has no lists this app can read.'); return; }
+  const keep = rows.filter(r => !r.photoData && /^https?:/.test(r.data.photo || '') && L.byId[r.id]?.photo && !/^https?:/.test(L.byId[r.id].photo));
+  keep.forEach(r => { r.data.photo = L.byId[r.id].photo; });
   const counts = {}; for (const r of rows) counts[r.kind] = (counts[r.kind] || 0) + 1;
   const fresh = rows.filter(r => !L.byId[r.id]).length;
   const sh = C.sheet({
     title: 'Import from Notion',
-    body: `<p>This adds ${plural(rows.length, 'record')}${fresh !== rows.length ? `, ${fresh} of them new. The other ${rows.length - fresh} are already here and get the values from the file` : ''}.</p>
+    body: `<p>This adds ${plural(rows.length, 'record')}${fresh !== rows.length ? `, ${fresh} of them new. The other ${rows.length - fresh} are already here and get the values from the file; what the file leaves out stays as it is` : ''}.</p>
       <div class="lrows">${Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<div class="lrow"><span class="lmain"><b>${esc(KINDS[k].many)}</b></span><span class="lside">${n}</span></div>`).join('')}</div>`,
     foot: `<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-go>Import ${rows.length}</button>`
   });
@@ -922,7 +924,8 @@ async function importFile(file) {
           try { r.data.photo = await C.uploadPhoto(await (await fetch(r.photoData)).blob()); } catch (err) { console.error(err); }
         }
       }
-      await putMany(rows.map(({ id, kind, data }) => ({ id, kind, data })), (n, all) => { msg.textContent = `Saving ${n} of ${all}…`; });
+      // a record that's already here keeps what the file doesn't mention (its photo, ticks you set in the app)
+      await putMany(rows.map(({ id, kind, data }) => ({ id, kind, data: L.byId[id] ? { ...dataOf(L.byId[id]), ...data } : data })), (n, all) => { msg.textContent = `Saving ${n} of ${all}…`; });
       C.closeSheet(); C.toast(`Imported ${plural(rows.length, 'record')}`);
     }
     catch (err) { console.error(err); msg.textContent = isMissing(err) ? 'The records table is missing in Supabase. See the setup steps.' : 'Could not import. Try again.'; b.disabled = false; if (isMissing(err)) { L.missing = true; C.render(); } }
