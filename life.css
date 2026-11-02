@@ -128,3 +128,41 @@ button.lrow.lmain, .lrow > .lmain:only-child { padding-left: 12px; }
 .lsetup p, .lsetup ol { margin: 0; }
 .lsetup ol { padding-left: 20px; display: grid; gap: 4px; }
 .lsql { background: var(--stage); border-radius: 10px; padding: 12px 14px; overflow-x: auto; font-family: var(--mono); font-size: 12px; line-height: 1.5; margin: 0; white-space: pre; }
+
+/* ---------- overview ---------- */
+.dash { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; align-items: start; }
+.dtile { display: grid; gap: 10px; align-content: start; }
+.dhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dtitle { border: 0; background: none; padding: 0; display: inline-flex; align-items: center; gap: 8px; color: inherit; }
+.dtitle svg { width: 20px; height: 20px; color: var(--accent); }
+.dtitle h2 { font-size: 19px; }
+.dline { margin: 0; display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; }
+.dline span { color: var(--muted); flex: none; }
+.dline b { font-weight: 600; text-align: right; min-width: 0; }
+.dsub { margin: 2px 0 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.dpic { border: 0; padding: 0; background: var(--stage); border-radius: 12px; overflow: hidden; display: block; width: 100%; }
+.dlook { aspect-ratio: 4 / 3; position: relative; }
+.dlook > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.dlook .board { position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); height: 100%; width: auto; aspect-ratio: 3 / 4; border-radius: 0; background: none; }
+.dpieces { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 6px; }
+.dpieces img { width: 100%; aspect-ratio: 1; object-fit: contain; background: var(--surface); border-radius: 8px; }
+.dbtns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.lwater.small { gap: 10px; }
+.lwater.small .iconbtn { width: 38px; height: 38px; }
+.lwater.small .lwv b { font-size: 30px; }
+
+/* photos in rows and the list/cards switch */
+.lthumb { flex: none; width: 44px; height: 44px; margin-left: 4px; border: 0; padding: 0; border-radius: 9px; overflow: hidden; background: var(--stage); }
+.lthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lviews { margin-left: auto; }
+.lviews button { padding: 6px 10px; display: grid; place-items: center; }
+.lviews svg { width: 17px; height: 17px; }
+
+/* more areas than fit: the bottom bar scrolls sideways */
+@media (max-width: 720px) {
+  nav.bottom { overflow-x: auto; scrollbar-width: none; }
+  nav.bottom::-webkit-scrollbar { display: none; }
+  .dash { grid-template-columns: 1fr; }
+}
+.dviewhead { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; }
+.dviewhead .btn { align-self: center; }

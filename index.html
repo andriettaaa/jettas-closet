@@ -507,12 +507,15 @@ const VIEWS = [
   ['trips', 'Trips', '<rect x="4" y="7.5" width="16" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 7.5V5.8A1.5 1.5 0 0 1 10.5 4.3h3A1.5 1.5 0 0 1 15 5.8v1.7M4 13h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
   ['stats', 'Stats', '<path d="M5 20V11M12 20V4M19 20v-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>']
 ];
-// The closet plus the areas life.js adds (Kitchen, Self-care, Home, Fitness); each area brings its own tabs
-const SECTIONS = [{ key: 'closet', label: 'Closet', icon: VIEWS[0][2] }, ...(window.LIFE?.sections || [])];
-const secOf = v => String(v).includes('/') ? v.split('/')[0] : 'closet';
+// Today (the overview of everything), the closet and the areas life.js adds (Kitchen, Self-care, Home, Fitness). The areas sit in the
+// header; the pages of the open area sit in the bar below it. A new area in life.js shows up in both, and on the overview.
+const SUN = '<circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>';
+const SECTIONS = [{ key: 'overview', label: 'Today', icon: SUN }, { key: 'closet', label: 'Closet', icon: VIEWS[0][2] }, ...(window.LIFE?.sections || [])];
+const secOf = v => v === 'overview' ? 'overview' : String(v).includes('/') ? v.split('/')[0] : 'closet';
 const isLife = v => !!window.LIFE?.has(v);
-const okView = v => VIEWS.some(x => x[0] === v) || isLife(v);
-const tabsFor = v => secOf(v) === 'closet' ? VIEWS : (SECTIONS.find(x => x.key === secOf(v))?.views || VIEWS);
+const okView = v => v === 'overview' || VIEWS.some(x => x[0] === v) || isLife(v);
+const tabsFor = v => secOf(v) === 'overview' ? [] : secOf(v) === 'closet' ? VIEWS : (SECTIONS.find(x => x.key === secOf(v))?.views || VIEWS);
+const openSection = k => go(k === 'overview' ? 'overview' : pref.get('view:' + k, k === 'closet' ? 'closet' : k + '/today'));
 const HANGER = '<svg class="hanger" viewBox="0 0 64 40" aria-hidden="true"><path d="M28 7a4 4 0 1 1 6 3.5c-1.3.8-2 1.6-2 3V15L5 31.5c-2.2 1.4-1.2 4.5 1.4 4.5h51.2c2.6 0 3.6-3.1 1.4-4.5L32 15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const PH = HANGER.replace('class="hanger"', 'class="ph"');
 
@@ -716,16 +719,17 @@ const outfitPhotos = id => lookPhotos().filter(l => l.outfit === id);
 function renderTabs() {
   const n = inboxItems().length;
   const views = tabsFor(S.view), sec = secOf(S.view);
-  const html = views.map(([k, label, path]) => `<button data-view="${k}" ${S.view === k ? 'aria-current="page"' : ''}>${icon(path)}<span>${label}</span>${k === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
-  $('#tabsTop').innerHTML = html; $('#tabsBottom').innerHTML = html;
-  $('#tabsBottom').style.gridTemplateColumns = `repeat(${views.length}, 1fr)`;
+  const secs = SECTIONS.map(s => `<button data-sec="${s.key}" ${s.key === sec ? 'aria-current="page"' : ''}>${icon(s.icon)}<span>${s.label}</span>${s.key === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
+  $('#tabsTop').innerHTML = secs; $('#tabsBottom').innerHTML = secs;
+  $('#tabsBottom').style.gridTemplateColumns = `repeat(${SECTIONS.length}, minmax(58px, 1fr))`;
   const bar = $('#secBar');
-  bar.hidden = SECTIONS.length < 2;
-  bar.innerHTML = SECTIONS.map(s => `<button data-sec="${s.key}" aria-current="${s.key === sec}">${icon(s.icon)}<span>${s.label}</span></button>`).join('');
-  $('#addBtn .addlabel').textContent = sec === 'closet' ? 'Add piece' : window.LIFE.addLabel(S.view);
+  bar.hidden = !views.length;
+  bar.innerHTML = views.map(([k, label, path]) => `<button data-view="${k}" aria-current="${S.view === k}">${icon(path)}<span>${label}</span>${k === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
+  $('#addBtn').hidden = sec === 'overview';
+  $('#addBtn .addlabel').textContent = sec === 'closet' ? 'Add piece' : sec === 'overview' ? 'Add' : window.LIFE.addLabel(S.view);
 }
 function go(v) {
-  if (!okView(v)) v = 'closet';
+  if (!okView(v)) v = 'overview';
   S.view = v; pref.set('view', v); pref.set('view:' + secOf(v), v);
   try { history.replaceState(null, '', '#' + v); } catch {}
   $('#main').innerHTML = ''; render(); window.scrollTo(0, 0);
@@ -733,7 +737,7 @@ function go(v) {
 // only the tab buttons: the view container carries data-view too
 document.addEventListener('click', e => { const b = e.target.closest('nav [data-view]'); if (b) go(b.dataset.view); });
 // an area opens on the page you last had open there
-document.addEventListener('click', e => { const b = e.target.closest('#secBar [data-sec]'); if (b) { const k = b.dataset.sec; go(pref.get('view:' + k, k === 'closet' ? 'closet' : k + '/today')); } });
+document.addEventListener('click', e => { const b = e.target.closest('nav [data-sec], [data-gosec]'); if (b) openSection(b.dataset.sec || b.dataset.gosec); });
 
 /* ---------- main render ---------- */
 function render() {
@@ -753,7 +757,7 @@ function render() {
     host?.remove(); host = document.createElement('div'); host.id = 'viewHost'; host.dataset.view = S.view; m.appendChild(host);
   }
   if (isLife(S.view)) window.LIFE.render(host, S.view);
-  else ({ closet: renderRail, wishlist: renderRail, outfits: renderOutfits, calendar: renderCalendar, trips: renderTrips, stats: renderStats })[S.view](host);
+  else ({ overview: renderOverview, closet: renderRail, wishlist: renderRail, outfits: renderOutfits, calendar: renderCalendar, trips: renderTrips, stats: renderStats })[S.view](host);
   S.sheetRefresh?.();
 }
 
@@ -1578,6 +1582,69 @@ function monthCols(list, dateOf, amount) {
   return { total: months.reduce((a, m) => a + m.v, 0), html: `<div class="months">${months.map(m => `<div class="col"><span class="amt">${m.v ? eur0(m.v) : ''}</span><div class="b ${m.v ? '' : 'zero'}" style="height:${Math.max(2, m.v / max * 120)}px"></div><span class="m">${m.label}</span></div>`).join('')}</div>` };
 }
 const STATS_TABS = [['overview', 'Overview'], ['breakdown', 'Breakdown'], ['money', 'Money']];
+/* ---------- overview ---------- */
+// One card per area with what matters today. The closet card lives here; every other area hands over its own
+// card through LIFE.tile(key), so a new area appears without touching this page.
+function closetTile() {
+  const t = today(), rec = S.days[t], o = rec?.outfit && S.outById[rec.outfit];
+  const ids = dayItems(rec).filter(id => S.byId[id]);
+  const look = rec?.photos?.[0];
+  const withPhoto = ids.filter(id => S.byId[id].photo);
+  const inbox = inboxItems().length;
+  const pic = look ? `<div class="dlook">${pimg(look, 'Your look today')}</div>`
+    : o ? `<div class="dlook">${boardHTML(o.pieces)}</div>`
+    : withPhoto.length ? `<div class="dpieces">${withPhoto.slice(0, 6).map(id => pimg(S.byId[id].photo, S.byId[id].name || '', 'loading="lazy"')).join('')}</div>` : '';
+  return `${pic ? `<button class="dpic" data-overday="${t}" aria-label="Open today's outfit">${pic}</button>` : ''}
+    <p class="dline"><span>Today’s outfit</span><b>${o ? esc(o.name || 'Saved outfit') : ids.length ? `${ids.length} piece${ids.length === 1 ? '' : 's'}` : 'Nothing planned yet'}</b></p>
+    <div class="dbtns"><button class="btn small" data-overday="${t}">${rec ? 'Change outfit' : 'Pick today’s outfit'}</button>${inbox ? `<button class="chip link" data-overgo="closet">${inbox} new in your inbox</button>` : ''}</div>`;
+}
+// your order and hidden cards live in prefs.dash, so they're the same on every device; new areas join at the end
+function dashCards() {
+  const all = SECTIONS.filter(s => s.key !== 'overview'), order = S.prefs.dash?.order || [];
+  const pos = s => { const i = order.indexOf(s.key); return i < 0 ? order.length + all.indexOf(s) : i; };
+  return all.sort((a, b) => pos(a) - pos(b));
+}
+const dashHidden = () => new Set(S.prefs.dash?.hidden || []);
+function arrangeDash() {
+  let list = dashCards().map(s => s.key), hidden = dashHidden();
+  const label = k => SECTIONS.find(s => s.key === k)?.label || k;
+  const sh = sheet({ title: 'Arrange Today', body: '<p class="muted" style="margin:0 0 12px">Move the cards into the order you like and hide the ones you don’t use.</p><div class="lrows" id="dashList"></div>', foot: '<div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" id="dashSave">Save</button>' });
+  const draw = () => { $('#dashList', sh).innerHTML = list.map((k, i) => `<div class="lrow"><span class="lmain"><b>${esc(label(k))}</b></span>
+    <button class="chip" data-dhide="${k}" aria-pressed="${!hidden.has(k)}">${hidden.has(k) ? 'Hidden' : 'Shown'}</button>
+    <button class="iconbtn small" data-dmove="${i}" data-d="-1" aria-label="Move ${esc(label(k))} up" ${i ? '' : 'disabled'}>${icon('<path d="m6 15 6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>')}</button>
+    <button class="iconbtn small" data-dmove="${i}" data-d="1" aria-label="Move ${esc(label(k))} down" ${i < list.length - 1 ? '' : 'disabled'}>${icon('<path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>')}</button></div>`).join(''); };
+  draw();
+  sh.addEventListener('click', async e => {
+    const m = e.target.closest('[data-dmove]'), h = e.target.closest('[data-dhide]');
+    if (m) { const i = Number(m.dataset.dmove), j = i + Number(m.dataset.d); [list[i], list[j]] = [list[j], list[i]]; draw(); }
+    if (h) { const k = h.dataset.dhide; hidden.has(k) ? hidden.delete(k) : hidden.add(k); draw(); }
+    if (e.target.closest('#dashSave')) {
+      try { await DB.savePrefs({ dash: { order: list, hidden: [...hidden] } }); closeSheet(); render(); }
+      catch (err) { saveErr(err, 'Could not save. Try again.'); }
+    }
+  });
+}
+function renderOverview(host) {
+  const t = new Date(), hr = t.getHours();
+  const hello = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
+  const hidden = dashHidden(), cards = dashCards().filter(s => !hidden.has(s.key));
+  host.innerHTML = `<div class="viewhead dviewhead"><h1>${hello}</h1><span class="sub">${t.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span><div class="spacer"></div><button class="btn small" data-dasharrange>Arrange</button></div>
+    ${wxStrip()}
+    ${cards.length ? '' : '<p class="muted">Every card is hidden. Tap Arrange to bring some back.</p>'}
+    <div class="dash">${cards.map(s => {
+      const body = s.key === 'closet' ? closetTile() : window.LIFE?.tile(s.key) || `<p class="muted">Open ${esc(s.label)} to see what's there.</p>`;
+      return `<section class="panel dtile"><div class="dhead"><button class="dtitle" data-gosec="${s.key}">${icon(s.icon)}<h2>${esc(s.label)}</h2></button><button class="chip link" data-gosec="${s.key}">Open</button></div>${body}</section>`;
+    }).join('')}</div>`;
+  if (!host.dataset.wired) {
+    host.dataset.wired = '1';
+    host.addEventListener('click', e => {
+      if (e.target.closest('[data-dasharrange]')) return arrangeDash();
+      const d = e.target.closest('[data-overday], .wxday[data-day]'); if (d) return openDay(d.dataset.overday || d.dataset.day);
+      const g = e.target.closest('[data-overgo]'); if (g) go(g.dataset.overgo);
+    });
+  }
+}
+
 function renderStats(host) {
   const tab = S.statsTab = S.statsTab || pref.get('statsTab', 'overview');
   host.innerHTML = `<div class="viewhead"><h1>Stats</h1><span class="sub">What your wardrobe really costs, and what it's actually used for</span></div>
@@ -2635,7 +2702,8 @@ function openDay(date, opts = {}) {
 $('#addBtn').addEventListener('click', () => isLife(S.view) ? window.LIFE.add(S.view) : S.view === 'trips' ? openTripEditor(null) : openEditor(null, S.view === 'wishlist' ? { wish: true } : {}));
 S.fv = { closet: newFilter(pref.get('sort:closet', pref.get('sort', 'new'))), wishlist: newFilter(pref.get('sort:wishlist', 'new')) };
 const h = (location.hash || '').slice(1);
-S.view = okView(h) ? h : okView(pref.get('view', 'closet')) ? pref.get('view', 'closet') : 'closet';
+// the app opens on the overview; a link with #page still opens that page
+S.view = okView(h) ? h : 'overview';
 
 async function start(session) {
   if (UID === session.user.id) return;
