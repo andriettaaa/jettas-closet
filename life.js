@@ -49,6 +49,9 @@ const P = {
   box: '<path d="M4 7.5 12 3.5l8 4v9l-8 4-8-4ZM4 7.5l8 4 8-4M12 11.5v9"/>',
   wrench: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5L4 16.6 7.4 20l5.3-5.3a4 4 0 0 0 5-5.4l-2.6 2.6-2.4-.6-.6-2.4Z"/>',
   run: '<circle cx="14.5" cy="4.8" r="1.8"/><path d="M5.5 20.5 9 15.5l3 2v3.5M8 11.5l3-3 3.5 1.5 2 3h3M11 8.5l1.2 5.5"/>',
+  wallet: '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M15.5 13.5h2"/>',
+  repeat: '<path d="M5 10a6 6 0 0 1 10.5-4L18 8.5M18 4.5v4h-4M19 14a6 6 0 0 1-10.5 4L6 15.5M6 19.5v-4h4"/>',
+  coins: '<ellipse cx="9" cy="7" rx="5" ry="2.5"/><path d="M4 7v4c0 1.4 2.2 2.5 5 2.5s5-1.1 5-2.5V7M10 16.5c.9.6 2.4 1 4 1 2.8 0 5-1.1 5-2.5v-4c0-1.4-2.2-2.5-5-2.5"/>',
   list: '<path d="M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/>',
   grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
   scale: '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8.5 10a4.5 4.5 0 0 1 7 0L13 12.5"/>',
@@ -303,6 +306,77 @@ const KINDS = {
     sorts: [['name', 'A to Z']], sub: r => [[].concat(r.muscles || []).join(', '), [].concat(r.equipment || []).join(', ')].filter(Boolean).join(' · '),
     side: r => { const p = prOf(r.id); return p ? `PR ${p.weight} kg × ${p.reps || 1}` : ''; }
   },
+  faccounts: {
+    one: 'account', many: 'Accounts', facet: 'type',
+    fields: [F('name', 'Name'), F('type', 'Type', 'select', { options: ['Spending', 'Savings', 'Card'], half: 1 }),
+      F('safe', 'Counts toward safe to spend', 'check', { half: 1 }), F('archived', 'Archived', 'check', { half: 1 }), F('notes', 'Notes', 'long')],
+    sorts: [['name', 'A to Z']], hide: r => r.archived, hideLabel: 'Show archived',
+    sub: r => [r.type, r.safe ? 'in safe to spend' : ''].filter(Boolean).join(' · '),
+    side: r => { const b = fBalance(r); return b == null ? 'not checked' : eur(b); }
+  },
+  fchecks: {
+    one: 'balance check', many: 'Balance checks',
+    fields: [F('account', 'Account', 'rel', { to: 'faccounts', half: 1 }), F('amount', 'Balance', 'money', { half: 1 }), F('at', 'Checked on', 'date'), F('notes', 'Note', 'long')],
+    title: r => relName(r.account) || 'Balance check', sorts: [['-at', 'Newest']],
+    sub: r => niceDate(r.at), side: r => eur(num(r.amount))
+  },
+  ftx: {
+    one: 'purchase', many: 'Purchases',
+    fields: [F('name', 'What'), F('amount', 'Amount', 'money', { half: 1 }), F('date', 'Date', 'date', { half: 1 }),
+      F('category', 'Category', 'rel', { to: 'fcats', half: 1 }), F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 }), F('notes', 'Notes', 'long')],
+    sorts: [['-date', 'Newest'], ['-amount', 'Biggest'], ['name', 'A to Z']],
+    sub: r => [niceDate(r.date), relName(r.category), relName(r.account), r.bill ? 'bill' : r.debt ? 'debt payment' : ''].filter(Boolean).join(' · '),
+    side: r => eur(num(r.amount))
+  },
+  fincome: {
+    one: 'payment in', many: 'Money in', facet: 'type',
+    fields: [F('name', 'From'), F('amount', 'Amount', 'money', { half: 1 }), F('date', 'Date', 'date', { half: 1 }),
+      F('type', 'Type', 'select', { options: ['Pay', 'Other'], half: 1 }), F('account', 'Into', 'rel', { to: 'faccounts', half: 1 }), F('notes', 'Notes', 'long')],
+    sorts: [['-date', 'Newest'], ['-amount', 'Biggest']],
+    sub: r => [niceDate(r.date), r.type, relName(r.account)].filter(Boolean).join(' · '), side: r => '+' + eur(num(r.amount))
+  },
+  fbills: {
+    one: 'repeat', many: 'Repeats', facet: 'type',
+    fields: [F('name', 'Name'), F('amount', 'Amount', 'money', { half: 1 }), F('type', 'Type', 'select', { options: ['Bill', 'Subscription', 'Debt'], half: 1 }),
+      F('cadence', 'How often', 'select', { options: ['Monthly', 'Every N months', 'Yearly', 'Weekly'], half: 1 }), F('every', 'Every how many', 'num', { half: 1 }),
+      F('anchor', 'First due', 'date', { half: 1 }), F('ends', 'Ends', 'date', { half: 1 }),
+      F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 }), F('category', 'Category', 'rel', { to: 'fcats', half: 1 }),
+      F('debt', 'Pays off debt', 'rel', { to: 'fdebts', half: 1 }), F('active', 'Active', 'check', { half: 1 }), F('url', 'Link', 'url'), F('notes', 'Notes', 'long')],
+    sorts: [['name', 'A to Z'], ['-amount', 'Biggest']], hide: r => r.active === false, hideLabel: 'Show stopped',
+    sub: r => { const n = fNext(r); return [r.type, fCadence(r), n ? 'next ' + niceDate(n) : 'no next date'].filter(Boolean).join(' · '); },
+    side: r => eur(num(r.amount))
+  },
+  fpaid: {
+    one: 'paid bill', many: 'Paid bills',
+    fields: [F('bill', 'Repeat', 'rel', { to: 'fbills', half: 1 }), F('date', 'Was due', 'date', { half: 1 }), F('paid', 'Paid', 'check', { half: 1 }), F('skipped', 'Skipped', 'check', { half: 1 }), F('paidOn', 'Paid on', 'date')],
+    title: r => relName(r.bill) || 'Bill', sorts: [['-date', 'Newest']], sub: r => [niceDate(r.date), r.skipped ? 'skipped' : r.paid ? 'paid ' + niceDate(r.paidOn) : ''].filter(Boolean).join(' · ')
+  },
+  fcats: {
+    one: 'category', many: 'Your plan',
+    fields: [F('name', 'Name'), F('emoji', 'Emoji', 'text', { half: 1 }), F('budget', 'Budget per pay', 'money', { half: 1 }), F('notes', 'Notes', 'long')],
+    title: r => [r.emoji, r.name].filter(Boolean).join(' ') || 'Category', sorts: [['-budget', 'Biggest budget'], ['name', 'A to Z']],
+    sub: r => { const s = fSpentBy(r.id); return num(r.budget) ? `${eur(s)} of ${eur(num(r.budget))} this pay` : `${eur(s)} this pay`; }
+  },
+  fdebts: {
+    one: 'debt', many: 'Debts',
+    fields: [F('name', 'Name'), F('balance', 'Balance at start', 'money', { half: 1 }), F('opened', 'Start date', 'date', { half: 1 }),
+      F('apr', 'Interest %', 'num', { half: 1 }), F('payment', 'Monthly payment', 'money', { half: 1 }), F('dueDay', 'Due on day', 'num', { half: 1 }),
+      F('account', 'Card account', 'rel', { to: 'faccounts', half: 1 }), F('notes', 'Notes', 'long')],
+    sorts: [['-balance', 'Biggest']], sub: r => [num(r.payment) ? eur(num(r.payment)) + ' a month' : '', num(r.apr) ? r.apr + '% interest' : ''].filter(Boolean).join(' · '),
+    side: r => eur(fDebtBal(r))
+  },
+  fchips: {
+    one: 'quick add', many: 'Quick adds',
+    fields: [F('name', 'Label'), F('emoji', 'Emoji', 'text', { half: 1 }), F('amount', 'Amount', 'money', { half: 1 }),
+      F('category', 'Category', 'rel', { to: 'fcats', half: 1 }), F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 })],
+    title: r => [r.emoji, r.name].filter(Boolean).join(' '), sorts: [['name', 'A to Z']], sub: r => relName(r.category), side: r => eur(num(r.amount))
+  },
+  fset: {
+    one: 'setting', many: 'Money settings',
+    fields: [F('payday', 'Next payday', 'date', { half: 1 }), F('payAmount', 'Expected pay', 'money', { half: 1 }),
+      F('buffer', 'Safety buffer', 'money', { half: 1 }), F('cycle', 'Paid', 'select', { options: ['Monthly'], half: 1 })],
+    title: () => 'Payday and buffer', sub: r => [r.payday && 'payday ' + niceDate(fPayday() || r.payday), num(r.payAmount) ? eur(num(r.payAmount)) : '', 'buffer ' + eur(num(r.buffer) ?? 100)].filter(Boolean).join(' · ')
+  },
   sets: {
     one: 'set', many: 'Set log',
     fields: [F('date', 'Date', 'date', { half: 1 }), F('exercise', 'Exercise', 'rel', { to: 'exercises', half: 1 }),
@@ -392,6 +466,7 @@ function fitTile() {
 const SECTIONS = [
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile, views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book], ['meals', 'Meal plan', P.calendar], ['groceries', 'Groceries', P.cart], ['pantry', 'Pantry', P.jar], ['gear', 'Gear', P.spoon]] },
   { key: 'care', label: 'Self-care', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['ideas', 'Ideas', P.star]] },
+  { key: 'money', label: 'Money', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.grid], ['spending', 'Spending', P.coins], ['plan', 'Plan', P.list], ['repeats', 'Repeats', P.repeat], ['accounts', 'Accounts', P.wallet]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
   { key: 'fit', label: 'Fitness', icon: P.dumbbell, tile: fitTile, views: [['today', 'Overview', P.grid], ['workouts', 'Workouts', P.run], ['plans', 'Plans', P.list], ['exercises', 'Exercises', P.dumbbell], ['body', 'Body', P.scale], ['gear', 'Gear', P.box]] }
 ];
@@ -409,6 +484,11 @@ const PAGES = {
   'care/journal': { title: 'Journal', segs: [{ kind: 'journal' }] },
   'care/ideas': { title: 'Ideas', segs: [{ kind: 'ideas' }] },
   'care/health': { title: 'Health', segs: [{ kind: 'sleep' }, { kind: 'appts' }, { kind: 'symptoms' }, { kind: 'meditation' }, { kind: 'water' }] },
+  'money/today': { render: moneyToday, adds: ['ftx', 'fincome', 'fbills', 'fchecks'] },
+  'money/spending': { title: 'Spending', segs: [{ kind: 'ftx' }, { kind: 'fincome' }] },
+  'money/plan': { title: 'Your plan', segs: [{ kind: 'fcats' }, { kind: 'fchips' }] },
+  'money/repeats': { title: 'Repeats', segs: [{ kind: 'fbills' }, { kind: 'fpaid' }] },
+  'money/accounts': { title: 'Accounts and debt', segs: [{ kind: 'faccounts' }, { kind: 'fdebts' }, { kind: 'fchecks' }, { kind: 'fset', label: 'Payday' }] },
   'home/today': { render: homeToday, adds: ['chores', 'plants', 'inventory', 'repairs'] },
   'home/chores': { title: 'Chores', segs: [{ kind: 'chores' }] },
   'home/plants': { title: 'Plants', segs: [{ kind: 'plants' }] },
@@ -613,6 +693,217 @@ function kitchenToday(host) {
     ${panel(ready.length >= 3 ? 'You can cook these now' : 'Something to cook', pick.length ? `<div class="lgrid small">${pick.map(card).join('')}</div>` : quiet('Your recipes show up here.'), ['kitchen/recipes', 'All recipes'])}
   </div>${dataTools()}`;
 }
+/* ---------- money ----------
+   Built on the Ultimate Budget Planner's model: a balance check per account plus everything logged since,
+   minus the bills still due before payday, minus a safety buffer, spread over the days left. */
+const addMonths = (s, n) => { const d = fromISO(s), day = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + n); d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); return iso(d); };
+const fset = () => recs('fset')[0] || {};
+const fBuffer = () => num(fset().buffer) ?? 100;
+const fSeq = r => num(r.seq) ?? (r.created || 0);
+const fSum = (list, k = 'amount') => list.reduce((n, x) => n + (num(x[k]) || 0), 0);
+const fAccs = () => recs('faccounts').filter(a => !a.archived);
+const fEur0 = n => (n < 0 ? '−' : '') + money.format(Math.abs(n)).replace(/\.00$/, '');
+const fSigned = n => (n < 0 ? '−' : '') + eur(Math.abs(n));
+function fPayday() { let p = fset().payday; if (!p) return null; const t = today(); for (let i = 0; p <= t && i < 600; i++) p = addMonths(p, 1); return p; }
+const fStart = () => { const p = fPayday(); return p ? addMonths(p, -1) : addDays(today(), -30); };
+function fBalance(a) {
+  const cs = recs('fchecks').filter(c => c.account === a.id); if (!cs.length) return null;
+  const c = cs.reduce((x, y) => fSeq(y) > fSeq(x) ? y : x), s = fSeq(c), t = today();
+  const after = x => x.account === a.id && fSeq(x) > s && x.date <= t;
+  return (num(c.amount) || 0) - fSum(recs('ftx').filter(after)) + fSum(recs('fincome').filter(i => after(i) && i.confirmed !== false));
+}
+function fDebtBal(d) {
+  const s = fSeq(d);
+  return (num(d.balance) || 0) - fSum(recs('ftx').filter(x => x.debt === d.id && fSeq(x) > s)) + (d.account ? fSum(recs('ftx').filter(x => x.account === d.account && !x.debt && fSeq(x) > s)) : 0);
+}
+const fCadence = b => b.cadence === 'Every N months' ? `every ${num(b.every) || 1} months` : b.cadence === 'Weekly' && num(b.every) > 1 ? `every ${b.every} weeks` : (b.cadence || 'Monthly').toLowerCase();
+function fDates(b, from, to) {
+  if (b.active === false || !b.anchor) return [];
+  const out = [], n = Math.max(1, num(b.every) || 1), ok = d => d >= from && d <= to && (!b.ends || d <= b.ends);
+  if (b.cadence === 'Weekly') { for (let d = b.anchor, i = 0; d <= to && i < 2000; d = addDays(d, 7 * n), i++) if (ok(d)) out.push(d); return out; }
+  const step = b.cadence === 'Yearly' ? 12 : b.cadence === 'Every N months' ? n : 1;
+  for (let k = 0, d = b.anchor; d <= to && k < 600; k++, d = addMonths(b.anchor, k * step)) if (ok(d)) out.push(d);
+  return out;
+}
+const fNext = b => fDates(b, today(), addMonths(today(), 25))[0] || null;
+function fOccs(from, to) {
+  const pm = new Map(recs('fpaid').map(p => [p.occ, p]));
+  return recs('fbills').flatMap(b => fDates(b, from, to).map(d => { const key = b.id + '@' + d, p = pm.get(key); return { key, bill: b, date: d, amount: num(b.amount) || 0, type: b.type || 'Bill', paid: !!p?.paid, skipped: !!p?.skipped }; }))
+    .sort((a, b) => a.date.localeCompare(b.date) || b.amount - a.amount);
+}
+const fEveryday = x => !x.bill && !x.debt;
+const fSpentBy = catId => { const s = fStart(), t = today(); return fSum(recs('ftx').filter(x => fEveryday(x) && x.category === catId && x.date >= s && x.date <= t)); };
+function fState() {
+  const t = today(), pay = fPayday(), start = fStart(), buf = fBuffer();
+  const accs = fAccs(), bal = new Map(accs.map(a => [a.id, fBalance(a)]));
+  const safeAccs = accs.filter(a => a.safe && a.type !== 'Card'), safeIds = new Set(safeAccs.map(a => a.id));
+  const inAcc = safeAccs.reduce((n, a) => n + (bal.get(a.id) || 0), 0);
+  const counts = o => !o.paid && !o.skipped && (!o.bill.account || safeIds.has(o.bill.account));
+  const occs = pay ? fOccs(start, addDays(pay, -1)) : fOccs(start, addDays(t, 30));
+  const due = occs.filter(counts), overdue = due.filter(o => o.date < t);
+  const billsBefore = fSum(due), until = inAcc - billsBefore - buf, days = pay ? Math.max(1, diffDays(t, pay)) : 30;
+  const checks = recs('fchecks'), lastCheck = checks.reduce((m, c) => (c.at || '') > m ? c.at : m, '');
+  return { t, pay, start, buf, accs, bal, safeIds, inAcc, due, overdue, billsBefore, until, days, perDay: until / days, counts, lastCheck };
+}
+function fPayOcc(o) {
+  const b = o.bill;
+  create('ftx', { name: b.name, amount: o.amount, date: today(), category: b.category || '', account: b.account || '', bill: o.key, debt: b.debt || '' })
+    .then(tx => create('fpaid', { occ: o.key, bill: b.id, date: o.date, paid: true, paidOn: today(), tx }))
+    .then(() => C.toast(`${b.name} marked paid`)).catch(() => C.toast('Could not save. Try again.'));
+}
+function fQuick(src) {
+  create('ftx', { name: src.name, amount: num(src.amount) || 0, date: today(), category: src.category || '', account: src.account || fAccs().find(a => a.safe && a.type === 'Spending')?.id || '' })
+    .then(() => C.toast(`${src.name} ${eur(num(src.amount))} written down`)).catch(() => C.toast('Could not save. Try again.'));
+}
+function fCheckSheet() {
+  const accs = fAccs().filter(a => a.type !== 'Card');
+  const sh = C.sheet({
+    title: 'Check my money',
+    body: `<p class="lnone">Type what your banking app says. Leave an account as it is if it hasn't changed.</p>
+      <div class="lrows">${accs.map(a => { const b = fBalance(a); return `<label class="lrow mcheck"><span class="lmain"><b>${esc(a.name)}</b><span>${b == null ? 'never checked' : 'now ' + eur(b)}</span></span><input inputmode="decimal" data-acc="${a.id}" value="${b == null ? '' : (Math.round(b * 100) / 100).toFixed(2)}" aria-label="${esc(a.name)} balance"></label>`; }).join('')}</div>`,
+    foot: `<div class="spacer"></div><button class="btn primary" data-fsave>Save balances</button>`
+  });
+  sh.querySelector('[data-fsave]').addEventListener('click', async () => {
+    const jobs = [];
+    for (const inp of sh.querySelectorAll('[data-acc]')) {
+      const v = num(inp.value.replace(/[\s€]/g, '').replace(',', '.')); if (v == null) continue;
+      const a = L.byId[inp.dataset.acc], b = fBalance(a);
+      if (b == null || Math.abs(v - b) > 0.004) jobs.push(create('fchecks', { account: a.id, amount: v, at: today(), notes: b == null ? 'First balance' : `Adjusted by ${fSigned(v - b)}` }));
+    }
+    if (!jobs.length) { C.closeSheet(); C.toast('Balances match. Nothing to change.'); return; }
+    try { await Promise.all(jobs); C.closeSheet(); C.toast('Balances saved'); } catch { C.toast('Could not save. Try again.'); }
+  });
+}
+function fAfford(st) {
+  const v = num(String(prompt('How much is it?', '') || '').replace(/[\s€]/g, '').replace(',', '.')); if (v == null) return;
+  const left = st.until - v;
+  C.toast(left >= 0 ? `Yes. You'd still have ${eur(left)} until payday, ${eur(left / st.days)} a day.` : `Not right now. It puts you ${eur(-left)} under your buffer before payday.`);
+}
+function moneyTile() {
+  const st = fState(); if (!recs('faccounts').length) return '<p class="lnone">No money set up yet.</p>';
+  const next = st.due.find(o => o.date >= st.t);
+  return tileBody([
+    `<p class="dline"><span>Safe to spend today</span><b>${fSigned(st.perDay)}</b></p>`,
+    st.pay ? `<p class="dline"><span>Until payday</span><b>${fSigned(st.until)} · ${plural(st.days, 'day')}</b></p>` : '',
+    st.overdue.length ? `<p class="dline"><span>Overdue</span><b>${esc(st.overdue[0].bill.name)} ${eur(st.overdue[0].amount)}</b></p>` : next ? `<p class="dline"><span>Next bill</span><b>${esc(next.bill.name)}, ${esc(relDay(next.date))}</b></p>` : ''
+  ]);
+}
+
+const MP = (t, body, more, id = '') => `<section class="panel lpanel mpanel" ${id ? `id="m-${id}"` : ''}><div class="lph3"><h3 class="mh">${esc(t)}</h3>${more || ''}</div>${body}</section>`;
+const mLink = (label, v) => `<button class="chip link" data-act="go" data-v="${v}">${esc(label)}</button>`;
+const TYPE_COL = { Bill: 'var(--c8)', Subscription: 'var(--c6)', Debt: 'var(--c7)', Pay: 'var(--c5)' };
+function fForecast(st) {
+  // before payday you spend what is safe each day; after it, the pace you have kept this pay so far
+  const s = fset(), pay = num(s.payAmount) || 0, gone = Math.max(1, diffDays(st.start, st.t) + 1);
+  const pace = fSum(recs('ftx').filter(x => fEveryday(x) && x.date >= st.start && x.date <= st.t)) / gone;
+  const occs = fOccs(st.start, addDays(st.t, 31)).filter(st.counts), pts = [];
+  let v = st.inAcc - fSum(occs.filter(o => o.date < st.t));
+  for (let i = 0; i <= 30; i++) {
+    const d = addDays(st.t, i);
+    v -= fSum(occs.filter(o => o.date === d));
+    if (st.pay && (d === st.pay || (d > st.pay && fromISO(d).getDate() === fromISO(st.pay).getDate()))) v += pay;
+    v -= st.pay && d < st.pay ? Math.max(0, st.perDay) : pace;
+    pts.push({ d, v });
+  }
+  return pts;
+}
+function fChart(pts, buf, pay) {
+  const W = 600, H = 170, P = 6, vs = pts.map(p => p.v), lo = Math.min(...vs, buf), hi = Math.max(...vs, buf), r = hi - lo || 1;
+  const x = i => P + i * (W - 2 * P) / (pts.length - 1), y = v => P + (hi - v) * (H - 2 * P) / r;
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p.v).toFixed(1)}`).join(' ');
+  const pi = pts.findIndex(p => p.d === pay);
+  return `<svg class="mchart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Expected balance over the next 30 days">
+    <path d="${line} L${x(pts.length - 1)} ${H} L${x(0)} ${H}Z" class="mfill"/><line x1="${P}" x2="${W - P}" y1="${y(buf)}" y2="${y(buf)}" class="mbuf"/>
+    ${pi >= 0 ? `<line x1="${x(pi)}" x2="${x(pi)}" y1="0" y2="${H}" class="mpayline"/>` : ''}<path d="${line}" class="mline"/></svg>`;
+}
+function fDonut(parts) {
+  const tot = parts.reduce((n, p) => n + p.v, 0) || 1, R = 15.9155; let off = 25;
+  return `<svg viewBox="0 0 42 42" class="mdonut" role="img" aria-label="Spending split"><circle cx="21" cy="21" r="${R}" class="mring"/>${parts.map(p => { const pct = 100 * p.v / tot, s = `<circle cx="21" cy="21" r="${R}" fill="none" stroke="${p.c}" stroke-width="5" stroke-dasharray="${pct.toFixed(2)} ${(100 - pct).toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}"/>`; off -= pct; return s; }).join('')}</svg>`;
+}
+function moneyToday(host) {
+  if (!recs('faccounts').length) { host.innerHTML = `${head('Money')}<div class="panels">${panel('Start here', `${quiet('Import your Budget Planner backup, or add your accounts and check your balances.')}<button class="btn small" data-act="new" data-v="faccounts">Add an account</button>`)}</div>${dataTools()}`; return; }
+  const st = fState(), t = st.t, s = fset(), hr = new Date().getHours();
+  const tx = recs('ftx'), every = tx.filter(fEveryday);
+  const payTx = every.filter(x => x.date >= st.start && x.date <= t), spentPay = fSum(payTx);
+  const envelopes = fSum(recs('fcats'), 'budget');
+  const nextBill = st.due.find(o => o.date >= t);
+  const [whole, cents] = Math.abs(st.perDay).toFixed(2).split('.');
+  const chips = recs('fchips');
+  /* safe to spend */
+  const safe = `<section class="panel msafe" id="m-safe"><div class="msafe-l"><p class="mh">Safe to spend today</p>
+      <p class="mbig ${st.perDay < 0 ? 'neg' : ''}"><small>${st.perDay < 0 ? '−' : ''}€</small>${Number(whole).toLocaleString('en-GB')}<sup>.${cents}</sup></p>
+      <p class="mmuted">${st.pay ? `${fSigned(st.until)} to last ${plural(st.days, 'day')}, until payday on ${esc(shortDate(st.pay))}` : 'Set your payday under Accounts to see this per day.'}</p>
+      <p class="mnote">${st.lastCheck ? `Balance checked ${esc(relDay(st.lastCheck))}, plus what you've logged since.` : 'No balance checked yet.'}${st.overdue.length ? ' Something that was due still needs a tick.' : ''}</p></div>
+    <div class="mcalc"><p><span>Money in your accounts</span><b>${fSigned(st.inAcc)}</b></p><p><span>− Bills before payday</span><b>${eur(st.billsBefore)}</b></p><p><span>− Safety buffer</span><b>${eur(st.buf)}</b></p><p class="mtot"><span>= Safe until payday</span><b>${fSigned(st.until)}</b></p></div>
+    <div class="mfoot">${nextBill ? `<span>Next bill: <b>${esc(nextBill.bill.name)} ${eur(nextBill.amount)}</b> ${esc(relDay(nextBill.date))}</span>` : '<span></span>'}
+      <span class="mbtns"><button class="btn small" data-act="fafford">Can I afford…?</button>${chips.slice(0, 2).map(c => `<button class="btn small primary" data-act="fchip" data-id="${c.id}">+ ${esc(c.name)} ${eur(num(c.amount))}</button>`).join('')}</span></div></section>`;
+  /* small wins */
+  const loggedToday = tx.some(x => x.date === t) || s.nothingOn === t, checkedRecently = st.lastCheck && diffDays(st.lastCheck, t) <= 3;
+  const win = (done, title, sub, btn) => `<div class="mwin ${done ? 'done' : ''}"><span class="mtick" aria-hidden="true">${done ? svg(P.check) : ''}</span><span class="lmain"><b>${esc(title)}</b><span>${esc(sub)}</span></span>${!done && btn ? btn : ''}</div>`;
+  const wins = [
+    win(checkedRecently, 'Check your balance', st.lastCheck ? `Last checked ${relDay(st.lastCheck)}.` : 'Never checked.', '<button class="btn small" data-act="fcheck">Check</button>'),
+    win(!st.overdue.length, 'Tick off bills that went out', st.overdue.length ? `${st.overdue.length} waiting, starting with ${st.overdue[0].bill.name}.` : 'Nothing waiting.', '<button class="btn small" data-act="go" data-v="money/today" data-jump="m-look">Open</button>'),
+    win(loggedToday, 'Write down today’s spending', 'Even a coffee keeps the number honest.', '<button class="btn small" data-act="fnothing">Nothing today</button>')
+  ];
+  const nWin = [checkedRecently, !st.overdue.length, loggedToday].filter(Boolean).length;
+  /* coming up and payments */
+  const upcoming = fOccs(st.start, addDays(t, 60)).filter(o => !o.paid && !o.skipped).slice(0, 5);
+  const wk = weekStart(0), days35 = Array.from({ length: 35 }, (_, i) => addDays(wk, i)), occ35 = fOccs(wk, days35[34]);
+  const pays = s.payday ? days35.filter(d => fromISO(d).getDate() === fromISO(fPayday() || s.payday).getDate() && d >= addDays(fPayday() || s.payday, -1)) : [];
+  const outNext = fSum(occ35.filter(o => !o.paid && !o.skipped && o.date >= t)), inNext = pays.filter(d => d >= t).length * (num(s.payAmount) || 0);
+  const chip = (amt, ty, paid) => `<span class="mpay ${paid ? 'paid' : ''}" style="--c:${TYPE_COL[ty] || TYPE_COL.Bill}">${fEur0(amt)}</span>`;
+  const cal = `<div class="mcal">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<b class="mdow">${d}</b>`).join('')}${days35.map(d => { const os = occ35.filter(o => o.date === d), dd = fromISO(d); const items = [...(pays.includes(d) ? [chip(num(s.payAmount) || 0, 'Pay')] : []), ...os.map(o => chip(o.amount, o.type, o.paid))]; return `<div class="mday ${d === t ? 'now' : ''} ${d < t ? 'past' : ''}"><span>${dd.getDate() === 1 ? dd.toLocaleDateString('en-GB', { month: 'short' }) + ' 1' : d === t ? shortDate(d) : dd.getDate()}</span>${items.slice(0, 2).join('')}${items.length > 2 ? `<em>+${items.length - 2}</em>` : ''}</div>`; }).join('')}</div>
+    <p class="mlegend">${Object.entries(TYPE_COL).map(([k, c]) => `<span><i style="background:${c}"></i>${k}</span>`).join('')}</p>`;
+  /* every day this month */
+  const m0 = t.slice(0, 8) + '01', mDays = new Date(fromISO(t).getFullYear(), fromISO(t).getMonth() + 1, 0).getDate();
+  const perDayMap = new Map(); for (const x of every) if (x.date.startsWith(t.slice(0, 7))) perDayMap.set(x.date, (perDayMap.get(x.date) || 0) + (num(x.amount) || 0));
+  const past = Array.from({ length: fromISO(t).getDate() }, (_, i) => addDays(m0, i)), maxDay = Math.max(1, ...past.map(d => perDayMap.get(d) || 0));
+  const lvl = v => !v ? 0 : Math.min(4, 1 + Math.floor(3 * v / maxDay));
+  const zero = past.filter(d => !(perDayMap.get(d) > 0)).length, monthSpend = past.reduce((n, d) => n + (perDayMap.get(d) || 0), 0);
+  const lead = (fromISO(m0).getDay() + 6) % 7;
+  const heat = `<div class="mheat">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(d => `<b>${d}</b>`).join('')}${'<span></span>'.repeat(lead)}${Array.from({ length: mDays }, (_, i) => { const d = addDays(m0, i), v = perDayMap.get(d) || 0; return `<button class="mh${d > t ? 'f' : lvl(v)} ${d === t ? 'now' : ''}" data-act="go" data-v="money/spending" title="${esc(shortDate(d))}: ${eur(v)}">${i + 1}</button>`; }).join('')}</div>
+    <p class="mlegend2"><span class="mscale">${[0, 1, 2, 3, 4].map(i => `<i class="mh${i}"></i>`).join('')}</span><span>${plural(zero, 'day')} with nothing spent</span></p>`;
+  /* where the money went */
+  const monthTx = tx.filter(x => x.date.startsWith(t.slice(0, 7))), groups = new Map();
+  for (const x of monthTx) { const b = x.bill ? L.byId[x.bill.split('@')[0]] : null; const k = x.debt ? 'Debt' : b ? (b.type === 'Subscription' ? 'Subscriptions' : b.type === 'Debt' ? 'Debt' : 'Bills') : (relName(x.category) || 'Other'); groups.set(k, (groups.get(k) || 0) + (num(x.amount) || 0)); }
+  const COLS = ['var(--c1)', 'var(--c6)', 'var(--c3)', 'var(--c2)', 'var(--c4)', 'var(--c5)', 'var(--c7)', 'var(--c8)'];
+  const parts = [...groups.entries()].sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({ k, v, c: COLS[i % COLS.length] })), mTot = fSum(monthTx);
+  const went = parts.length ? `<div class="mwent"><div class="mdwrap">${fDonut(parts)}<p><b>${fEur0(mTot)}</b><span>this month</span></p></div><div class="mleg">${parts.slice(0, 7).map(p => `<p><i style="background:${p.c}"></i><span>${esc(p.k)}</span><b>${Math.round(100 * p.v / (mTot || 1))}%</b></p>`).join('')}</div></div>` : quiet('Nothing spent this month yet.');
+  /* run to payday and last 7 days */
+  const runDays = st.pay ? Array.from({ length: diffDays(st.start, st.pay) }, (_, i) => addDays(st.start, i)) : [];
+  const run = st.pay ? `<div class="mdots">${runDays.map(d => `<i class="${d < t ? 'past' : d === t ? 'now' : ''}"></i>`).join('')}<i class="pay" title="Payday"></i></div>
+    <div class="mpair"><p><span>Left to last</span><b>${fSigned(st.until)}</b></p><p><span>Each day</span><b>${fSigned(st.perDay)}</b></p></div>` : quiet('Set your payday under Accounts.');
+  const w0 = addDays(t, -6), w7 = tx.filter(x => x.date >= w0 && x.date <= t);
+  const last7 = `<div class="mpair col"><p><span>Spent</span><b>${eur(fSum(w7.filter(fEveryday)))}</b></p><p><span>Bills paid</span><b>${eur(fSum(w7.filter(x => !fEveryday(x))))}</b></p><p><span>Money in</span><b>${eur(fSum(recs('fincome').filter(i => i.date >= w0 && i.date <= t)))}</b></p></div>`;
+  /* goals, debt, net worth */
+  const owned = [...st.bal.entries()].reduce((n, [id, b]) => n + (L.byId[id]?.type !== 'Card' && b != null ? b : 0), 0);
+  const owed = recs('fdebts').reduce((n, d) => n + Math.max(0, fDebtBal(d)), 0);
+  const tile = (k, v, h, bar) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="h">${h}</div>${bar != null ? `<span class="lprog mprog"><i style="width:${Math.min(100, bar)}%"></i></span>` : ''}</div>`;
+  const tiles = `<div class="tiles" id="m-net">${tile('Spent this pay', eur(spentPay), `${envelopes ? `of ${fEur0(envelopes)} in your plan · ` : ''}${st.pay ? plural(st.days, 'day') + ' to payday' : ''}`, envelopes ? 100 * spentPay / envelopes : null)}
+    ${tile('Net worth', fSigned(owned - owed), `${eur(owned)} owned, ${eur(owed)} owed`)}${tile('Debt-free', owed > 0.5 ? 'Not yet' : 'Yes', owed > 0.5 ? `${eur(owed)} to go` : 'Nothing owed')}
+    ${tile('In savings', eur(fAccs().filter(a => a.type === 'Savings').reduce((n, a) => n + Math.max(0, st.bal.get(a.id) || 0), 0)), 'across your savings pots')}</div>`;
+  /* everyday spending this pay */
+  const byCat = recs('fcats').map(c => ({ c, s: fSum(payTx.filter(x => x.category === c.id)), b: num(c.budget) || 0 })).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
+  const bars = byCat.length ? `<div class="mbars">${byCat.map(({ c, s, b }) => `<button class="mbar ${b && s > b ? 'over' : ''}" data-act="open" data-id="${c.id}"><span class="mbl"><span>${esc(titleOf(c))}</span><b>${eur(s)}${b ? `<small> / ${fEur0(b)}</small>` : ''}</b></span><span class="lprog"><i style="width:${b ? Math.min(100, 100 * s / b) : 100}%"></i></span></button>`).join('')}</div>` : quiet('Nothing spent this pay yet.');
+  const recent = every.filter(x => x.date <= t).sort((a, b) => (b.date + fSeq(b)).localeCompare(a.date + fSeq(a))).slice(0, 2);
+  const chipRow = `<div class="mchips">${recent.map(x => `<button class="chip mrecent" data-act="frepeat" data-id="${x.id}">${esc(x.name || 'Again')} ${eur(num(x.amount))}</button>`).join('')}${chips.map(c => `<button class="chip" data-act="fchip" data-id="${c.id}">${esc(titleOf(c))} ${eur(num(c.amount))}</button>`).join('')}</div>`;
+  const pts = fForecast(st), low = pts.reduce((m, p) => p.v < m.v ? p : m, pts[0]);
+  const jump = [['m-safe', 'Safe to spend'], ['m-look', 'Worth a look'], ['m-wins', 'Small wins'], ['m-next', 'Next 30 days'], ['m-pay', 'Payments coming'], ['m-days', 'Every day this month'], ['m-went', 'Where the money went'], ['m-net', 'Goals, debt, net worth']];
+  host.innerHTML = `<div class="viewhead dviewhead"><h1>${hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'}</h1><span class="sub">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span><div class="spacer"></div><button class="btn small" data-act="fcheck">Check my money</button><button class="btn small primary" data-act="new" data-v="ftx">+ Add spending</button></div>
+  <nav class="mjump" aria-label="On this page">${jump.map(([id, l]) => `<button class="chip" data-jump="${id}">${l}</button>`).join('')}</nav>
+  <div class="mtop">${safe}${MP('Small wins', `${wins.join('')}<p class="lnone">${nWin ? `${nWin} down. That counts.` : 'Start with one.'}</p>`, `<span class="lnone">${nWin} of 3</span>`, 'wins')}</div>
+  ${MP('Worth a look', st.overdue.length ? `<div class="lrows">${st.overdue.map(o => `<div class="lrow mlook"><span class="lmain"><b>${esc(o.bill.name)} was due ${esc(shortDate(o.date))}</b><span>${esc(o.type)} · ${eur(o.amount)}</span></span><button class="btn small" data-act="fpay" data-v="${o.key}">Mark paid</button><button class="chip link" data-act="fskip" data-v="${o.key}">Skip</button></div>`).join('')}</div>` : quiet('Nothing needs a look.'), `<span class="lnone">${plural(st.overdue.length, 'thing')}</span>`, 'look')}
+  <div class="mrow2">${MP('Next 30 days', `${fChart(pts, st.buf, st.pay)}<p class="mmuted">Lowest point about <b>${fEur0(Math.round(low.v))}</b> on ${esc(shortDate(low.d))}${low.v < st.buf ? ` · ${eur(st.buf - low.v)} below your protected ${fEur0(st.buf)}` : ''}${st.pay ? ` · Payday <b>${esc(shortDate(st.pay))}</b>` : ''}</p>`, '', 'next')}
+    ${MP('Coming up', upcoming.length ? `<div class="mlist">${upcoming.map(o => `<button class="mup" data-act="open" data-id="${o.bill.id}"><span class="mdate"><b>${fromISO(o.date).getDate()}</b>${esc(fromISO(o.date).toLocaleDateString('en-GB', { month: 'short' }))}</span><span class="lmain"><b>${esc(o.bill.name)}</b><span>${esc(o.type)} · ${o.date < t ? 'overdue' : esc(relDay(o.date))}</span></span><b>${eur(o.amount)}</b></button>`).join('')}</div>` : quiet('No repeats coming up.'), mLink('All repeats', 'money/repeats'))}</div>
+  ${MP('Payments coming', cal, `<span class="lnone">${eur(outNext)} going out · <span class="mgood">+${eur(inNext)}</span> coming in · next 5 weeks</span>`, 'pay')}
+  <div class="mrow2">${MP('Every day this month', heat, `<span class="lnone">${eur(monthSpend / Math.max(1, past.length))} a day so far</span>`, 'days')}${MP('Where the money went', went, mLink('Purchases', 'money/spending'), 'went')}</div>
+  <div class="mrow2">${MP('Run to payday', run, `<span class="lnone">${st.pay ? plural(st.days, 'day') + ' left' : ''}</span>`)}${MP('Last 7 days', last7, `<span class="lnone">${esc(shortDate(w0))} – ${esc(shortDate(t))}</span>`)}</div>
+  ${tiles}
+  ${MP('Everyday spending this pay', bars + chipRow, mLink('Open spending', 'money/spending'))}
+  ${dataTools()}`;
+  if (!host.dataset.mwired) { host.dataset.mwired = '1'; host.addEventListener('click', e => { const j = e.target.closest('[data-jump]'); if (j) { e.preventDefault(); e.stopPropagation(); document.getElementById(j.dataset.jump)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }, true); }
+}
+
 function weekStart(offset) { const d = new Date(); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd + offset * 7); return iso(d); }
 function weekFill(fill) {
   const start = weekStart(L.week), days = Array.from({ length: 7 }, (_, i) => addDays(start, i)), t = today();
@@ -1009,6 +1300,15 @@ document.addEventListener('click', async e => {
     case 'watergoal': { const v = prompt('How many glasses a day?', C.prefs().waterGoal || 8); const n = Math.round(Number(v)); if (n > 0 && n < 40) C.savePrefs({ waterGoal: n }).catch(() => C.toast('Could not save. Try again.')); break; }
     case 'periodstart': create('cycles', { start: today() }).then(() => C.toast('Logged. Tap “Period ended” when it’s over.')).catch(() => {}); break;
     case 'periodend': { const r = L.byId[d.id]; if (r) save(r, { end: today() }); break; }
+    case 'fcheck': fCheckSheet(); break;
+    case 'fafford': fAfford(fState()); break;
+    case 'fchip': case 'frepeat': { const x = L.byId[d.id]; if (x) fQuick(x); break; }
+    case 'fnothing': { const r = recs('fset')[0]; (r ? save(r, { nothingOn: today() }) : create('fset', { nothingOn: today() }).catch(() => {})); C.toast('Nothing spent today. Noted.'); break; }
+    case 'fpay': case 'fskip': {
+      const o = fOccs(addDays(fStart(), -62), addDays(today(), 400)).find(x => x.key === d.v); if (!o) break;
+      if (d.act === 'fpay') fPayOcc(o); else create('fpaid', { occ: o.key, bill: o.bill.id, date: o.date, skipped: true }).then(() => C.toast('Skipped')).catch(() => {});
+      break;
+    }
     case 'import': pickFile(); break;
     case 'export': exportAll(); break;
     case 'copysql': navigator.clipboard?.writeText(SQL).then(() => C.toast('Copied'), () => C.toast('Select the code and copy it by hand')); break;
