@@ -210,6 +210,18 @@ const KINDS = {
     sub: r => [r.date && `${dayName(r.date)} ${niceDate(r.date)}`, r.time, r.provider, eur(r.price)].filter(Boolean).join(' · '),
     quick: r => ({ on: !!r.done, label: 'Done', act: () => save(r, { done: !r.done }) })
   },
+  ideas: {
+    one: 'idea', many: 'Ideas', facet: 'area',
+    fields: [F('name', 'Name'), F('area', 'For', 'select', { options: ['Hair', 'Beauty', 'Nails', 'Skin', 'Body', 'Other'], half: 1 }),
+      F('what', 'What', 'select', { options: ['Tutorial', 'Product', 'Look', 'Tip'], half: 1 }),
+      F('level', 'Level', 'select', { options: ['Beginner', 'Intermediate', 'Advanced'], half: 1 }), F('time', 'Takes', 'text', { half: 1 }),
+      F('summary', 'What it is', 'long'), F('tried', 'Tried it', 'check', { half: 1 }), F('fav', 'Favourite', 'check', { half: 1 }),
+      F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
+    sorts: [['-created', 'Newest'], ['name', 'A to Z']],
+    hide: r => r.tried, hideLabel: 'Show tried',
+    sub: r => [r.area, r.what, r.level, r.time].filter(Boolean).join(' · '),
+    quick: r => ({ on: !!r.tried, label: 'Tried', act: () => save(r, { tried: !r.tried }) })
+  },
   meditation: {
     one: 'session', many: 'Meditation',
     fields: [F('date', 'Date', 'date', { half: 1 }), F('minutes', 'Minutes', 'num', { half: 1 }), F('type', 'Type', 'select', { options: ['Meditation', 'Breathwork', 'Yoga nidra', 'Mindfulness', 'Prayer'] }), F('notes', 'How it felt', 'long')],
@@ -379,7 +391,7 @@ function fitTile() {
 /* ---------- sections and their pages ---------- */
 const SECTIONS = [
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile, views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book], ['meals', 'Meal plan', P.calendar], ['groceries', 'Groceries', P.cart], ['pantry', 'Pantry', P.jar], ['gear', 'Gear', P.spoon]] },
-  { key: 'care', label: 'Self-care', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse]] },
+  { key: 'care', label: 'Self-care', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['ideas', 'Ideas', P.star]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
   { key: 'fit', label: 'Fitness', icon: P.dumbbell, tile: fitTile, views: [['today', 'Overview', P.grid], ['workouts', 'Workouts', P.run], ['plans', 'Plans', P.list], ['exercises', 'Exercises', P.dumbbell], ['body', 'Body', P.scale], ['gear', 'Gear', P.box]] }
 ];
@@ -390,11 +402,12 @@ const PAGES = {
   'kitchen/groceries': { title: 'Groceries', segs: [{ key: 'list', label: 'Shopping list', kind: 'ingredients', fill: groceryFill, tools: false }] },
   'kitchen/pantry': { title: 'Pantry', segs: [{ kind: 'ingredients' }] },
   'kitchen/gear': { title: 'Kitchen gear', segs: [{ kind: 'gear' }] },
-  'care/today': { render: careToday, adds: ['journal', 'sleep', 'beauty', 'supplements', 'appts', 'symptoms', 'meditation'] },
+  'care/today': { render: careToday, adds: ['journal', 'sleep', 'beauty', 'supplements', 'appts', 'symptoms', 'meditation', 'ideas'] },
   'care/beauty': { title: 'Beauty', segs: [{ kind: 'beauty' }] },
   'care/supplements': { title: 'Supplements', segs: [{ kind: 'supplements' }, { kind: 'suplog' }] },
   'care/cycle': { title: 'Cycle', segs: [{ kind: 'cycles', label: 'Periods', top: cycleTop }] },
   'care/journal': { title: 'Journal', segs: [{ kind: 'journal' }] },
+  'care/ideas': { title: 'Ideas', segs: [{ kind: 'ideas' }] },
   'care/health': { title: 'Health', segs: [{ kind: 'sleep' }, { kind: 'appts' }, { kind: 'symptoms' }, { kind: 'meditation' }, { kind: 'water' }] },
   'home/today': { render: homeToday, adds: ['chores', 'plants', 'inventory', 'repairs'] },
   'home/chores': { title: 'Chores', segs: [{ kind: 'chores' }] },
