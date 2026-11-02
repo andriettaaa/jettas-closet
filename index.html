@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Jetta’s Closet</title>
-<meta name="description" content="Your wardrobe: pieces, outfits, what you wore and what it cost per wear.">
+<meta name="description" content="Your wardrobe, kitchen, home, self-care and fitness in one place.">
 <meta name="theme-color" content="#F3EEE8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#17110D" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -18,6 +18,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <script src="config.js"></script>
+<script src="life.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.js"></script>
 <style>
 /* Layout: a closet rail of photo cards, each carrying a punched kraft-paper hangtag with its cost per wear; tabs top on desktop, bottom on phone.
@@ -453,6 +454,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .confirm input[type="date"] { width: 150px; }
 .confirm input.amt { width: 90px; }
 </style>
+<link rel="stylesheet" href="life.css">
 </head>
 <body>
 <header class="top">
@@ -462,6 +464,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
     <div class="spacer"></div>
     <button class="btn primary" id="addBtn" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span class="addlabel">Add piece</span></button>
   </div>
+  <div class="wrap secwrap"><nav class="secbar" id="secBar" aria-label="Areas" hidden></nav></div>
 </header>
 <main class="wrap" id="main"></main>
 <nav class="bottom" id="tabsBottom" aria-label="Sections"></nav>
@@ -504,6 +507,12 @@ const VIEWS = [
   ['trips', 'Trips', '<rect x="4" y="7.5" width="16" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 7.5V5.8A1.5 1.5 0 0 1 10.5 4.3h3A1.5 1.5 0 0 1 15 5.8v1.7M4 13h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
   ['stats', 'Stats', '<path d="M5 20V11M12 20V4M19 20v-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>']
 ];
+// The closet plus the areas life.js adds (Kitchen, Self-care, Home, Fitness); each area brings its own tabs
+const SECTIONS = [{ key: 'closet', label: 'Closet', icon: VIEWS[0][2] }, ...(window.LIFE?.sections || [])];
+const secOf = v => String(v).includes('/') ? v.split('/')[0] : 'closet';
+const isLife = v => !!window.LIFE?.has(v);
+const okView = v => VIEWS.some(x => x[0] === v) || isLife(v);
+const tabsFor = v => secOf(v) === 'closet' ? VIEWS : (SECTIONS.find(x => x.key === secOf(v))?.views || VIEWS);
 const HANGER = '<svg class="hanger" viewBox="0 0 64 40" aria-hidden="true"><path d="M28 7a4 4 0 1 1 6 3.5c-1.3.8-2 1.6-2 3V15L5 31.5c-2.2 1.4-1.2 4.5 1.4 4.5h51.2c2.6 0 3.6-3.1 1.4-4.5L32 15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const PH = HANGER.replace('class="hanger"', 'class="ph"');
 
@@ -656,6 +665,7 @@ function subscribeLive() {
 }
 async function refresh() {
   if (!UID) return;
+  window.LIFE?.refresh();
   try { await loadAll(); } catch { if (S.status !== 'ok') { S.status = 'offline'; render(); } }
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { refresh(); wxRefresh(); } });
@@ -705,22 +715,31 @@ const outfitPhotos = id => lookPhotos().filter(l => l.outfit === id);
 /* ---------- navigation ---------- */
 function renderTabs() {
   const n = inboxItems().length;
-  const html = VIEWS.map(([k, label, path]) => `<button data-view="${k}" ${S.view === k ? 'aria-current="page"' : ''}>${icon(path)}<span>${label}</span>${k === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
+  const views = tabsFor(S.view), sec = secOf(S.view);
+  const html = views.map(([k, label, path]) => `<button data-view="${k}" ${S.view === k ? 'aria-current="page"' : ''}>${icon(path)}<span>${label}</span>${k === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
   $('#tabsTop').innerHTML = html; $('#tabsBottom').innerHTML = html;
+  $('#tabsBottom').style.gridTemplateColumns = `repeat(${views.length}, 1fr)`;
+  const bar = $('#secBar');
+  bar.hidden = SECTIONS.length < 2;
+  bar.innerHTML = SECTIONS.map(s => `<button data-sec="${s.key}" aria-current="${s.key === sec}">${icon(s.icon)}<span>${s.label}</span></button>`).join('');
+  $('#addBtn .addlabel').textContent = sec === 'closet' ? 'Add piece' : window.LIFE.addLabel(S.view);
 }
 function go(v) {
-  if (!VIEWS.some(x => x[0] === v)) v = 'closet';
-  S.view = v; pref.set('view', v);
+  if (!okView(v)) v = 'closet';
+  S.view = v; pref.set('view', v); pref.set('view:' + secOf(v), v);
   try { history.replaceState(null, '', '#' + v); } catch {}
   $('#main').innerHTML = ''; render(); window.scrollTo(0, 0);
 }
 // only the tab buttons: the view container carries data-view too
 document.addEventListener('click', e => { const b = e.target.closest('nav [data-view]'); if (b) go(b.dataset.view); });
+// an area opens on the page you last had open there
+document.addEventListener('click', e => { const b = e.target.closest('#secBar [data-sec]'); if (b) { const k = b.dataset.sec; go(pref.get('view:' + k, k === 'closet' ? 'closet' : k + '/today')); } });
 
 /* ---------- main render ---------- */
 function render() {
   const signedIn = !!UID;
   $('#tabsTop').hidden = $('#tabsBottom').hidden = !signedIn;
+  if (!signedIn) $('#secBar').hidden = true;
   $('#addBtn').hidden = !signedIn;
   if (!signedIn) return;
   renderTabs();
@@ -733,7 +752,8 @@ function render() {
   if (!host || host.dataset.view !== S.view) {
     host?.remove(); host = document.createElement('div'); host.id = 'viewHost'; host.dataset.view = S.view; m.appendChild(host);
   }
-  ({ closet: renderRail, wishlist: renderRail, outfits: renderOutfits, calendar: renderCalendar, trips: renderTrips, stats: renderStats })[S.view](host);
+  if (isLife(S.view)) window.LIFE.render(host, S.view);
+  else ({ closet: renderRail, wishlist: renderRail, outfits: renderOutfits, calendar: renderCalendar, trips: renderTrips, stats: renderStats })[S.view](host);
   S.sheetRefresh?.();
 }
 
@@ -2612,10 +2632,10 @@ function openDay(date, opts = {}) {
 }
 
 /* ---------- boot ---------- */
-$('#addBtn').addEventListener('click', () => S.view === 'trips' ? openTripEditor(null) : openEditor(null, S.view === 'wishlist' ? { wish: true } : {}));
+$('#addBtn').addEventListener('click', () => isLife(S.view) ? window.LIFE.add(S.view) : S.view === 'trips' ? openTripEditor(null) : openEditor(null, S.view === 'wishlist' ? { wish: true } : {}));
 S.fv = { closet: newFilter(pref.get('sort:closet', pref.get('sort', 'new'))), wishlist: newFilter(pref.get('sort:wishlist', 'new')) };
 const h = (location.hash || '').slice(1);
-S.view = VIEWS.some(v => v[0] === h) ? h : pref.get('view', 'closet');
+S.view = okView(h) ? h : okView(pref.get('view', 'closet')) ? pref.get('view', 'closet') : 'closet';
 
 async function start(session) {
   if (UID === session.user.id) return;
@@ -2623,6 +2643,8 @@ async function start(session) {
   S.status = cacheLoad() ? 'ok' : 'connecting';
   derive(); $('#main').innerHTML = ''; render();
   subscribeLive(); wxRefresh();
+  // what life.js needs from the closet: the signed-in Supabase client, photos, sheets and settings
+  window.LIFE?.start({ sb, uid: () => UID, view: () => S.view, go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch) });
   try { await loadAll(); } catch (e) { console.error(e); S.status = 'offline'; render(); }
 }
 if (!window.supabase || !CFG.url || !CFG.key || /YOUR-/.test(CFG.url + CFG.key)) {
@@ -2635,7 +2657,7 @@ if (!window.supabase || !CFG.url || !CFG.key || /YOUR-/.test(CFG.url + CFG.key))
   sb.auth.onAuthStateChange((event, session) => {
     // run outside the auth callback: Supabase calls awaited inside it can deadlock
     if (session) { pref.set('lastUid', session.user.id); setTimeout(() => start(session), 0); }
-    else if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') { channel?.unsubscribe(); renderLogin(); }
+    else if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') { channel?.unsubscribe(); window.LIFE?.stop(); renderLogin(); }
   });
 }
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
