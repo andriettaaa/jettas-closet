@@ -65,6 +65,8 @@ const P = {
 /* ---------- what each list holds ---------- */
 const F = (k, label, type = 'text', o = {}) => ({ k, label, type, ...o });
 const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
+const ROOMS = ['Entree', 'Woonkamer', 'Keuken', 'Slaapkamer', 'Badkamer', 'Toilet', 'Wasruimte', 'Balkon', 'Schoonmaak', 'Overig'];
+const PRIO = ['Must-have', 'Binnen 3 maanden', 'Handig', 'Kan later'];
 const FREQ = { 'Daily': 1, 'Every 2 days': 2, 'Twice a week': 3, 'Weekly': 7, 'Every 2 weeks': 14, 'Monthly': 30, 'Every 3 months': 91, 'Every 6 months': 182, 'Yearly': 365 };
 const mins = n => n ? (n >= 60 ? `${Math.floor(n / 60)} h${n % 60 ? ' ' + (n % 60) + ' min' : ''}` : `${n} min`) : '';
 const totalTime = r => (num(r.prep) || 0) + (num(r.cook) || 0);
@@ -89,7 +91,7 @@ const KINDS = {
   ingredients: {
     one: 'ingredient', many: 'Pantry', facet: 'category',
     fields: [F('name', 'Name'), F('category', 'Category', 'select', { options: ['Fruits & Veg', 'Fish & Meat', 'Eggs & Dairy', 'Grains & Legumes', 'Bread & Bakery', 'Nuts & Seeds', 'Herbs & Spices', 'Sauces & Oils', 'Tins & Jars', 'Frozen', 'Drinks', 'Snack', 'Confections', 'Supplements', 'Other'] }),
-      F('location', 'Kept in', 'select', { options: ['Koelkast', 'Vriezer', 'Voorraadkast'] }),
+      F('location', 'Kept in', 'select', { options: ['Koelkast', 'Vriezer', 'Voorraadkast', 'Keukenkast', 'Fruitmand', 'Broodtrommel', 'Kelder / Berging', 'Overig'] }),
       F('stock', 'In stock', 'check', { half: 1 }), F('list', 'On grocery list', 'check', { half: 1 }),
       F('qty', 'Amount', 'text', { half: 1 }), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['category', 'Category'], ['location', 'Where it is']],
@@ -108,12 +110,13 @@ const KINDS = {
   mealprep: {
     one: 'meal prep', many: 'Meal prep', facet: 'status',
     fields: [F('name', 'Dish'), F('recipe', 'Recipe', 'rel', { to: 'recipes' }),
-      F('status', 'Status', 'select', { options: ['To plan', 'To prep', 'Ready', 'Eaten'] }),
+      F('status', 'Status', 'select', { options: ['Te plannen', 'Te preppen', 'Klaar', 'Op'] }),
       F('prepDay', 'Prep day', 'date', { half: 1 }), F('until', 'Keeps until', 'date', { half: 1 }),
-      F('portions', 'Portions', 'num', { half: 1 }), F('storage', 'Stored in', 'select', { options: ['Fridge', 'Freezer'], half: 1 }),
+      F('portions', 'Portions', 'num', { half: 1 }), F('storage', 'Stored in', 'select', { options: ['Koelkast', 'Vriezer'], half: 1 }),
+      F('days', 'For which days'),
       F('instructions', 'Instructions', 'long'), F('groceries', 'Groceries needed', 'long')],
     sorts: [['prepDay', 'Prep day'], ['until', 'Use first']],
-    hide: r => r.status === 'Eaten', hideLabel: 'Show eaten',
+    hide: r => r.status === 'Op', hideLabel: 'Show eaten',
     sub: r => [r.status, r.portions ? plural(r.portions, 'portion') : '', r.storage, r.until ? 'keeps until ' + shortDate(r.until) : ''].filter(Boolean).join(' · ')
   },
   gear: {
@@ -215,7 +218,7 @@ const KINDS = {
   /* home */
   chores: {
     one: 'chore', many: 'Chores', facet: 'space',
-    fields: [F('name', 'Chore'), F('space', 'Room', 'select', { options: ['Kitchen', 'Bathroom', 'Toilet', 'Bedroom', 'Living room', 'Hallway', 'Balcony', 'Whole house'] }),
+    fields: [F('name', 'Chore'), F('space', 'Room', 'select', { options: [...ROOMS.filter(x => !['Schoonmaak', 'Overig'].includes(x)), 'Hele huis'] }),
       F('freq', 'How often', 'select', { options: Object.keys(FREQ) }), F('last', 'Last done', 'date', { half: 1 }), F('notes', 'Notes', 'long')],
     sorts: [['due', 'Due first'], ['name', 'A to Z']],
     sub: r => [r.space, r.freq].filter(Boolean).join(' · '),
@@ -234,17 +237,20 @@ const KINDS = {
     quick: r => ({ on: r.last === today(), label: 'Watered', act: () => save(r, { last: r.last === today() ? (r.prevLast || '') : today(), prevLast: r.last === today() ? '' : (r.last || '') }) })
   },
   inventory: {
-    one: 'item', many: 'Inventory', facet: 'category',
-    fields: [F('name', 'Name'), F('category', 'Category', 'select', { options: ['Furniture', 'Electronics', 'Appliances', 'Decor', 'Lighting', 'Bedding & Textiles', 'Storage', 'Bathroom', 'Tools', 'Cleaning', 'Other'] }),
-      F('room', 'Room', 'select', { options: ['Kitchen', 'Bathroom', 'Bedroom', 'Living room', 'Hallway', 'Office', 'Balcony', 'Storage'] }),
-      F('status', 'Status', 'select', { options: ['Have', 'Wishlist', 'Ordered', 'Returned', 'Gone'] }),
+    one: 'item', many: 'Inventory', facet: 'room',
+    fields: [F('name', 'Name'), F('brand', 'Brand', 'text', { half: 1 }), F('qty', 'How many', 'text', { half: 1 }),
+      F('room', 'Room', 'select', { options: ROOMS }),
+      F('category', 'Category', 'select', { options: ['Furniture', 'Kitchenware', 'Appliances', 'Home Decor', 'Linens', 'Storage', 'Electronics', 'Tools', 'Outdoor Equipment', 'Miscellaneous'] }),
+      F('status', 'Status', 'select', { options: ['Wishlist', 'Ordered', 'Have', 'Returned', 'Gone'] }),
+      F('priority', 'Priority', 'select', { options: PRIO }),
       F('price', 'Price', 'money', { half: 1 }), F('bought', 'Bought on', 'date', { half: 1 }),
-      F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
-    sorts: [['name', 'A to Z'], ['-bought', 'Newest'], ['-price', 'Priciest']],
-    filters: [['have', 'Have'], ['want', 'Wishlist'], ['all', 'All']],
+      F('rating', 'Rating', 'rating'), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
+    sorts: [['prio', 'Priority'], ['name', 'A to Z'], ['-bought', 'Newest'], ['-price', 'Priciest']],
+    filters: [['want', 'To buy'], ['have', 'Have'], ['all', 'All']],
     filter: (r, f) => f === 'have' ? (r.status || 'Have') === 'Have' : f === 'want' ? ['Wishlist', 'Ordered'].includes(r.status) : true,
-    sub: r => [r.category, r.room, r.status && r.status !== 'Have' ? r.status : ''].filter(Boolean).join(' · '),
-    side: r => eur(r.price)
+    sub: r => [r.room, r.category, r.qty && r.qty !== '1' ? r.qty + '×' : '', r.status === 'Ordered' ? 'ordered' : ''].filter(Boolean).join(' · '),
+    side: r => [r.priority && ['Wishlist', 'Ordered'].includes(r.status) ? r.priority : '', eur(r.price)].filter(Boolean).join(' · '),
+    quick: r => ['Wishlist', 'Ordered'].includes(r.status) ? { on: false, label: 'Bought', act: () => save(r, { status: 'Have', bought: r.bought || today() }) } : null
   },
   repairs: {
     one: 'repair', many: 'Repairs', facet: 'status',
@@ -449,7 +455,7 @@ const quiet = t => `<p class="lnone">${esc(t)}</p>`;
 /* ---------- list pages ---------- */
 function sortList(list, K, key) {
   const desc = key.startsWith('-'), k = desc ? key.slice(1) : key;
-  const val = r => k === 'time' ? (totalTime(r) || 1e9) : k === 'due' ? (r.kind === 'plants' ? (plantDue(r) || '9999') : choreDue(r)) : k === 'name' ? norm(titleOf(r)) : r[k];
+  const val = r => k === 'prio' ? (PRIO.includes(r.priority) ? PRIO.indexOf(r.priority) : 9) : k === 'time' ? (totalTime(r) || 1e9) : k === 'due' ? (r.kind === 'plants' ? (plantDue(r) || '9999') : choreDue(r)) : k === 'name' ? norm(titleOf(r)) : r[k];
   return list.sort((a, b) => {
     let x = val(a), y = val(b);
     const ex = x == null || x === '', ey = y == null || y === '';
@@ -516,7 +522,7 @@ function emptyList(K, any) {
 function kitchenToday(host) {
   const t = today(), meals = recs('meals').filter(m => m.date === t);
   const groc = recs('ingredients').filter(i => i.list).sort((a, b) => norm(a.name).localeCompare(norm(b.name)));
-  const prep = recs('mealprep').filter(p => p.status === 'Ready' || p.status === 'To prep').sort((a, b) => (a.until || '9').localeCompare(b.until || '9'));
+  const prep = recs('mealprep').filter(p => p.status === 'Klaar' || p.status === 'Te preppen').sort((a, b) => (a.until || '9').localeCompare(b.until || '9'));
   const stock = new Set(recs('ingredients').filter(i => i.stock).map(i => i.id));
   const rs = recs('recipes');
   const ready = rs.filter(r => r.ingredients?.length && r.ingredients.every(id => stock.has(id)));
@@ -656,13 +662,16 @@ function homeToday(host) {
   const reps = recs('repairs').filter(r => r.status !== 'Done').sort((a, b) => (a.date || '9').localeCompare(b.date || '9'));
   const inv = recs('inventory').filter(i => (i.status || 'Have') === 'Have');
   const worth = inv.reduce((s, i) => s + (num(i.price) || 0), 0);
+  const wish = recs('inventory').filter(i => ['Wishlist', 'Ordered'].includes(i.status));
+  const must = sortList(wish.filter(i => i.priority === 'Must-have'), KINDS.inventory, 'room');
+  const wishCost = wish.reduce((s, i) => s + (num(i.price) || 0), 0);
   host.innerHTML = `${head('Home')}
   <div class="panels">
     ${panel('Chores due', chores.length ? `<div class="lrows">${chores.slice(0, 10).map(row).join('')}</div>` : quiet(recs('chores').length ? 'All caught up.' : 'Add your chores with how often they need doing; they come back here when they’re due.'), ['home/chores', 'All chores'])}
     ${doneToday.length ? panel('Done today', `<div class="lrows">${doneToday.map(row).join('')}</div>`) : ''}
     ${panel('Plants to water', plants.length ? `<div class="lrows">${plants.map(row).join('')}</div>` : quiet(recs('plants').length ? 'Every plant has had water.' : 'Add your plants and how often they need water.'), ['home/plants', 'All plants'])}
     ${panel('Repairs and jobs', reps.length ? `<div class="lrows">${reps.slice(0, 6).map(row).join('')}</div>` : quiet('Nothing to fix.'), ['home/repairs', 'All repairs'])}
-    ${panel('Inventory', `<p class="lbig">${plural(inv.length, 'thing')}</p><p class="lnone">${worth ? eur(worth) + ' in things you own' : 'Keep track of what you own and what you want.'}</p>`, ['home/inventory', 'Open inventory'])}
+    ${panel('Still to buy', wish.length ? `<p class="lbig">${plural(wish.length, 'thing')}</p><p class="lnone">${must.length} must-have${must.length === 1 ? '' : 's'}${wishCost ? ', about ' + eur(wishCost) + ' for what has a price' : ''}.</p><div class="lrows">${must.slice(0, 5).map(row).join('')}</div>` : `<p class="lnone">${inv.length ? `You own ${plural(inv.length, 'thing')}${worth ? ' worth ' + eur(worth) : ''}.` : 'Keep track of what you own and what you still want for the house.'}</p>`, ['home/inventory', 'Open inventory'])}
   </div>${dataTools()}`;
 }
 
