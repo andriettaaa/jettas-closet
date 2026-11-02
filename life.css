@@ -167,3 +167,5 @@ button.lrow.lmain, .lrow > .lmain:only-child { padding-left: 12px; }
 .dviewhead { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; }
 .dviewhead .btn { align-self: center; }
 .lphnote { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+.lprog { display: block; height: 5px; margin-top: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.lprog i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
