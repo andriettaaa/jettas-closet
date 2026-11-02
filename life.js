@@ -800,7 +800,7 @@ function fieldInner(kind, f, D) {
     }
     case 'photo': {
       const src = D._preview || (v ? C.photoURL(v) : '');
-      return span + `<div class="lphoto">${src ? `<img referrerpolicy="no-referrer" src="${esc(src)}" alt="">` : ''}<div class="lphb"><label class="btn small">Choose photo<input type="file" accept="image/*" class="vh" data-photo="${f.k}"></label>${src ? `<button type="button" class="btn small ghost" data-photox="${f.k}">Remove</button>` : ''}</div><input type="url" inputmode="url" data-k="${f.k}" data-photourl value="${esc(/^https?:/.test(v || '') ? v : '')}" placeholder="or paste an image link" aria-label="Image link"></div>`;
+      return span + `<div class="lphoto">${src ? `<img referrerpolicy="no-referrer" src="${esc(src)}" alt="">` : ''}<div class="lphb"><label class="btn small">Choose photo<input type="file" accept="image/*" class="vh" data-photo="${f.k}"></label>${src ? `<button type="button" class="btn small ghost" data-photox="${f.k}">Remove</button>` : ''}</div><input type="url" inputmode="url" data-k="${f.k}" data-photourl value="${esc(/^https?:/.test(v || '') ? v : '')}" placeholder="or paste an image link (https://…)" aria-label="Image link"><p class="lphnote">Found it online? Right-click or long-press the product photo, choose Copy image address and paste it here.</p></div>`;
     }
     case 'rel': {
       const ids = [].concat(v || []).filter(x => L.byId[x]);
@@ -830,10 +830,21 @@ function openEditor(kind, id, preset = {}) {
     box.innerHTML = m.map(x => `<button type="button" class="chip" data-relpick="${k}" data-id="${x.id}">${esc(titleOf(x))}</button>`).join('')
       + (exact || KINDS[f.to].fields[0].k !== 'name' ? '' : `<button type="button" class="chip ghost" data-relnew="${k}" data-v="${esc(q.trim())}">+ New ${esc(KINDS[f.to].one)} “${esc(q.trim())}”</button>`);
   };
+  // a pasted image link shows straight away, so you see whether it works before saving
+  const photoPreview = t => {
+    const box = t.closest('.lphoto'), v = t.value.trim();
+    let img = box.querySelector(':scope > img');
+    if (!/^https?:\/\/\S+$/.test(v)) { if (!D._preview) img?.remove(); return; }
+    if (D._preview) { URL.revokeObjectURL(D._preview); D._preview = ''; }
+    if (!img) { img = document.createElement('img'); img.referrerPolicy = 'no-referrer'; img.alt = ''; box.prepend(img); }
+    img.onerror = () => { const n = box.querySelector('.lphnote'); if (n) n.textContent = 'That link doesn’t show a picture. Use the image address itself (right-click the photo, Copy image address).'; };
+    img.onload = () => { const n = box.querySelector('.lphnote'); if (n) n.textContent = 'Shown from the web. Save to keep it.'; };
+    img.src = v;
+  };
   const pickRel = (k, rid) => { const f = fdef(k); D[k] = f.multi ? [...new Set([...[].concat(D[k] || []), rid])] : rid; redraw(k); if (f.multi) sh.querySelector(`[data-relq="${k}"]`)?.focus(); };
   sh.addEventListener('input', e => {
     const t = e.target;
-    if (t.dataset.k) { D[t.dataset.k] = t.dataset.num !== undefined ? num(t.value) : t.value; if (t.dataset.photourl !== undefined) { D._blob = null; } }
+    if (t.dataset.k) { D[t.dataset.k] = t.dataset.num !== undefined ? num(t.value) : t.value; if (t.dataset.photourl !== undefined) { D._blob = null; photoPreview(t); } }
     if (t.dataset.relq) relOpts(t.dataset.relq, t.value);
   });
   sh.addEventListener('keydown', e => {
