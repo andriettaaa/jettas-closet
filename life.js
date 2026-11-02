@@ -66,6 +66,10 @@ const P = {
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
   search: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',
+  phone: '<rect x="6.5" y="3" width="11" height="18" rx="2.5"/><path d="M10.5 18h3"/>',
+  target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/>',
+  handshake: '<path d="m3 11 4-4 3 1 3-2 3 1 5 4M3 11l5 5 2-1 2 2 2-1 2 1 4-5M10 8l-3 4 2 1 3-3"/>',
+  user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>',
   star: '<path d="m12 3.8 2.5 5.1 5.6.8-4 4 .9 5.6L12 16.6l-5 2.7.9-5.6-4-4 5.6-.8Z"/>'
 };
 
@@ -81,6 +85,11 @@ const stars = n => n ? '★'.repeat(n) : '';
 const relName = id => { const r = L.byId[id]; return r ? titleOf(r) : ''; };
 const relNames = ids => [].concat(ids || []).map(relName).filter(Boolean);
 
+const SOCIAL_PLATFORMS = ['Instagram', 'TikTok', 'YouTube', 'Pinterest'];
+const SOCIAL_STAGES = ['Idea', 'Planned', 'Filming', 'Editing', 'Scheduled', 'Posted'];
+const SOCIAL_FORMATS = ['Short Video', 'Long-form Video', 'Carousel', 'Image Post', 'Story', 'Live', 'BTS Video'];
+const SOCIAL_STYLES = ['Educational', 'Entertaining', 'Inspirational', 'Relatable', 'Storytelling', 'Behind-the-Scenes', 'Informational'];
+const SOCIAL_FUNNEL = ['Awareness', 'Consideration', 'Conversion', 'Loyalty/Advocacy'];
 const KINDS = {
   /* kitchen */
   recipes: {
@@ -227,6 +236,66 @@ const KINDS = {
     hide: r => r.tried, hideLabel: 'Show tried',
     sub: r => [r.area, r.what, r.level, r.time].filter(Boolean).join(' · '),
     quick: r => ({ on: !!r.tried, label: 'Tried', act: () => save(r, { tried: !r.tried }) })
+  },
+  posts: {
+    one: 'post', many: 'Posts', facet: 'stage', photo: 'photo',
+    fields: [F('name', 'Title'), F('date', 'Post on', 'date', { half: 1 }), F('time', 'At', 'time', { half: 1 }),
+      F('stage', 'Stage', 'select', { options: SOCIAL_STAGES, half: 1 }), F('platforms', 'Platforms', 'multi', { options: SOCIAL_PLATFORMS, half: 1 }),
+      F('format', 'Format', 'select', { options: SOCIAL_FORMATS, half: 1 }), F('pillar', 'Pillar', 'rel', { to: 'pillars', half: 1 }),
+      F('style', 'Style', 'select', { options: SOCIAL_STYLES, half: 1 }), F('funnel', 'Funnel stage', 'select', { options: SOCIAL_FUNNEL, half: 1 }),
+      F('desc', 'What it is', 'long'), F('caption', 'Caption', 'long'), F('hashtags', 'Hashtags', 'text'),
+      F('link', 'Post link', 'url'), F('top', 'Top performer', 'check', { half: 1 }), F('repurpose', 'Repurpose this', 'check', { half: 1 }),
+      F('photo', 'Cover', 'photo'), F('notes', 'Notes', 'long')],
+    sorts: [['date', 'Soonest'], ['-date', 'Newest'], ['name', 'A to Z']],
+    hide: r => r.stage === 'Posted', hideLabel: 'Show posted',
+    sub: r => [r.date && `${dayName(r.date)} ${niceDate(r.date)}`, r.time, r.stage, [].concat(r.platforms || []).join(' + ')].filter(Boolean).join(' · '),
+    quick: r => ({ on: r.stage === 'Posted', label: 'Posted', act: () => save(r, { stage: r.stage === 'Posted' ? 'Scheduled' : 'Posted' }) })
+  },
+  cideas: {
+    one: 'idea', many: 'Content ideas', facet: 'type',
+    fields: [F('name', 'Idea'), F('status', 'Status', 'select', { options: ['Idea', 'Under review', 'Approved', 'Planned', 'Dropped'], half: 1 }),
+      F('pillar', 'Pillar', 'rel', { to: 'pillars', half: 1 }), F('platforms', 'Platforms', 'multi', { options: SOCIAL_PLATFORMS, half: 1 }),
+      F('format', 'Format', 'select', { options: SOCIAL_FORMATS, half: 1 }), F('funnel', 'Funnel stage', 'select', { options: SOCIAL_FUNNEL, half: 1 }),
+      F('type', 'Kind', 'select', { options: ['Post idea', 'Tool', 'Course', 'Tip', 'Template'], half: 1 }), F('source', 'Found in', 'text', { half: 1 }),
+      F('desc', 'What it is', 'long'), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
+    sorts: [['-created', 'Newest'], ['name', 'A to Z']],
+    hide: r => r.status === 'Dropped' || r.status === 'Planned', hideLabel: 'Show planned and dropped',
+    sub: r => [r.type !== 'Post idea' && r.type, r.status, relName(r.pillar), r.format, r.source].filter(Boolean).join(' · ')
+  },
+  pillars: {
+    one: 'pillar', many: 'Content pillars',
+    fields: [F('name', 'Pillar'), F('desc', 'What it covers', 'long'), F('keywords', 'Keywords and themes', 'text'), F('goal', 'Overall goal', 'long')],
+    sorts: [['name', 'A to Z']], sub: r => r.keywords || ''
+  },
+  accounts: {
+    one: 'account', many: 'Accounts', facet: 'platform',
+    fields: [F('platform', 'Platform', 'select', { options: SOCIAL_PLATFORMS, half: 1 }), F('handle', 'Handle', 'text', { half: 1 }),
+      F('followers', 'Followers', 'num', { half: 1 }), F('freq', 'Posting rhythm', 'text', { half: 1 }),
+      F('active', 'Active', 'check', { half: 1 }), F('url', 'Profile link', 'url'), F('notes', 'Notes', 'long')],
+    title: r => [r.platform, r.handle].filter(Boolean).join(' ') || 'Account', sorts: [['-followers', 'Most followers']],
+    sub: r => [r.followers != null && r.followers !== '' ? plural(num(r.followers) || 0, 'follower') : '', r.freq].filter(Boolean).join(' · ')
+  },
+  sgoals: {
+    one: 'goal', many: 'Goals', facet: 'platform',
+    fields: [F('name', 'Goal'), F('platform', 'Platform', 'select', { options: SOCIAL_PLATFORMS, half: 1 }),
+      F('metric', 'Metric', 'select', { options: ['Followers', 'Views', 'Engagements', 'Profile visits', 'Likes', 'Comments', 'Shares', 'Saves', 'Clicks', 'Posts'], half: 1 }),
+      F('current', 'Now', 'num', { half: 1 }), F('target', 'Target', 'num', { half: 1 }),
+      F('start', 'From', 'date', { half: 1 }), F('end', 'Until', 'date', { half: 1 }), F('done', 'Achieved', 'check'), F('notes', 'Notes', 'long')],
+    sorts: [['-end', 'Newest'], ['end', 'Soonest']],
+    hide: r => r.done, hideLabel: 'Show achieved',
+    sub: r => [r.platform, r.metric, num(r.target) ? `${num(r.current) || 0} of ${num(r.target)} (${Math.round(100 * (num(r.current) || 0) / num(r.target))}%)` : '', r.end && 'until ' + niceDate(r.end)].filter(Boolean).join(' · '),
+    quick: r => ({ on: !!r.done, label: 'Achieved', act: () => save(r, { done: !r.done }) })
+  },
+  deals: {
+    one: 'collab', many: 'Collabs', facet: 'status',
+    fields: [F('name', 'Brand'), F('status', 'Status', 'select', { options: ['Pitched', 'Talking', 'Confirmed', 'Creating', 'Delivered', 'Paid', 'Declined'], half: 1 }),
+      F('type', 'Type', 'select', { options: ['Paid', 'Gifted', 'Affiliate', 'Ambassador', 'Event', 'Other'], half: 1 }),
+      F('platforms', 'Platforms', 'multi', { options: SOCIAL_PLATFORMS, half: 1 }), F('due', 'Due', 'date', { half: 1 }),
+      F('fee', 'Fee', 'money', { half: 1 }), F('contact', 'Contact', 'text', { half: 1 }),
+      F('deliverables', 'Deliverables', 'long'), F('url', 'Link', 'url'), F('notes', 'Notes', 'long')],
+    sorts: [['due', 'Due first'], ['-due', 'Newest']],
+    hide: r => r.status === 'Paid' || r.status === 'Declined', hideLabel: 'Show finished',
+    sub: r => [r.status, r.type, r.due && 'due ' + niceDate(r.due), eur(r.fee)].filter(Boolean).join(' · ')
   },
   meditation: {
     one: 'session', many: 'Meditation',
@@ -476,6 +545,17 @@ function homeTile() {
     plants.length ? `<p class="dsub">Plants to water</p>${tileList(plants, 2)}` : ''
   ]);
 }
+function socialTile() {
+  const t = today(), posts = recs('posts');
+  const now = posts.filter(p => p.date === t && p.stage !== 'Posted').sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  const next = posts.filter(p => p.stage !== 'Posted' && p.date && p.date > t).sort((a, b) => a.date.localeCompare(b.date))[0];
+  const deal = recs('deals').filter(d => d.due && d.due >= t && !['Delivered', 'Paid', 'Declined'].includes(d.status)).sort((a, b) => a.due.localeCompare(b.due))[0];
+  const dl = [next && { what: titleOf(next), date: next.date }, deal && { what: deal.name + ' (collab)', date: deal.due }].filter(Boolean).sort((a, b) => a.date.localeCompare(b.date))[0];
+  return tileBody([
+    now.length ? `<p class="dsub">Posting today</p>${tileList(now)}` : `<p class="lnone">${posts.length ? 'Nothing to post today.' : 'No posts planned yet.'}</p>`,
+    dl ? `<p class="dline"><span>Next</span><b>${esc(dl.what)}, ${esc(relDay(dl.date))}</b></p>` : ''
+  ]);
+}
 function fitTile() {
   const t = today(), ws = recs('workouts');
   const now = ws.filter(w => w.date === t && !w.skipped);
@@ -495,6 +575,7 @@ const SECTIONS = [
   { key: 'care', label: 'Self-care', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['ideas', 'Ideas', P.star]] },
   { key: 'money', label: 'Money', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Plan', P.list], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
+  { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['posts', 'Posts', P.phone], ['ideas', 'Ideas', P.star], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
   { key: 'fit', label: 'Fitness', icon: P.dumbbell, tile: fitTile, views: [['today', 'Overview', P.grid], ['workouts', 'Workouts', P.run], ['plans', 'Plans', P.list], ['exercises', 'Exercises', P.dumbbell], ['body', 'Body', P.scale], ['gear', 'Gear', P.box]] }
 ];
 const PAGES = {
@@ -510,6 +591,12 @@ const PAGES = {
   'care/cycle': { title: 'Cycle', segs: [{ kind: 'cycles', label: 'Periods', top: cycleTop }] },
   'care/journal': { title: 'Journal', segs: [{ kind: 'journal' }] },
   'care/ideas': { title: 'Ideas', segs: [{ kind: 'ideas' }] },
+  'social/today': { render: socialToday, adds: ['posts', 'cideas', 'deals', 'sgoals'] },
+  'social/posts': { title: 'Posts', segs: [{ kind: 'posts' }] },
+  'social/ideas': { title: 'Content ideas', segs: [{ kind: 'cideas' }] },
+  'social/goals': { title: 'Goals', segs: [{ kind: 'sgoals' }, { kind: 'accounts' }] },
+  'social/collabs': { title: 'Collabs', segs: [{ kind: 'deals' }] },
+  'social/brand': { title: 'Brand', segs: [{ kind: 'pillars' }, { kind: 'accounts' }] },
   'care/health': { title: 'Health', segs: [{ kind: 'sleep' }, { kind: 'appts' }, { kind: 'symptoms' }, { kind: 'meditation' }, { kind: 'water' }] },
   'money/today': { render: moneyToday, adds: ['ftx', 'fincome', 'fbills', 'fchecks'] },
   'money/spending': { title: 'Spending', segs: [{ kind: 'fcats', label: 'Your plan', top: fPlanTop }, { kind: 'ftx' }, { kind: 'fincome' }, { key: 'all', label: 'Everything in and out', kind: 'ftx', fill: fAllFill, tools: false }] },
@@ -1287,6 +1374,29 @@ function homeToday(host) {
 }
 
 /* ---------- fitness ---------- */
+function socialToday(host) {
+  const t = today(), posts = recs('posts');
+  const wk = weekStart(0), end = addDays(wk, 6);
+  const upcoming = posts.filter(p => p.stage !== 'Posted' && p.date && p.date >= t).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''))).slice(0, 8);
+  const late = posts.filter(p => p.stage !== 'Posted' && p.date && p.date < t);
+  const week = posts.filter(p => p.date >= wk && p.date <= end), posted = week.filter(p => p.stage === 'Posted').length;
+  const ideas = recs('cideas').filter(i => !['Dropped', 'Planned'].includes(i.status));
+  const goals = recs('sgoals').filter(g => !g.done);
+  const deals = recs('deals').filter(d => !['Paid', 'Declined'].includes(d.status)).sort((a, b) => (a.due || '9').localeCompare(b.due || '9'));
+  const accs = recs('accounts').filter(a => a.active !== false).sort((a, b) => (num(b.followers) || 0) - (num(a.followers) || 0));
+  const bar = g => { const pct = num(g.target) ? Math.min(100, Math.round(100 * (num(g.current) || 0) / num(g.target))) : 0; return `<div class="lrow"><button class="lmain" data-act="open" data-id="${g.id}"><b>${esc(titleOf(g))}</b><span>${esc([g.platform, g.metric, `${num(g.current) || 0} of ${num(g.target) || 0}`].filter(Boolean).join(' · '))}</span><span class="lprog"><i style="width:${pct}%"></i></span></button><span class="lside">${pct}%</span></div>`; };
+  host.innerHTML = `${head('Social')}
+  <div class="tiles lt3"><div class="tile"><div class="k">This week</div><div class="v">${week.length}</div><div class="h">${posted} posted</div></div>
+    ${accs.slice(0, 2).map(a => `<div class="tile"><div class="k">${esc(a.platform || 'Account')}</div><div class="v">${(num(a.followers) || 0).toLocaleString('en-GB')}</div><div class="h">followers${a.freq ? ' · ' + esc(a.freq) : ''}</div></div>`).join('') || '<div class="tile"><div class="k">Followers</div><div class="v">–</div><div class="h">add your accounts under Brand</div></div>'}</div>
+  <div class="panels">
+    ${panel('Coming up', upcoming.length ? `<div class="lrows">${upcoming.map(row).join('')}</div>` : `${quiet('No posts planned.')}<button class="btn small" data-act="new" data-v="posts">Plan a post</button>`, ['social/posts', 'All posts'])}
+    ${late.length ? panel('Past their date', `<div class="lrows">${late.slice(0, 5).map(row).join('')}</div>`, ['social/posts', 'All posts']) : ''}
+    ${panel('Goals', goals.length ? `<div class="lrows">${goals.slice(0, 5).map(bar).join('')}</div>` : quiet('Set a goal per platform and track how close you are.'), ['social/goals', 'All goals'])}
+    ${panel('Collabs', deals.length ? `<div class="lrows">${deals.slice(0, 5).map(row).join('')}</div>` : quiet('No brand deals running.'), ['social/collabs', 'All collabs'])}
+    ${panel('Ideas', ideas.length ? `<p class="lbig">${plural(ideas.length, 'idea')}</p><div class="lrows">${ideas.slice(0, 4).map(row).join('')}</div>` : quiet('Save ideas here so they are ready when you plan.'), ['social/ideas', 'All ideas'])}
+  </div>${dataTools()}`;
+}
+
 function fitToday(host) {
   const t = today(), ws = recs('workouts');
   const planned = ws.filter(w => !w.done && !w.skipped && w.date && w.date >= t).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5);
