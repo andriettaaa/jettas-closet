@@ -1780,12 +1780,57 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('submit', e => { if (e.target.matches('[data-qadd]')) { e.preventDefault(); quickAdd(e.target); } });
 
+/* ---------- search everywhere ----------
+   Every record is matched on its name and on all its words: text, notes, choices and linked records.
+   Each word you type has to appear somewhere; a name match ranks above a match in the notes. */
+const KIND_PAGE = {};
+for (const [p, c] of Object.entries(PAGES)) for (const s of c.segs || []) if (!s.fill) KIND_PAGE[s.kind] ||= { page: p, seg: s.key || s.kind };
+for (const [p, c] of Object.entries(PAGES)) for (const k of [...(c.segs || []).map(s => s.kind), ...(c.adds || [])]) KIND_PAGE[k] ||= { page: p };
+const SEARCH_TYPES = new Set(['text', 'long', 'select', 'multi', 'rel']);
+function searchText(r, f) {
+  const v = r[f.k];
+  if (v == null || v === '') return '';
+  return f.type === 'rel' ? relNames(v).join(', ') : Array.isArray(v) ? v.join(', ') : String(v);
+}
+function search(q) {
+  const words = norm(q).split(/\s+/).filter(Boolean);
+  if (!words.length || !C) return [];
+  const out = [];
+  for (const r of L.all) {
+    const K = KINDS[r.kind]; if (!K) continue;
+    const title = titleOf(r), tl = title.toLowerCase();
+    const parts = K.fields.filter(f => SEARCH_TYPES.has(f.type)).map(f => [f.label, searchText(r, f)]).filter(p => p[1]);
+    const hay = [tl, ...parts.map(p => p[1].toLowerCase())].join('\n');
+    if (!words.every(w => hay.includes(w))) continue;
+    const inTitle = words.every(w => tl.includes(w));
+    const score = inTitle ? (tl.startsWith(words[0]) ? 0 : 1) : 2;
+    const hit = inTitle ? null : parts.find(p => words.some(w => p[1].toLowerCase().includes(w)));
+    const where = KIND_PAGE[r.kind], sec = where ? sectionOf(where.page) : null;
+    const view = sec?.views.find(v => sec.key + '/' + v[0] === where.page);
+    out.push({
+      id: r.id, title, score, kind: K.one,
+      where: [sec?.label, view && view[0] !== 'today' ? view[1] : K.many].filter(Boolean).join(' · '),
+      sub: hit ? hit[1] : (K.sub?.(r) || ''), label: hit ? hit[0] : '',
+      icon: G(sec?.icon || P.list)
+    });
+  }
+  return out.sort((a, b) => a.score - b.score || a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+}
+// opens a search result where it lives: its page, on the right tab, with its editor on top
+function openFound(id, go) {
+  const r = L.byId[id]; if (!r) return;
+  const w = KIND_PAGE[r.kind];
+  if (w) { if (w.seg) uiOf(w.page).seg = w.seg; go?.(w.page); }
+  openRecord(id);
+}
+
 /* ---------- what index.html calls ---------- */
 const sectionOf = view => SECTIONS.find(s => view.startsWith(s.key + '/'));
 return {
   sections: SECTIONS.map(s => ({ key: s.key, label: s.label, icon: G(s.icon), views: s.views.map(([k, l, ic]) => [s.key + '/' + k, l, G(ic)]) })),
   has: view => !!PAGES[view],
   lists: optionLists, fullList: fullOptions, renameIn: renameOption,
+  search, openFound,
   // one small card for the overview page; '' while the lists are still loading or missing
   tile(key) {
     const s = SECTIONS.find(x => x.key === key);
