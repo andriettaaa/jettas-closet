@@ -315,10 +315,16 @@ const KINDS = {
   accounts: {
     one: 'account', many: 'Accounts', facet: 'platform',
     fields: [F('platform', 'Platform', 'select', { options: SOCIAL_PLATFORMS, half: 1 }), F('handle', 'Handle', 'text', { half: 1 }),
-      F('followers', 'Followers', 'num', { half: 1 }), F('freq', 'Posting rhythm', 'text', { half: 1 }),
+      F('followers', 'Followers', 'num', { half: 1 }), F('following', 'Following', 'num', { half: 1 }), F('freq', 'Posting rhythm', 'text', { half: 1 }),
+      F('display', 'Name on your profile', 'text', { half: 1 }), F('bio', 'Bio', 'long', { rows: 3 }), F('avatar', 'Profile photo', 'photo'),
       F('active', 'Active', 'check', { half: 1 }), F('url', 'Profile link', 'url'), F('notes', 'Notes', 'long')],
     title: r => [r.platform, r.handle].filter(Boolean).join(' ') || 'Account', sorts: [['-followers', 'Most followers']],
     sub: r => [r.followers != null && r.followers !== '' ? plural(num(r.followers) || 0, 'follower') : '', r.freq].filter(Boolean).join(' · ')
+  },
+  highlights: {
+    one: 'highlight', many: 'Highlights',
+    fields: [F('name', 'Name'), F('order', 'Position', 'num', { half: 1 }), F('photo', 'Cover', 'photo')],
+    sorts: [['order', 'In order'], ['name', 'A to Z']]
   },
   sgoals: {
     one: 'goal', many: 'Goals', facet: 'platform',
@@ -720,7 +726,7 @@ const SECTIONS = [
   { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Habits', P.repeat], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['docs', 'Documents', P.doc]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc], ['settings', 'Settings', P.gear]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
-  { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['posts', 'Posts', P.phone], ['ideas', 'Ideas', P.star], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
+  { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['feed', 'Feed', P.grid], ['posts', 'Posts', P.phone], ['ideas', 'Ideas', P.star], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
   { key: 'fit', label: 'Fitness', icon: P.dumbbell, tile: fitTile, views: [['today', 'Overview', P.grid], ['workouts', 'Workouts', P.run], ['plans', 'Plans', P.list], ['exercises', 'Exercises', P.dumbbell], ['body', 'Body', P.scale], ['gear', 'Gear', P.box]] }
 ];
 const PAGES = {
@@ -743,6 +749,7 @@ const PAGES = {
   'social/projects': { title: 'Projects', segs: [{ kind: 'projects' }] },
   'social/today': { render: socialToday, adds: ['tasks', 'projects', 'posts', 'cideas', 'deals', 'sgoals'] },
   'social/posts': { title: 'Posts', segs: [{ kind: 'posts' }] },
+  'social/feed': { render: socialFeed, adds: ['posts', 'highlights', 'accounts'] },
   'social/ideas': { title: 'Content ideas', segs: [{ kind: 'cideas' }] },
   'social/goals': { title: 'Goals', segs: [{ kind: 'sgoals' }, { kind: 'accounts' }] },
   'social/collabs': { title: 'Collabs', segs: [{ kind: 'deals' }] },
@@ -1555,6 +1562,70 @@ function cycleTop() {
 }
 
 /* ---------- home ---------- */
+/* ---------- feed planner ----------
+   Your Instagram profile as it will look: every post with a cover, planned ones on top. Drag a tile to change the
+   order (dates stay as they are); tap one to open the post. */
+const igPost = p => !p.platforms?.length || [].concat(p.platforms).includes('Instagram');
+const isReel = p => /video|reel/i.test(p.format || '');
+function feedList() {
+  const ps = recs('posts').filter(igPost);
+  const key = p => p.feedPos != null ? 1e15 + num(p.feedPos) : (p.date ? fromISO(p.date).getTime() : 9e14) + (p.created || 0) / 1e13;
+  return ps.sort((a, b) => key(b) - key(a));
+}
+function socialFeed(host) {
+  const acc = recs('accounts').find(a => a.platform === 'Instagram') || null, tab = L.feedTab || 'grid';
+  const all = feedList(), list = tab === 'reels' ? all.filter(isReel) : all, hl = sortList(recs('highlights'), KINDS.highlights, 'order');
+  const ph = (path, cls) => path ? `<img class="${cls}" referrerpolicy="no-referrer" src="${esc(C.photoURL(path))}" alt="" loading="lazy" draggable="false" onerror="this.remove()">` : '';
+  const stat = (n, l) => `<div class="igstat"><b>${n == null || n === '' ? '–' : (num(n) || 0).toLocaleString('en-GB')}</b><span>${l}</span></div>`;
+  host.innerHTML = `<div class="viewhead"><h1>Feed</h1><span class="sub">Drag tiles to plan how your profile looks</span><div class="spacer"></div><button class="btn small" data-act="new" data-v="highlights">+ Highlight</button><button class="btn small primary" data-act="feednew">+ Post</button></div>
+  <section class="igphone">
+    <div class="ighead"><button class="igav" data-act="${acc ? 'open' : 'feedacc'}" ${acc ? `data-id="${acc.id}"` : ''} aria-label="Edit profile">${ph(acc?.avatar, '') || `<span>${esc((acc?.handle || 'A').replace('@', '').slice(0, 1).toUpperCase())}</span>`}</button>
+      <div class="igstats">${stat(all.length, 'posts')}${stat(acc?.followers, 'followers')}${stat(acc?.following, 'following')}</div></div>
+    <div class="igbio"><b>${esc(acc?.display || acc?.handle || 'Your profile')}</b>${acc?.handle ? `<span class="muted">${esc(acc.handle.startsWith('@') ? acc.handle : '@' + acc.handle)}</span>` : ''}${acc?.bio ? `<p>${esc(acc.bio)}</p>` : ''}</div>
+    <button class="btn small igedit" data-act="${acc ? 'open' : 'feedacc'}" ${acc ? `data-id="${acc.id}"` : ''}>Edit profile</button>
+    <div class="ighl">${hl.map(h => `<button class="ighli" data-act="open" data-id="${h.id}"><span>${ph(h.photo, '')}</span><small>${esc(h.name || '')}</small></button>`).join('')}<button class="ighli new" data-act="new" data-v="highlights"><span>${svg(P.plus)}</span><small>New</small></button></div>
+    <div class="igtabs" role="group"><button data-act="feedtab" data-v="grid" aria-pressed="${tab === 'grid'}" aria-label="All posts">${svg(P.grid)}</button><button data-act="feedtab" data-v="reels" aria-pressed="${tab === 'reels'}" aria-label="Reels">${svg('<rect x="4" y="4" width="16" height="16" rx="4"/><path d="m10.5 9 4 3-4 3Z"/>')}</button></div>
+    ${list.length ? `<div class="iggrid" data-feedgrid>${list.map(p => `<div class="igtile ${p.stage === 'Posted' ? 'posted' : ''}" data-feedid="${p.id}" role="button" tabindex="0" aria-label="${esc(titleOf(p))}">${ph(p.photo, '') || `<span class="igph">${esc(titleOf(p))}</span>`}${p.stage !== 'Posted' ? `<i class="igdate">${p.date ? esc(shortDate(p.date)) : 'no date'}</i>` : ''}${isReel(p) ? `<i class="igreel">${svg('<path d="m9 7 8 5-8 5Z"/>')}</i>` : ''}</div>`).join('')}</div>`
+      : `<div class="empty lempty"><h2>${tab === 'reels' ? 'No reels yet' : 'Plan your first post'}</h2><p>Every Instagram post with a cover shows up here, planned ones on top.</p><button class="btn primary" data-act="feednew">+ Post</button></div>`}
+  </section>`;
+  feedDrag(host);
+}
+// drag a tile to a new place: mouse right away, finger after holding it for a moment
+const FD = {};
+function feedDrag(host) {
+  if (host._feedWired) return; host._feedWired = true;
+  let st = null;
+  const tileAt = (x, y) => { const t = document.elementFromPoint(x, y)?.closest?.('[data-feedid]'); return t && !t.classList.contains('ighost') ? t : null; };
+  const end = async commit => {
+    if (!st) return; const s = st; st = null; clearTimeout(s.timer);
+    s.ghost?.remove(); host.querySelectorAll('.igtile.over,.igtile.lift').forEach(t => t.classList.remove('over', 'lift'));
+    if (!commit || !s.drag || !s.over || s.over === s.id) return;
+    const ids = feedList().map(p => p.id), from = ids.indexOf(s.id); ids.splice(from, 1); ids.splice(ids.indexOf(s.over) + (from <= ids.indexOf(s.over) ? 1 : 0), 0, s.id);
+    const n = ids.length;
+    try { await putMany(ids.map((id, i) => { const r = L.byId[id]; return { id, kind: 'posts', data: { ...dataOf(r), feedPos: n - i } }; })); } catch { C.toast('Could not save the order. Try again.'); }
+  };
+  const start = s => { s.drag = true; const t = host.querySelector(`[data-feedid="${s.id}"]`); if (!t) return; t.classList.add('lift'); const r = t.getBoundingClientRect(); s.ghost = t.cloneNode(true); s.ghost.className = 'igtile ighost'; Object.assign(s.ghost.style, { width: r.width + 'px', height: r.height + 'px', left: r.left + 'px', top: r.top + 'px' }); s.dx = s.x - r.left; s.dy = s.y - r.top; document.body.appendChild(s.ghost); navigator.vibrate?.(15); };
+  host.addEventListener('pointerdown', e => {
+    const t = e.target.closest('[data-feedid]'); if (!t || e.button > 0) return;
+    st = { id: t.dataset.feedid, x: e.clientX, y: e.clientY, drag: false, touch: e.pointerType !== 'mouse' };
+    if (st.touch) st.timer = setTimeout(() => st && start(st), 280);
+  });
+  // move and release are followed on the whole window: the finger or mouse often ends up outside the grid
+  if (!window._feedMove) { window._feedMove = true; window.addEventListener('pointermove', e => FD.move?.(e)); window.addEventListener('pointerup', e => FD.up?.(e)); window.addEventListener('pointercancel', () => FD.cancel?.()); }
+  FD.move = e => {
+    if (!st) return;
+    const far = Math.hypot(e.clientX - st.x, e.clientY - st.y) > 8;
+    if (!st.drag) { if (st.touch) { if (far) { clearTimeout(st.timer); st = null; } return; } if (!far) return; start(st); }
+    st.ghost.style.left = e.clientX - st.dx + 'px'; st.ghost.style.top = e.clientY - st.dy + 'px';
+    const o = tileAt(e.clientX, e.clientY); host.querySelectorAll('.igtile.over').forEach(x => x !== o && x.classList.remove('over'));
+    if (o && o.dataset.feedid !== st.id) { o.classList.add('over'); st.over = o.dataset.feedid; } else st.over = null;
+  };
+  host.addEventListener('touchmove', e => { if (st?.drag) e.preventDefault(); }, { passive: false });
+  FD.up = e => { const s = st; if (!s) return; if (!s.drag && !far(s, e)) { clearTimeout(s.timer); st = null; openRecord(s.id); return; } end(true); };
+  FD.cancel = () => end(false);
+  host.addEventListener('keydown', e => { const t = e.target.closest?.('[data-feedid]'); if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openRecord(t.dataset.feedid); } });
+  const far = (s, e) => Math.hypot(e.clientX - s.x, e.clientY - s.y) > 8;
+}
 // this week's habits as a grid: tap a day to tick it (or untick it)
 function habitWeek() {
   const hs = recs('habits').filter(h => !h.paused); if (!hs.length) return '';
@@ -1951,6 +2022,9 @@ document.addEventListener('click', async e => {
     case 'fcsv': pickCsv(); break;
     case 'acchist': accHistory(d.id); break;
     case 'fmove': moveMoney(); break;
+    case 'feedtab': L.feedTab = d.v; C.render(); break;
+    case 'feednew': openEditor('posts', null, { platforms: ['Instagram'], stage: 'Planned' }); break;
+    case 'feedacc': openEditor('accounts', null, { platform: 'Instagram', active: true }); break;
     case 'hday': { const r = L.byId[d.id]; if (r) toggleDay(r, d.d); break; }
     case 'water': water(Number(d.v)); break;
     case 'watergoal': { const v = prompt('How many glasses a day?', C.prefs().waterGoal || 8); const n = Math.round(Number(v)); if (n > 0 && n < 40) C.savePrefs({ waterGoal: n }).catch(() => C.toast('Could not save. Try again.')); break; }
