@@ -728,7 +728,8 @@ function renderTabs() {
   const n = inboxItems().length;
   const views = tabsFor(S.view), sec = secOf(S.view);
   const btn = s => `<button data-sec="${s.key}" ${s.key === sec ? 'aria-current="page"' : ''}>${icon(s.icon)}<span>${s.label}</span>${s.key === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`;
-  const top = navSections(), bottom = NAV().bottom?.length ? top.filter(s => NAV().bottom.includes(s.key)) : top;
+  // Settings always sits at the end of the bottom bar, whatever you pick, so you can always get back to it
+  const top = navSections(), bottom = [...(NAV().bottom?.length ? top.filter(s => s.key !== 'settings' && NAV().bottom.includes(s.key)) : top.filter(s => s.key !== 'settings')), top.find(s => s.key === 'settings')];
   $('#tabsTop').innerHTML = top.map(btn).join(''); $('#tabsBottom').innerHTML = bottom.map(btn).join('');
   $('#tabsBottom').style.gridTemplateColumns = `repeat(${bottom.length}, minmax(58px, 1fr))`;
   const bar = $('#secBar');

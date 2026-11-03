@@ -330,3 +330,5 @@ button.lrow.lmain, .lrow > .lmain:only-child { padding-left: 12px; }
 .setadd input { flex: 1; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 6px 10px; font: inherit; color: inherit; }
 .setmv { display: inline-flex; gap: 4px; flex: none; }
 @media (max-width: 560px) { .setrow { gap: 6px; } .setrow > b { flex: 1; min-width: 0; } .setrow .spacer { display: none; } .settog { font-size: 12px; } }
+/* Settings stays visible at the right edge of the phone's bottom bar, even when the bar scrolls */
+#tabsBottom [data-sec="settings"] { position: sticky; right: 0; background: var(--surface); box-shadow: -10px 0 12px -10px rgba(0, 0, 0, .25); }
