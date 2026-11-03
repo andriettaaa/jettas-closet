@@ -442,3 +442,13 @@ header.top .brand { flex: none; white-space: nowrap; }
 .garea b { font-size: 14px; }
 .garea span { font-size: 12.5px; color: var(--muted); }
 .fwtoday { border-color: var(--accent); } .fwday { width: 44px; flex: none; }
+/* wishlists: cost per list */
+.wbars { display: grid; gap: 6px; }
+.wbar { display: grid; grid-template-columns: minmax(90px, 140px) 1fr auto; gap: 10px; align-items: center; border: 0; background: none; padding: 6px 4px; border-radius: 10px; color: inherit; font: inherit; text-align: left; }
+.wbar.on, .wbar:hover { background: var(--stage); }
+.wbl { display: grid; min-width: 0; }
+.wbl b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wbl small { font-size: 12px; color: var(--muted); }
+.wbt { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.wbt i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.wbv { font-variant-numeric: tabular-nums; font-size: 14px; }
