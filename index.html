@@ -453,6 +453,13 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .confirm input { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 5px 8px; min-width: 0; }
 .confirm input[type="date"] { width: 150px; }
 .confirm input.amt { width: 90px; }
+/* notifications and Apple Pay in Settings */
+.setbtns { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 6px; }
+.notirow { flex-wrap: wrap; }
+.notirow .setsub { flex-basis: 100%; font-size: 12.5px; margin: -2px 0 0 26px; }
+.settime { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 4px 8px; font: inherit; color: inherit; }
+.setsteps { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: 14px; }
+.setsteps .chip.mono { font-size: 12px; word-break: break-all; white-space: normal; text-align: left; }
 /* search everywhere */
 .findbar { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0 0 16px; padding: 11px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font: inherit; font-size: 15px; text-align: left; cursor: text; }
 .findbar svg, .findbox svg { width: 18px; height: 18px; flex: none; }
@@ -1754,7 +1761,10 @@ function renderSettings(host) {
       <select class="pill" data-listsel aria-label="Choice list">${cat.map(g => `<optgroup label="${esc(g.group)}">${g.items.map(i => `<option value="${esc(i.id)}" ${i.id === SET.list ? 'selected' : ''}>${esc(i.label)}</option>`).join('')}</optgroup>`).join('')}</select>
       ${L.list.map((o, i) => `<div class="setrow"><input class="setname" data-oren="${i}" value="${esc(o)}" aria-label="Rename ${esc(o)}"><label class="settog"><input type="checkbox" data-oshow="${i}" ${lh.has(norm(o)) ? '' : 'checked'}> Show</label>${mv('data-omove', i, i, L.list.length)}</div>`).join('') || '<p class="muted">No options yet.</p>'}
       <form class="setadd" data-oadd><input placeholder="Add an option" aria-label="Add an option"><button class="btn small" type="submit">Add</button></form></section>
+    ${notiPanel()}
+    ${spendPanel()}
   </div>`;
+  pushState().then(st => { const el = $('#pushState', host); if (el) { el.innerHTML = st.html; host.querySelectorAll('[data-pushneed]').forEach(b => b.hidden = b.dataset.pushneed !== st.k); } });
   if (host.dataset.swired) return;
   host.dataset.swired = '1';
   const saveNav = patch => DB.savePrefs({ nav: { ...NAV(), ...patch } }).catch(err => saveErr(err, 'Could not save. Try again.'));
@@ -1765,12 +1775,15 @@ function renderSettings(host) {
     const vm = t.closest('[data-vmove]'); if (vm) { const ks = viewsAll(SET.tabs).map(v => v[0]), views = { ...(NAV().views || {}) }; views[SET.tabs] = { ...(views[SET.tabs] || {}), order: swap(ks, ks.indexOf(vm.dataset.vmove), +vm.dataset.d) }; return saveNav({ views }); }
     const om = t.closest('[data-omove]'); if (om) { const L = fullList(SET.list); return saveList(SET.list, swap(L.list, +om.dataset.omove, +om.dataset.d), L.hidden); }
     if (t.closest('[data-nreset]')) return DB.savePrefs({ nav: {} });
+    const pa = t.closest('[data-push]'); if (pa) return pushAction(pa.dataset.push, pa, host);
+    const cp = t.closest('[data-copy]'); if (cp) { navigator.clipboard?.writeText(cp.dataset.copy).then(() => toast('Copied'), () => toast('Select it and copy it by hand')); return; }
   });
   host.addEventListener('change', async e => {
     const t = e.target, ns = t.dataset.nshow, nb = t.dataset.nbot, v = t.dataset.vshow;
     if (ns) { const h = new Set(NAV().hidden || []); t.checked ? h.delete(ns) : h.add(ns); return saveNav({ hidden: [...h] }); }
     if (nb) { const cur = NAV().bottom?.length ? NAV().bottom : navAll().filter(s => !(NAV().hidden || []).includes(s.key)).map(s => s.key); const b = new Set(cur); t.checked ? b.add(nb) : b.delete(nb); return saveNav({ bottom: b.size ? [...b] : null }); }
     if (v) { const views = { ...(NAV().views || {}) }, c = { ...(views[SET.tabs] || {}) }, h = new Set(c.hidden || []); t.checked ? h.delete(v) : h.add(v); views[SET.tabs] = { ...c, hidden: [...h] }; return saveNav({ views }); }
+    if (t.dataset.non || t.dataset.ntime) { const k = t.dataset.non || t.dataset.ntime, c = notiCfg(); return DB.savePrefs({ notify: { ...c, tz: TZ(), [k]: { ...(c[k] || {}), ...(t.dataset.non ? { on: t.checked } : { time: t.value }) } } }).catch(err => saveErr(err, 'Could not save. Try again.')); }
     if (t.matches('[data-tabsec]')) { SET.tabs = t.value; return renderSettings(host); }
     if (t.matches('[data-listsel]')) { SET.list = t.value; return renderSettings(host); }
     if (t.dataset.oshow != null) { const L = fullList(SET.list), o = L.list[+t.dataset.oshow], h = L.hidden.filter(x => norm(x) !== norm(o)); if (!t.checked) h.push(o); return saveList(SET.list, L.list, h); }
@@ -1788,6 +1801,78 @@ function renderSettings(host) {
     const L = fullList(SET.list); if (L.list.some(x => norm(x) === norm(v))) { toast('That option already exists'); return; }
     saveList(SET.list, [...L.list, v], L.hidden).catch(err => saveErr(err, 'Could not save. Try again.'));
   });
+}
+
+/* ---------- notifications ----------
+   The notify function (Supabase, every 5 minutes) sends these at the times you pick here; the spend function
+   sends one after each Apple Pay payment. Each device turns them on for itself. */
+const NOTI = [
+  ['morning', 'Morning overview', 'Outfit, supplements, morning routine, tasks and appointments', '07:30'],
+  ['evening', 'Evening routine', 'Your evening steps, tonight’s skincare and evening supplements', '21:30'],
+  ['bills', 'Bills tomorrow', 'Repeats that go out the next day', '18:00'],
+  ['payday', 'Payday', 'What comes in and what bills are still coming', '09:00'],
+  ['weekly', 'Week in money', 'Sundays: what you spent that week', '19:00'],
+  ['budget', 'Budget almost gone', 'When a category passes 80% and 100% of its budget', ''],
+  ['applepay', 'After each Apple Pay payment', 'Saved, with what is left in that category', '']
+];
+const notiCfg = () => S.prefs.notify || {};
+const TZ = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Amsterdam'; } catch { return 'Europe/Amsterdam'; } };
+const FN = name => String(CFG.url || '').replace(/\/$/, '') + '/functions/v1/' + name;
+const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const b64u = s => { const b = atob((s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+const deviceName = () => /iPhone/.test(navigator.userAgent) ? 'iPhone' : isIOS() ? 'iPad' : /Mac/.test(navigator.userAgent) ? 'Mac' : /Android/.test(navigator.userAgent) ? 'Android' : 'Browser';
+async function pushSub() { if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return null; const reg = await navigator.serviceWorker.ready; return reg.pushManager.getSubscription(); }
+async function pushState() {
+  if (isIOS() && !isStandalone()) return { k: 'home', html: 'On iPhone and iPad notifications only work from the app on your home screen. In Safari tap Share, then <b>Add to Home Screen</b>, open A’s Life from there and come back here.' };
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return { k: 'none', html: 'This browser can’t show notifications. On a Mac use Safari or Chrome.' };
+  if (Notification.permission === 'denied') return { k: 'denied', html: 'Notifications are blocked for A’s Life. Allow them in your system or browser settings, then reload.' };
+  try { const sub = await Promise.race([pushSub(), new Promise(r => setTimeout(() => r(null), 3000))]); return sub ? { k: 'on', html: '<b>On</b> for this device.' } : { k: 'off', html: 'Off for this device.' }; }
+  catch { return { k: 'off', html: 'Off for this device.' }; }
+}
+async function pushAction(a, btn, host) {
+  btn.disabled = true;
+  try {
+    if (a === 'on') {
+      if (!CFG.vapidKey) throw new Error('nokey');
+      if (await Notification.requestPermission() !== 'granted') { toast('Notifications were not allowed.'); return; }
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(CFG.vapidKey) });
+      const j = sub.toJSON();
+      const { error } = await sb.from('push_subs').upsert({ user_id: UID, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, device: deviceName() });
+      if (error) throw error;
+      await DB.savePrefs({ notify: { ...notiCfg(), tz: TZ() } });
+      toast('Notifications on for this device');
+    } else if (a === 'off') {
+      const sub = await pushSub();
+      if (sub) { await sb.from('push_subs').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); }
+      toast('Notifications off for this device');
+    } else if (a === 'test' || a === 'preview') {
+      const { data } = await sb.auth.getSession();
+      const res = await fetch(FN('notify'), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session?.access_token, apikey: CFG.key }, body: JSON.stringify({ [a]: true }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || res.status);
+      toast(a === 'test' ? (j.devices ? `Sent to ${j.devices} ${j.devices === 1 ? 'device' : 'devices'}` : 'No devices yet. Turn notifications on first.') : j.sent ? `Sent ${j.sent} ${j.sent === 1 ? 'notification' : 'notifications'}` : 'Nothing to send right now.');
+    }
+  } catch (err) {
+    console.error(err);
+    toast(/push_subs|PGRST205|42P01|nokey|Failed to fetch|404/.test(String(err?.message || err?.code || err)) ? 'Notifications need the one-time Supabase setup first.' : 'That didn’t work. Try again.');
+  } finally { btn.disabled = false; if (host.isConnected) renderSettings(host); }
+}
+function notiPanel() {
+  const c = notiCfg();
+  return `<section class="panel setpanel" id="set-noti"><h3>Notifications</h3><p class="muted" id="pushState">Checking this device…</p>
+    <div class="setbtns"><button class="btn small primary" data-push="on" data-pushneed="off" hidden>Turn on for this device</button><button class="btn small" data-push="off" data-pushneed="on" hidden>Turn off</button><button class="btn small" data-push="test" data-pushneed="on" hidden>Send a test</button><button class="btn small" data-push="preview" data-pushneed="on" hidden>Send today’s now</button></div>
+    ${NOTI.map(([k, l, h, d]) => { const v = c[k] || {}; return `<div class="setrow notirow"><label class="settog"><input type="checkbox" data-non="${k}" ${v.on === false ? '' : 'checked'}> <b>${esc(l)}</b></label><div class="spacer"></div>${d ? `<input type="time" class="settime" data-ntime="${k}" value="${esc(v.time || d)}" aria-label="${esc(l)} time">` : ''}<span class="muted setsub">${esc(h)}</span></div>`; }).join('')}
+    <p class="muted">Only sent when there is something to say. Times follow this device’s time zone (${esc(c.tz || TZ())}).</p></section>`;
+}
+function spendPanel() {
+  const url = FN('spend');
+  return `<section class="panel setpanel" id="set-spend"><h3>Apple Pay to Spending</h3><p class="muted">Every Apple Pay payment lands in Money › Spending by itself. The category follows what you chose for that shop last time, so fix it once and it learns.</p>
+    <ol class="setsteps"><li>On your iPhone open <b>Shortcuts</b> › Automation › <b>New automation</b> › <b>Transaction</b>. Pick your cards, choose <b>Run immediately</b>.</li>
+    <li>Add the action <b>Get contents of URL</b> with this address: <button class="chip link mono" data-copy="${esc(url)}">${esc(url)}</button></li>
+    <li>Method <b>POST</b>, request body <b>JSON</b>, with four fields: <span class="mono">token</span> (your private spend token from the setup file), <span class="mono">amount</span> = Shortcut Input › Amount, <span class="mono">merchant</span> = Merchant, <span class="mono">card</span> = Card or Pass.</li>
+    <li>Pay once with Apple Pay. The purchase shows up here and you get a notification.</li></ol></section>`;
 }
 
 function renderOverview(host) {
@@ -2049,7 +2134,9 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#scrim'
 const SET_SPOTS = [
   ['set-sections', 'Sections', 'Menu order, hide sections, bottom bar'],
   ['set-tabs', 'Tabs in a section', 'Show, hide and order the tabs'],
-  ['set-lists', 'Choice lists', 'Rename, hide and order options']
+  ['set-lists', 'Choice lists', 'Rename, hide and order options'],
+  ['set-noti', 'Notifications', 'Morning, evening, bills, payday, budget, push'],
+  ['set-spend', 'Apple Pay to Spending', 'Shortcut that saves every payment']
 ];
 function findPages(words) {
   const has = t => words.every(w => t.toLowerCase().includes(w));
