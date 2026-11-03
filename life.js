@@ -732,7 +732,7 @@ const waterToday = () => recs('water').find(w => w.date === today());
 // any list can show its records as rows or as photo cards; the choice is remembered per list on this device
 const hasPhotos = K => K.fields.some(f => f.type === 'photo');
 const photoOf = r => hasPhotos(KINDS[r.kind]) ? r.photo : '';
-const viewMode = K => { try { const v = localStorage.getItem('lview:' + K.kind); if (v === 'rows' || v === 'cards') return v; } catch {} return K.display === 'cards' ? 'cards' : 'rows'; };
+const viewMode = K => { try { const v = localStorage.getItem('lview:' + K.kind); if (v === 'rows' || v === 'cards') return v; } catch {} return K.display === 'cards' || (hasPhotos(K) && recs(K.kind).some(r => r.photo)) ? 'cards' : 'rows'; };  // lists with photos open as a grid
 const setViewMode = (K, v) => { try { localStorage.setItem('lview:' + K.kind, v); } catch {} };
 const viewSwitch = K => `<div class="seg lviews" role="group" aria-label="Show as">${[['rows', 'List', P.list], ['cards', 'Cards', P.grid]].map(([v, l, ic]) => `<button data-act="lview" data-v="${v}" aria-pressed="${viewMode(K) === v}" aria-label="${l}" title="${l}">${svg(ic)}</button>`).join('')}</div>`;
 const tick = (label, on, attrs) => `<button class="lquick ${on ? 'on' : ''}" ${attrs} aria-pressed="${on}">${on ? svg(P.check) : ''}${esc(label)}</button>`;
@@ -782,7 +782,7 @@ function listPage(host, page) {
     host.innerHTML = `<div class="viewhead"><h1>${esc(cfg.title)}</h1><span class="sub" data-count></span></div>
       ${ss.length > 1 ? `<div class="seg lseg">${ss.map(s => `<button data-act="seg" data-v="${s.key}" aria-pressed="${s.key === seg.key}">${esc(s.label)}</button>`).join('')}</div>` : ''}
       ${seg.tools ? `<div class="tools"><label class="search">${svg(P.search)}<input type="search" data-lq placeholder="Search ${esc(K.many.toLowerCase())}" value="${esc(u.q)}" aria-label="Search"></label>
-        ${sorts.length > 1 ? `<select class="pill" data-lsort aria-label="Sort">${sorts.map(([k, l]) => `<option value="${k}" ${(u.sort[seg.key] || sorts[0][0]) === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}${viewSwitch(K)}</div>
+        ${sorts.length > 1 ? `<select class="pill" data-lsort aria-label="Sort">${sorts.map(([k, l]) => `<option value="${k}" ${(u.sort[seg.key] || sorts[0][0]) === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}${viewSwitch(K)}<button class="btn small" data-act="selmode" data-selbtn>Select</button></div>
         <div class="chips facets" data-facets></div>` : ''}
       <div data-lfill></div>`;
   }
@@ -809,6 +809,44 @@ function fillList(host, page) {
   if (seg.fill) { seg.fill(fill, page); return; }
   const top = seg.top ? seg.top() : '';
   fill.innerHTML = top + (list.length ? listHTML(list, K) : emptyList(K, all.length));
+  drawSel(host, page, list);
+}
+// select mode: tap rows or cards to pick them, then delete them or set a field on all of them at once
+function drawSel(host, page, list) {
+  const on = L.sel?.page === page, fill = host.querySelector('[data-lfill]'), btn = host.querySelector('[data-selbtn]');
+  if (btn) { btn.textContent = on ? 'Done' : 'Select'; btn.classList.toggle('primary', on); }
+  if (fill) fill.classList.toggle('selecting', on);
+  let bar = host.querySelector('.selbar');
+  if (!on) { if (bar) bar.parentNode.removeChild(bar); return; }
+  L.sel.visible = list.map(r => r.id);
+  for (const id of [...L.sel.ids]) if (!L.byId[id]) L.sel.ids.delete(id);
+  fill.querySelectorAll('[data-act="open"][data-id]').forEach(b => b.setAttribute('aria-selected', L.sel.ids.has(b.dataset.id)));
+  if (!bar) { bar = document.createElement('div'); bar.className = 'selbar'; host.appendChild(bar); }
+  const k = L.sel.ids.size, K = KINDS[curSeg(page).kind], canSet = K.fields.some(f => ['select', 'multi', 'check'].includes(f.type));
+  bar.innerHTML = `<b>${k} selected</b><button class="btn small" data-act="selall">Select all</button><div class="spacer"></div>${canSet ? `<button class="btn small" data-act="selset" ${k ? '' : 'disabled'}>Change…</button>` : ''}<button class="btn small danger" data-act="seldel" ${k ? '' : 'disabled'}>Delete</button><button class="btn small" data-act="selmode">Done</button>`;
+}
+function selSet(kind) {
+  const K = KINDS[kind], ids = [...L.sel.ids], fs = K.fields.filter(f => ['select', 'multi', 'check'].includes(f.type));
+  const sh = C.sheet({ title: `Change ${ids.length} ${ids.length === 1 ? K.one : (K.ones || K.one + 's')}`, body: `<div class="lslot"><span class="rowlbl">Field</span>${fs.map((f, i) => `<button class="chip" data-sf="${i}">${esc(f.label)}</button>`).join('')}</div><div data-svals></div>` });
+  let f = null;
+  sh.addEventListener('click', async e => {
+    const b = e.target.closest('[data-sf]');
+    if (b) {
+      f = fs[+b.dataset.sf]; sh.querySelectorAll('[data-sf]').forEach(x => x.setAttribute('aria-pressed', x === b));
+      const vals = f.type === 'check' ? [['1', 'Yes'], ['0', 'No']] : optsFor(kind, f).map(o => [o, o]);
+      sh.querySelector('[data-svals]').innerHTML = `<p class="lnone">${f.type === 'multi' ? 'Adds this to each one:' : 'Sets this on each one:'}</p><div class="lwrap">${vals.map(([v, l]) => `<button class="chip" data-sv="${esc(v)}">${esc(l)}</button>`).join('')}</div>`;
+      return;
+    }
+    const v = e.target.closest('[data-sv]')?.dataset.sv; if (v == null || !f) return;
+    try {
+      for (const id of ids) {
+        const r = L.byId[id]; if (!r) continue;
+        const val = f.type === 'check' ? v === '1' : f.type === 'multi' ? [...new Set([...[].concat(r[f.k] || []), v])] : v;
+        await put(kind, id, { ...dataOf(r), [f.k]: val });
+      }
+      C.closeSheet(); C.toast(`${f.label} changed on ${ids.length}`);
+    } catch { C.toast('Could not save them all. Try again.'); }
+  });
 }
 function emptyList(K, any) {
   return any ? quiet('Nothing matches. Try another search or filter.')
@@ -1453,12 +1491,36 @@ const head = title => `<div class="viewhead"><h1>${esc(title)}</h1><span class="
 const dataTools = () => `<div class="ltools"><button class="chip link" data-act="import">Import from Notion</button><button class="chip link" data-act="export">Back up these lists</button></div>`;
 
 /* ---------- editing a record ---------- */
+// choice lists follow Settings: your own order, hidden options left out unless this record already uses one
+const optCfg = (kind, k) => (C?.prefs?.() || {}).optLists?.[kind + '.' + k] || {};
 function optsFor(kind, f, cur) {
-  const out = [...(f.options || [])], seen = new Set(out.map(norm));
-  const add = v => { if (v && !seen.has(norm(v))) { seen.add(norm(v)); out.push(v); } };
-  for (const r of recs(kind)) [].concat(r[f.k] || []).forEach(add);
-  [].concat(cur || []).forEach(add);
+  const cfg = optCfg(kind, f.k), hid = new Set((cfg.hidden || []).map(norm)), now = [].concat(cur || []).map(norm);
+  const out = [], seen = new Set();
+  const add = (v, force) => { if (v && !seen.has(norm(v)) && (force || !hid.has(norm(v)) || now.includes(norm(v)))) { seen.add(norm(v)); out.push(v); } };
+  (cfg.list || f.options || []).forEach(v => add(v));
+  for (const r of recs(kind)) [].concat(r[f.k] || []).forEach(v => add(v));
+  [].concat(cur || []).forEach(v => add(v, true));
   return out;
+}
+function fullOptions(id) {
+  const [kind, k] = id.split('.'), f = KINDS[kind]?.fields.find(x => x.k === k), cfg = optCfg(kind, k);
+  const out = [...(cfg.list || f?.options || [])], add = v => { if (v && !out.some(o => norm(o) === norm(v))) out.push(v); };
+  for (const r of recs(kind)) [].concat(r[k] || []).forEach(add);
+  return { list: out, hidden: cfg.hidden || [] };
+}
+async function renameOption(id, from, to) {
+  const [kind, k] = id.split('.');
+  for (const r of recs(kind)) {
+    const v = r[k], hit = Array.isArray(v) ? v.includes(from) : v === from; if (!hit) continue;
+    await put(kind, r.id, { ...dataOf(r), [k]: Array.isArray(v) ? v.map(x => x === from ? to : x) : to });
+  }
+}
+function optionLists() {
+  return SECTIONS.map(sec => {
+    const kinds = [...new Set(Object.entries(PAGES).filter(([pg]) => pg.startsWith(sec.key + '/')).flatMap(([, c]) => [...(c.segs || []).map(x => x.kind), ...(c.adds || [])]))].filter(k => KINDS[k]);
+    const items = kinds.flatMap(kind => KINDS[kind].fields.filter(f => f.type === 'select' || f.type === 'multi').map(f => ({ id: kind + '.' + f.k, label: `${KINDS[kind].many}: ${f.label}` })));
+    return { group: sec.label, items };
+  }).filter(g => g.items.length);
 }
 function fieldInner(kind, f, D) {
   const v = D[f.k], id = 'lf-' + f.k;
@@ -1650,6 +1712,13 @@ function setupCard(host) {
 }
 
 /* ---------- events ---------- */
+document.addEventListener('click', e => {
+  if (!L.sel || !C) return;
+  const b = e.target.closest('[data-lfill].selecting [data-act="open"][data-id]'); if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  const id = b.dataset.id; L.sel.ids.has(id) ? L.sel.ids.delete(id) : L.sel.ids.add(id);
+  const host = b.closest('#viewHost') || document; drawSel(host, L.sel.page, (L.sel.visible || []).map(x => L.byId[x]).filter(Boolean));
+}, true);
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]');
   if (!b || !C || b.closest('.sheet') && !['open', 'new'].includes(b.dataset.act)) return;
@@ -1685,6 +1754,15 @@ document.addEventListener('click', async e => {
       if (d.act === 'fpay') fPayOcc(o); else create('fpaid', { occ: o.key, bill: o.bill.id, date: o.date, skipped: true }).then(() => C.toast('Skipped')).catch(() => {});
       break;
     }
+    case 'selmode': L.sel = L.sel?.page === page ? null : { page, ids: new Set() }; C.render(); break;
+    case 'selall': if (L.sel) { const vis = L.sel.visible || [], allOn = vis.every(id => L.sel.ids.has(id)); vis.forEach(id => allOn ? L.sel.ids.delete(id) : L.sel.ids.add(id)); C.render(); } break;
+    case 'seldel': {
+      if (!L.sel?.ids.size) break;
+      const n = L.sel.ids.size; if (!confirm(`Delete ${n} ${n === 1 ? 'item' : 'items'} for good?`)) break;
+      try { for (const id of [...L.sel.ids]) await del(id); L.sel.ids.clear(); C.toast(`${n} deleted`); } catch { C.toast('Could not delete them all. Try again.'); }
+      C.render(); break;
+    }
+    case 'selset': if (L.sel?.ids.size) selSet(curSeg(page).kind); break;
     case 'import': pickFile(); break;
     case 'export': exportAll(); break;
     case 'copysql': navigator.clipboard?.writeText(SQL).then(() => C.toast('Copied'), () => C.toast('Select the code and copy it by hand')); break;
@@ -1707,6 +1785,7 @@ const sectionOf = view => SECTIONS.find(s => view.startsWith(s.key + '/'));
 return {
   sections: SECTIONS.map(s => ({ key: s.key, label: s.label, icon: G(s.icon), views: s.views.map(([k, l, ic]) => [s.key + '/' + k, l, G(ic)]) })),
   has: view => !!PAGES[view],
+  lists: optionLists, fullList: fullOptions, renameIn: renameOption,
   // one small card for the overview page; '' while the lists are still loading or missing
   tile(key) {
     const s = SECTIONS.find(x => x.key === key);

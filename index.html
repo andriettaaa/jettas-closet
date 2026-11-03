@@ -510,12 +510,20 @@ const VIEWS = [
 // Today (the overview of everything), the closet and the areas life.js adds (Kitchen, Self-care, Home, Fitness). The areas sit in the
 // header; the pages of the open area sit in the bar below it. A new area in life.js shows up in both, and on the overview.
 const SUN = '<circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>';
-const SECTIONS = [{ key: 'overview', label: 'Today', icon: SUN }, { key: 'closet', label: 'Closet', icon: VIEWS[0][2] }, ...(window.LIFE?.sections || [])];
-const secOf = v => v === 'overview' ? 'overview' : String(v).includes('/') ? v.split('/')[0] : 'closet';
+const GEAR = '<circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.8v2.4M12 18.8v2.4M21.2 12h-2.4M5.2 12H2.8M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7M18.5 18.5l-1.7-1.7M7.2 7.2 5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>';
+const SECTIONS = [{ key: 'overview', label: 'Today', icon: SUN }, { key: 'closet', label: 'Closet', icon: VIEWS[0][2] }, ...(window.LIFE?.sections || []), { key: 'settings', label: 'Settings', icon: GEAR }];
+/* the menu follows your Settings: section order, hidden sections, the phone's bottom bar and the tabs inside each section */
+const NAV = () => S.prefs.nav || {};
+const byOrder = (list, order, key = x => x.key) => { const pos = x => { const i = (order || []).indexOf(key(x)); return i < 0 ? 1000 + list.indexOf(x) : i; }; return [...list].sort((a, b) => pos(a) - pos(b)); };
+const navAll = () => byOrder(SECTIONS.filter(s => s.key !== 'settings'), NAV().order);
+const navSections = () => [...navAll().filter(s => !(NAV().hidden || []).includes(s.key)), SECTIONS.find(s => s.key === 'settings')];
+const viewsAll = sec => byOrder(sec === 'closet' ? VIEWS : (SECTIONS.find(x => x.key === sec)?.views || []), NAV().views?.[sec]?.order, v => v[0]);
+const viewsShown = sec => { const h = NAV().views?.[sec]?.hidden || []; const vs = viewsAll(sec).filter(v => !h.includes(v[0])); return vs.length ? vs : viewsAll(sec).slice(0, 1); };
+const secOf = v => v === 'overview' || v === 'settings' ? v : String(v).includes('/') ? v.split('/')[0] : 'closet';
 const isLife = v => !!window.LIFE?.has(v);
-const okView = v => v === 'overview' || VIEWS.some(x => x[0] === v) || isLife(v);
-const tabsFor = v => secOf(v) === 'overview' ? [] : secOf(v) === 'closet' ? VIEWS : (SECTIONS.find(x => x.key === secOf(v))?.views || VIEWS);
-const openSection = k => go(k === 'overview' ? 'overview' : pref.get('view:' + k, k === 'closet' ? 'closet' : k + '/today'));
+const okView = v => v === 'overview' || v === 'settings' || VIEWS.some(x => x[0] === v) || isLife(v);
+const tabsFor = v => ['overview', 'settings'].includes(secOf(v)) ? [] : viewsShown(secOf(v));
+const openSection = k => { if (k === 'overview' || k === 'settings') return go(k); const last = pref.get('view:' + k, k === 'closet' ? 'closet' : k + '/today'), vs = viewsShown(k); go(vs.some(v => v[0] === last) ? last : vs[0][0]); };
 const HANGER = '<svg class="hanger" viewBox="0 0 64 40" aria-hidden="true"><path d="M28 7a4 4 0 1 1 6 3.5c-1.3.8-2 1.6-2 3V15L5 31.5c-2.2 1.4-1.2 4.5 1.4 4.5h51.2c2.6 0 3.6-3.1 1.4-4.5L32 15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const PH = HANGER.replace('class="hanger"', 'class="ph"');
 
@@ -719,13 +727,14 @@ const outfitPhotos = id => lookPhotos().filter(l => l.outfit === id);
 function renderTabs() {
   const n = inboxItems().length;
   const views = tabsFor(S.view), sec = secOf(S.view);
-  const secs = SECTIONS.map(s => `<button data-sec="${s.key}" ${s.key === sec ? 'aria-current="page"' : ''}>${icon(s.icon)}<span>${s.label}</span>${s.key === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
-  $('#tabsTop').innerHTML = secs; $('#tabsBottom').innerHTML = secs;
-  $('#tabsBottom').style.gridTemplateColumns = `repeat(${SECTIONS.length}, minmax(58px, 1fr))`;
+  const btn = s => `<button data-sec="${s.key}" ${s.key === sec ? 'aria-current="page"' : ''}>${icon(s.icon)}<span>${s.label}</span>${s.key === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`;
+  const top = navSections(), bottom = NAV().bottom?.length ? top.filter(s => NAV().bottom.includes(s.key)) : top;
+  $('#tabsTop').innerHTML = top.map(btn).join(''); $('#tabsBottom').innerHTML = bottom.map(btn).join('');
+  $('#tabsBottom').style.gridTemplateColumns = `repeat(${bottom.length}, minmax(58px, 1fr))`;
   const bar = $('#secBar');
   bar.hidden = !views.length;
   bar.innerHTML = views.map(([k, label, path]) => `<button data-view="${k}" aria-current="${S.view === k}">${icon(path)}<span>${label}</span>${k === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
-  $('#addBtn').hidden = sec === 'overview';
+  $('#addBtn').hidden = sec === 'overview' || sec === 'settings';
   $('#addBtn .addlabel').textContent = sec === 'closet' ? 'Add piece' : sec === 'overview' ? 'Add' : window.LIFE.addLabel(S.view);
 }
 function go(v) {
@@ -759,7 +768,7 @@ function render() {
     host?.remove(); host = document.createElement('div'); host.id = 'viewHost'; host.dataset.view = S.view; m.appendChild(host);
   }
   if (isLife(S.view)) window.LIFE.render(host, S.view);
-  else ({ overview: renderOverview, closet: renderRail, wishlist: renderRail, outfits: renderOutfits, calendar: renderCalendar, trips: renderTrips, stats: renderStats })[S.view](host);
+  else ({ overview: renderOverview, settings: renderSettings, closet: renderRail, wishlist: renderRail, outfits: renderOutfits, calendar: renderCalendar, trips: renderTrips, stats: renderStats })[S.view](host);
   S.sheetRefresh?.();
 }
 
@@ -816,7 +825,13 @@ const CONDITIONS = ['New with tags', 'New without tags', 'Like new', 'Very good'
 const one = v => (v == null || String(v).trim() === '') ? [] : [String(v).trim()];
 // Every group of tap-chips offers your own options next to the ready-made ones. They're kept in your settings
 // (prefs.custom[key]); a value a piece already has always shows too, so it can be tapped off.
-const optList = (key, base, cur = []) => { const out = [...base]; for (const v of [...(S.prefs.custom?.[key] || []), ...[].concat(cur || [])]) if (v && !out.some(b => norm(b) === norm(v))) out.push(v); return out; };
+// choice lists follow Settings: your own order, hidden options left out (unless the piece already uses one)
+const optList = (key, base, cur = []) => {
+  const cfg = S.prefs.optLists?.['closet:' + key], hid = new Set((cfg?.hidden || []).map(norm)), now = [].concat(cur || []);
+  const out = [...(cfg?.list || base)].filter(v => !hid.has(norm(v)) || now.includes(v));
+  for (const v of [...(S.prefs.custom?.[key] || []), ...now]) if (v && !out.some(b => norm(b) === norm(v)) && (!hid.has(norm(v)) || now.includes(v))) out.push(v);
+  return out;
+};
 const ownBtn = (key, chip) => `<button type="button" class="chip ghost" data-addopt="${esc(key)}" data-chip="${esc(chip)}">+ Add your own</button>`;
 // what a new chip looks like, matching the group's own chips so the group's tap handler picks it up
 function chipFor(kind, v, hex) {
@@ -927,6 +942,25 @@ function itemCard(it, extraCls = '') {
     <div class="meta"><b>${esc(it.name || 'Untitled piece')}</b><span ${wish ? 'class="wrap"' : ''}>${esc(sub)}</span></div>
   </button>`;
 }
+const toggleSet = (set, v) => set.has(v) ? set.delete(v) : set.add(v);
+async function bulkItems(host, what) {
+  const ids = [...S.rsel], n = ids.length; if (!n) return;
+  const each = async fn => { for (const id of ids) { const it = S.byId[id]; if (it) await fn(it); } };
+  if (what === 'del') {
+    if (!confirm(`Delete ${n} ${n === 1 ? 'piece' : 'pieces'} and their photos for good?`)) return;
+    try { await each(async it => { await DB.del('items', it.id); deletePhoto(it.photo); }); S.rsel = new Set(); toast(`${n} deleted`); fillRail(host); } catch (err) { saveErr(err, 'Could not delete them all. Try again.'); }
+  }
+  if (what === 'arch') {
+    try { await each(async it => { const { id, ...data } = it; await DB.put('items', id, { ...data, status: 'passed', passedDate: today(), updated: Date.now() }); }); S.rsel = new Set(); toast('Moved to the wishlist archive'); fillRail(host); } catch (err) { saveErr(err, 'Could not save. Try again.'); }
+  }
+  if (what === 'cat') {
+    const sh = sheet({ title: `Move ${n} ${n === 1 ? 'piece' : 'pieces'} to`, body: `<div class="chips">${cats().map(c => `<button class="chip" data-tocat="${esc(c)}">${esc(c)}</button>`).join('')}</div>` });
+    sh.addEventListener('click', async e => {
+      const b = e.target.closest('[data-tocat]'); if (!b) return;
+      try { await each(async it => { const { id, ...data } = it; await DB.put('items', id, { ...data, cat: b.dataset.tocat, updated: Date.now() }); }); closeSheet(); toast(`Moved to ${b.dataset.tocat}`); S.rsel = new Set(); fillRail(host); } catch (err) { saveErr(err, 'Could not save. Try again.'); }
+    });
+  }
+}
 function renderRail(host) {
   const view = S.view, f = FV();
   if (!host.dataset.built) {
@@ -938,6 +972,7 @@ function renderRail(host) {
       <div class="tools">
         <div class="search">${I.search}<input id="q" type="search" placeholder="Search name, brand, size, article no., tag" aria-label="Search"></div>
         <select class="pill" id="sort" aria-label="Sort">${SORTS[view].map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
+        <button class="btn" data-selmode>Select</button>
       </div>
       <div class="chips" id="catChips" role="group" aria-label="Category"></div>
       <div class="chips facets" id="facetTabs" role="group" aria-label="Filter by"></div>
@@ -950,6 +985,14 @@ function renderRail(host) {
     so.addEventListener('change', () => { f.sort = so.value; pref.set('sort:' + view, so.value); fillRail(host); });
     host.addEventListener('click', e => {
       const t = e.target;
+      if (t.closest('[data-selmode]') || t.closest('[data-rseldone]')) { S.rsel = S.rsel ? null : new Set(); return fillRail(host); }
+      if (S.rsel) {
+        const si = t.closest('[data-item]'); if (si) { toggleSet(S.rsel, si.dataset.item); return fillRail(host); }
+        if (t.closest('[data-rselall]')) { const vis = [...host.querySelectorAll('#railGrid [data-item]')].map(b => b.dataset.item); const allOn = vis.every(id => S.rsel.has(id)); vis.forEach(id => allOn ? S.rsel.delete(id) : S.rsel.add(id)); return fillRail(host); }
+        if (t.closest('[data-rseldel]')) return bulkItems(host, 'del');
+        if (t.closest('[data-rselcat]')) return bulkItems(host, 'cat');
+        if (t.closest('[data-rselarch]')) return bulkItems(host, 'arch');
+      }
       if (t.closest('[data-editcats]')) return openCategories();
       const c = t.closest('[data-cat]'); if (c) { f.cat = c.dataset.cat; return fillRail(host); }
       const ft = t.closest('[data-facet]'); if (ft) { f.facet = ft.dataset.facet; return fillRail(host); }
@@ -1010,6 +1053,17 @@ function fillRail(host) {
   const list = base.filter(it => matches(it, f)).sort(SORTFN[f.sort] || SORTFN.new);
   grid.className = list.length ? 'grid' : '';
   grid.innerHTML = list.length ? list.map(it => itemCard(it)).join('') : `<p class="muted">No pieces match these filters. <button class="chip ghost" data-clearall>Clear all</button></p>`;
+  // select mode: tap pieces to pick them, then act on all of them at once
+  grid.classList.toggle('selecting', !!S.rsel);
+  const sb = host.querySelector('[data-selmode]'); if (sb) { sb.textContent = S.rsel ? 'Done' : 'Select'; sb.classList.toggle('primary', !!S.rsel); }
+  let bar = host.querySelector('#rselBar');
+  if (S.rsel) {
+    for (const id of [...S.rsel]) if (!S.byId[id]) S.rsel.delete(id);
+    grid.querySelectorAll('[data-item]').forEach(b => b.setAttribute('aria-selected', S.rsel.has(b.dataset.item)));
+    if (!bar) { bar = document.createElement('div'); bar.id = 'rselBar'; bar.className = 'selbar'; host.appendChild(bar); }
+    const k = S.rsel.size;
+    bar.innerHTML = `<b>${k} selected</b><button class="btn small" data-rselall>Select all</button><div class="spacer"></div>${view === 'wishlist' ? `<button class="btn small" data-rselarch ${k ? '' : 'disabled'}>No longer want</button>` : `<button class="btn small" data-rselcat ${k ? '' : 'disabled'}>Category…</button>`}<button class="btn small danger" data-rseldel ${k ? '' : 'disabled'}>Delete</button><button class="btn small" data-rseldone>Done</button>`;
+  } else if (bar) bar.parentNode.removeChild(bar);
 }
 function emptyCloset() {
   return `<div class="empty">${HANGER}<h2>Your rail is empty</h2>
@@ -1068,7 +1122,7 @@ function renderOutfits(host) {
 }
 
 /* ---------- weather (Open-Meteo: free, no key) ---------- */
-const CITIES = [{ k: 'ams', name: 'Amsterdam', lat: 52.37, lon: 4.90 }, { k: 'alm', name: 'Almere', lat: 52.37, lon: 5.22 }];
+const CITIES = [{ k: 'alm', name: 'Almere', lat: 52.37, lon: 5.22 }, { k: 'ams', name: 'Amsterdam', lat: 52.37, lon: 4.90 }];
 // WMO weather codes, matched on the first upper bound that fits
 const WMO = [[0, '☀️', 'Clear'], [1, '🌤️', 'Mostly clear'], [2, '⛅', 'Partly cloudy'], [3, '☁️', 'Cloudy'], [48, '🌫️', 'Fog'], [57, '🌦️', 'Drizzle'], [67, '🌧️', 'Rain'], [77, '🌨️', 'Snow'], [82, '🌧️', 'Showers'], [86, '🌨️', 'Snow showers'], [99, '⛈️', 'Thunderstorm']];
 const wmo = c => WMO.find(w => c <= w[0]) || WMO[WMO.length - 1];
@@ -1607,7 +1661,7 @@ function closetTile() {
 }
 // your order and hidden cards live in prefs.dash, so they're the same on every device; new areas join at the end
 function dashCards() {
-  const all = SECTIONS.filter(s => s.key !== 'overview'), order = S.prefs.dash?.order || [];
+  const all = navSections().filter(s => s.key !== 'overview' && s.key !== 'settings'), order = S.prefs.dash?.order || [];
   const pos = s => { const i = order.indexOf(s.key); return i < 0 ? order.length + all.indexOf(s) : i; };
   return all.sort((a, b) => pos(a) - pos(b));
 }
@@ -1631,6 +1685,90 @@ function arrangeDash() {
     }
   });
 }
+/* ---------- settings: menu, tabs and choice lists ---------- */
+const CLOSET_LISTS = [['occasions', 'Occasion', OCCASIONS], ['fits', 'Fit', FITS], ['materials', 'Material', MATERIALS], ['condition', 'Condition', CONDITIONS],
+  ['acquired', 'New or secondhand', ACQUIRED], ['purchasePlace', 'Where bought', PLACES], ['seasons', 'Season', SEASONS], ['tags', 'Tags', []], ['tripTypes', 'Trip type', TRIP_TYPES, true], ['slotLabels', 'Packing slots', SLOT_LABELS, true]];
+const SET = { tabs: 'closet', list: 'closet:occasions' };
+function listCatalog() {
+  return [{ group: 'Closet', items: CLOSET_LISTS.map(([k, l]) => ({ id: 'closet:' + k, label: l })) }, ...(window.LIFE?.lists?.() || [])];
+}
+function fullList(id) {
+  if (!id.startsWith('closet:')) return window.LIFE.fullList(id);
+  const key = id.slice(7), def = CLOSET_LISTS.find(x => x[0] === key), cfg = S.prefs.optLists?.[id] || {};
+  const out = [...(cfg.list || def?.[2] || [])], add = v => { if (v && !out.some(o => norm(o) === norm(v))) out.push(v); };
+  (S.prefs.custom?.[key] || []).forEach(add);
+  if (!def?.[3]) S.items.forEach(it => [].concat(it[key] || []).forEach(add));
+  return { list: out, hidden: cfg.hidden || [] };
+}
+const saveList = (id, list, hidden) => DB.savePrefs({ optLists: { ...(S.prefs.optLists || {}), [id]: { list, hidden } } });
+async function renameIn(id, from, to) {
+  if (!id.startsWith('closet:')) return window.LIFE.renameIn(id, from, to);
+  const key = id.slice(7); if (CLOSET_LISTS.find(x => x[0] === key)?.[3]) return;
+  for (const it of S.items) {
+    const v = it[key], hit = Array.isArray(v) ? v.includes(from) : v === from; if (!hit) continue;
+    const { id: iid, ...data } = it;
+    await DB.put('items', iid, { ...data, [key]: Array.isArray(v) ? v.map(x => x === from ? to : x) : to });
+  }
+}
+function renderSettings(host) {
+  const n = NAV(), hid = n.hidden || [], all = navAll(), shownKeys = all.filter(s => !hid.includes(s.key)).map(s => s.key);
+  const bottom = n.bottom?.length ? n.bottom : shownKeys;
+  const withTabs = all.filter(s => s.key !== 'overview');
+  if (!withTabs.some(s => s.key === SET.tabs)) SET.tabs = withTabs[0]?.key;
+  const vh = n.views?.[SET.tabs]?.hidden || [], vs = viewsAll(SET.tabs);
+  const cat = listCatalog(); if (!cat.some(g => g.items.some(i => i.id === SET.list))) SET.list = cat[0].items[0].id;
+  const L = fullList(SET.list), lh = new Set(L.hidden.map(norm));
+  const mv = (attr, k, i, len) => `<span class="setmv"><button class="iconbtn small" ${attr}="${esc(k)}" data-d="-1" aria-label="Move up" ${i ? '' : 'disabled'}>↑</button><button class="iconbtn small" ${attr}="${esc(k)}" data-d="1" aria-label="Move down" ${i < len - 1 ? '' : 'disabled'}>↓</button></span>`;
+  host.innerHTML = `<div class="viewhead"><h1>Settings</h1><span class="sub">Menu, tabs and choice lists</span></div>
+  <div class="panels setpanels">
+    <section class="panel setpanel"><h3>Sections</h3><p class="muted">Order the menu, hide what you don't use and pick what sits in the bar at the bottom of your phone.</p>
+      ${all.map((s, i) => `<div class="setrow"><span class="seti">${icon(s.icon)}</span><b>${esc(s.label)}</b><div class="spacer"></div>
+        <label class="settog"><input type="checkbox" data-nshow="${s.key}" ${hid.includes(s.key) ? '' : 'checked'}> Menu</label>
+        <label class="settog"><input type="checkbox" data-nbot="${s.key}" ${bottom.includes(s.key) && !hid.includes(s.key) ? 'checked' : ''} ${hid.includes(s.key) ? 'disabled' : ''}> Bottom bar</label>${mv('data-nmove', s.key, i, all.length)}</div>`).join('')}
+      <button class="chip link" data-nreset>Back to the standard menu</button></section>
+    <section class="panel setpanel"><h3>Tabs in a section</h3><p class="muted">Each section opens on its first visible tab.</p>
+      <select class="pill" data-tabsec aria-label="Section">${withTabs.map(s => `<option value="${s.key}" ${s.key === SET.tabs ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}</select>
+      ${vs.map((v, i) => `<div class="setrow"><span class="seti">${icon(v[2])}</span><b>${esc(v[1])}</b><div class="spacer"></div><label class="settog"><input type="checkbox" data-vshow="${esc(v[0])}" ${vh.includes(v[0]) ? '' : 'checked'}> Show</label>${mv('data-vmove', v[0], i, vs.length)}</div>`).join('')}</section>
+    <section class="panel setpanel"><h3>Choice lists</h3><p class="muted">The options you pick from. Rename one and everything that uses it follows.</p>
+      <select class="pill" data-listsel aria-label="Choice list">${cat.map(g => `<optgroup label="${esc(g.group)}">${g.items.map(i => `<option value="${esc(i.id)}" ${i.id === SET.list ? 'selected' : ''}>${esc(i.label)}</option>`).join('')}</optgroup>`).join('')}</select>
+      ${L.list.map((o, i) => `<div class="setrow"><input class="setname" data-oren="${i}" value="${esc(o)}" aria-label="Rename ${esc(o)}"><label class="settog"><input type="checkbox" data-oshow="${i}" ${lh.has(norm(o)) ? '' : 'checked'}> Show</label>${mv('data-omove', i, i, L.list.length)}</div>`).join('') || '<p class="muted">No options yet.</p>'}
+      <form class="setadd" data-oadd><input placeholder="Add an option" aria-label="Add an option"><button class="btn small" type="submit">Add</button></form></section>
+  </div>`;
+  if (host.dataset.swired) return;
+  host.dataset.swired = '1';
+  const saveNav = patch => DB.savePrefs({ nav: { ...NAV(), ...patch } }).catch(err => saveErr(err, 'Could not save. Try again.'));
+  const swap = (arr, i, d) => { const j = i + d; if (j < 0 || j >= arr.length) return arr; [arr[i], arr[j]] = [arr[j], arr[i]]; return arr; };
+  host.addEventListener('click', e => {
+    const t = e.target;
+    const nm = t.closest('[data-nmove]'); if (nm) { const ks = navAll().map(s => s.key); return saveNav({ order: swap(ks, ks.indexOf(nm.dataset.nmove), +nm.dataset.d) }); }
+    const vm = t.closest('[data-vmove]'); if (vm) { const ks = viewsAll(SET.tabs).map(v => v[0]), views = { ...(NAV().views || {}) }; views[SET.tabs] = { ...(views[SET.tabs] || {}), order: swap(ks, ks.indexOf(vm.dataset.vmove), +vm.dataset.d) }; return saveNav({ views }); }
+    const om = t.closest('[data-omove]'); if (om) { const L = fullList(SET.list); return saveList(SET.list, swap(L.list, +om.dataset.omove, +om.dataset.d), L.hidden); }
+    if (t.closest('[data-nreset]')) return DB.savePrefs({ nav: {} });
+  });
+  host.addEventListener('change', async e => {
+    const t = e.target, ns = t.dataset.nshow, nb = t.dataset.nbot, v = t.dataset.vshow;
+    if (ns) { const h = new Set(NAV().hidden || []); t.checked ? h.delete(ns) : h.add(ns); return saveNav({ hidden: [...h] }); }
+    if (nb) { const cur = NAV().bottom?.length ? NAV().bottom : navAll().filter(s => !(NAV().hidden || []).includes(s.key)).map(s => s.key); const b = new Set(cur); t.checked ? b.add(nb) : b.delete(nb); return saveNav({ bottom: b.size ? [...b] : null }); }
+    if (v) { const views = { ...(NAV().views || {}) }, c = { ...(views[SET.tabs] || {}) }, h = new Set(c.hidden || []); t.checked ? h.delete(v) : h.add(v); views[SET.tabs] = { ...c, hidden: [...h] }; return saveNav({ views }); }
+    if (t.matches('[data-tabsec]')) { SET.tabs = t.value; return renderSettings(host); }
+    if (t.matches('[data-listsel]')) { SET.list = t.value; return renderSettings(host); }
+    if (t.dataset.oshow != null) { const L = fullList(SET.list), o = L.list[+t.dataset.oshow], h = L.hidden.filter(x => norm(x) !== norm(o)); if (!t.checked) h.push(o); return saveList(SET.list, L.list, h); }
+    if (t.dataset.oren != null) {
+      const L = fullList(SET.list), i = +t.dataset.oren, from = L.list[i], to = t.value.trim();
+      if (!to || to === from) { t.value = from; return; }
+      if (L.list.some((x, j) => j !== i && norm(x) === norm(to))) { toast('That option already exists'); t.value = from; return; }
+      try { await renameIn(SET.list, from, to); L.list[i] = to; await saveList(SET.list, L.list, L.hidden.map(x => x === from ? to : x)); toast('Renamed'); }
+      catch (err) { saveErr(err, 'Could not rename. Try again.'); }
+    }
+  });
+  host.addEventListener('submit', e => {
+    if (!e.target.matches('[data-oadd]')) return; e.preventDefault();
+    const inp = e.target.querySelector('input'), v = inp.value.trim(); if (!v) return;
+    const L = fullList(SET.list); if (L.list.some(x => norm(x) === norm(v))) { toast('That option already exists'); return; }
+    saveList(SET.list, [...L.list, v], L.hidden).catch(err => saveErr(err, 'Could not save. Try again.'));
+  });
+}
+
 function renderOverview(host) {
   const t = new Date(), hr = t.getHours();
   const hello = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
@@ -2104,7 +2242,7 @@ function openItem(id) {
 }
 async function addToDay(date, ids) {
   const cur = S.days[date] || {};
-  await DB.put('days', date, { outfit: cur.outfit || null, items: [...new Set([...(cur.items || []), ...ids])], note: cur.note || '', photos: cur.photos || [] });
+  await DB.put('days', date, { outfit: cur.outfit || null, items: [...new Set([...(cur.items || []), ...ids])], note: cur.note || '', photos: cur.photos || [], place: cur.place || '' });
 }
 
 /* ---------- item editor + photo cut-out ---------- */
@@ -2455,6 +2593,19 @@ async function peExport() {
 }
 
 /* ---------- outfit detail ---------- */
+/* places: where an outfit or a set of pieces was worn, remembered from the days you logged */
+function places() {
+  const m = new Map();
+  for (const [d, v] of Object.entries(S.days)) if (v.place) { const k = norm(v.place), e = m.get(k) || [v.place, 0, d]; e[1]++; if (d > e[2]) e[2] = d; m.set(k, e); }
+  return [...m.values()].sort((a, b) => b[2].localeCompare(a[2]) || b[1] - a[1]);
+}
+const outfitPlaces = id => { const m = new Map(); for (const v of Object.values(S.days)) if (v.outfit === id && v.place) { const k = norm(v.place), e = m.get(k) || [v.place, 0]; e[1]++; m.set(k, e); } return [...m.values()].sort((a, b) => b[1] - a[1]); };
+function openPlace(place) {
+  const k = norm(place), days = Object.entries(S.days).filter(([, v]) => norm(v.place) === k).sort((a, b) => b[0].localeCompare(a[0]));
+  sheet({ title: '📍 ' + place, body: `<p class="muted">${days.length} ${days.length === 1 ? 'day' : 'days'} worn here</p><div class="outpick">${days.map(([d, v]) => { const o = v.outfit && S.outById[v.outfit]; const pieces = o ? o.pieces : autoLayout(v.items || []); return `<button data-day="${d}">${boardHTML(pieces)}<span>${esc(shortDate(d))}${o ? ' · ' + esc(o.name || 'Outfit') : ''}</span></button>`; }).join('')}</div>` });
+}
+document.addEventListener('click', e => { const p = e.target.closest('[data-place]'); if (p) { e.stopPropagation(); openPlace(p.dataset.place); } }, true);
+document.addEventListener('click', e => { const d = e.target.closest('.sheet .outpick [data-day]'); if (d) openDay(d.dataset.day); });
 function openOutfit(id) {
   const o = S.outById[id]; if (!o) return;
   const sh = sheet({ title: o.name || 'Outfit', body: '<div id="outBody"></div>', foot: `
@@ -2475,6 +2626,7 @@ function openOutfit(id) {
         <div><span class="lbl" style="display:block;margin-bottom:6px">${looks.length ? `You wearing it · ${looks.length}` : 'You wearing it'}</span>
           ${looks.length ? `<div class="gallery">${looks.map(l => `<button data-day="${l.date}">${pimg(l.path, 'You wearing it', 'loading="lazy"')}<span>${shortDate(l.date)}</span></button>`).join('')}</div>` : ''}
           <button class="btn small" data-oa="photo">${I.camera} Add a photo of you wearing it</button></div>
+        ${(() => { const ps = outfitPlaces(id); return ps.length ? `<div><span class="lbl" style="display:block;margin-bottom:6px">Worn at</span><div class="chips">${ps.map(([p, n]) => `<button class="chip" data-place="${esc(p)}">📍 ${esc(p)}${n > 1 ? ` <span class="n">${n}</span>` : ''}</button>`).join('')}</div></div>` : ''; })()}
         <div id="odel"></div></div></div>`;
   };
   draw(); S.sheetRefresh = draw;
@@ -2486,7 +2638,7 @@ function openOutfit(id) {
     if (a === 'today' || a === 'plan') {
       const date = a === 'today' ? today() : $('#planDate', sh).value; if (!date) return;
       const cur = S.days[date] || {};
-      try { await DB.put('days', date, { outfit: id, items: cur.items || [], note: cur.note || '', photos: cur.photos || [] }); toast(a === 'today' ? 'Logged for today' : `Planned for ${niceDate(date)}`); }
+      try { await DB.put('days', date, { outfit: id, items: cur.items || [], note: cur.note || '', photos: cur.photos || [], place: cur.place || '' }); toast(a === 'today' ? 'Logged for today' : `Planned for ${niceDate(date)}`); }
       catch (err) { saveErr(err, 'Could not save that day. Try again.'); }
     }
     if (a === 'edit') openBuilder(id);
@@ -2649,7 +2801,9 @@ function openDay(date, opts = {}) {
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="muted">${future ? 'Plan what you will wear.' : 'What you wore. Each piece counts one wear.'}</span><div class="spacer"></div>
       <div class="seg" role="group"><button data-mode="outfit">Saved outfit</button><button data-mode="pieces">Pick pieces</button></div></div>
       <div id="dayPick"></div>
-      <div class="field"><label for="d-note">Note</label><input id="d-note" value="${esc(rec.note || '')}" placeholder="Where you went, how it felt"></div>`,
+      <div class="field"><label for="d-place">Where${rec.place ? ` <button type="button" class="chip link" data-place="${esc(rec.place)}">All days at ${esc(rec.place)}</button>` : ''}</label><input id="d-place" list="placeList" value="${esc(rec.place || '')}" placeholder="Work, a dinner, a city" autocomplete="off"><datalist id="placeList">${places().map(([p]) => `<option value="${esc(p)}">`).join('')}</datalist>
+        ${places().length ? `<div class="chips" style="margin-top:6px">${places().slice(0, 8).map(([p]) => `<button type="button" class="chip" data-fillplace="${esc(p)}">${esc(p)}</button>`).join('')}</div>` : ''}</div>
+      <div class="field"><label for="d-note">Note</label><input id="d-note" value="${esc(rec.note || '')}" placeholder="How it felt"></div>`,
     foot: `<span class="busy" id="dStatus"></span><div class="spacer"></div>${S.days[date] ? '<button class="btn danger" id="dClear">Clear day</button>' : ''}<button class="btn primary" id="dSave">${future ? 'Save plan' : 'Save'}</button>`,
     onClose: () => D.adds.forEach(a => URL.revokeObjectURL(a.url))
   });
@@ -2680,6 +2834,7 @@ function openDay(date, opts = {}) {
   });
   if (opts.addPhoto && D.photos.length + D.adds.length < 4) file.click();
   sh.addEventListener('click', async e => {
+    const fp = e.target.closest('[data-fillplace]'); if (fp) { $('#d-place', sh).value = fp.dataset.fillplace; return; }
     const rm = e.target.closest('[data-rmpic]')?.dataset.rmpic;
     if (rm) {
       const i = +rm.slice(1);
@@ -2707,7 +2862,7 @@ function openDay(date, opts = {}) {
           URL.revokeObjectURL(D.adds.shift().url);
         }
         st.textContent = 'Saving…';
-        await DB.put('days', date, { outfit, items, note: $('#d-note', sh).value.trim(), photos: D.photos });
+        await DB.put('days', date, { outfit, items, note: $('#d-note', sh).value.trim(), photos: D.photos, place: $('#d-place', sh).value.trim() });
         D.removed.forEach(deletePhoto);
         closeSheet(); toast(future ? 'Planned' : 'Logged');
       } catch (err) {
