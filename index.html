@@ -629,6 +629,8 @@ function undoPush(label, revert, show) {
   UNDO.unshift({ label, revert, at: Date.now() }); UNDO.length = Math.min(UNDO.length, 30);
   if (show) toast(label, { label: 'Undo', run: () => undoRun(0) });
 }
+// run several changes as one step: they push nothing themselves, the caller pushes one undo for all of them
+async function undoQuiet(fn) { const was = undoing; undoing = true; try { return await fn(); } finally { undoing = was; } }
 async function undoRun(i = 0) {
   const u = UNDO.splice(i, 1)[0]; if (!u) return;
   undoing = true;
@@ -1017,7 +1019,7 @@ const fchip = (k, v, label = v) => `<button class="chip link" data-go="${k}" dat
 function itemCard(it, extraCls = '') {
   const w = wearCount(it), c = cpw(it), inbox = isInbox(it), wish = isWishAll(it);
   const sub = inbox ? [it.brand || it.shop, it.price ? eur(it.price) : ''].filter(Boolean).join(' · ')
-    : wish ? [it.brand, it.price > 0 ? eur(it.price) + (saving(it) ? ` (was ${eur0(it.origPrice)})` : '') : '', daysOn(it) != null ? `${daysOn(it)} days on list` : ''].filter(Boolean).join(' · ')
+    : wish ? [it.brand, it.price > 0 ? eur(it.price) + (saving(it) ? ` (was ${eur0(it.origPrice)})` : '') : '', daysOn(it) != null ? `${daysOn(it)} days on list` : '', isWish(it) ? window.LIFE?.wishLine?.('closet', it.id, it.price, it.planBuy) || '' : ''].filter(Boolean).join(' · ')
     : [it.brand, it.price > 0 ? eur(it.price) : '', c != null ? `${eur(c)} per wear` : '', w ? `worn ${w}×` : 'not worn yet'].filter(Boolean).join(' · ');
   // prices never sit on the hangtag; they live in the line under the name
   const tag = inbox ? `<div class="hangtag"><small>from</small>${esc((it.shop || 'link').slice(0, 14))}</div>` : '';
@@ -1796,7 +1798,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v44';
+const APP_VERSION = 'hangtag-v45';
 function renderSettings(host) {
   const master = S.view === 'settings', sec = master ? null : secOf(S.view), secObj = SECTIONS.find(x => x.key === sec);
   const n = NAV(), hid = n.hidden || [], all = navAll(), shownKeys = all.filter(s => !hid.includes(s.key)).map(s => s.key);
@@ -2408,7 +2410,7 @@ function openItem(id) {
     <button class="btn primary" data-act="unpass">Back to wishlist</button>
     <button class="btn" data-act="edit">Edit</button><div class="spacer"></div>
     <button class="btn danger" data-act="del">Delete</button>` : wish ? `
-    <button class="btn primary" data-act="buy">I bought it</button>
+    <button class="btn primary" ${window.LIFE?.canBuyWish?.() ? `data-wact="buy" data-kind="closet" data-id="${esc(cur.id)}"` : 'data-act="buy"'}>I bought it</button>
     <button class="btn" data-act="pass">No longer want it</button>
     ${cur.link ? `<a class="btn" href="${esc(cur.link)}" target="_blank" rel="noopener">Open shop</a>` : ''}
     <button class="btn" data-act="edit">Edit</button><div class="spacer"></div>
@@ -2448,6 +2450,7 @@ function openItem(id) {
         <div class="tagrow">${tagrow}</div>
         ${priceLine ? `<p class="priceline">${priceLine}</p>` : ''}
         ${!wish && cur.origPrice > 0 ? `<div class="note">Original price ${eur(cur.origPrice)}${sv ? ` · you saved <b>${eur(sv)}</b> (${Math.round(sv / cur.origPrice * 100)}%)` : ''}</div>` : ''}
+        ${wish && !isPassed(cur) ? window.LIFE?.wishPanel?.('closet', id) || '' : ''}
         ${wish && cur.why ? `<div class="note"><span class="lbl" style="display:block">Why I want it</span>${esc(cur.why)}</div>` : ''}
         <dl class="props">
           ${row('Category', cur.cat ? `<button class="chip link" data-go="cat" data-v="${esc(cur.cat)}">${esc(cur.cat)}</button>` : '—')}
@@ -3160,7 +3163,12 @@ async function start(session) {
   derive(); $('#main').innerHTML = ''; render();
   subscribeLive(); wxRefresh();
   // what life.js needs from the closet: the signed-in Supabase client, photos, sheets and settings
-  window.LIFE?.start({ sb, uid: () => UID, view: () => S.view, go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url, shop: it.shop })),
+  window.LIFE?.start({ sb, uid: () => UID, view: () => S.view, go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url, shop: it.shop, planBuy: it.planBuy || '' })),
+    undoQuiet,
+    // a closet wish bought through Finance: into the closet at the price paid; hands back what it was, for undo
+    closetBuy: async (id, { price, bought, tx }) => { const before = noId(S.byId[id]), { planBuy, ...rest } = before; await DB.put('items', id, { ...rest, status: 'closet', price, bought, tx, updated: Date.now() }); return before; },
+    closetRestore: (id, data) => DB.put('items', id, data),
+    closetPatch: (id, patch) => DB.put('items', id, { ...noId(S.byId[id]), ...patch, updated: Date.now() }),
     // closet wishes that left the list: bought (in the closet now) or let go (wishlist archive)
     closetDone: () => S.items.filter(it => it.wishSince && !isWish(it) && !isInbox(it)).map(it => isPassed(it) ? { name: it.name, price: it.price, out: 'dropped', date: it.passedDate || '' } : { name: it.name, price: it.price, out: 'bought', date: it.bought || '' }), openItem: id => openItem(id) });
   try { await loadAll(); } catch (e) { console.error(e); S.status = 'offline'; render(); }
