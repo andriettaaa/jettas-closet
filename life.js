@@ -90,6 +90,8 @@ const SOCIAL_STAGES = ['Idea', 'Planned', 'Filming', 'Editing', 'Scheduled', 'Po
 const SOCIAL_FORMATS = ['Short Video', 'Long-form Video', 'Carousel', 'Image Post', 'Story', 'Live', 'BTS Video'];
 const SOCIAL_STYLES = ['Educational', 'Entertaining', 'Inspirational', 'Relatable', 'Storytelling', 'Behind-the-Scenes', 'Informational'];
 const SOCIAL_FUNNEL = ['Awareness', 'Consideration', 'Conversion', 'Loyalty/Advocacy'];
+const NIGHTS = ['Acid night', 'Retinoid night', 'Recovery night'];
+const WEEK = [['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'], ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']];
 const KINDS = {
   /* kitchen */
   recipes: {
@@ -159,6 +161,7 @@ const KINDS = {
       F('bought', 'Bought on', 'date', { half: 1 }), F('opened', 'Opened on', 'date', { half: 1 }),
       F('expiry', 'Use before', 'date', { half: 1 }), F('rating', 'Rating', 'rating', { half: 1 }),
       F('fav', 'Favourite', 'check', { half: 1 }), F('finished', 'Finished', 'check', { half: 1 }), F('wish', 'On my wishlist', 'check', { half: 1 }),
+      F('nights', 'Evenings', 'multi', { options: NIGHTS }), F('acid', 'Counts as an acid', 'check', { half: 1 }),
       F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['brand', 'Brand'], ['-rating', 'Best rated'], ['expiry', 'Use first'], ['-bought', 'Newest']],
     filters: [['all', 'All'], ['own', 'I have'], ['want', 'Wishlist']],
@@ -298,6 +301,12 @@ const KINDS = {
     sorts: [['due', 'Due first'], ['-due', 'Newest']],
     hide: r => r.status === 'Paid' || r.status === 'Declined', hideLabel: 'Show finished',
     sub: r => [r.status, r.type, r.due && 'due ' + niceDate(r.due), eur(r.fee)].filter(Boolean).join(' · ')
+  },
+  bsched: {
+    one: 'week schedule', many: 'Week schedule',
+    fields: WEEK.map(([k, l]) => F(k, l, 'select', { options: NIGHTS, half: 1 })),
+    title: () => 'Skincare week',
+    sub: r => WEEK.map(([k, l]) => `${l.slice(0, 2)} ${(r[k] || '–').replace(' night', '')}`).join(' · ')
   },
   meditation: {
     one: 'session', many: 'Meditation',
@@ -517,6 +526,16 @@ function kitchenTile() {
     `<button class="chip link" data-act="go" data-v="kitchen/groceries">${groc ? plural(groc, 'thing') + ' on your grocery list' : 'Grocery list is empty'}</button>`
   ]);
 }
+// evening skincare follows the week schedule: products tagged for tonight's kind of evening (or for every evening),
+// and on an acid night the acids are offered as a choice, never all at once
+const nightOf = (d = new Date()) => recs('bsched')[0]?.[['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][d.getDay()]] || '';
+function routineFor(eve) {
+  const type = eve ? nightOf() : '', ps = recs('beauty').filter(b => !b.finished && !b.archived && !b.wish && (eve ? b.pm : b.am));
+  if (!eve || !type) return { type, ps: eve ? ps : ps.filter(b => !b.acid || !(b.nights || []).length), pick: [] };
+  const fits = ps.filter(b => !(b.nights || []).length || b.nights.includes(type));
+  return { type, ps: fits.filter(b => !b.acid), pick: type === 'Acid night' ? fits.filter(b => b.acid) : [] };
+}
+const prodChips = ps => ps.map(b => `<button class="chip" data-act="open" data-id="${b.id}">${esc(b.name)}</button>`).join('');
 function careTile() {
   const t = today(), w = waterToday(), goal = Number(C.prefs().waterGoal) || 8, glasses = w?.glasses || 0;
   const sups = recs('supplements').filter(s => !s.finished);
@@ -525,14 +544,14 @@ function careTile() {
   const cy = cycleStats();
   const appt = recs('appts').filter(a => !a.done && a.date && a.date >= t).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')))[0];
   // the routine that fits the time of day: morning until 3 pm, evening after
-  const eve = new Date().getHours() >= 15, prods = recs('beauty').filter(b => !b.finished && !b.archived && !b.wish && (eve ? b.pm : b.am));
+  const eve = new Date().getHours() >= 15, rt = routineFor(eve), prods = rt.ps;
   const sl = recs('sleep').find(x => x.date === t), j = recs('journal').find(x => x.date === t);
   return tileBody([
     `<div class="lwater small"><button class="iconbtn small" data-act="water" data-v="-1" aria-label="One glass less" ${glasses ? '' : 'disabled'}>${svg(P.minus)}</button><div class="lwv"><b>${glasses}</b><span>of ${goal} glasses</span></div><button class="iconbtn small lplus" data-act="water" data-v="1" aria-label="One more glass">${svg(P.plus)}</button></div>`,
     doses ? `<p class="dline"><span>Supplements</span><b>${Math.min(taken, doses)} of ${doses} taken</b></p>` : '',
     cy.last ? `<p class="dline"><span>Cycle</span><b>${cy.open ? 'period, day ' + cy.day : 'day ' + cy.day + ', next ' + relDay(cy.next)}</b></p>` : '',
     appt ? `<p class="dline"><span>Next appointment</span><b>${esc(titleOf(appt))}, ${esc(relDay(appt.date))}${appt.time ? ' ' + esc(appt.time) : ''}</b></p>` : '',
-    prods.length ? `<p class="dsub">${eve ? 'Evening' : 'Morning'} skincare</p><div class="lwrap">${prods.map(b => `<button class="chip" data-act="open" data-id="${b.id}">${esc(b.name)}</button>`).join('')}</div>` : '',
+    prods.length || rt.pick.length ? `<p class="dsub">${eve ? esc(rt.type || 'Evening') : 'Morning'} skincare</p><div class="lwrap">${prodChips(prods)}</div>${rt.pick.length ? `<p class="lnone">Choose one acid:</p><div class="lwrap">${prodChips(rt.pick)}</div>` : ''}` : '',
     sl ? `<p class="dline"><span>Sleep</span><b>${esc([sl.hours ? sl.hours + ' h' : 'logged', sl.quality?.toLowerCase()].filter(Boolean).join(', '))}</b></p>` : '',
     j ? `<p class="dline"><span>Journal</span><b><button class="chip link" data-act="open" data-id="${j.id}">${esc(titleOf(j))}</button></b></p>` : '',
     sl && j ? '' : `<div class="dbtns">${sl ? '' : '<button class="btn small" data-act="new" data-v="sleep">Log last night</button>'}${j ? '' : '<button class="btn small" data-act="new" data-v="journal">Write today’s entry</button>'}</div>`
@@ -588,7 +607,7 @@ const PAGES = {
   'kitchen/pantry': { title: 'Pantry', segs: [{ kind: 'ingredients' }] },
   'kitchen/gear': { title: 'Kitchen gear', segs: [{ kind: 'gear' }] },
   'care/today': { render: careToday, adds: ['journal', 'sleep', 'beauty', 'supplements', 'appts', 'symptoms', 'meditation', 'ideas'] },
-  'care/beauty': { title: 'Beauty', segs: [{ kind: 'beauty' }] },
+  'care/beauty': { title: 'Beauty', segs: [{ kind: 'beauty' }, { kind: 'bsched', label: 'Week schedule' }] },
   'care/supplements': { title: 'Supplements', segs: [{ kind: 'supplements' }, { kind: 'suplog' }] },
   'care/cycle': { title: 'Cycle', segs: [{ kind: 'cycles', label: 'Periods', top: cycleTop }] },
   'care/journal': { title: 'Journal', segs: [{ kind: 'journal' }] },
@@ -1321,7 +1340,7 @@ function careToday(host) {
   const sl = recs('sleep').filter(s => s.date).sort((a, b) => b.date.localeCompare(a.date))[0];
   const cy = cycleStats(), j = recs('journal').find(x => x.date === t);
   const prods = recs('beauty').filter(b => !b.finished && !b.archived && !b.wish);
-  const am = prods.filter(b => b.am), pm = prods.filter(b => b.pm);
+  const am = routineFor(false).ps, tn = routineFor(true), pm = tn.ps, wk = recs('bsched')[0];
   const soon = prods.filter(b => b.expiry && diffDays(t, b.expiry) <= 30).sort((a, b) => a.expiry.localeCompare(b.expiry));
   const appts = recs('appts').filter(a => !a.done && a.date && a.date >= t).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''))).slice(0, 3);
   host.innerHTML = `${head('Self-care')}
@@ -1331,7 +1350,8 @@ function careToday(host) {
     ${panel('Cycle', cy.last ? `<p class="lbig">${cy.open ? `Period, day ${cy.day}` : `Day ${cy.day} of about ${cy.avg}`}</p><p class="lnone">${cy.open ? 'Tap below when it’s over.' : `Next period expected ${relDay(cy.next)} (${shortDate(cy.next)})${cy.guessed ? ', based on a 28-day cycle until you log more' : ''}.`}</p>${cy.open ? `<button class="btn small" data-act="periodend" data-id="${cy.open.id}">Period ended today</button>` : `<button class="btn small" data-act="periodstart">Period started today</button>`}` : `${quiet('Log when your period starts and the app predicts the next one.')}<button class="btn small" data-act="periodstart">Period started today</button>`, ['care/cycle', 'History'])}
     ${panel('Sleep', sl ? `<p class="lbig">${sl.hours ? sl.hours + ' hours' : 'Logged'}${sl.quality ? ', ' + sl.quality.toLowerCase() : ''}</p><p class="lnone">${esc(niceDate(sl.date))}${sl.wake ? ' · woke up ' + esc(sl.wake.toLowerCase()) : ''}</p>${sl.date === t ? '' : '<button class="btn small" data-act="new" data-v="sleep">Log last night</button>'}` : `${quiet('How did you sleep?')}<button class="btn small" data-act="new" data-v="sleep">Log last night</button>`, ['care/health', 'Sleep log'])}
     ${panel('Journal', j ? `<button class="lrow lmain" data-act="open" data-id="${j.id}"><b>${esc(titleOf(j))}</b><span>${esc((j.entry || '').slice(0, 140))}</span></button>` : `${quiet('Nothing written today yet.')}<button class="btn small" data-act="new" data-v="journal">Write today’s entry</button>`, ['care/journal', 'All entries'])}
-    ${panel('Skincare routine', am.length || pm.length ? [['Morning', am], ['Evening', pm]].filter(x => x[1].length).map(([l, ps]) => `<div class="lslot"><span class="rowlbl">${l}</span>${ps.map(b => `<button class="chip" data-act="open" data-id="${b.id}">${esc(b.name)}</button>`).join('')}</div>`).join('') : quiet('Mark products as part of your morning or evening routine and they show up here.'), ['care/beauty', 'All products'])}
+    ${panel('Skincare routine', am.length || pm.length || tn.pick.length ? [['Morning', am], [tn.type ? 'Tonight: ' + tn.type.toLowerCase() : 'Evening', pm]].filter(x => x[1].length).map(([l, ps]) => `<div class="lslot"><span class="rowlbl">${esc(l)}</span>${prodChips(ps)}</div>`).join('') + (tn.pick.length ? `<div class="lslot"><span class="rowlbl">Choose one acid</span>${prodChips(tn.pick)}</div>` : '')
+      + (wk ? `<p class="lnone">${esc(KINDS.bsched.sub(wk))}</p><button class="chip link" data-act="open" data-id="${wk.id}">Change the week</button>` : '<button class="btn small" data-act="new" data-v="bsched">Plan your skincare week</button>') : quiet('Mark products as part of your morning or evening routine and they show up here.'), ['care/beauty', 'All products'])}
     ${soon.length ? panel('Use these up', `<div class="lrows">${soon.slice(0, 5).map(row).join('')}</div>`) : ''}
     ${panel('Coming up', appts.length ? `<div class="lrows">${appts.map(row).join('')}</div>` : quiet('No appointments planned.'), ['care/health', 'Appointments'])}
   </div>${dataTools()}`;
