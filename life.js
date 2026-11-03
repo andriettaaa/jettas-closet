@@ -489,6 +489,12 @@ const KINDS = {
       F('category', 'Category', 'rel', { to: 'fcats', half: 1 }), F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 })],
     title: r => [r.emoji, r.name].filter(Boolean).join(' '), sorts: [['name', 'A to Z']], sub: r => relName(r.category), side: r => eur(num(r.amount))
   },
+  frules: {
+    one: 'sort rule', many: 'Sort rules',
+    fields: [F('contains', 'When the name contains'), F('category', 'Put it in', 'rel', { to: 'fcats', half: 1 }), F('rename', 'Rename it to', 'text', { half: 1 })],
+    title: r => r.contains ? `“${r.contains}”` : 'Sort rule', sorts: [['contains', 'A to Z']],
+    sub: r => ['→ ' + (relName(r.category) || 'no category'), r.rename && 'renamed to ' + r.rename].filter(Boolean).join(' · ')
+  },
   fset: {
     one: 'setting', many: 'Money settings',
     fields: [F('payday', 'Next payday', 'date', { half: 1 }), F('payAmount', 'Expected pay', 'money', { half: 1 }),
@@ -730,7 +736,7 @@ const PAGES = {
   'social/brand': { title: 'Brand', segs: [{ kind: 'pillars' }, { kind: 'accounts' }] },
   'care/health': { title: 'Health', segs: [{ kind: 'sleep' }, { kind: 'appts' }, { kind: 'symptoms' }, { kind: 'meditation' }, { kind: 'water' }] },
   'money/today': { render: moneyToday, adds: ['ftx', 'fincome', 'fbills', 'fchecks'] },
-  'money/spending': { title: 'Spending', segs: [{ kind: 'fcats', label: 'Your plan', top: fPlanTop }, { kind: 'ftx' }, { kind: 'fincome' }, { key: 'all', label: 'Everything in and out', kind: 'ftx', fill: fAllFill, tools: false }] },
+  'money/spending': { title: 'Spending', segs: [{ kind: 'fcats', label: 'Your plan', top: fPlanTop }, { kind: 'ftx' }, { kind: 'fincome' }, { key: 'all', label: 'Everything in and out', kind: 'ftx', fill: fAllFill, tools: false }, { kind: 'fchips' }, { kind: 'frules' }] },
   'money/repeats': { title: 'Repeats', segs: [{ kind: 'fbills' }, { kind: 'fpaid' }] },
   'money/plan': { title: 'Plan', segs: [{ kind: 'fgoals', top: fGoalsTop }, { key: 'safety', label: 'Safety net', kind: 'fgoals', fill: fSafetyFill, tools: false }, { kind: 'fchall' }, { kind: 'fwait' }] },
   'money/debt': { title: 'Debt', segs: [{ key: 'free', label: 'Debt-free date', kind: 'fdebts', fill: fDebtFreeFill, tools: false }, { key: 'method', label: 'Snowball or avalanche', kind: 'fdebts', fill: fMethodFill, tools: false }, { kind: 'fdebts', label: 'Your debts' }, { key: 'made', label: 'Payments made', kind: 'ftx', fill: fPaymentsFill, tools: false }] },
@@ -778,7 +784,15 @@ function apply(id, kind, data) {
   index(); cacheSave(); C.render();
 }
 // Changes show at once and are rolled back if Supabase says no
+// a sort rule fills in the category (and a cleaner name) of a new purchase that has none
+const ruleFor = name => { const n = norm(name); return n ? recs('frules').find(r => r.contains && n.includes(norm(r.contains))) : null; };
+function applyRule(kind, id, data) {
+  if (kind !== 'ftx' || L.byId[id] || data.category) return data;
+  const r = ruleFor(data.name); if (!r) return data;
+  return { ...data, category: r.category || '', ...(r.rename ? { name: r.rename } : {}) };
+}
 async function put(kind, id, data) {
+  data = applyRule(kind, id, data);
   const before = L.byId[id] ? { ...L.byId[id] } : null;
   apply(id, kind, data);
   const { error } = await C.sb.from('records').upsert({ user_id: C.uid(), id, kind, data, updated_at: new Date().toISOString() });
@@ -1770,11 +1784,55 @@ function pickFile() {
   inp.addEventListener('change', async () => { const f = inp.files?.[0]; inp.remove(); if (f) importFile(f); });
   inp.click();
 }
+/* ---------- backups from the Ultimate Budget Planner ----------
+   Its backup (app "finnest-ultimate-dashboard") turns into Money records. Ids are UUID v5 of the planner's own ids,
+   so importing a newer backup updates what is already here instead of adding everything twice. */
+const isBudgetBackup = j => j && !Array.isArray(j) && (j.app === 'finnest-ultimate-dashboard' || (j.data && Array.isArray(j.data.transactions) && Array.isArray(j.data.bills)));
+const UBP_NS = '6f1c2a7e-3b4d-4e5f-8a9b-0c1d2e3f4a5b';
+async function uuid5(name, ns = UBP_NS) {
+  const nb = Uint8Array.from(ns.replace(/-/g, '').match(/../g).map(h => parseInt(h, 16)));
+  const h = new Uint8Array(await crypto.subtle.digest('SHA-1', new Uint8Array([...nb, ...new TextEncoder().encode(name)]))).slice(0, 16);
+  h[6] = (h[6] & 0x0f) | 0x50; h[8] = (h[8] & 0x3f) | 0x80;
+  const x = [...h].map(b => b.toString(16).padStart(2, '0')).join('');
+  return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`;
+}
+async function fromBudgetBackup(j) {
+  const d = j.data || j, ids = new Map();
+  const U = async old => { if (!old) return ''; if (!ids.has(old)) ids.set(old, await uuid5('ubp:' + old)); return ids.get(old); };
+  const out = [], clean = o => Object.fromEntries(Object.entries(o).filter(([, v]) => v != null && v !== '' && !(Array.isArray(v) && !v.length)));
+  const add = async (old, kind, data) => out.push({ id: await U(old), kind, data: clean(data) });
+  const occKey = async o => (await U(o.billId)) + '@' + o.dueDate;
+  for (const a of d.accounts || []) await add(a.id, 'faccounts', { name: a.name, type: { spending: 'Spending', savings: 'Savings', card: 'Card' }[a.kind] || 'Spending', safe: !!a.includeInSafe, archived: !!a.archived });
+  for (const c of d.categories || []) await add(c.id, 'fcats', { name: c.name, emoji: c.emoji, budget: c.v3PayPlan ?? c.budget });
+  for (const x of d.debts || []) await add(x.id, 'fdebts', { name: x.name, balance: x.openingBalance ?? x.balance, opened: x.openingDate, seq: x.openingSeq, apr: x.apr, payment: x.payment, dueDay: x.dueDay, account: await U(x.accountId) });
+  for (const c of d.balanceChecks || []) await add(c.id, 'fchecks', { account: await U(c.accountId), amount: c.amount, at: (c.at || '').slice(0, 10), seq: c.seq, notes: c.note });
+  for (const b of d.bills || []) {
+    const ev = b.cadence === 'everyN';
+    await add(b.id, 'fbills', { name: b.name, amount: b.amount, type: b.debtId ? 'Debt' : b.v3Type === 'subscription' ? 'Subscription' : 'Bill',
+      cadence: ev ? 'Every N months' : { monthly: 'Monthly', yearly: 'Yearly', weekly: 'Weekly' }[b.cadence] || 'Monthly', every: ev ? b.everyN : null,
+      anchor: b.anchorDate, ends: b.v3Ends, account: await U(b.accountId), category: await U(b.categoryId), debt: await U(b.debtId), active: b.active !== false, url: b.v3Url });
+  }
+  const occs = new Map((d.billOccs || []).map(o => [o.id, o]));
+  for (const o of d.billOccs || []) if (o.paid || o.skipped)
+    await add('occ:' + o.id, 'fpaid', { occ: await occKey(o), bill: await U(o.billId), date: o.dueDate, paid: !!o.paid, skipped: !!o.skipped, paidOn: o.paidOn, tx: await U(o.paidTxnId) });
+  for (const t of d.transactions || []) {
+    const o = occs.get(t.billOccId), bill = o && (d.bills || []).find(b => b.id === o.billId);
+    await add(t.id, 'ftx', { name: t.note || 'Purchase', amount: t.amount, date: t.date, seq: t.seq, category: await U(t.categoryId), account: await U(t.accountId), bill: o ? await occKey(o) : null, debt: await U(t.cardPaymentFor || bill?.debtId) });
+  }
+  for (const i of d.income || []) await add(i.id, 'fincome', { name: i.label, amount: i.amount, date: i.date, seq: i.seq, type: i.kind === 'pay' ? 'Pay' : 'Other', account: await U(i.accountId), confirmed: i.confirmed !== false });
+  for (const c of d.quickChips || []) await add(c.id, 'fchips', { name: c.label, emoji: c.emoji, amount: c.amount, category: await U(c.categoryId), account: await U(c.accountId) });
+  for (const r of d.v3Rules || []) await add(r.id, 'frules', { contains: r.contains, category: await U(r.categoryId), rename: r.rename });
+  const st = d.settings || {};
+  // your payday and buffer live on one settings record; keep the one already here if there is one
+  const fs = recs('fset')[0];
+  out.push({ id: fs?.id || await U('settings'), kind: 'fset', data: clean({ payday: st.payday, payAmount: st.v3PayAmount, buffer: st.buffer, cycle: 'Monthly' }) });
+  return out;
+}
 async function importFile(file) {
   let rows;
   try {
     const j = JSON.parse(await file.text());
-    rows = (Array.isArray(j) ? j : j.records || []).filter(r => r && r.id && KINDS[r.kind] && r.data && typeof r.data === 'object');
+    rows = (isBudgetBackup(j) ? await fromBudgetBackup(j) : Array.isArray(j) ? j : j.records || []).filter(r => r && r.id && KINDS[r.kind] && r.data && typeof r.data === 'object');
   } catch { rows = null; }
   if (!rows?.length) { C.toast('That file has no lists this app can read.'); return; }
   const keep = rows.filter(r => !r.photoData && /^https?:/.test(r.data.photo || '') && L.byId[r.id]?.photo && !/^https?:/.test(L.byId[r.id].photo));

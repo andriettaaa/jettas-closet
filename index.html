@@ -77,7 +77,8 @@ header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; 
 header.top .wrap { display: flex; align-items: center; gap: 16px; padding-block: 12px; }
 .brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 800; font-size: 22px; letter-spacing: -0.02em; }
 .brand svg { width: 34px; height: 22px; color: var(--accent); }
-nav.tabs { display: flex; gap: 4px; margin-left: 12px; }
+nav.tabs { display: flex; gap: 4px; margin-left: 12px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+nav.tabs::-webkit-scrollbar { display: none; }
 nav.tabs button { border: 0; background: none; padding: 8px 14px; border-radius: 999px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 8px; }
 nav.tabs button svg { width: 18px; height: 18px; }
 nav.tabs button[aria-current="page"] { background: var(--ink); color: var(--bg); }

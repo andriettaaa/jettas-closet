@@ -51,17 +51,19 @@ Deno.serve(async req => {
 
     const { data: p } = await sb.from('prefs').select('data').eq('user_id', uid).maybeSingle();
     const cfg = p?.data?.notify || {}, day = localDay(cfg.tz || 'Europe/Amsterdam');
-    const { data: rows, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['ftx', 'fcats', 'fset', 'faccounts']);
+    const { data: rows, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['ftx', 'fcats', 'fset', 'faccounts', 'frules']);
     if (error) throw error;
     const recs: Rec[] = rows.map((r: any) => ({ ...r.data, id: r.id, kind: r.kind }));
     const tx = recs.filter(r => r.kind === 'ftx').sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.created || 0) - (a.created || 0));
 
     // learn from what you chose before: the last purchase at this shop gives the category and account
-    const same = tx.filter(x => norm(x.name) === norm(merchant));
-    const category = same.find(x => x.category)?.category || '';
+    // a sort rule you set wins; otherwise the last purchase at this shop gives the category
+    const rule = recs.filter(r => r.kind === 'frules' && r.contains).find(r => norm(merchant).includes(norm(r.contains)));
+    const same = tx.filter(x => norm(x.name) === norm(merchant) || (rule?.rename && norm(x.name) === norm(rule.rename)));
+    const category = rule?.category || same.find(x => x.category)?.category || '';
     const account = same.find(x => x.account)?.account || (card && tx.find(x => x.card && norm(x.card) === norm(card) && x.account)?.account) || '';
     const id = crypto.randomUUID();
-    const data = { name: merchant, amount, date: day, category, account, card, source: 'Apple Pay', created: Date.now() };
+    const data = { name: rule?.rename || merchant, amount, date: day, category, account, card, source: 'Apple Pay', created: Date.now() };
     const { error: e2 } = await sb.from('records').insert({ user_id: uid, id, kind: 'ftx', data });
     if (e2) throw e2;
 
