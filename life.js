@@ -74,6 +74,8 @@ const P = {
   user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>',
   gift: '<rect x="3.5" y="8.5" width="17" height="4" rx="1"/><path d="M5 12.5V20h14v-7.5M12 8.5V20M12 8.5C10.5 5 7 4.5 7 6.8c0 1.7 5 1.7 5 1.7Zm0 0c1.5-3.5 5-4 5-1.7 0 1.7-5 1.7-5 1.7Z"/>',
   gear: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M21.2 12h-2.4M5.2 12H2.8M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7M18.5 18.5l-1.7-1.7M7.2 7.2 5.5 5.5"/>',
+  heart: '<path d="M12 19.5s-7.5-4.6-7.5-10.2A4.1 4.1 0 0 1 12 7a4.1 4.1 0 0 1 7.5 2.3c0 5.6-7.5 10.2-7.5 10.2Z"/>',
+  inbox: '<path d="M4 13.5 6.5 5h11l2.5 8.5V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z"/><path d="M4 13.5h4.5l1 2h5l1-2H20"/>',
   star: '<path d="m12 3.8 2.5 5.1 5.6.8-4 4 .9 5.6L12 16.6l-5 2.7.9-5.6-4-4 5.6-.8Z"/>'
 };
 
@@ -144,6 +146,9 @@ function doVideo(v) {
     .then(() => C.toast(`${v.name} logged for today`)).catch(() => {});
   if (v.url) window.open(v.url, '_blank', 'noopener');
 }
+// wishlists: one place for every wish in the app
+const WISH_CATS = ['Tech', 'Books', 'Home', 'Kitchen', 'Beauty', 'Clothing', 'Fitness', 'Hobby', 'Travel', 'Other'];
+const daysSince = d => d ? Math.max(0, diffDays(String(d).slice(0, 10), today())) : null;
 // tile sets for savings challenges
 const GRID_PRESETS = { '100 envelopes (€1 to €100)': () => Array.from({ length: 100 }, (_, i) => i + 1), '52 weeks (€1 to €52)': () => Array.from({ length: 52 }, (_, i) => i + 1), '€5 a day for 30 days': () => Array(30).fill(5), '€10 to €100 (20 tiles)': () => Array.from({ length: 20 }, (_, i) => 10 + Math.round(i * 90 / 19 / 5) * 5) };
 const WEEK = [['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'], ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']];
@@ -232,7 +237,7 @@ const KINDS = {
       F('amount', 'How many per dose', 'num', { half: 1 }), F('times', 'When', 'multi', { options: ['AM', 'Midday', 'PM'], half: 1 }),
       F('bought', 'Bought on', 'date', { half: 1 }), F('expiry', 'Use before', 'date', { half: 1 }),
       F('price', 'Price', 'money', { half: 1 }), F('rating', 'Rating', 'rating', { half: 1 }),
-      F('finished', 'Finished', 'check'), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
+      F('finished', 'Finished', 'check', { half: 1 }), F('wish', 'On my wishlist', 'check', { half: 1 }), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['brand', 'Brand']],
     hide: r => r.finished, hideLabel: 'Show finished',
     sub: r => [r.brand, [].concat(r.times || []).join(' + '), r.amount && r.form ? `${r.amount} × ${r.form.toLowerCase()}` : r.form].filter(Boolean).join(' · ')
@@ -694,6 +699,26 @@ const KINDS = {
     sorts: [['name', 'A to Z'], ['-created', 'Newest']],
     sub: r => [[].concat(r.type || []).join(', '), r.level, r.time].filter(Boolean).join(' · ')
   },
+  wishes: {
+    one: 'wish', ones: 'wishes', many: 'Master wishlist', facet: 'category', photo: 'photo', display: 'cards',
+    fields: [F('name', 'Item'), F('category', 'Wishlist', 'select', { options: WISH_CATS, half: 1 }), F('type', 'Type', 'text', { half: 1 }),
+      F('brand', 'Brand', 'text', { half: 1 }), F('shop', 'Shop', 'text', { half: 1 }), F('price', 'Price', 'money', { half: 1 }), F('color', 'Colour', 'text', { half: 1 }),
+      F('priority', 'Priority', 'select', { options: ['High', 'Medium', 'Low'], half: 1 }), F('status', 'Status', 'select', { options: ['Wish', 'Ordered', 'Bought', 'Dropped'], half: 1 }),
+      F('since', 'On the list since', 'date', { half: 1 }), F('by', 'Want it by', 'date', { half: 1 }), F('url', 'Link', 'url'),
+      F('why', 'Why do I want this?', 'long'), F('specs', 'Specifications', 'long'), F('fav', 'Favourite', 'check', { half: 1 }), F('archived', 'Archived', 'check', { half: 1 }), F('photo', 'Photo', 'photo')],
+    sorts: [['-created', 'Newest'], ['since', 'Longest on the list'], ['-price', 'Priciest'], ['price', 'Cheapest'], ['name', 'A to Z']],
+    hide: r => r.archived || ['Bought', 'Dropped'].includes(r.status), hideLabel: 'Show bought and archived',
+    sub: r => [r.brand, r.type, eur(num(r.price)), r.status && r.status !== 'Wish' ? r.status : '', daysSince(r.since || (r.created && iso(new Date(r.created)))) != null ? daysSince(r.since || iso(new Date(r.created))) + ' days on the list' : ''].filter(Boolean).join(' · '),
+    quick: r => ({ on: r.status === 'Bought', label: 'Bought', act: () => save(r, { status: r.status === 'Bought' ? 'Wish' : 'Bought' }) })
+  },
+  winbox: {
+    one: 'link', many: 'Inbox', facet: 'status',
+    fields: [F('name', 'Link or name'), F('note', 'Note', 'long'), F('status', 'Status', 'select', { options: ['New', 'Done'], half: 1 }), F('added', 'Added', 'date', { half: 1 })],
+    title: r => r.name ? String(r.name).replace(/^https?:\/\/(www\.)?/, '').slice(0, 70) : 'Link', sorts: [['-created', 'Newest']],
+    hide: r => r.status === 'Done', hideLabel: 'Show done',
+    sub: r => [r.note, r.added ? relDay(r.added) : ''].filter(Boolean).join(' · '),
+    quick: r => r.status === 'Done' ? null : ({ on: false, label: 'Make a wish', act: () => wishFromInbox(r) })
+  },
   gifts: {
     one: 'gift', many: 'Gifts', facet: 'status', photo: 'photo',
     fields: [F('name', 'Gift'), F('for', 'For'), F('occasion', 'Occasion', 'select', { options: ['Birthday', 'Christmas', 'Sinterklaas', 'Anniversary', "Mother's Day", "Father's Day", 'Graduation', 'Housewarming', 'Baby shower', 'Thank you'], half: 1 }),
@@ -812,6 +837,7 @@ const SECTIONS = [
   { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Habits', P.repeat], ['growth', 'Growth', P.target], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['mindful', 'Mindfulness', P.moon], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['docs', 'Documents', P.doc]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc], ['settings', 'Settings', P.gear]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
+  { key: 'wish', label: 'Wishlists', icon: P.heart, tile: wishTile, views: [['today', 'Overview', P.grid], ['master', 'Master', P.heart], ['inbox', 'Inbox', P.inbox]] },
   { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['feed', 'Feed', P.grid], ['posts', 'Posts', P.phone], ['ideas', 'Ideas', P.star], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
   { key: 'fit', label: 'Fitness', icon: P.dumbbell, tile: fitTile, views: [['today', 'Overview', P.grid], ['workouts', 'Workouts', P.run], ['library', 'Videos', P.star], ['fgoals', 'Goals', P.target], ['plans', 'Plans', P.list], ['exercises', 'Exercises', P.dumbbell], ['body', 'Body', P.scale], ['gear', 'Gear', P.box]] }
 ];
@@ -836,6 +862,9 @@ const PAGES = {
   'social/tasks': { title: 'Tasks', segs: [{ kind: 'tasks' }] },
   'social/projects': { title: 'Projects', segs: [{ kind: 'projects' }] },
   'social/today': { render: socialToday, adds: ['tasks', 'projects', 'posts', 'cideas', 'deals', 'sgoals'] },
+  'wish/today': { render: wishToday, adds: ['wishes', 'winbox'] },
+  'wish/master': { title: 'Master wishlist', segs: [{ kind: 'wishes' }] },
+  'wish/inbox': { title: 'Wishlist inbox', segs: [{ kind: 'winbox' }] },
   'social/posts': { title: 'Posts', segs: [{ kind: 'posts' }] },
   'social/feed': { render: socialFeed, adds: ['posts', 'highlights', 'accounts'] },
   'social/ideas': { title: 'Content ideas', segs: [{ kind: 'cideas' }] },
@@ -1729,6 +1758,46 @@ function mindTop() {
   const days = new Set(ms.map(m => m.date)); let d = days.has(t) ? t : addDays(t, -1), streak = 0; while (days.has(d) && streak < 3650) { streak++; d = addDays(d, -1); }
   return `<div class="tiles lt3">${fTile('This week', String(week.length), plural(week.length, 'session'))}${fTile('Minutes', String(mins), 'of calm this week')}${fTile('Streak', String(streak), streak === 1 ? 'day in a row' : 'days in a row')}</div>`;
 }
+/* ---------- wishlists ----------
+   Every wish in the app, wherever it lives: the master list here plus the wishlists of the closet, beauty,
+   supplements, kitchen gear, fitness gear and the home inventory. Each stays managed on its own page. */
+function allWishes() {
+  const out = [], add = (list, source, page, map) => list.forEach(r => out.push({ source, page, ...map(r) }));
+  const base = r => ({ id: r.id, name: titleOf(r), price: num(r.price) || 0, photo: photoOf(r), since: r.since || r.added || (r.created ? iso(new Date(r.created)) : '') });
+  for (const c of WISH_CATS) add(recs('wishes').filter(w => (w.category || 'Other') === c && !w.archived && !['Bought', 'Dropped'].includes(w.status)), c, 'wish/master', base);
+  add(C.closetWish?.() || [], 'Clothing', 'wishlist', r => ({ id: r.id, name: r.name || 'Piece', price: num(r.price) || 0, photo: r.photo, since: r.since, closet: true }));
+  add(recs('beauty').filter(b => b.wish && !b.archived), 'Beauty', 'care/beauty', base);
+  add(recs('supplements').filter(b => b.wish && !b.finished), 'Supplements', 'care/supplements', base);
+  add(recs('gear').filter(g => !g.own), 'Kitchen', 'kitchen/gear', base);
+  add(recs('fitgear').filter(g => !g.own), 'Fitness', 'fit/gear', base);
+  add(recs('inventory').filter(i => ['Wishlist', 'Ordered'].includes(i.status)), 'Home', 'home/inventory', base);
+  return out;
+}
+function wishTile() {
+  const all = allWishes(), inbox = recs('winbox').filter(r => r.status !== 'Done').length;
+  return tileBody([`<p class="dline"><span>On your wishlists</span><b>${plural(all.length, 'wish', 'wishes')}</b></p>`, `<p class="dline"><span>All together</span><b>${eur(all.reduce((n, w) => n + w.price, 0))}</b></p>`, inbox ? `<p class="dline"><span>Inbox</span><b>${plural(inbox, 'link')} to sort</b></p>` : '']);
+}
+function wishToday(host) {
+  const all = allWishes(), total = all.reduce((n, w) => n + w.price, 0), by = new Map();
+  for (const w of all) { const g = by.get(w.source) || { n: 0, sum: 0 }; g.n++; g.sum += w.price; by.set(w.source, g); }
+  const groups = [...by].sort((a, b) => b[1].sum - a[1].sum), max = Math.max(1, ...groups.map(g => g[1].sum));
+  const old = all.filter(w => w.since).sort((a, b) => a.since.localeCompare(b.since))[0];
+  const f = L.wishFilter || '', shown = (f ? all.filter(w => w.source === f) : all).sort((a, b) => (a.since || '9').localeCompare(b.since || '9'));
+  const inbox = recs('winbox').filter(r => r.status !== 'Done');
+  const wrow = w => `<div class="lrow">${w.photo ? `<button class="lthumb" data-act="${w.closet ? 'openitem' : 'open'}" data-id="${w.id}" tabindex="-1" aria-hidden="true"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(w.photo))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : ''}<button class="lmain" data-act="${w.closet ? 'openitem' : 'open'}" data-id="${w.id}"><b>${esc(w.name)}</b><span>${esc([w.source, w.since ? daysSince(w.since) + ' days on the list' : ''].filter(Boolean).join(' · '))}</span></button><span class="lside">${w.price ? eur(w.price) : ''}</span></div>`;
+  host.innerHTML = `${head('Wishlists')}
+  <div class="tiles lt3">${fTile('Wishes', String(all.length), `on ${plural(groups.length, 'list')}`)}${fTile('All together', fEur0(total), 'for what has a price')}${fTile('Longest wanted', old ? daysSince(old.since) + ' days' : '–', old ? esc(old.name) : 'nothing yet')}</div>
+  <div class="panels">
+    ${panel('Cost per wishlist', groups.length ? `<div class="wbars">${groups.map(([s, g]) => `<button class="wbar ${f === s ? 'on' : ''}" data-act="wishf" data-v="${esc(s)}"><span class="wbl"><b>${esc(s)}</b><small>${plural(g.n, 'wish', 'wishes')}</small></span><span class="wbt"><i style="width:${Math.max(2, 100 * g.sum / max)}%"></i></span><b class="wbv">${fEur0(g.sum)}</b></button>`).join('')}</div>` : quiet('Nothing on your wishlists yet.'))}
+    ${panel('Inbox', `<form class="lqadd" data-winbox><input placeholder="Paste a link to sort later" aria-label="Paste a link"><button class="btn small" type="submit">Add</button></form>${inbox.length ? `<div class="lrows">${inbox.slice(0, 6).map(row).join('')}</div>` : quiet('Nothing to sort.')}`, ['wish/inbox', 'Inbox'])}
+  </div>
+  ${MP(f ? f : 'Every wish', shown.length ? `<div class="lrows">${shown.map(wrow).join('')}</div>` : quiet('Nothing here.'), `${f ? '<button class="chip link" data-act="wishf" data-v="">Show all</button>' : ''}<button class="chip link" data-act="new" data-v="wishes">+ Wish</button>`)}${dataTools()}`;
+}
+function wishFromInbox(r) {
+  const link = /^https?:/.test(r.name || '') ? r.name : '';
+  save(r, { status: 'Done' });
+  openEditor('wishes', null, { name: link ? '' : r.name, url: link, why: r.note || '', status: 'Wish', since: today() });
+}
 // goals per life area at a glance
 function growthTop() {
   const gs = recs('lgoals'), open = gs.filter(g => g.status !== 'Completed'), yr = today().slice(0, 4);
@@ -2144,6 +2213,8 @@ document.addEventListener('click', async e => {
     case 'feedtab': L.feedTab = d.v; C.render(); break;
     case 'feednew': openEditor('posts', null, { platforms: ['Instagram'], stage: 'Planned' }); break;
     case 'feedacc': openEditor('accounts', null, { platform: 'Instagram', active: true }); break;
+    case 'wishf': L.wishFilter = L.wishFilter === d.v ? '' : d.v; C.render(); break;
+    case 'openitem': C.openItem?.(d.id); break;
     case 'hday': { const r = L.byId[d.id]; if (r) toggleDay(r, d.d); break; }
     case 'water': water(Number(d.v)); break;
     case 'watergoal': { const v = prompt('How many glasses a day?', C.prefs().waterGoal || 8); const n = Math.round(Number(v)); if (n > 0 && n < 40) C.savePrefs({ waterGoal: n }).catch(() => C.toast('Could not save. Try again.')); break; }
@@ -2197,6 +2268,12 @@ document.addEventListener('change', e => {
   const page = C.view(); uiOf(page).sort[curSeg(page).key] = t.value; C.render();
 });
 document.addEventListener('submit', e => { if (e.target.matches('[data-qadd]')) { e.preventDefault(); quickAdd(e.target); } });
+document.addEventListener('submit', e => {
+  if (!e.target.matches('[data-winbox]')) return; e.preventDefault();
+  const inp = e.target.querySelector('input'), v = inp.value.trim(); if (!v) return;
+  create('winbox', { name: v, status: 'New', added: today() }).then(() => C.toast('In your inbox')).catch(() => {});
+  inp.value = '';
+});
 
 /* ---------- Finance: envelopes, every purchase, repeats, split my pay, goals, challenges, wait list, settings ---------- */
 const fMode = () => fset().envMode === 'month' ? 'month' : 'pay';
