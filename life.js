@@ -2219,6 +2219,7 @@ document.addEventListener('click', async e => {
     case 'fwset': { const r = L.byId[d.id]; if (r) { save(r, { status: d.v }); C.toast(d.v === 'Let go' ? `${eur(num(r.price) || 0)} not spent` : 'Enjoy it'); } break; }
     case 'fcsv': pickCsv(); break;
     case 'fdups': fDups(); break;
+    case 'fclear': fClear(); break;
     case 'acchist': accHistory(d.id); break;
     case 'fmove': moveMoney(); break;
     case 'feedtab': L.feedTab = d.v; C.render(); break;
@@ -2410,7 +2411,7 @@ function fSettings() {
       ${fld('Next payday', '', `<input class="finp" type="date" data-fset="payday" value="${esc(s.payday || '')}">`)}
       ${fld('Safety buffer', 'Kept back from safe to spend, for surprises.', `<input class="finp" type="number" inputmode="decimal" step="1" data-fset="buffer" value="${s.buffer ?? 100}">`)}`)}
     ${MP('Your accounts', `${accs.length ? `<div class="lrows facclist">${accs.map(accRow).join('')}</div>` : quiet('Add your bank accounts to see balances and safe to spend.')}<p class="lnone">Counts: the account is part of safe to spend. Add the IBAN to an account so bank imports land on it by themselves.</p><div class="dbtns"><button class="btn small" data-act="fcheck">Update balances</button><button class="btn small" data-act="fmove">⇄ Move money</button></div>`, '<button class="chip link" data-act="new" data-v="faccounts">+ Add an account</button>')}
-    ${MP('Import and backup', `<p class="lnone">Bank statements from ING or Rabobank (CSV). Duplicates are skipped, own transfers are recognised and your sort rules pick the categories.</p><div class="dbtns"><button class="btn small primary" data-act="fcsv">Import bank CSV</button><button class="btn small" data-act="import">Import budget backup</button><button class="btn small" data-act="fdups">Find duplicates</button></div><p class="lnone">Imported something twice? Find duplicates keeps one copy of everything and removes the rest.</p>`)}
+    ${MP('Import and backup', `<p class="lnone">Bank statements from ING or Rabobank (CSV). Duplicates are skipped, own transfers are recognised and your sort rules pick the categories.</p><div class="dbtns"><button class="btn small primary" data-act="fcsv">Import bank CSV</button><button class="btn small" data-act="import">Import budget backup</button><button class="btn small" data-act="fdups">Find duplicates</button></div><p class="lnone">Imported something twice? Find duplicates keeps one copy of everything and removes the rest.</p><div class="dbtns"><button class="btn small danger" data-act="fclear">Clear all finance data</button></div><p class="lnone">Removes everything in Finance so you can import again from scratch.</p>`)}
     ${MP('Categories', list('fcats', 'No categories yet.', '+ Category') + '<p class="lnone">Open one to set its budget, let it roll over, or mark it as not spending.</p>')}
     ${MP('Sort rules', list('frules', 'No rules yet. A rule puts every purchase whose name contains a word in a category.', '+ Sort rule'))}
     ${MP('Quick adds', list('fchips', 'No quick adds yet.', '+ Quick add'))}
@@ -2506,6 +2507,26 @@ async function fDups() {
     L.all = L.all.filter(r => !gone.has(r.id)).map(r => ch.has(r.id) ? { ...ch.get(r.id).data, id: r.id, kind: r.kind } : r);
     index(); cacheSave(); C.closeSheet(); C.render();
     C.undoPush?.(`Removed ${plural(ids.length, 'duplicate')}`, () => putMany(old, null, 'restore'), true);
+  };
+}
+// start over: removes every money record (accounts, plan, purchases, money in, repeats, settings), in one step you can undo
+function fClear() {
+  const all = L.all.filter(r => FIN_KINDS.includes(r.kind));
+  if (!all.length) { C.toast('There is no finance data to clear.'); return; }
+  const per = FIN_KINDS.map(k => [k, all.filter(r => r.kind === k).length]).filter(([, n]) => n);
+  const sh = C.sheet({ title: 'Clear all finance data', body: `<p class="lnone">This removes everything in Finance, so you can import your backup again from scratch. The rest of the app stays as it is.</p>
+    <div class="lrows">${per.map(([k, n]) => `<div class="lrow"><span class="lmain"><b>${esc(KINDS[k].many)}</b></span><span class="lside">${n}</span></div>`).join('')}</div>
+    <div class="field"><label for="fclr">Type CLEAR to confirm</label><input id="fclr" autocomplete="off" autocapitalize="characters" placeholder="CLEAR"></div>
+    <p class="lnone">You can undo this right after, from the message at the bottom or Settings › Undo.</p>`,
+    foot: `<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary danger" data-go disabled>Delete ${plural(all.length, 'record')}</button>` });
+  const go = sh.querySelector('[data-go]'), inp = sh.querySelector('#fclr');
+  inp.addEventListener('input', () => { go.disabled = inp.value.trim().toUpperCase() !== 'CLEAR'; });
+  go.onclick = async () => {
+    go.disabled = true; const msg = sh.querySelector('[data-msg]'), ids = all.map(r => r.id), old = all.map(r => ({ id: r.id, kind: r.kind, data: dataOf(r) }));
+    try { for (let i = 0; i < ids.length; i += 200) { msg.textContent = `Deleting ${Math.min(ids.length, i + 200)} of ${ids.length}…`; const { error } = await C.sb.from('records').delete().in('id', ids.slice(i, i + 200)); if (error) throw error; } }
+    catch (e) { console.error(e); msg.textContent = ''; go.disabled = false; C.toast('Could not delete everything. Reload and try again.'); return; }
+    const gone = new Set(ids); L.all = L.all.filter(r => !gone.has(r.id)); index(); cacheSave(); C.closeSheet(); C.render();
+    C.undoPush?.(`Cleared all finance data (${plural(ids.length, 'record')})`, () => putMany(old, null, 'restore'), true);
   };
 }
 async function saveFset(patch) { const r = recs('fset')[0]; try { r ? await put('fset', r.id, { ...dataOf(r), ...patch }) : await create('fset', patch); } catch {} }
