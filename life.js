@@ -129,6 +129,10 @@ function toggleDay(r, d = today()) {
   return save(r, { days: [...s].sort().slice(-500) });
 }
 const routineNow = () => { const want = new Date().getHours() >= 15 ? 'Evening' : 'Morning'; return { label: want, list: recs('routines').filter(r => r.routine === want).sort((a, b) => (a.created || 0) - (b.created || 0) || norm(a.name).localeCompare(norm(b.name))) }; };
+// growth: the life areas from your Notion dashboard
+const AREAS = ['Health & Nutrition', 'Fitness', 'Mindset', 'Growth', 'Career', 'Finances', 'Home', 'Organization', 'Relationship', 'Family', 'Social', 'Creativity', 'Leisure', 'Lifestyle', 'Spirituality', 'Digital Life'];
+const goalTasks = g => recs('tasks').filter(t => [].concat(t.goal || []).includes(g.id));
+const goalPct = g => { if (g.status === 'Completed') return 100; const ts = goalTasks(g); return ts.length ? Math.round(100 * ts.filter(t => t.status === 'Completed').length / ts.length) : (num(g.progress) || 0); };
 // tile sets for savings challenges
 const GRID_PRESETS = { '100 envelopes (€1 to €100)': () => Array.from({ length: 100 }, (_, i) => i + 1), '52 weeks (€1 to €52)': () => Array.from({ length: 52 }, (_, i) => i + 1), '€5 a day for 30 days': () => Array(30).fill(5), '€10 to €100 (20 tiles)': () => Array.from({ length: 20 }, (_, i) => 10 + Math.round(i * 90 / 19 / 5) * 5) };
 const WEEK = [['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'], ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']];
@@ -575,7 +579,7 @@ const KINDS = {
   tasks: {
     one: 'task', many: 'Tasks', facet: 'category',
     fields: [F('name', 'Task'), F('date', 'Due', 'date', { half: 1 }), F('status', 'Status', 'select', { options: TASK_STATUS, half: 1 }),
-      F('category', 'Category', 'select', { options: TASK_CATS, half: 1 }), F('project', 'Project', 'rel', { to: 'projects', half: 1 }), F('notes', 'Notes', 'long')],
+      F('category', 'Category', 'select', { options: TASK_CATS, half: 1 }), F('project', 'Project', 'rel', { to: 'projects', half: 1 }), F('goal', 'Goal', 'rel', { to: 'lgoals', half: 1 }), F('notes', 'Notes', 'long')],
     sorts: [['date', 'Due first'], ['name', 'A to Z'], ['-created', 'Newest']],
     filters: [['open', 'To do'], ['today', 'Today'], ['late', 'Overdue'], ['done', 'Done']],
     filter: (r, f) => f === 'done' ? taskDone(r) : taskDone(r) ? false : f === 'today' ? r.date === today() : f === 'late' ? !!r.date && r.date < today() : true,
@@ -595,7 +599,7 @@ const KINDS = {
   /* life: habits, routines, gifts and documents */
   habits: {
     one: 'habit', many: 'Habits',
-    fields: [F('name', 'Habit'), F('per', 'Times a week', 'num', { half: 1 }), F('area', 'Area', 'select', { options: TASK_CATS, half: 1 }),
+    fields: [F('name', 'Habit'), F('per', 'Times a week', 'num', { half: 1 }), F('area', 'Area', 'select', { options: TASK_CATS, half: 1 }), F('goal', 'Goal', 'rel', { to: 'lgoals', half: 1 }),
       F('why', 'Why it matters', 'long'), F('paused', 'Paused', 'check')],
     sorts: [['name', 'A to Z'], ['-created', 'Newest']],
     hide: r => !!r.paused, hideLabel: 'Show paused',
@@ -609,6 +613,38 @@ const KINDS = {
     sorts: [['routine', 'By routine'], ['name', 'A to Z']],
     sub: r => [r.routine, r.freq, r.notes].filter(Boolean).join(' · '),
     quick: r => ({ on: routineDone(r), label: r.routine === 'Weekly' ? 'This week' : r.routine === 'Monthly' ? 'This month' : 'Today', act: () => toggleDay(r) })
+  },
+  lgoals: {
+    one: 'goal', many: 'Goals', facet: 'area',
+    fields: [F('name', 'Goal'), F('area', 'Life area', 'select', { options: AREAS, half: 1 }), F('term', 'Term', 'select', { options: ['Short term', 'Middle term', 'Long term'], half: 1 }),
+      F('status', 'Status', 'select', { options: TASK_STATUS, half: 1 }), F('progress', 'Progress % (when it has no tasks)', 'num', { half: 1 }),
+      F('start', 'Start', 'date', { half: 1 }), F('due', 'Deadline', 'date', { half: 1 }), F('why', 'Why it matters', 'long'), F('notes', 'Notes', 'long')],
+    sorts: [['due', 'Deadline first'], ['name', 'A to Z'], ['-created', 'Newest']],
+    filters: [['open', 'Active'], ['done', 'Completed'], ['all', 'All']],
+    filter: (r, f) => f === 'done' ? r.status === 'Completed' : f === 'open' ? r.status !== 'Completed' : true,
+    sub: r => { const ts = goalTasks(r), hs = recs('habits').filter(h => [].concat(h.goal || []).includes(r.id)); return [r.area, r.term, ts.length ? `${ts.filter(t => t.status === 'Completed').length} of ${ts.length} tasks` : '', hs.length ? plural(hs.length, 'habit') : '', r.due && r.status !== 'Completed' ? 'due ' + shortDate(r.due) : ''].filter(Boolean).join(' · '); },
+    side: r => goalPct(r) + '%',
+    quick: r => ({ on: r.status === 'Completed', label: 'Done', act: () => save(r, { status: r.status === 'Completed' ? 'In progress' : 'Completed' }) })
+  },
+  courses: {
+    one: 'course', many: 'Courses', facet: 'status', photo: 'photo',
+    fields: [F('name', 'Course'), F('status', 'Status', 'select', { options: TASK_STATUS, half: 1 }), F('category', 'Category', 'select', { options: ['AI', 'Business', 'Marketing', 'Design', 'Language', 'Economics', 'Health', 'Creative'], half: 1 }),
+      F('platform', 'Platform', 'select', { options: ['Udemy', 'Coursera', 'LinkedIn Learning', 'FutureLearn', 'Skillshare', 'YouTube', 'In person'], half: 1 }), F('institution', 'Institution', 'text', { half: 1 }),
+      F('total', 'Modules', 'num', { half: 1 }), F('done', 'Modules done', 'num', { half: 1 }), F('start', 'Started', 'date', { half: 1 }), F('cost', 'Cost', 'money', { half: 1 }),
+      F('goal', 'Goal', 'rel', { to: 'lgoals', half: 1 }), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
+    sorts: [['status', 'By status'], ['name', 'A to Z']],
+    hide: r => r.status === 'Completed', hideLabel: 'Show completed',
+    sub: r => [r.platform || r.institution, num(r.total) ? `${num(r.done) || 0} of ${num(r.total)} modules` : '', eur(num(r.cost))].filter(Boolean).join(' · '),
+    side: r => num(r.total) ? Math.round(100 * (num(r.done) || 0) / num(r.total)) + '%' : '',
+    quick: r => num(r.total) && r.status !== 'Completed' ? ({ on: false, label: '+1 module', act: () => { const d = Math.min(num(r.total), (num(r.done) || 0) + 1); save(r, { done: d, status: d >= num(r.total) ? 'Completed' : 'In progress' }); } }) : null
+  },
+  hobbies: {
+    one: 'hobby', ones: 'hobbies', many: 'Hobbies', facet: 'type', photo: 'photo',
+    fields: [F('name', 'Hobby'), F('type', 'Type', 'multi', { options: ['Creative', 'Physical', 'Social', 'Learning', 'Outdoor', 'Relaxation'], half: 1 }),
+      F('level', 'Skill level', 'select', { options: ['Want to try', 'Beginner', 'Intermediate', 'Advanced'], half: 1 }), F('time', 'Time it takes', 'text', { half: 1 }), F('start', 'Started', 'date', { half: 1 }),
+      F('needs', 'What I need', 'long'), F('ideas', 'Ideas and projects', 'long'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
+    sorts: [['name', 'A to Z'], ['-created', 'Newest']],
+    sub: r => [[].concat(r.type || []).join(', '), r.level, r.time].filter(Boolean).join(' · ')
   },
   gifts: {
     one: 'gift', many: 'Gifts', facet: 'status', photo: 'photo',
@@ -723,7 +759,7 @@ function fitTile() {
 /* ---------- sections and their pages ---------- */
 const SECTIONS = [
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile, views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book], ['meals', 'Meal plan', P.calendar], ['groceries', 'Groceries', P.cart], ['pantry', 'Pantry', P.jar], ['gear', 'Gear', P.spoon]] },
-  { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Habits', P.repeat], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['docs', 'Documents', P.doc]] },
+  { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Habits', P.repeat], ['growth', 'Growth', P.target], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['docs', 'Documents', P.doc]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc], ['settings', 'Settings', P.gear]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
   { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['feed', 'Feed', P.grid], ['posts', 'Posts', P.phone], ['ideas', 'Ideas', P.star], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
@@ -736,7 +772,7 @@ const PAGES = {
   'kitchen/groceries': { title: 'Groceries', segs: [{ key: 'list', label: 'Shopping list', kind: 'ingredients', fill: groceryFill, tools: false }] },
   'kitchen/pantry': { title: 'Pantry', segs: [{ kind: 'ingredients' }] },
   'kitchen/gear': { title: 'Kitchen gear', segs: [{ kind: 'gear' }] },
-  'care/today': { render: careToday, adds: ['habits', 'routines', 'journal', 'sleep', 'beauty', 'supplements', 'appts', 'symptoms', 'meditation', 'ideas', 'gifts', 'documents'] },
+  'care/today': { render: careToday, adds: ['lgoals', 'courses', 'hobbies', 'habits', 'routines', 'journal', 'sleep', 'beauty', 'supplements', 'appts', 'symptoms', 'meditation', 'ideas', 'gifts', 'documents'] },
   'care/beauty': { title: 'Beauty', segs: [{ kind: 'beauty' }, { kind: 'bsched', label: 'Week schedule' }] },
   'care/supplements': { title: 'Supplements', segs: [{ kind: 'supplements' }, { kind: 'suplog' }] },
   'care/cycle': { title: 'Cycle', segs: [{ kind: 'cycles', label: 'Periods', top: cycleTop }] },
@@ -744,6 +780,7 @@ const PAGES = {
   'care/ideas': { title: 'Ideas', segs: [{ kind: 'ideas' }] },
   'care/habits': { title: 'Habits', segs: [{ kind: 'habits', top: habitWeek }, { kind: 'routines' }] },
   'care/gifts': { title: 'Gifts', segs: [{ kind: 'gifts' }] },
+  'care/growth': { title: 'Growth', segs: [{ kind: 'lgoals', top: growthTop }, { kind: 'courses' }, { kind: 'hobbies' }] },
   'care/docs': { title: 'Documents', segs: [{ kind: 'documents' }] },
   'social/tasks': { title: 'Tasks', segs: [{ kind: 'tasks' }] },
   'social/projects': { title: 'Projects', segs: [{ kind: 'projects' }] },
@@ -1532,6 +1569,7 @@ function careToday(host) {
   host.innerHTML = `${head('Life')}
   <div class="panels">
     ${panel('Routines', rts.length ? ROUTINES.map(k => rslot(k, rts.filter(r => r.routine === k))).join('') + rslot('Other', rts.filter(r => !ROUTINES.includes(r.routine))) : `${quiet('Add the steps of your morning and evening routine and tick them off here.')}<button class="btn small" data-act="new" data-v="routines">Add a step</button>`, ['care/habits', 'All routines'])}
+    ${recs('lgoals').some(g => g.status !== 'Completed') ? panel('Goals', `<div class="lrows">${recs('lgoals').filter(g => g.status !== 'Completed').sort((a, b) => (a.due || '9').localeCompare(b.due || '9')).slice(0, 4).map(g => `<div class="lrow"><button class="lmain" data-act="open" data-id="${g.id}"><b>${esc(g.name || 'Goal')}</b><span>${esc(KINDS.lgoals.sub(g))}</span><span class="lprog"><i style="width:${goalPct(g)}%"></i></span></button><span class="lside">${goalPct(g)}%</span></div>`).join('')}</div>`, ['care/growth', 'All goals']) : ''}
     ${panel('Habits today', habits.length ? `<div class="lwrap">${habits.map(h => tick(h.name, daysSet(h).has(t), `data-act="quick" data-id="${h.id}"`)).join('')}</div>` : `${quiet('Track a habit and build a streak.')}<button class="btn small" data-act="new" data-v="habits">Add a habit</button>`, ['care/habits', 'This week'])}
     ${panel('Water', `<div class="lwater"><button class="iconbtn" data-act="water" data-v="-1" aria-label="One glass less" ${glasses ? '' : 'disabled'}>${svg(P.minus)}</button><div class="lwv"><b>${glasses}</b><span>of ${goal} glasses</span></div><button class="iconbtn lplus" data-act="water" data-v="1" aria-label="One more glass">${svg(P.plus)}</button></div><div class="meter" aria-hidden="true"><div style="width:${Math.min(100, glasses / goal * 100)}%"></div></div><button class="chip link lgoal" data-act="watergoal">Daily goal: ${goal}</button>`)}
     ${panel('Supplements today', sups.length ? times.map(tm => `<div class="lslot"><span class="rowlbl">${tm}</span>${sups.filter(s => [].concat(s.times?.length ? s.times : ['AM']).includes(tm)).map(s => { const on = taken.some(l => l.supplement === s.id && (l.time || 'AM') === tm); return tick(s.name, on, `data-act="supp" data-id="${s.id}" data-t="${tm}"`); }).join('')}</div>`).join('') : quiet('Add your supplements and tick them off here each day.'), ['care/supplements', 'All supplements'])}
@@ -1625,6 +1663,14 @@ function feedDrag(host) {
   FD.cancel = () => end(false);
   host.addEventListener('keydown', e => { const t = e.target.closest?.('[data-feedid]'); if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openRecord(t.dataset.feedid); } });
   const far = (s, e) => Math.hypot(e.clientX - s.x, e.clientY - s.y) > 8;
+}
+// goals per life area at a glance
+function growthTop() {
+  const gs = recs('lgoals'), open = gs.filter(g => g.status !== 'Completed'), yr = today().slice(0, 4);
+  const soon = open.filter(g => g.due && g.due <= addDays(today(), 30)).length;
+  const areas = AREAS.map(a => [a, open.filter(g => g.area === a)]).filter(([, l]) => l.length);
+  return `<div class="tiles lt3">${fTile('Active goals', String(open.length), areas.length ? `in ${plural(areas.length, 'life area')}` : 'set one per life area')}${fTile('Done', String(gs.filter(g => g.status === 'Completed' && (g.due || '').startsWith(yr) || g.status === 'Completed' && !g.due).length), 'completed goals')}${fTile('Due within 30 days', String(soon), soon ? 'keep going' : 'nothing urgent')}</div>
+  ${areas.length ? `<div class="gareas">${areas.map(([a, l]) => `<div class="garea"><b>${esc(a)}</b><div class="fbar"><i style="width:${Math.round(l.reduce((n, g) => n + goalPct(g), 0) / l.length)}%"></i></div><span>${plural(l.length, 'goal')} · ${Math.round(l.reduce((n, g) => n + goalPct(g), 0) / l.length)}%</span></div>`).join('')}</div>` : ''}`;
 }
 // this week's habits as a grid: tap a day to tick it (or untick it)
 function habitWeek() {

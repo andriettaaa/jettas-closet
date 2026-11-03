@@ -436,3 +436,8 @@ header.top .brand { flex: none; white-space: nowrap; }
 .igtile:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
 .ighost { position: fixed; z-index: 100; pointer-events: none; box-shadow: 0 12px 30px rgba(0, 0, 0, .3); transform: scale(1.05); border-radius: 6px; opacity: .95; }
 @media (max-width: 560px) { .igphone { border-radius: 0; border-left: 0; border-right: 0; margin: 0 -16px; max-width: none; } .igav { width: 72px; height: 72px; } }
+/* growth: goals per life area */
+.gareas { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.garea { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 6px; }
+.garea b { font-size: 14px; }
+.garea span { font-size: 12.5px; color: var(--muted); }
