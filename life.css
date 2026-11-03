@@ -470,3 +470,30 @@ header.top .brand { flex: none; white-space: nowrap; }
 .wtp { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
 /* section settings: the section's own panels span the full width */
 .setpanels > .secown { grid-column: 1 / -1; display: grid; gap: 16px; }
+/* charts: inline SVG in the app palette; grid and axes stay quiet, text wears text colours */
+.vcols { display: block; overflow: visible; margin-top: 8px; }
+.vcols .vgrid { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 3; }
+.vcols .vaxis { stroke: var(--line); stroke-width: 1; }
+.vcols .vbase { fill: var(--surface); }
+.vcols .vtick, .vcols .vlab { font-family: var(--mono); font-size: 10px; fill: var(--muted); }
+.vcols .vlab { text-transform: uppercase; }
+.vcols .vhit { fill: transparent; }
+.vcols .vcol:hover .vhit { fill: color-mix(in srgb, var(--ink) 6%, transparent); }
+.vcols .mlegend { margin: 0; }
+.lpanel > .mlegend { margin: 0; }
+.vhbars { display: grid; gap: 8px; }
+.vhrow { display: grid; grid-template-columns: minmax(96px, 34%) minmax(0, 1fr) auto; gap: 10px; align-items: center; min-width: 0; }
+.vhrow svg { display: block; }
+.vhl { display: grid; min-width: 0; font-size: 13.5px; }
+.vhl b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vhl small { color: var(--muted); font-size: 11.5px; }
+.vhv { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; font-weight: 400; }
+.vtable { font-size: 13.5px; }
+.vtable summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 4px 0; }
+.vtable[open] summary { margin-bottom: 6px; }
+.vsplit { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 28px; align-items: start; }
+.vsplit > div { display: grid; gap: 12px; min-width: 0; }
+.wrow2 { margin-top: 16px; }
+.wrow2 > .panel { margin: 0; }
+@media (max-width: 640px) { .vsplit { grid-template-columns: 1fr; } .vhrow { grid-template-columns: minmax(84px, 38%) minmax(0, 1fr) auto; gap: 8px; } }
+.vcols .vtick { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }

@@ -147,6 +147,9 @@ function doVideo(v) {
   if (v.url) window.open(v.url, '_blank', 'noopener');
 }
 // wishlists: one place for every wish in the app
+const WISH_PRIO = ['Must have', 'Want', 'Someday'];
+// older priorities (High/Medium/Low, and the home inventory's own list) read as one of the three
+const wishPrio = v => ({ High: 'Must have', 'Must have': 'Must have', 'Must-have': 'Must have', Medium: 'Want', Want: 'Want', 'Binnen 3 maanden': 'Want', Handig: 'Want', Low: 'Someday', Someday: 'Someday', 'Kan later': 'Someday' })[v] || '';
 const WISH_CATS = ['Tech', 'Books', 'Home', 'Kitchen', 'Beauty', 'Clothing', 'Fitness', 'Hobby', 'Travel', 'Other'];
 const daysSince = d => d ? Math.max(0, diffDays(String(d).slice(0, 10), today())) : null;
 // tile sets for savings challenges
@@ -703,7 +706,7 @@ const KINDS = {
     one: 'wish', ones: 'wishes', many: 'Master wishlist', facet: 'category', photo: 'photo', display: 'cards',
     fields: [F('name', 'Item'), F('category', 'Wishlist', 'select', { options: WISH_CATS, half: 1 }), F('type', 'Type', 'text', { half: 1 }),
       F('brand', 'Brand', 'text', { half: 1 }), F('shop', 'Shop', 'text', { half: 1 }), F('price', 'Price', 'money', { half: 1 }), F('color', 'Colour', 'text', { half: 1 }),
-      F('priority', 'Priority', 'select', { options: ['High', 'Medium', 'Low'], half: 1 }), F('status', 'Status', 'select', { options: ['Wish', 'Ordered', 'Bought', 'Dropped'], half: 1 }),
+      F('priority', 'Priority', 'select', { options: WISH_PRIO, half: 1 }), F('status', 'Status', 'select', { options: ['Wish', 'Ordered', 'Bought', 'Dropped'], half: 1 }),
       F('since', 'On the list since', 'date', { half: 1 }), F('by', 'Want it by', 'date', { half: 1 }), F('url', 'Link', 'url'),
       F('why', 'Why do I want this?', 'long'), F('specs', 'Specifications', 'long'), F('fav', 'Favourite', 'check', { half: 1 }), F('archived', 'Archived', 'check', { half: 1 }), F('photo', 'Photo', 'photo')],
     sorts: [['-created', 'Newest'], ['since', 'Longest on the list'], ['-price', 'Priciest'], ['price', 'Cheapest'], ['name', 'A to Z']],
@@ -932,8 +935,19 @@ function applyRule(kind, id, data) {
 }
 // what to say in the undo list
 const undoName = (kind, d) => { const K = KINDS[kind]; const t = K ? ((K.title ? K.title({ ...d, kind }) : d.name) || K.one) : 'item'; return String(t).slice(0, 40); };
+// what is still a wish, per kind; when a record stops being one, it gets a stamp: bought or let go, and when
+const WISHY = { wishes: r => !r.archived && !['Bought', 'Dropped'].includes(r.status), beauty: r => !!r.wish && !r.archived, supplements: r => !!r.wish && !r.finished,
+  gear: r => !r.own, fitgear: r => !r.own, inventory: r => ['Wishlist', 'Ordered'].includes(r.status) };
+function stampWish(kind, id, data) {
+  const w = WISHY[kind], was = L.byId[id]; if (!w || !was) return data;
+  const before = w(was), now = w(data);
+  if (!before && now && data.wishOut) { const { wishOut, wishOutOn, ...rest } = data; return rest; }
+  if (!before || now || data.wishOut) return data;
+  const dropped = kind === 'wishes' ? data.status === 'Dropped' || (data.archived && data.status !== 'Bought') : kind === 'inventory' ? ['Returned', 'Gone'].includes(data.status) : kind === 'beauty' || kind === 'supplements' ? !!data.wish : false;
+  return { ...data, wishOut: dropped ? 'dropped' : 'bought', wishOutOn: today() };
+}
 async function put(kind, id, data) {
-  data = applyRule(kind, id, data);
+  data = stampWish(kind, id, applyRule(kind, id, data));
   const before = L.byId[id] ? { ...L.byId[id] } : null;
   if (!L.batch) C.undoPush?.(`${before ? 'Changed' : 'Added'} ${undoName(kind, data)}`, () => before ? put(kind, id, dataOf(before)) : del(id));
   apply(id, kind, data);
@@ -1495,7 +1509,7 @@ function moneyToday(host) {
   if (!recs('faccounts').length) { host.innerHTML = `${head('Money')}<div class="panels">${panel('Start here', `${quiet('Import your Budget Planner backup, or add your accounts and check your balances.')}<button class="btn small" data-act="new" data-v="faccounts">Add an account</button>`)}</div>`; return; }
   const st = fState(), t = st.t, s = fset(), hr = new Date().getHours();
   const tx = recs('ftx'), every = tx.filter(fEveryday);
-  const payTx = every.filter(x => x.date >= st.start && x.date <= t), spentPay = fSum(payTx);
+  const payTx = every.filter(x => x.date >= st.start && x.date <= t), spentPay = fSum(payTx), spendPay = spentPay;
   const envelopes = fSum(recs('fcats'), 'budget');
   const nextBill = st.due.find(o => o.date >= t);
   const [whole, cents] = Math.abs(st.perDay).toFixed(2).split('.');
@@ -1555,12 +1569,30 @@ function moneyToday(host) {
     ${tile('Net worth', fSigned(owned - owed), `${eur(owned)} owned, ${eur(owed)} owed`)}${tile('Debt-free', owed > 0.5 ? 'Not yet' : 'Yes', owed > 0.5 ? `${eur(owed)} to go` : 'Nothing owed')}
 </div>`;
   /* everyday spending this pay */
-  const byCat = recs('fcats').map(c => ({ c, s: fSum(payTx.filter(x => x.category === c.id)), b: num(c.budget) || 0 })).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
-  const bars = byCat.length ? `<div class="mbars">${byCat.map(({ c, s, b }) => `<button class="mbar ${b && s > b ? 'over' : ''}" data-act="open" data-id="${c.id}"><span class="mbl"><span>${esc(titleOf(c))}</span><b>${eur(s)}${b ? `<small> / ${fEur0(b)}</small>` : ''}</b></span><span class="lprog"><i style="width:${b ? Math.min(100, 100 * s / b) : 100}%"></i></span></button>`).join('')}</div>` : quiet('Nothing spent this pay yet.');
+  /* spending per category this pay: donut and a table of budget, spent and left (money moved to savings left out) */
+  const spendCats = recs('fcats').filter(c => !c.nospend).map(c => ({ c, s: fSum(payTx.filter(x => x.category === c.id)), b: num(c.budget) || 0 })).filter(x => x.s > 0 || x.b > 0).sort((a, b) => b.s - a.s || b.b - a.b);
+  const unsorted = fSum(payTx.filter(x => !x.category || !L.byId[x.category]));
+  const catBtn = c => `<button data-act="open" data-id="${c.id}">${esc(titleOf(c))}</button>`;
+  const bars = spendPay > 0 || spendCats.length ? `<div class="vsplit"><div>${vDonut([...spendCats.map(({ c, s }) => ({ label: titleOf(c), v: s })), ...(unsorted ? [{ label: 'Not sorted', v: unsorted, none: true }] : [])], { unit: 'this pay', empty: 'Nothing spent this pay yet.' })}</div>
+    <div>${lTbl(['Category', 'Budget', 'Spent', 'Left'], [...spendCats.map(({ c, s, b }) => [catBtn(c), b ? fEur0(b) : '–', eur(s), b ? `<span class="${s > b ? 'mneg' : ''}">${fSigned(b - s)}</span>` : '–']), ...(unsorted ? [['Not sorted', '–', eur(unsorted), '–']] : [])], ['All', fEur0(fSum(spendCats.map(x => ({ amount: x.b })))), eur(spendPay), (() => { const B = spendCats.reduce((n, x) => n + x.b, 0); return B ? `<span class="${spendPay > B ? 'mneg' : ''}">${fSigned(B - spendPay)}</span>` : '–'; })()])}</div></div>` : quiet('Nothing spent this pay yet.');
+  /* month by month: money in against money out, own transfers and moved money left out */
+  const mm = lastMonths(12).map(m => ({ ...m, in: 0, out: 0 }));
+  for (const x of tx) { if (x.transfer || fMoved(x)) continue; const m = mm.find(y => y.key === (x.date || '').slice(0, 7)); if (m) m.out += num(x.amount) || 0; }
+  for (const i of recs('fincome')) { if (i.transfer || i.confirmed === false) continue; const m = mm.find(y => y.key === (i.date || '').slice(0, 7)); if (m) m.in += num(i.amount) || 0; }
+  const IO = [{ k: 'in', label: 'Money in', color: 'var(--c2)' }, { k: 'out', label: 'Money out', color: 'var(--c1)' }];
+  const yIn = mm.reduce((n, m) => n + m.in, 0), yOut = mm.reduce((n, m) => n + m.out, 0);
+  const monthly = mm.some(m => m.in || m.out) ? `${vCols(mm, IO)}<p class="mmuted">12 months: <b>${fEur0(yIn)}</b> in, <b>${fEur0(yOut)}</b> out · <b class="${yIn - yOut < 0 ? 'mneg' : 'mgood'}">${fSigned(yIn - yOut)}</b> left over.</p>
+    ${asTable(lTbl(['Month', 'In', 'Out', 'Left'], mm.slice().reverse().map(m => [`${m.label} ${m.title}`, eur(m.in), eur(m.out), `<span class="${m.in - m.out < 0 ? 'mneg' : ''}">${fSigned(m.in - m.out)}</span>`]), ['12 months', eur(yIn), eur(yOut), fSigned(yIn - yOut)]))}` : quiet('Money in and out shows up here month by month.');
+  /* biggest spending this pay: the largest purchases and the shops where most goes */
+  const big = payTx.filter(x => num(x.amount) > 0).sort((a, b) => num(b.amount) - num(a.amount)).slice(0, 8);
+  const shopMap = new Map(); for (const x of payTx) { const k = norm(x.name || ''); if (!k) continue; const g = shopMap.get(k) || { label: x.name, n: 0, v: 0 }; g.n++; g.v += num(x.amount) || 0; shopMap.set(k, g); }
+  const shopsTop = [...shopMap.values()].sort((a, b) => b.v - a.v).slice(0, 8);
+  const biggest = big.length ? `<div class="vsplit"><div><p class="dsub">Largest purchases</p>${lTbl(['What', 'Date', 'Amount'], big.map(x => [`<button data-act="open" data-id="${x.id}">${esc(x.name || 'Purchase')}</button>${x.category && L.byId[x.category] ? `<br><small class="lnone">${esc(relName(x.category))}</small>` : ''}`, esc(shortDate(x.date)), eur(num(x.amount))]))}</div>
+    <div><p class="dsub">Where the most goes</p>${vHBars(shopsTop.map(g => ({ label: g.label, v: g.v, sub: plural(g.n, 'time') })), { color: 'var(--c6)' })}</div></div>` : quiet('Nothing spent this pay yet.');
   const recent = every.filter(x => x.date <= t).sort((a, b) => (b.date + fSeq(b)).localeCompare(a.date + fSeq(a))).slice(0, 2);
   const chipRow = `<div class="mchips">${recent.map(x => `<button class="chip mrecent" data-act="frepeat" data-id="${x.id}">${esc(x.name || 'Again')} ${eur(num(x.amount))}</button>`).join('')}${chips.map(c => `<button class="chip" data-act="fchip" data-id="${c.id}">${esc(titleOf(c))} ${eur(num(c.amount))}</button>`).join('')}</div>`;
   const pts = fProject(st, 30).pts, low = pts.reduce((m, p) => p.v < m.v ? p : m, pts[0]);
-  const jump = [['m-safe', 'Safe to spend'], ['m-look', 'Worth a look'], ['m-wins', 'Small wins'], ['m-next', 'Next 30 days'], ['m-pay', 'Payments coming'], ['m-days', 'Every day this month'], ['m-went', 'Where the money went'], ['m-net', 'Goals, debt, net worth']];
+  const jump = [['m-safe', 'Safe to spend'], ['m-look', 'Worth a look'], ['m-wins', 'Small wins'], ['m-next', 'Next 30 days'], ['m-pay', 'Payments coming'], ['m-days', 'Every day this month'], ['m-went', 'Where the money went'], ['m-net', 'Goals, debt, net worth'], ['m-cats', 'Per category'], ['m-months', 'Month by month'], ['m-big', 'Biggest spending']];
   host.innerHTML = `<div class="viewhead dviewhead"><h1>${hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'}</h1><span class="sub">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span><div class="spacer"></div><button class="btn small" data-act="fcheck">Check my money</button><button class="btn small primary" data-act="new" data-v="ftx">+ Add spending</button></div>
   <nav class="mjump" aria-label="On this page">${jump.map(([id, l]) => `<button class="chip" data-jump="${id}">${l}</button>`).join('')}</nav>
   <div class="mtop">${safe}${MP('Small wins', `${wins.join('')}<p class="lnone">${nWin ? `${nWin} down. That counts.` : 'Start with one.'}</p>`, `<span class="lnone">${nWin} of 3</span>`, 'wins')}</div>
@@ -1571,7 +1603,9 @@ function moneyToday(host) {
   <div class="mrow2">${MP('Every day this month', heat, `<span class="lnone">${eur(monthSpend / Math.max(1, past.length))} a day so far</span>`, 'days')}${MP('Where the money went', went, mLink('Purchases', 'money/spending'), 'went')}</div>
   <div class="mrow2">${MP('Run to payday', run, `<span class="lnone">${st.pay ? plural(st.days, 'day') + ' left' : ''}</span>`)}${MP('Last 7 days', last7, `<span class="lnone">${esc(shortDate(w0))} – ${esc(shortDate(t))}</span>`)}</div>
   ${tiles}
-  ${MP('Everyday spending this pay', bars + chipRow, mLink('Open spending', 'money/spending'))}
+  ${MP('Spending per category', bars + chipRow, mLink('Open spending', 'money/spending'), 'cats')}
+  ${MP('Month by month', monthly, `<span class="lnone">money in and out, own transfers left out</span>`, 'months')}
+  ${MP('Biggest spending', biggest, `<span class="lnone">this pay · ${esc(shortDate(st.start))} – ${esc(shortDate(t))}</span>`, 'big')}
   `;
   if (!host.dataset.mwired) { host.dataset.mwired = '1'; host.addEventListener('click', e => { const j = e.target.closest('[data-jump]'); if (j) { e.preventDefault(); e.stopPropagation(); document.getElementById(j.dataset.jump)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }, true); }
 }
@@ -1777,14 +1811,63 @@ function mindTop() {
   const days = new Set(ms.map(m => m.date)); let d = days.has(t) ? t : addDays(t, -1), streak = 0; while (days.has(d) && streak < 3650) { streak++; d = addDays(d, -1); }
   return `<div class="tiles lt3">${fTile('This week', String(week.length), plural(week.length, 'session'))}${fTile('Minutes', String(mins), 'of calm this week')}${fTile('Streak', String(streak), streak === 1 ? 'day in a row' : 'days in a row')}</div>`;
 }
+/* ---------- charts ----------
+   Inline SVG in the app's own palette (--c1 … --c8, checked for colour blindness in light and dark). Every chart
+   carries a legend or direct labels and a table, so colour never works alone. Hover a mark to see its numbers. */
+const CS = [1, 2, 3, 4, 5, 6, 7].map(n => `var(--c${n})`);
+const lTbl = (head, rows, foot) => `<div class="tblwrap"><table class="tbl"><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>${foot ? `<tfoot><tr>${foot.map(c => `<td>${c}</td>`).join('')}</tr></tfoot>` : ''}</table></div>`;
+const asTable = (inner, label = 'Show as table') => `<details class="vtable"><summary>${esc(label)}</summary>${inner}</details>`;
+// a money donut with a legend; past seven slices the rest fold into "Other"
+function vDonut(entries, { unit = 'in total', act, empty = 'Nothing to show yet.', fmt = fEur0, count } = {}) {
+  let list = entries.filter(e => e.v > 0).sort((a, b) => b.v - a.v);
+  if (list.length > 7) { const rest = list.splice(7); list.push({ label: `Other (${rest.length})`, v: rest.reduce((n, e) => n + e.v, 0), n: rest.reduce((n, e) => n + (e.n || 0), 0), other: true }); }
+  const sum = list.reduce((n, e) => n + e.v, 0); if (!sum) return quiet(empty);
+  list.forEach((e, i) => { e.color = e.none ? 'var(--none)' : e.other ? 'var(--c8)' : CS[i % 7]; });
+  const R = 50, r = 31, c = 60, pt = (rad, a) => `${(c + rad * Math.cos(a)).toFixed(2)} ${(c + rad * Math.sin(a)).toFixed(2)}`;
+  let a0 = -Math.PI / 2;
+  const paths = list.map(e => {
+    const a1 = a0 + Math.min(e.v / sum, 0.9999) * 2 * Math.PI, big = a1 - a0 > Math.PI ? 1 : 0;
+    const d = `M${pt(R, a0)} A${R} ${R} 0 ${big} 1 ${pt(R, a1)} L${pt(r, a1)} A${r} ${r} 0 ${big} 0 ${pt(r, a0)} Z`;
+    a0 += e.v / sum * 2 * Math.PI;
+    return `<path d="${d}" fill="${e.color}"><title>${esc(e.label)}: ${fmt(e.v)} (${Math.round(e.v / sum * 100)}%)</title></path>`;
+  }).join('');
+  const leg = list.map(e => {
+    const inner = `<i style="background:${e.color}"></i><span>${esc(e.label)}</span><em>${fmt(e.v)} · ${Math.round(e.v / sum * 100)}%</em>`;
+    return act && !e.other && !e.none ? `<button data-act="${act}" data-v="${esc(e.go || e.label)}"${e.src ? ` data-src="${esc(e.src)}"` : ''}>${inner}</button>` : `<div>${inner}</div>`;
+  }).join('');
+  return `<div class="donut vdonut"><svg viewBox="0 0 120 120" role="img" aria-label="${esc(list.map(e => `${e.label} ${fmt(e.v)}`).join(', '))}">${paths}${(() => { const c = count != null ? String(count) : fmt(sum); return `<text class="ctr" x="60" y="62" text-anchor="middle" style="font-size:${c.length > 6 ? 13 : c.length > 4 ? 16 : 22}px">${esc(c)}</text>`; })()}<text class="ctr2" x="60" y="76" text-anchor="middle">${esc(unit)}</text></svg><div class="dlegend">${leg}</div></div>`;
+}
+// columns per period with one or two series side by side; widths in %, heights in px, so it fits any screen
+function vCols(cols, series, { fmt = fEur0, H = 150 } = {}) {
+  const max = Math.max(1, ...cols.flatMap(c => series.map(s => c[s.k] || 0)));
+  const step = 10 ** Math.floor(Math.log10(max)), top = Math.ceil(max / step) * step, base = H - 22, h = v => v / top * (base - 12);
+  const n = cols.length, gw = 100 / n, bw = series.length > 1 ? gw * 0.34 : gw * 0.56;
+  const grid = [0.5, 1].map(f => `<line x1="0" x2="100%" y1="${(base - h(top * f)).toFixed(1)}" y2="${(base - h(top * f)).toFixed(1)}" class="vgrid"/><text x="0" y="${(base - h(top * f) - 3).toFixed(1)}" class="vtick">${fmt(top * f)}</text>`).join('');
+  const bars = cols.map((c, i) => {
+    const x0 = i * gw + (gw - bw * series.length - (series.length - 1) * 0.6) / 2;
+    const rects = series.map((s, j) => { const v = c[s.k] || 0, hh = h(v); return v > 0 ? `<rect x="${(x0 + j * (bw + 0.6)).toFixed(2)}%" y="${(base - hh).toFixed(1)}" width="${bw.toFixed(2)}%" height="${(hh + 4).toFixed(1)}" rx="4" fill="${s.color}"/>` : ''; }).join('');
+    const tip = `${c.label}${c.title ? ' ' + c.title : ''}: ${series.map(s => `${s.label} ${fmt(c[s.k] || 0)}`).join(', ')}`;
+    return `<g class="vcol">${rects}<rect class="vhit" x="${(i * gw).toFixed(2)}%" y="0" width="${gw.toFixed(2)}%" height="${base}"><title>${esc(tip)}</title></rect><text x="${(i * gw + gw / 2).toFixed(2)}%" y="${H - 6}" text-anchor="middle" class="vlab">${esc(c.label)}</text></g>`;
+  }).join('');
+  const legend = series.length > 1 ? `<p class="mlegend">${series.map(s => `<span><i style="background:${s.color}"></i>${esc(s.label)}</span>`).join('')}</p>` : '';
+  return `${legend}<svg class="vcols" width="100%" height="${H}" role="img" aria-label="${esc(cols.map(c => `${c.label}: ${series.map(s => `${s.label} ${fmt(c[s.k] || 0)}`).join(', ')}`).join('; '))}">${grid.replace(/<text[^>]*>[^<]*<\/text>/g, '')}${bars}${(grid.match(/<text[^>]*>[^<]*<\/text>/g) || []).join('')}<rect x="0" y="${base}" width="100%" height="5" class="vbase"/><line x1="0" x2="100%" y1="${base}" y2="${base}" class="vaxis"/></svg>`;
+}
+// horizontal bars with the label and value as text, so the bar only shows the size
+const vHBars = (rows, { fmt = fEur0, color = 'var(--c1)', max } = {}) => {
+  const m = max || Math.max(1, ...rows.map(r => r.v));
+  return `<div class="vhbars">${rows.map(r => `<div class="vhrow" title="${esc(`${r.label}: ${fmt(r.v)}${r.sub ? ' · ' + r.sub : ''}`)}"><span class="vhl"><b>${esc(r.label)}</b>${r.sub ? `<small>${esc(r.sub)}</small>` : ''}</span><svg width="100%" height="12" aria-hidden="true"><rect x="0" y="1" width="${Math.max(r.v > 0 ? 1.5 : 0, 100 * r.v / m).toFixed(2)}%" height="10" rx="4" fill="${r.color || color}"/></svg><b class="vhv">${fmt(r.v)}</b></div>`).join('')}</div>`;
+};
+// the last n months as { key, label }
+const lastMonths = (n = 12) => { const d = new Date(), out = []; for (let k = n - 1; k >= 0; k--) { const m = new Date(d.getFullYear(), d.getMonth() - k, 1); out.push({ key: iso(m).slice(0, 7), label: m.toLocaleDateString('en-GB', { month: 'short' }).slice(0, 3), title: String(m.getFullYear()) }); } return out; };
+
 /* ---------- wishlists ----------
    Every wish in the app, wherever it lives: the master list here plus the wishlists of the closet, beauty,
    supplements, kitchen gear, fitness gear and the home inventory. Each stays managed on its own page. */
 function allWishes() {
   const out = [], add = (list, source, page, map) => list.forEach(r => out.push({ source, page, ...map(r) }));
-  const base = r => ({ id: r.id, name: titleOf(r), price: num(r.price) || 0, photo: photoOf(r), since: r.since || r.added || (r.created ? iso(new Date(r.created)) : '') });
+  const base = r => ({ id: r.id, name: titleOf(r), price: num(r.price) || 0, photo: photoOf(r), since: r.since || r.added || (r.created ? iso(new Date(r.created)) : ''), brand: r.brand || '', shop: r.shop || '', prio: wishPrio(r.priority) });
   for (const c of WISH_CATS) add(recs('wishes').filter(w => (w.category || 'Other') === c && !w.archived && !['Bought', 'Dropped'].includes(w.status)), c, 'wish/master', base);
-  add(C.closetWish?.() || [], 'Clothing', 'wishlist', r => ({ id: r.id, name: r.name || 'Piece', price: num(r.price) || 0, photo: r.photo, since: r.since, closet: true }));
+  add(C.closetWish?.() || [], 'Clothing', 'wishlist', r => ({ id: r.id, name: r.name || 'Piece', price: num(r.price) || 0, photo: r.photo, since: r.since, closet: true, brand: r.brand || '', shop: r.shop || '', prio: wishPrio(r.priority) }));
   add(recs('beauty').filter(b => b.wish && !b.archived), 'Beauty', 'care/beauty', base);
   add(recs('supplements').filter(b => b.wish && !b.finished), 'Supplements', 'care/supplements', base);
   add(recs('gear').filter(g => !g.own), 'Kitchen', 'kitchen/gear', base);
@@ -1796,20 +1879,59 @@ function wishTile() {
   const all = allWishes(), inbox = recs('winbox').filter(r => r.status !== 'Done').length;
   return tileBody([`<p class="dline"><span>On your wishlists</span><b>${plural(all.length, 'wish', 'wishes')}</b></p>`, `<p class="dline"><span>All together</span><b>${eur(all.reduce((n, w) => n + w.price, 0))}</b></p>`, inbox ? `<p class="dline"><span>Inbox</span><b>${plural(inbox, 'link')} to sort</b></p>` : '']);
 }
+// every wish that left a list: bought or let go, with its price and date (older ones without a date only count in totals)
+function wishHistory() {
+  const out = [], srcOf = { wishes: r => r.category || 'Other', beauty: () => 'Beauty', supplements: () => 'Supplements', gear: () => 'Kitchen', fitgear: () => 'Fitness', inventory: () => 'Home' };
+  for (const kind of Object.keys(WISHY)) for (const r of recs(kind)) {
+    let o = r.wishOut, d = r.wishOutOn || '';
+    if (!o && kind === 'wishes') { if (r.status === 'Bought') o = 'bought'; else if (r.status === 'Dropped' || r.archived) o = 'dropped'; }
+    if (o) out.push({ name: titleOf(r), price: num(r.price) || 0, out: o, date: d || (o === 'bought' ? r.bought || '' : ''), source: srcOf[kind](r) });
+  }
+  for (const r of C.closetDone?.() || []) out.push({ ...r, price: num(r.price) || 0, source: 'Clothing' });
+  return out;
+}
 function wishToday(host) {
   const all = allWishes(), total = all.reduce((n, w) => n + w.price, 0), by = new Map();
   for (const w of all) { const g = by.get(w.source) || { n: 0, sum: 0 }; g.n++; g.sum += w.price; by.set(w.source, g); }
-  const groups = [...by].sort((a, b) => b[1].sum - a[1].sum), max = Math.max(1, ...groups.map(g => g[1].sum));
+  const groups = [...by].sort((a, b) => b[1].sum - a[1].sum);
   const old = all.filter(w => w.since).sort((a, b) => a.since.localeCompare(b.since))[0];
-  const f = L.wishFilter || '', shown = (f ? all.filter(w => w.source === f) : all).sort((a, b) => (a.since || '9').localeCompare(b.since || '9'));
   const inbox = recs('winbox').filter(r => r.status !== 'Done');
-  const wrow = w => `<div class="lrow">${w.photo ? `<button class="lthumb" data-act="${w.closet ? 'openitem' : 'open'}" data-id="${w.id}" tabindex="-1" aria-hidden="true"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(w.photo))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : ''}<button class="lmain" data-act="${w.closet ? 'openitem' : 'open'}" data-id="${w.id}"><b>${esc(w.name)}</b><span>${esc([w.source, w.since ? daysSince(w.since) + ' days on the list' : ''].filter(Boolean).join(' · '))}</span></button><span class="lside">${w.price ? eur(w.price) : ''}</span></div>`;
+  /* money per wishlist */
+  const catDonut = vDonut(groups.map(([src, g]) => ({ label: src, v: g.sum, go: all.find(w => w.source === src).page, src })), { act: 'wishgo', unit: 'total', empty: 'Add prices to your wishes to see this.' });
+  const catTable = lTbl(['Wishlist', 'Wishes', 'Total'], groups.map(([src, g]) => [esc(src), g.n, fEur0(g.sum)]), ['All', all.length, fEur0(total)]);
+  /* how long on the list */
+  const BK = [['Under a week', 7], ['Under a month', 31], ['Under 3 months', 92], ['Longer', 1e9]], bk = BK.map(([label]) => ({ label, n: 0, v: 0 }));
+  let noDate = 0; for (const w of all) { const d = daysSince(w.since); if (d == null) { noDate++; continue; } const i = BK.findIndex(([, m]) => d < m); bk[i].n++; bk[i].v += w.price; }
+  const ages = all.length ? vHBars(bk.map(b => ({ label: b.label, v: b.n, sub: b.v ? fEur0(b.v) : '' })), { fmt: n => String(n), color: 'var(--c2)' }) + (noDate ? `<p class="lnone">${plural(noDate, 'wish', 'wishes')} without a date.</p>` : '') : quiet('Nothing on your wishlists yet.');
+  /* bought vs let go */
+  const hist = wishHistory(), months = lastMonths(12).map(m => ({ ...m, bought: 0, dropped: 0, nb: 0, nd: 0 }));
+  for (const h of hist) { const m = months.find(x => h.date && x.key === h.date.slice(0, 7)); if (!m) continue; if (h.out === 'bought') { m.bought += h.price; m.nb++; } else { m.dropped += h.price; m.nd++; } }
+  const savedAll = fSum(hist.filter(h => h.out === 'dropped'), 'price'), saved12 = months.reduce((n, m) => n + m.dropped, 0), bought12 = months.reduce((n, m) => n + m.bought, 0);
+  const SBD = [{ k: 'bought', label: 'Bought', color: 'var(--c1)' }, { k: 'dropped', label: 'Let go (saved)', color: 'var(--c2)' }];
+  const flow = hist.length ? `${vCols(months, SBD)}<p class="mmuted">Last 12 months: <b>${fEur0(bought12)}</b> spent on wishes, <b>${fEur0(saved12)}</b> saved by letting go${savedAll > saved12 ? ` · ${fEur0(savedAll)} saved in all` : ''}.</p>
+    ${asTable(lTbl(['Month', 'Bought', 'Let go', 'Saved'], months.filter(m => m.nb || m.nd).reverse().map(m => [`${m.label} ${m.title}`, m.nb ? `${m.nb} · ${fEur0(m.bought)}` : '–', m.nd || '–', m.dropped ? fEur0(m.dropped) : '–']), ['Total', fEur0(bought12), months.reduce((n, m) => n + m.nd, 0), fEur0(saved12)]))}` : quiet('When you buy a wish or let one go, it shows up here per month.');
+  /* brands and shops */
+  const tally = k => { const m = new Map(); for (const w of all) { const v = String(w[k] || '').trim(); if (!v) continue; const g = m.get(norm(v)) || { label: v, n: 0, v: 0 }; g.n++; g.v += w.price; m.set(norm(v), g); } return [...m.values()].sort((a, b) => b.n - a.n || b.v - a.v).slice(0, 8); };
+  const brands = tally('brand'), shops = tally('shop');
+  const bsT = (title, list) => list.length ? lTbl([title, 'Wishes', 'Total'], list.map(g => [esc(g.label), g.n, g.v ? fEur0(g.v) : '–'])) : quiet(`Add a ${title.toLowerCase()} to your wishes to see this.`);
+  const bs = brands.length || shops.length ? `<div class="vsplit"><div>${bsT('Brand', brands)}</div><div>${bsT('Shop', shops)}</div></div>` : quiet('Add brands and shops to your wishes to see where they come from.');
+  /* priority and budget */
+  const st = recs('faccounts').length ? fState() : null, goals = recs('fgoals').filter(g => !g.done), gSaved = fSum(goals, 'saved');
+  const pr = [...WISH_PRIO, ''].map(p => { const l = all.filter(w => (w.prio || '') === p); return { label: p || 'No priority', v: l.reduce((n, w) => n + w.price, 0), sub: plural(l.length, 'wish', 'wishes'), n: l.length }; }).filter(r => r.n);
+  const must = pr.find(r => r.label === 'Must have')?.v || 0, safe = st ? Math.max(0, st.until) : 0;
+  const have = [...(st ? [{ label: 'Safe to spend now', v: safe, sub: st.pay ? 'until payday' : 'next 30 days', color: 'var(--c5)' }] : []), ...(goals.length ? [{ label: 'Saved in goals', v: gSaved, sub: plural(goals.length, 'goal'), color: 'var(--c5)' }] : [])];
+  const pmax = Math.max(1, ...pr.map(r => r.v), ...have.map(r => r.v));
+  const prio = pr.length ? `<p class="mlegend"><span><i style="background:var(--c1)"></i>Wanted</span>${have.length ? '<span><i style="background:var(--c5)"></i>Money you have</span>' : ''}</p>${vHBars([...pr, ...have], { max: pmax })}
+    <p class="mmuted">${!st ? 'Set up Finance to see this against what is safe to spend.' : must <= 0 ? 'No must-haves with a price yet.' : must <= safe ? `Your must-haves (${fEur0(must)}) fit in what is safe to spend now.` : `Your must-haves need ${fEur0(must - safe)} more than is safe to spend now${gSaved ? `, or ${fEur0(Math.max(0, must - gSaved))} past what your goals hold` : ''}.`}</p>` : quiet('Nothing on your wishlists yet.');
   host.innerHTML = `${head('Wishlists')}
   <div class="tiles lt3">${fTile('Wishes', String(all.length), `on ${plural(groups.length, 'list')}`)}${fTile('All together', fEur0(total), 'for what has a price')}${fTile('Longest wanted', old ? daysSince(old.since) + ' days' : '–', old ? esc(old.name) : 'nothing yet')}</div>
   <div class="panels">
-    ${panel('Cost per wishlist', groups.length ? `<div class="wbars">${groups.map(([s, g]) => `<button class="wbar ${f === s ? 'on' : ''}" data-act="wishf" data-v="${esc(s)}"><span class="wbl"><b>${esc(s)}</b><small>${plural(g.n, 'wish', 'wishes')}</small></span><span class="wbt"><i style="width:${Math.max(2, 100 * g.sum / max)}%"></i></span><b class="wbv">${fEur0(g.sum)}</b></button>`).join('')}</div>` : quiet('Nothing on your wishlists yet.'))}
+    ${panel('Money per wishlist', `${catDonut}${groups.length ? asTable(catTable) : ''}`)}
+    ${panel('How long on the list', ages)}
     ${panel('Inbox', `<form class="lqadd" data-winbox><input placeholder="Paste a link to sort later" aria-label="Paste a link"><button class="btn small" type="submit">Add</button></form>${inbox.length ? `<div class="lrows">${inbox.slice(0, 6).map(row).join('')}</div>` : quiet('Nothing to sort.')}`, ['wish/inbox', 'Inbox'])}
   </div>
+  <div class="mrow2 wrow2">${panel('Bought and let go', flow)}${panel('Priority and budget', prio)}</div>
+  ${panel('Brands and shops', bs)}
   <div class="wtables">${groups.map(([src]) => { const list = all.filter(w => w.source === src).sort((a, b) => (a.since || '9').localeCompare(b.since || '9')), page = list[0].page; return `<section class="panel wtable" style="--n:${Math.min(6, list.length)};--m:${Math.min(3, list.length)}"><div class="lph3"><h3>${esc(src)}</h3><button class="chip link" data-act="wishgo" data-v="${esc(page)}" data-src="${esc(src)}">All ${list.length} →</button></div><div class="lgrid wgrid">${list.slice(0, 6).map(w => prodCard(w.closet ? w : { ...L.byId[w.id] }, w.closet ? 'openitem' : 'open')).join('')}</div></section>`; }).join('')}</div>`;
 }
 function wishFromInbox(r) {

@@ -298,6 +298,7 @@ nav.bottom { display: none; }
 .detail .stage { border-radius: var(--r); }
 .tagrow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--tag); color: var(--tag-ink); border-radius: 10px; padding: 10px 12px; gap: 8px; }
 .tagrow div { min-width: 0; }
+.priceline { margin: -6px 0 0; font-size: 14px; color: var(--muted); }
 .tagrow small { display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; opacity: .75; }
 .tagrow b { font-family: var(--mono); font-weight: 500; font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 dl.props { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: 14px; }
@@ -1017,13 +1018,12 @@ function itemCard(it, extraCls = '') {
   const w = wearCount(it), c = cpw(it), inbox = isInbox(it), wish = isWishAll(it);
   const sub = inbox ? [it.brand || it.shop, it.price ? eur(it.price) : ''].filter(Boolean).join(' · ')
     : wish ? [it.brand, it.price > 0 ? eur(it.price) + (saving(it) ? ` (was ${eur0(it.origPrice)})` : '') : '', daysOn(it) != null ? `${daysOn(it)} days on list` : ''].filter(Boolean).join(' · ')
-    : [it.brand, w ? `worn ${w}×` : 'not worn yet'].filter(Boolean).join(' · ');
-  const tag = inbox ? `<div class="hangtag"><small>from</small>${esc((it.shop || 'link').slice(0, 14))}</div>`
-    : wish ? ''
-    : c != null ? `<div class="hangtag"><small>per wear</small>${eur(c)}</div>` : '';
+    : [it.brand, it.price > 0 ? eur(it.price) : '', c != null ? `${eur(c)} per wear` : '', w ? `worn ${w}×` : 'not worn yet'].filter(Boolean).join(' · ');
+  // prices never sit on the hangtag; they live in the line under the name
+  const tag = inbox ? `<div class="hangtag"><small>from</small>${esc((it.shop || 'link').slice(0, 14))}</div>` : '';
   return `<button class="card ${inCloset(it) || inbox || wish ? '' : 'gone'} ${wish ? 'wish' : ''} ${extraCls}" data-item="${esc(it.id)}">
     <div class="stage">${it.photo ? pimg(it.photo, it.name, 'loading="lazy"') : PH}</div>${tag}
-    <div class="meta"><b>${esc(it.name || 'Untitled piece')}</b><span ${wish ? 'class="wrap"' : ''}>${esc(sub)}</span></div>
+    <div class="meta"><b>${esc(it.name || 'Untitled piece')}</b><span ${inbox ? '' : 'class="wrap"'}>${esc(sub)}</span></div>
   </button>`;
 }
 const toggleSet = (set, v) => set.has(v) ? set.delete(v) : set.add(v);
@@ -1796,7 +1796,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v43';
+const APP_VERSION = 'hangtag-v44';
 function renderSettings(host) {
   const master = S.view === 'settings', sec = master ? null : secOf(S.view), secObj = SECTIONS.find(x => x.key === sec);
   const n = NAV(), hid = n.hidden || [], all = navAll(), shownKeys = all.filter(s => !hid.includes(s.key)).map(s => s.key);
@@ -2433,15 +2433,20 @@ function openItem(id) {
     const outfits = S.outfits.filter(o => (o.pieces || []).some(p => p.id === id));
     const row = (label, html) => html ? `<dt>${label}</dt><dd>${html}</dd>` : '';
     const list = (k, vals) => (vals || []).map(v => fchip(k, v)).join(' ');
+    // the tag row holds counts and dates only; prices go in the line under it
     const tagrow = wish
-      ? `<div><small>Price</small><b>${eur(cur.price)}</b></div><div><small>Original</small><b>${cur.origPrice > 0 ? eur(cur.origPrice) : '—'}</b></div><div><small>${sv ? 'Sale' : 'Saving'}</small><b>${sv ? '−' + Math.round(sv / cur.origPrice * 100) + '%' : '—'}</b></div><div><small>On list</small><b>${daysOn(cur) ?? '—'} days</b></div>`
-      : `<div><small>Paid</small><b>${eur(cur.price)}</b></div><div><small>Worn</small><b>${w}×</b></div><div><small>Per wear</small><b>${c == null ? '—' : eur(c)}</b></div><div><small>Last worn</small><b>${S.lastWorn[id] ? fromISO(S.lastWorn[id]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}</b></div>`;
+      ? `<div><small>${sv ? 'Sale' : 'Saving'}</small><b>${sv ? '−' + Math.round(sv / cur.origPrice * 100) + '%' : '—'}</b></div><div><small>On list</small><b>${daysOn(cur) ?? '—'} days</b></div><div><small>Since</small><b>${cur.wishSince ? fromISO(cur.wishSince).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}</b></div><div><small>Outfits</small><b>${outfits.length}</b></div>`
+      : `<div><small>Worn</small><b>${w}×</b></div><div><small>Last worn</small><b>${S.lastWorn[id] ? fromISO(S.lastWorn[id]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}</b></div><div><small>Outfits</small><b>${outfits.length}</b></div><div><small>Owned</small><b>${cur.bought ? (m => m < 1 ? 'new' : m < 24 ? m + ' mo' : Math.floor(m / 12) + ' yr')(Math.floor((Date.now() - fromISO(cur.bought)) / 2629746e3)) : '—'}</b></div>`;
+    const priceLine = wish
+      ? [cur.price > 0 ? `Price ${eur(cur.price)}` : '', cur.origPrice > 0 ? `original ${eur(cur.origPrice)}` : ''].filter(Boolean).join(' · ')
+      : [cur.price > 0 ? `Paid ${eur(cur.price)}` : '', c != null ? `${eur(c)} per wear` : ''].filter(Boolean).join(' · ');
     const care = careTags(cur);
     $('#itemBody', sh).innerHTML = `<div class="detail">
       <div class="stage">${cur.photo ? pimg(cur.photo, cur.name) : PH}</div>
       <div style="display:grid;gap:14px;align-content:start;min-width:0">
         <div><h2 style="font-size:24px">${esc(cur.name || 'Untitled piece')}</h2><span class="muted">${cur.brand ? fchip('brand', cur.brand) + ' · ' : ''}${cur.sub ? fchip('sub', cur.sub) : esc(cur.cat || '')}${inCloset(cur) || wish ? '' : ` · <b>${cur.status === 'sold' ? 'Sold' : 'Donated'}</b>`}</span></div>
         <div class="tagrow">${tagrow}</div>
+        ${priceLine ? `<p class="priceline">${priceLine}</p>` : ''}
         ${!wish && cur.origPrice > 0 ? `<div class="note">Original price ${eur(cur.origPrice)}${sv ? ` · you saved <b>${eur(sv)}</b> (${Math.round(sv / cur.origPrice * 100)}%)` : ''}</div>` : ''}
         ${wish && cur.why ? `<div class="note"><span class="lbl" style="display:block">Why I want it</span>${esc(cur.why)}</div>` : ''}
         <dl class="props">
@@ -3155,7 +3160,9 @@ async function start(session) {
   derive(); $('#main').innerHTML = ''; render();
   subscribeLive(); wxRefresh();
   // what life.js needs from the closet: the signed-in Supabase client, photos, sheets and settings
-  window.LIFE?.start({ sb, uid: () => UID, view: () => S.view, go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url })), openItem: id => openItem(id) });
+  window.LIFE?.start({ sb, uid: () => UID, view: () => S.view, go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url, shop: it.shop })),
+    // closet wishes that left the list: bought (in the closet now) or let go (wishlist archive)
+    closetDone: () => S.items.filter(it => it.wishSince && !isWish(it) && !isInbox(it)).map(it => isPassed(it) ? { name: it.name, price: it.price, out: 'dropped', date: it.passedDate || '' } : { name: it.name, price: it.price, out: 'bought', date: it.bought || '' }), openItem: id => openItem(id) });
   try { await loadAll(); } catch (e) { console.error(e); S.status = 'offline'; render(); }
 }
 if (!window.supabase || !CFG.url || !CFG.key || /YOUR-/.test(CFG.url + CFG.key)) {
