@@ -94,7 +94,7 @@ function payday(recs: Rec[], today: string) {
 }
 function weekly(recs: Rec[], today: string) {
   const from = addDays(today, -6), cats = new Map(recs.filter(r => r.kind === 'fcats').map(c => [c.id, c]));
-  const tx = recs.filter(r => r.kind === 'ftx' && everyday(r) && r.date >= from && r.date <= today);
+  const tx = recs.filter(r => r.kind === 'ftx' && everyday(r) && !cats.get(r.category)?.nospend && r.date >= from && r.date <= today);
   if (!tx.length) return null;
   const by = new Map<string, number>();
   for (const x of tx) by.set(x.category || '', (by.get(x.category || '') || 0) + (num(x.amount) || 0));
