@@ -2218,6 +2218,7 @@ document.addEventListener('click', async e => {
     case 'fgpick': { const g = L.byId[d.id]; if (!g) break; const f = gridFilled(g), tl = gridTiles(g), free = tl.map((a, i) => [a, i]).filter(([, i]) => !f.has(i)); if (!free.length) { C.toast('Every tile is filled. Well done!'); break; } const spare = Math.max(0, fState().perDay || 0), fit = free.filter(([a]) => a <= Math.max(spare, Math.min(...free.map(x => x[0])))), [a, i] = fit[Math.floor(Math.random() * fit.length)]; L.gpick = { id: g.id, i }; C.render(); C.toast(`Put ${eur(a)} by today`); break; }
     case 'fwset': { const r = L.byId[d.id]; if (r) { save(r, { status: d.v }); C.toast(d.v === 'Let go' ? `${eur(num(r.price) || 0)} not spent` : 'Enjoy it'); } break; }
     case 'fcsv': pickCsv(); break;
+    case 'fdups': fDups(); break;
     case 'acchist': accHistory(d.id); break;
     case 'fmove': moveMoney(); break;
     case 'feedtab': L.feedTab = d.v; C.render(); break;
@@ -2409,11 +2410,103 @@ function fSettings() {
       ${fld('Next payday', '', `<input class="finp" type="date" data-fset="payday" value="${esc(s.payday || '')}">`)}
       ${fld('Safety buffer', 'Kept back from safe to spend, for surprises.', `<input class="finp" type="number" inputmode="decimal" step="1" data-fset="buffer" value="${s.buffer ?? 100}">`)}`)}
     ${MP('Your accounts', `${accs.length ? `<div class="lrows facclist">${accs.map(accRow).join('')}</div>` : quiet('Add your bank accounts to see balances and safe to spend.')}<p class="lnone">Counts: the account is part of safe to spend. Add the IBAN to an account so bank imports land on it by themselves.</p><div class="dbtns"><button class="btn small" data-act="fcheck">Update balances</button><button class="btn small" data-act="fmove">⇄ Move money</button></div>`, '<button class="chip link" data-act="new" data-v="faccounts">+ Add an account</button>')}
-    ${MP('Import and backup', `<p class="lnone">Bank statements from ING or Rabobank (CSV). Duplicates are skipped, own transfers are recognised and your sort rules pick the categories.</p><div class="dbtns"><button class="btn small primary" data-act="fcsv">Import bank CSV</button><button class="btn small" data-act="import">Import budget backup</button></div>`)}
+    ${MP('Import and backup', `<p class="lnone">Bank statements from ING or Rabobank (CSV). Duplicates are skipped, own transfers are recognised and your sort rules pick the categories.</p><div class="dbtns"><button class="btn small primary" data-act="fcsv">Import bank CSV</button><button class="btn small" data-act="import">Import budget backup</button><button class="btn small" data-act="fdups">Find duplicates</button></div><p class="lnone">Imported something twice? Find duplicates keeps one copy of everything and removes the rest.</p>`)}
     ${MP('Categories', list('fcats', 'No categories yet.', '+ Category') + '<p class="lnone">Open one to set its budget, let it roll over, or mark it as not spending.</p>')}
     ${MP('Sort rules', list('frules', 'No rules yet. A rule puts every purchase whose name contains a word in a category.', '+ Sort rule'))}
     ${MP('Quick adds', list('fchips', 'No quick adds yet.', '+ Quick add'))}
   </div>`;
+}
+/* ---------- duplicates ----------
+   Importing the same money twice (for example the budget backup and the converted file) leaves two copies of
+   everything under different ids. This finds them, keeps one, points every link at the one that stays and
+   removes the rest in one step you can undo. Copies that came in with the same import stay: two coffees on
+   the same day are real. */
+const FIN_KINDS = ['faccounts', 'fcats', 'fdebts', 'fbills', 'fchips', 'frules', 'fset', 'fgoals', 'fchall', 'fgrid', 'fwait', 'ftx', 'fincome', 'fchecks', 'fpaid'];
+const DUP_SKIP = new Set(['created', 'updated', 'ord', 'order', 'bankRef', 'notes', 'category', 'occ']);
+function dupKey(r, map) {
+  const m = v => map.get(v) || v, n = v => norm(v).replace(/\s+/g, ' '), a = v => (num(v) ?? 0).toFixed(2);
+  switch (r.kind) {
+    case 'faccounts': return [n(r.name), r.type || 'Spending'].join('|');
+    case 'fcats': return n(r.name);
+    case 'fdebts': case 'fchips': case 'fgoals': case 'fchall': case 'fgrid': case 'fwait': return n(r.name);
+    case 'frules': return n(r.contains);
+    case 'fbills': return [n(r.name), a(r.amount), r.type || ''].join('|');
+    case 'fset': return 'one';
+    case 'ftx': case 'fincome': return [r.date, a(r.amount), n(r.name), m(r.account || ''), r.transfer ? 't' : ''].join('|');
+    case 'fchecks': return [m(r.account || ''), r.at, a(r.amount)].join('|');
+    case 'fpaid': return [m(r.bill || ''), r.date].join('|');
+    default: return JSON.stringify(Object.fromEntries(Object.entries(dataOf(r)).filter(([k]) => !DUP_SKIP.has(k)).sort()));
+  }
+}
+// swaps every id that was removed for the one that stays, anywhere in a record
+function relink(v, map) {
+  if (typeof v === 'string') return map.get(v) || v;
+  if (Array.isArray(v)) return v.map(x => relink(x, map));
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, relink(x, map)]));
+  return v;
+}
+async function findDups() {
+  // when each record was saved: copies from one import share the same moment
+  const at = {};
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await C.sb.from('records').select('id,updated_at').in('kind', FIN_KINDS).range(from, from + 999);
+    if (error) throw error;
+    for (const r of data) at[r.id] = r.updated_at || '';
+    if (data.length < 1000) break;
+  }
+  const map = new Map(), fill = new Map();
+  for (let pass = 0; pass < 6; pass++) {
+    let found = 0;
+    for (const kind of FIN_KINDS) {
+      const groups = new Map();
+      for (const r of recs(kind)) { if (map.has(r.id)) continue; const k = dupKey(r, map); groups.has(k) ? groups.get(k).push(r) : groups.set(k, [r]); }
+      for (const list of groups.values()) {
+        if (list.length < 2) continue;
+        const batches = new Map();
+        for (const r of list) { const b = at[r.id] || r.id; batches.has(b) ? batches.get(b).push(r) : batches.set(b, [r]); }
+        // keep the biggest single import (the earliest when it's a tie); a line with a bank reference wins
+        const keepB = [...batches.entries()].sort((x, y) => y[1].length - x[1].length || y[1].filter(r => r.bankRef).length - x[1].filter(r => r.bankRef).length || String(x[0]).localeCompare(String(y[0])))[0][1];
+        const gone = list.filter(r => !keepB.includes(r));
+        gone.forEach((r, i) => { const k = keepB[i % keepB.length]; map.set(r.id, k.id); fill.set(k.id, [...(fill.get(k.id) || []), r]); found++; });
+      }
+    }
+    if (!found) break;
+  }
+  // what changes in the records that stay: links to removed copies, and empty fields the copy had filled in
+  const changes = [];
+  for (const r of L.all) {
+    if (map.has(r.id)) continue;
+    let d = relink(dataOf(r), map);
+    for (const g of fill.get(r.id) || []) for (const [k, v] of Object.entries(relink(dataOf(g), map))) if ((d[k] == null || d[k] === '') && v != null && v !== '') d = { ...d, [k]: v };
+    if (JSON.stringify(d) !== JSON.stringify(dataOf(r))) changes.push({ id: r.id, kind: r.kind, data: d });
+  }
+  return { gone: [...map.keys()].map(id => L.byId[id]).filter(Boolean), changes };
+}
+async function fDups() {
+  const sh = C.sheet({ title: 'Find duplicates', body: '<p class="lnone" data-dupbody>Looking through your money…</p>', foot: '<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-go disabled>Remove</button>' });
+  let res;
+  try { res = await findDups(); } catch (e) { console.error(e); sh.querySelector('[data-dupbody]').textContent = 'Could not look through your money. Check your connection and try again.'; return; }
+  const body = sh.querySelector('[data-dupbody]'), go = sh.querySelector('[data-go]');
+  if (!res.gone.length) { body.textContent = 'No duplicates found. Everything is here once.'; go.remove(); return; }
+  const per = FIN_KINDS.map(k => [k, res.gone.filter(r => r.kind === k).length]).filter(([, n]) => n);
+  body.outerHTML = `<p class="lnone">These are second copies of things that are already here. The first copy stays, with everything that points to it.</p>
+    <div class="lrows">${per.map(([k, n]) => `<div class="lrow"><span class="lmain"><b>${esc(KINDS[k].many)}</b></span><span class="lside">${n}</span></div>`).join('')}</div>
+    <p class="dsub">For example</p><div class="lrows">${res.gone.filter(r => r.kind === 'ftx' || r.kind === 'fincome').slice(0, 5).map(r => `<div class="lrow"><span class="lmain"><b>${esc(r.name || KINDS[r.kind].one)}</b><span>${esc(niceDate(r.date))}</span></span><span class="lside">${eur(num(r.amount) || 0)}</span></div>`).join('') || quiet('Only lists and settings.')}</div>
+    <p class="lnone">You can undo this right after.</p>`;
+  go.disabled = false; go.textContent = `Remove ${res.gone.length}`;
+  go.onclick = async () => {
+    go.disabled = true; const msg = sh.querySelector('[data-msg]'); msg.textContent = 'Removing…';
+    const old = [...res.gone, ...res.changes.map(c => L.byId[c.id])].map(r => ({ id: r.id, kind: r.kind, data: dataOf(r) }));
+    const ids = res.gone.map(r => r.id), now = new Date().toISOString();
+    try {
+      for (let i = 0; i < res.changes.length; i += 400) { const { error } = await C.sb.from('records').upsert(res.changes.slice(i, i + 400).map(r => ({ user_id: C.uid(), id: r.id, kind: r.kind, data: r.data, updated_at: now }))); if (error) throw error; }
+      for (let i = 0; i < ids.length; i += 200) { msg.textContent = `Removing ${Math.min(ids.length, i + 200)} of ${ids.length}…`; const { error } = await C.sb.from('records').delete().in('id', ids.slice(i, i + 200)); if (error) throw error; }
+    } catch (e) { console.error(e); msg.textContent = ''; C.toast('Could not remove them all. Reload and try again.'); go.disabled = false; return; }
+    const gone = new Set(ids), ch = new Map(res.changes.map(c => [c.id, c]));
+    L.all = L.all.filter(r => !gone.has(r.id)).map(r => ch.has(r.id) ? { ...ch.get(r.id).data, id: r.id, kind: r.kind } : r);
+    index(); cacheSave(); C.closeSheet(); C.render();
+    C.undoPush?.(`Removed ${plural(ids.length, 'duplicate')}`, () => putMany(old, null, 'restore'), true);
+  };
 }
 async function saveFset(patch) { const r = recs('fset')[0]; try { r ? await put('fset', r.id, { ...dataOf(r), ...patch }) : await create('fset', patch); } catch {} }
 function accHistory(id) {
