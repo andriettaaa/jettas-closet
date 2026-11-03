@@ -441,3 +441,4 @@ header.top .brand { flex: none; white-space: nowrap; }
 .garea { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 6px; }
 .garea b { font-size: 14px; }
 .garea span { font-size: 12.5px; color: var(--muted); }
+.fwtoday { border-color: var(--accent); } .fwday { width: 44px; flex: none; }
