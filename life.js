@@ -1,4 +1,4 @@
-/* Kitchen, Home, Self-care and Fitness: the life planner from Notion, rebuilt next to the closet.
+/* Kitchen, Life, Home, Social, Money and Fitness: the life planner from Notion, rebuilt next to the closet.
    Every record is one row in the Supabase `records` table. `kind` names the list it belongs to (recipes,
    chores, sleep…) and `data` holds its fields, so a new list never needs a new table.
    index.html hands over sign-in, photos, sheets and toasts through LIFE.start(bridge). */
@@ -70,6 +70,7 @@ const P = {
   target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/>',
   handshake: '<path d="m3 11 4-4 3 1 3-2 3 1 5 4M3 11l5 5 2-1 2 2 2-1 2 1 4-5M10 8l-3 4 2 1 3-3"/>',
   user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>',
+  gift: '<rect x="3.5" y="8.5" width="17" height="4" rx="1"/><path d="M5 12.5V20h14v-7.5M12 8.5V20M12 8.5C10.5 5 7 4.5 7 6.8c0 1.7 5 1.7 5 1.7Zm0 0c1.5-3.5 5-4 5-1.7 0 1.7-5 1.7-5 1.7Z"/>',
   star: '<path d="m12 3.8 2.5 5.1 5.6.8-4 4 .9 5.6L12 16.6l-5 2.7.9-5.6-4-4 5.6-.8Z"/>'
 };
 
@@ -91,6 +92,40 @@ const SOCIAL_FORMATS = ['Short Video', 'Long-form Video', 'Carousel', 'Image Pos
 const SOCIAL_STYLES = ['Educational', 'Entertaining', 'Inspirational', 'Relatable', 'Storytelling', 'Behind-the-Scenes', 'Informational'];
 const SOCIAL_FUNNEL = ['Awareness', 'Consideration', 'Conversion', 'Loyalty/Advocacy'];
 const NIGHTS = ['Acid night', 'Retinoid night', 'Recovery night'];
+// tasks and projects (Social), habits, routines, gifts and documents (Life)
+const TASK_STATUS = ['Not started', 'In progress', 'Completed'];
+const TASK_CATS = ['Finances', 'Fitness', 'Growth', 'Household', 'Nutrition', 'Planning', 'Productivity', 'Self-Care'];
+const ROUTINES = ['Morning', 'Evening', 'Weekly', 'Monthly'];
+const GIFT_STATUS = ['Idea', 'To buy', 'Ordered', 'Received', 'Wrapped', 'Given'];
+const taskDone = r => r.status === 'Completed';
+const projTasks = p => recs('tasks').filter(t => [].concat(t.project || []).includes(p.id));
+// habits and routines keep the days you ticked them as a list of dates on the record itself
+const daysSet = r => new Set([].concat(r.days || []));
+const weekDays = () => { const w = weekStart(0); return [0, 1, 2, 3, 4, 5, 6].map(i => addDays(w, i)); };
+const weekDone = r => { const s = daysSet(r); return weekDays().filter(d => s.has(d)).length; };
+function streak(r) {
+  const s = daysSet(r), per = Math.min(7, num(r.per) || 7);
+  if (per >= 7) { let d = s.has(today()) ? today() : addDays(today(), -1), n = 0; while (s.has(d) && n < 3650) { n++; d = addDays(d, -1); } return n ? n + '-day streak' : ''; }
+  // a week counts when it reaches the target; this week joins once it does
+  const hit = w => [0, 1, 2, 3, 4, 5, 6].filter(i => s.has(addDays(w, i))).length >= per;
+  let w = weekStart(0), n = 0;
+  if (!hit(w)) w = addDays(w, -7);
+  while (hit(w) && n < 520) { n++; w = addDays(w, -7); }
+  return n ? n + '-week streak' : '';
+}
+// a morning or evening step counts per day, a weekly one per week and a monthly one per month
+const routinePeriod = r => r.routine === 'Weekly' ? weekDays() : r.routine === 'Monthly' ? null : [today()];
+function routineDone(r) {
+  const s = [...daysSet(r)], p = routinePeriod(r);
+  return p ? s.some(d => p.includes(d)) : s.some(d => d.slice(0, 7) === today().slice(0, 7));
+}
+function toggleDay(r, d = today()) {
+  const s = daysSet(r);
+  if (r.kind === 'routines' && d === today() && routineDone(r)) { const p = routinePeriod(r); for (const x of [...s]) if (p ? p.includes(x) : x.slice(0, 7) === d.slice(0, 7)) s.delete(x); }
+  else s.has(d) ? s.delete(d) : s.add(d);
+  return save(r, { days: [...s].sort().slice(-500) });
+}
+const routineNow = () => { const want = new Date().getHours() >= 15 ? 'Evening' : 'Morning'; return { label: want, list: recs('routines').filter(r => r.routine === want).sort((a, b) => (a.created || 0) - (b.created || 0) || norm(a.name).localeCompare(norm(b.name))) }; };
 const WEEK = [['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'], ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']];
 const KINDS = {
   /* kitchen */
@@ -510,6 +545,66 @@ const KINDS = {
     sub: r => [r.category, eur(r.price)].filter(Boolean).join(' · '),
     quick: r => ({ on: !!r.own, label: 'Have it', act: () => save(r, { own: !r.own }) })
   }
+,
+  /* social: tasks and projects */
+  tasks: {
+    one: 'task', many: 'Tasks', facet: 'category',
+    fields: [F('name', 'Task'), F('date', 'Due', 'date', { half: 1 }), F('status', 'Status', 'select', { options: TASK_STATUS, half: 1 }),
+      F('category', 'Category', 'select', { options: TASK_CATS, half: 1 }), F('project', 'Project', 'rel', { to: 'projects', half: 1 }), F('notes', 'Notes', 'long')],
+    sorts: [['date', 'Due first'], ['name', 'A to Z'], ['-created', 'Newest']],
+    filters: [['open', 'To do'], ['today', 'Today'], ['late', 'Overdue'], ['done', 'Done']],
+    filter: (r, f) => f === 'done' ? taskDone(r) : taskDone(r) ? false : f === 'today' ? r.date === today() : f === 'late' ? !!r.date && r.date < today() : true,
+    sub: r => [r.status && r.status !== 'Not started' && !taskDone(r) ? r.status : '', r.category, relName(r.project)].filter(Boolean).join(' · '),
+    side: r => taskDone(r) ? (r.doneOn ? 'done ' + shortDate(r.doneOn) : '') : r.date ? (r.date < today() ? 'overdue' : r.date === today() ? 'today' : relDay(r.date)) : '',
+    quick: r => ({ on: taskDone(r), label: 'Done', act: () => save(r, taskDone(r) ? { status: 'Not started', doneOn: '' } : { status: 'Completed', doneOn: today() }) })
+  },
+  projects: {
+    one: 'project', many: 'Projects', facet: 'priority',
+    fields: [F('name', 'Project'), F('status', 'Status', 'select', { options: TASK_STATUS, half: 1 }), F('priority', 'Priority', 'select', { options: ['High', 'Medium', 'Low'], half: 1 }),
+      F('start', 'Start', 'date', { half: 1 }), F('end', 'Deadline', 'date', { half: 1 }), F('notes', 'Notes', 'long')],
+    sorts: [['end', 'Deadline first'], ['name', 'A to Z'], ['-created', 'Newest']],
+    hide: r => r.status === 'Completed', hideLabel: 'Show completed',
+    sub: r => { const t = projTasks(r), d = t.filter(taskDone).length; return [r.status && r.status !== 'Not started' ? r.status : '', r.priority && r.priority + ' priority', t.length ? `${d} of ${t.length} tasks done` : 'no tasks yet', r.end && 'deadline ' + shortDate(r.end)].filter(Boolean).join(' · '); },
+    side: r => { const t = projTasks(r); return t.length ? Math.round(100 * t.filter(taskDone).length / t.length) + '%' : ''; }
+  },
+  /* life: habits, routines, gifts and documents */
+  habits: {
+    one: 'habit', many: 'Habits',
+    fields: [F('name', 'Habit'), F('per', 'Times a week', 'num', { half: 1 }), F('area', 'Area', 'select', { options: TASK_CATS, half: 1 }),
+      F('why', 'Why it matters', 'long'), F('paused', 'Paused', 'check')],
+    sorts: [['name', 'A to Z'], ['-created', 'Newest']],
+    hide: r => !!r.paused, hideLabel: 'Show paused',
+    sub: r => [`${weekDone(r)} of ${Math.min(7, num(r.per) || 7)} this week`, streak(r)].filter(Boolean).join(' · '),
+    quick: r => ({ on: daysSet(r).has(today()), label: 'Today', act: () => toggleDay(r) })
+  },
+  routines: {
+    one: 'routine step', many: 'Routines', facet: 'routine',
+    fields: [F('name', 'Activity'), F('routine', 'Routine', 'select', { options: ROUTINES, half: 1 }),
+      F('freq', 'How often', 'select', { options: ['1x/week', '2x/week', '3x/week', '4x/week', '5x/week', '6x/week', '7x/week'], half: 1 }), F('notes', 'Notes', 'long')],
+    sorts: [['routine', 'By routine'], ['name', 'A to Z']],
+    sub: r => [r.routine, r.freq, r.notes].filter(Boolean).join(' · '),
+    quick: r => ({ on: routineDone(r), label: r.routine === 'Weekly' ? 'This week' : r.routine === 'Monthly' ? 'This month' : 'Today', act: () => toggleDay(r) })
+  },
+  gifts: {
+    one: 'gift', many: 'Gifts', facet: 'status', photo: 'photo',
+    fields: [F('name', 'Gift'), F('for', 'For'), F('occasion', 'Occasion', 'select', { options: ['Birthday', 'Christmas', 'Sinterklaas', 'Anniversary', "Mother's Day", "Father's Day", 'Graduation', 'Housewarming', 'Baby shower', 'Thank you'], half: 1 }),
+      F('status', 'Status', 'select', { options: GIFT_STATUS, half: 1 }), F('type', 'Type', 'select', { options: ['Physical', 'Experience', 'DIY', 'Subscription', 'Digital', 'Card'], half: 1 }),
+      F('price', 'Price', 'money', { half: 1 }), F('shop', 'Where to buy', 'text', { half: 1 }), F('given', 'Given on', 'date', { half: 1 }),
+      F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
+    sorts: [['for', 'By person'], ['-created', 'Newest'], ['name', 'A to Z']],
+    hide: r => r.status === 'Given', hideLabel: 'Show given',
+    sub: r => [r.for && 'for ' + r.for, r.occasion, r.status, eur(r.price)].filter(Boolean).join(' · ')
+  },
+  documents: {
+    one: 'document', many: 'Documents', facet: 'category',
+    fields: [F('name', 'Document'), F('category', 'Category', 'select', { options: ['Personal', 'Health', 'Household', 'Financial', 'Work', 'Business'], half: 1 }),
+      F('type', 'Type', 'multi', { options: ['Identity', 'Financial', 'Legal', 'Insurance', 'Contract', 'Educational', 'Relationship'], half: 1 }),
+      F('location', 'Where it is', 'select', { options: ['Google Drive', 'Dropbox', 'Computer', 'Phone', 'Wallet', 'Cabinet', 'Safe'], half: 1 }),
+      F('expires', 'Expires', 'date', { half: 1 }), F('url', 'Link', 'url'), F('notes', 'Notes', 'long')],
+    sorts: [['name', 'A to Z'], ['expires', 'Expires first']],
+    sub: r => [r.category, [].concat(r.type || []).join(', '), r.location].filter(Boolean).join(' · '),
+    side: r => r.expires ? (r.expires < today() ? 'expired' : diffDays(today(), r.expires) <= 60 ? 'expires ' + shortDate(r.expires) : '') : ''
+  }
 };
 for (const [k, K] of Object.entries(KINDS)) K.kind = k;
 const titleOf = r => { const K = KINDS[r.kind]; return (K?.title ? K.title(r) : r.name) || 'Untitled'; };
@@ -552,11 +647,19 @@ function careTile() {
     cy.last ? `<p class="dline"><span>Cycle</span><b>${cy.open ? 'period, day ' + cy.day : 'day ' + cy.day + ', next ' + relDay(cy.next)}</b></p>` : '',
     appt ? `<p class="dline"><span>Next appointment</span><b>${esc(titleOf(appt))}, ${esc(relDay(appt.date))}${appt.time ? ' ' + esc(appt.time) : ''}</b></p>` : '',
     prods.length || rt.pick.length ? `<p class="dsub">${eve ? esc(rt.type || 'Evening') : 'Morning'} skincare</p><div class="lwrap">${prodChips(prods)}</div>${rt.pick.length ? `<p class="lnone">Choose one acid:</p><div class="lwrap">${prodChips(rt.pick)}</div>` : ''}` : '',
+    routineTile(),
     sl ? `<p class="dline"><span>Sleep</span><b>${esc([sl.hours ? sl.hours + ' h' : 'logged', sl.quality?.toLowerCase()].filter(Boolean).join(', '))}</b></p>` : '',
     j ? `<p class="dline"><span>Journal</span><b><button class="chip link" data-act="open" data-id="${j.id}">${esc(titleOf(j))}</button></b></p>` : '',
     sl && j ? '' : `<div class="dbtns">${sl ? '' : '<button class="btn small" data-act="new" data-v="sleep">Log last night</button>'}${j ? '' : '<button class="btn small" data-act="new" data-v="journal">Write today’s entry</button>'}</div>`
   ]);
 }
+// the routine that fits the time of day, ticked off right on the card
+function routineTile() {
+  const rn = routineNow(); if (!rn.list.length) return '';
+  const done = rn.list.filter(routineDone).length;
+  return `<p class="dsub">${rn.label} routine · ${done} of ${rn.list.length}</p><div class="lwrap">${rn.list.map(r => tick(r.name, routineDone(r), `data-act="quick" data-id="${r.id}"`)).join('')}</div>`;
+}
+const tasksDue = () => recs('tasks').filter(x => !taskDone(x) && x.date && x.date <= today()).sort((a, b) => a.date.localeCompare(b.date));
 function homeTile() {
   const t = today();
   const chores = recs('chores').filter(c => choreDue(c) <= t).sort((a, b) => choreDue(a).localeCompare(choreDue(b)));
@@ -572,7 +675,9 @@ function socialTile() {
   const next = posts.filter(p => p.stage !== 'Posted' && p.date && p.date > t).sort((a, b) => a.date.localeCompare(b.date))[0];
   const deal = recs('deals').filter(d => d.due && d.due >= t && !['Delivered', 'Paid', 'Declined'].includes(d.status)).sort((a, b) => a.due.localeCompare(b.due))[0];
   const dl = [next && { what: titleOf(next), date: next.date }, deal && { what: deal.name + ' (collab)', date: deal.due }].filter(Boolean).sort((a, b) => a.date.localeCompare(b.date))[0];
+  const due = tasksDue();
   return tileBody([
+    due.length ? `<p class="dsub">Tasks today${due.some(x => x.date < t) ? ' and overdue' : ''}</p>${tileList(due, 4)}` : recs('tasks').length ? '<p class="lnone">No tasks due today.</p>' : '',
     now.length ? `<p class="dsub">Posting today</p>${tileList(now)}` : `<p class="lnone">${posts.length ? 'Nothing to post today.' : 'No posts planned yet.'}</p>`,
     dl ? `<p class="dline"><span>Next</span><b>${esc(dl.what)}, ${esc(relDay(dl.date))}</b></p>` : ''
   ]);
@@ -593,10 +698,10 @@ function fitTile() {
 /* ---------- sections and their pages ---------- */
 const SECTIONS = [
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile, views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book], ['meals', 'Meal plan', P.calendar], ['groceries', 'Groceries', P.cart], ['pantry', 'Pantry', P.jar], ['gear', 'Gear', P.spoon]] },
-  { key: 'care', label: 'Self-care', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['ideas', 'Ideas', P.star]] },
+  { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Habits', P.repeat], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['docs', 'Documents', P.doc]] },
   { key: 'money', label: 'Money', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Plan', P.list], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
-  { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['posts', 'Posts', P.phone], ['ideas', 'Ideas', P.star], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
+  { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['posts', 'Posts', P.phone], ['ideas', 'Ideas', P.star], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
   { key: 'fit', label: 'Fitness', icon: P.dumbbell, tile: fitTile, views: [['today', 'Overview', P.grid], ['workouts', 'Workouts', P.run], ['plans', 'Plans', P.list], ['exercises', 'Exercises', P.dumbbell], ['body', 'Body', P.scale], ['gear', 'Gear', P.box]] }
 ];
 const PAGES = {
@@ -606,13 +711,18 @@ const PAGES = {
   'kitchen/groceries': { title: 'Groceries', segs: [{ key: 'list', label: 'Shopping list', kind: 'ingredients', fill: groceryFill, tools: false }] },
   'kitchen/pantry': { title: 'Pantry', segs: [{ kind: 'ingredients' }] },
   'kitchen/gear': { title: 'Kitchen gear', segs: [{ kind: 'gear' }] },
-  'care/today': { render: careToday, adds: ['journal', 'sleep', 'beauty', 'supplements', 'appts', 'symptoms', 'meditation', 'ideas'] },
+  'care/today': { render: careToday, adds: ['habits', 'routines', 'journal', 'sleep', 'beauty', 'supplements', 'appts', 'symptoms', 'meditation', 'ideas', 'gifts', 'documents'] },
   'care/beauty': { title: 'Beauty', segs: [{ kind: 'beauty' }, { kind: 'bsched', label: 'Week schedule' }] },
   'care/supplements': { title: 'Supplements', segs: [{ kind: 'supplements' }, { kind: 'suplog' }] },
   'care/cycle': { title: 'Cycle', segs: [{ kind: 'cycles', label: 'Periods', top: cycleTop }] },
   'care/journal': { title: 'Journal', segs: [{ kind: 'journal' }] },
   'care/ideas': { title: 'Ideas', segs: [{ kind: 'ideas' }] },
-  'social/today': { render: socialToday, adds: ['posts', 'cideas', 'deals', 'sgoals'] },
+  'care/habits': { title: 'Habits', segs: [{ kind: 'habits', top: habitWeek }, { kind: 'routines' }] },
+  'care/gifts': { title: 'Gifts', segs: [{ kind: 'gifts' }] },
+  'care/docs': { title: 'Documents', segs: [{ kind: 'documents' }] },
+  'social/tasks': { title: 'Tasks', segs: [{ kind: 'tasks' }] },
+  'social/projects': { title: 'Projects', segs: [{ kind: 'projects' }] },
+  'social/today': { render: socialToday, adds: ['tasks', 'projects', 'posts', 'cideas', 'deals', 'sgoals'] },
   'social/posts': { title: 'Posts', segs: [{ kind: 'posts' }] },
   'social/ideas': { title: 'Content ideas', segs: [{ kind: 'cideas' }] },
   'social/goals': { title: 'Goals', segs: [{ kind: 'sgoals' }, { kind: 'accounts' }] },
@@ -752,7 +862,7 @@ const quiet = t => `<p class="lnone">${esc(t)}</p>`;
 /* ---------- list pages ---------- */
 function sortList(list, K, key) {
   const desc = key.startsWith('-'), k = desc ? key.slice(1) : key;
-  const val = r => k === 'prio' ? (PRIO.includes(r.priority) ? PRIO.indexOf(r.priority) : 9) : k === 'time' ? (totalTime(r) || 1e9) : k === 'due' ? (r.kind === 'plants' ? (plantDue(r) || '9999') : choreDue(r)) : k === 'name' ? norm(titleOf(r)) : r[k];
+  const val = r => k === 'routine' ? (ROUTINES.includes(r.routine) ? ROUTINES.indexOf(r.routine) : 9) : k === 'prio' ? (PRIO.includes(r.priority) ? PRIO.indexOf(r.priority) : 9) : k === 'time' ? (totalTime(r) || 1e9) : k === 'due' ? (r.kind === 'plants' ? (plantDue(r) || '9999') : choreDue(r)) : k === 'name' ? norm(titleOf(r)) : r[k];
   return list.sort((a, b) => {
     let x = val(a), y = val(b);
     const ex = x == null || x === '', ey = y == null || y === '';
@@ -1381,8 +1491,12 @@ function careToday(host) {
   const am = routineFor(false).ps, tn = routineFor(true), pm = tn.ps, wk = recs('bsched')[0];
   const soon = prods.filter(b => b.expiry && diffDays(t, b.expiry) <= 30).sort((a, b) => a.expiry.localeCompare(b.expiry));
   const appts = recs('appts').filter(a => !a.done && a.date && a.date >= t).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''))).slice(0, 3);
-  host.innerHTML = `${head('Self-care')}
+  const rts = recs('routines'), habits = recs('habits').filter(h => !h.paused);
+  const rslot = (l, list) => list.length ? `<div class="lslot"><span class="rowlbl">${l}</span>${list.map(r => tick(r.name, routineDone(r), `data-act="quick" data-id="${r.id}"`)).join('')}</div>` : '';
+  host.innerHTML = `${head('Life')}
   <div class="panels">
+    ${panel('Routines', rts.length ? ROUTINES.map(k => rslot(k, rts.filter(r => r.routine === k))).join('') + rslot('Other', rts.filter(r => !ROUTINES.includes(r.routine))) : `${quiet('Add the steps of your morning and evening routine and tick them off here.')}<button class="btn small" data-act="new" data-v="routines">Add a step</button>`, ['care/habits', 'All routines'])}
+    ${panel('Habits today', habits.length ? `<div class="lwrap">${habits.map(h => tick(h.name, daysSet(h).has(t), `data-act="quick" data-id="${h.id}"`)).join('')}</div>` : `${quiet('Track a habit and build a streak.')}<button class="btn small" data-act="new" data-v="habits">Add a habit</button>`, ['care/habits', 'This week'])}
     ${panel('Water', `<div class="lwater"><button class="iconbtn" data-act="water" data-v="-1" aria-label="One glass less" ${glasses ? '' : 'disabled'}>${svg(P.minus)}</button><div class="lwv"><b>${glasses}</b><span>of ${goal} glasses</span></div><button class="iconbtn lplus" data-act="water" data-v="1" aria-label="One more glass">${svg(P.plus)}</button></div><div class="meter" aria-hidden="true"><div style="width:${Math.min(100, glasses / goal * 100)}%"></div></div><button class="chip link lgoal" data-act="watergoal">Daily goal: ${goal}</button>`)}
     ${panel('Supplements today', sups.length ? times.map(tm => `<div class="lslot"><span class="rowlbl">${tm}</span>${sups.filter(s => [].concat(s.times?.length ? s.times : ['AM']).includes(tm)).map(s => { const on = taken.some(l => l.supplement === s.id && (l.time || 'AM') === tm); return tick(s.name, on, `data-act="supp" data-id="${s.id}" data-t="${tm}"`); }).join('')}</div>`).join('') : quiet('Add your supplements and tick them off here each day.'), ['care/supplements', 'All supplements'])}
     ${panel('Cycle', cy.last ? `<p class="lbig">${cy.open ? `Period, day ${cy.day}` : `Day ${cy.day} of about ${cy.avg}`}</p><p class="lnone">${cy.open ? 'Tap below when it’s over.' : `Next period expected ${relDay(cy.next)} (${shortDate(cy.next)})${cy.guessed ? ', based on a 28-day cycle until you log more' : ''}.`}</p>${cy.open ? `<button class="btn small" data-act="periodend" data-id="${cy.open.id}">Period ended today</button>` : `<button class="btn small" data-act="periodstart">Period started today</button>`}` : `${quiet('Log when your period starts and the app predicts the next one.')}<button class="btn small" data-act="periodstart">Period started today</button>`, ['care/cycle', 'History'])}
@@ -1412,6 +1526,12 @@ function cycleTop() {
 }
 
 /* ---------- home ---------- */
+// this week's habits as a grid: tap a day to tick it (or untick it)
+function habitWeek() {
+  const hs = recs('habits').filter(h => !h.paused); if (!hs.length) return '';
+  const days = weekDays(), t = today();
+  return `<section class="panel lpanel hweek"><div class="lph3"><h3>This week</h3></div><div class="hgrid"><span></span>${days.map(d => `<span class="hd ${d === t ? 'now' : ''}">${dayName(d).slice(0, 2)}</span>`).join('')}${hs.map(h => { const s = daysSet(h); return `<button class="hname" data-act="open" data-id="${h.id}">${esc(h.name)}</button>` + days.map(d => `<button class="hcell ${s.has(d) ? 'on' : ''}" data-act="hday" data-id="${h.id}" data-d="${d}" aria-pressed="${s.has(d)}" aria-label="${esc(h.name)}, ${dayName(d)}" ${d > t ? 'disabled' : ''}>${s.has(d) ? svg(P.check) : ''}</button>`).join(''); }).join('')}</div></section>`;
+}
 function homeToday(host) {
   const t = today();
   const chores = recs('chores').filter(c => choreDue(c) <= t).sort((a, b) => choreDue(a).localeCompare(choreDue(b)));
@@ -1445,10 +1565,15 @@ function socialToday(host) {
   const deals = recs('deals').filter(d => !['Paid', 'Declined'].includes(d.status)).sort((a, b) => (a.due || '9').localeCompare(b.due || '9'));
   const accs = recs('accounts').filter(a => a.active !== false).sort((a, b) => (num(b.followers) || 0) - (num(a.followers) || 0));
   const bar = g => { const pct = num(g.target) ? Math.min(100, Math.round(100 * (num(g.current) || 0) / num(g.target))) : 0; return `<div class="lrow"><button class="lmain" data-act="open" data-id="${g.id}"><b>${esc(titleOf(g))}</b><span>${esc([g.platform, g.metric, `${num(g.current) || 0} of ${num(g.target) || 0}`].filter(Boolean).join(' · '))}</span><span class="lprog"><i style="width:${pct}%"></i></span></button><span class="lside">${pct}%</span></div>`; };
+  const due = tasksDue(), nextTasks = recs('tasks').filter(x => !taskDone(x) && x.date && x.date > t).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 4);
+  const projs = recs('projects').filter(p => p.status !== 'Completed').sort((a, b) => (a.end || '9').localeCompare(b.end || '9'));
+  const pbar = p => { const ts = projTasks(p), pct = ts.length ? Math.round(100 * ts.filter(taskDone).length / ts.length) : 0; return `<div class="lrow"><button class="lmain" data-act="open" data-id="${p.id}"><b>${esc(titleOf(p))}</b><span>${esc(KINDS.projects.sub(p))}</span><span class="lprog"><i style="width:${pct}%"></i></span></button><span class="lside">${pct}%</span></div>`; };
   host.innerHTML = `${head('Social')}
   <div class="tiles lt3"><div class="tile"><div class="k">This week</div><div class="v">${week.length}</div><div class="h">${posted} posted</div></div>
     ${accs.slice(0, 2).map(a => `<div class="tile"><div class="k">${esc(a.platform || 'Account')}</div><div class="v">${(num(a.followers) || 0).toLocaleString('en-GB')}</div><div class="h">followers${a.freq ? ' · ' + esc(a.freq) : ''}</div></div>`).join('') || '<div class="tile"><div class="k">Followers</div><div class="v">–</div><div class="h">add your accounts under Brand</div></div>'}</div>
   <div class="panels">
+    ${panel('Tasks', due.length || nextTasks.length ? `${due.length ? `<div class="lrows">${due.map(row).join('')}</div>` : quiet('Nothing due today.')}${nextTasks.length ? `<p class="dsub">Next</p><div class="lrows">${nextTasks.map(row).join('')}</div>` : ''}` : `${quiet('No open tasks with a date.')}<button class="btn small" data-act="new" data-v="tasks">Add a task</button>`, ['social/tasks', 'All tasks'])}
+    ${projs.length ? panel('Projects', `<div class="lrows">${projs.slice(0, 5).map(pbar).join('')}</div>`, ['social/projects', 'All projects']) : ''}
     ${panel('Coming up', upcoming.length ? `<div class="lrows">${upcoming.map(row).join('')}</div>` : `${quiet('No posts planned.')}<button class="btn small" data-act="new" data-v="posts">Plan a post</button>`, ['social/posts', 'All posts'])}
     ${late.length ? panel('Past their date', `<div class="lrows">${late.slice(0, 5).map(row).join('')}</div>`, ['social/posts', 'All posts']) : ''}
     ${panel('Goals', goals.length ? `<div class="lrows">${goals.slice(0, 5).map(bar).join('')}</div>` : quiet('Set a goal per platform and track how close you are.'), ['social/goals', 'All goals'])}
@@ -1705,7 +1830,7 @@ alter publication supabase_realtime add table public.records;`;
 function setupCard(host) {
   host.dataset.sig = '';
   host.innerHTML = `<div class="viewhead"><h1>One step in Supabase</h1></div>
-  <div class="panel lsetup"><p>Kitchen, Self-care, Home and Fitness keep their lists in a new table called <span class="mono">records</span>. Create it once and every device can use it:</p>
+  <div class="panel lsetup"><p>Kitchen, Life, Home, Social, Money and Fitness keep their lists in a new table called <span class="mono">records</span>. Create it once and every device can use it:</p>
     <ol><li>Open your project on <a href="https://supabase.com/dashboard" target="_blank" rel="noopener">supabase.com</a> and go to <b>SQL Editor</b>.</li><li>Paste the code below and press <b>Run</b>.</li><li>Come back here and tap <b>Check again</b>.</li></ol>
     <pre class="lsql">${esc(SQL)}</pre>
     <div class="lbar"><button class="btn" data-act="copysql">Copy the code</button><button class="btn primary" data-act="recheck">Check again</button></div></div>`;
@@ -1739,6 +1864,7 @@ document.addEventListener('click', async e => {
     case 'unlist': { const r = L.byId[d.id]; if (r) save(r, { list: false }); break; }
     case 'tolist': { const r = L.byId[d.id]; if (r) { save(r, { list: true }); const inp = $('.lqadd input'); if (inp) { inp.value = ''; inp.focus(); } } break; }
     case 'supp': toggleSupp(d.id, d.t); break;
+    case 'hday': { const r = L.byId[d.id]; if (r) toggleDay(r, d.d); break; }
     case 'water': water(Number(d.v)); break;
     case 'watergoal': { const v = prompt('How many glasses a day?', C.prefs().waterGoal || 8); const n = Math.round(Number(v)); if (n > 0 && n < 40) C.savePrefs({ waterGoal: n }).catch(() => C.toast('Could not save. Try again.')); break; }
     case 'periodstart': create('cycles', { start: today() }).then(() => C.toast('Logged. Tap “Period ended” when it’s over.')).catch(() => {}); break;
