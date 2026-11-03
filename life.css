@@ -344,3 +344,61 @@ button.lrow.lmain, .lrow > .lmain:only-child { padding-left: 12px; }
 .hcell:disabled { opacity: .35; }
 @media (max-width: 420px) { .hgrid { grid-template-columns: minmax(0, 1fr) repeat(7, 28px); gap: 4px; } .hcell { width: 28px; height: 28px; } }
 .hweek { margin-bottom: 12px; }
+/* finance: envelopes, every purchase, challenges, split my pay, settings */
+.fenvgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .fenvgrid { grid-template-columns: 1fr; } }
+.fseg { margin-bottom: 8px; }
+.fenv { padding: 12px 0; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+.fenv:last-child { border-bottom: 0; }
+.fenvh { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.fenvn { border: 0; background: none; padding: 0; font: inherit; font-weight: 600; font-size: 15px; color: inherit; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.fenvv { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; font-size: 14px; }
+.fenvv b { color: var(--ink); font-weight: 600; }
+.fchipsm { font-size: 11.5px; padding: 2px 8px; gap: 4px; }
+.fchipsm svg { width: 12px; height: 12px; }
+.fbar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.fbar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.fbar.over i { background: var(--danger); }
+.fenvc { display: flex; align-items: center; gap: 8px; }
+.fenvc input[type=range] { flex: 1; min-width: 60px; accent-color: var(--accent); }
+.fenvc .fzero { font-size: 12px; color: var(--muted); }
+.fenvl { font-size: 13px; color: var(--muted); white-space: nowrap; min-width: 84px; text-align: right; }
+.fsearch { display: flex; margin: 4px 0 10px; }
+.fsearch input { width: 100%; }
+.fhow { margin-top: 6px; font-size: 13.5px; line-height: 1.45; }
+.fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 6px; margin-top: 12px; }
+.ftile { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 10px; padding: 10px 2px; font: inherit; font-weight: 600; font-size: 13px; font-variant-numeric: tabular-nums; }
+.ftile.on { background: var(--accent); color: var(--accent-ink, #fff); border-color: transparent; }
+.ftile.pick { outline: 3px solid var(--accent); outline-offset: 1px; animation: fpulse 1s ease-in-out 3; }
+@keyframes fpulse { 50% { transform: scale(1.08); } }
+@media (prefers-reduced-motion: reduce) { .ftile.pick { animation: none; } }
+.fsplitbar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--line); margin-bottom: 14px; }
+.fsplit { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.fsplitrow { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+.fsplitl { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; }
+.fsplitl i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.fsplitl small { font-weight: 400; color: var(--muted); }
+.fsplitrow input, .finp, .fpayin input { border: 1px solid var(--line); background: var(--surface); color: inherit; border-radius: 10px; padding: 8px 10px; font: inherit; font-variant-numeric: tabular-nums; }
+.fsplitrow input { width: 110px; text-align: right; }
+.fpayin { font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.fpayin input { width: 120px; text-align: right; }
+.fcomemain { flex: 1; border: 0; background: none; padding: 0; font: inherit; color: inherit; text-align: left; display: flex; flex-direction: column; min-width: 0; }
+.fsetgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 16px; align-items: start; }
+.fsetgrid > :nth-child(n+3) { grid-column: auto; }
+@media (max-width: 900px) { .fsetgrid { grid-template-columns: 1fr; } }
+.fset { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.fset:last-child { border-bottom: 0; }
+.fset > div { display: grid; gap: 2px; }
+.fset span { font-size: 13px; color: var(--muted); }
+.fset .finp { width: 100%; min-width: 0; }
+@media (max-width: 480px) { .fset { grid-template-columns: 1fr; gap: 6px; } }
+.facc { flex-wrap: wrap; }
+.facc .lmain { min-width: 160px; }
+.facc .settog { white-space: nowrap; }
+header.top .brand { flex: none; white-space: nowrap; }
+.fcomemain { min-width: 0; }
+.fcomemain b, .fcomemain span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mup > b { white-space: nowrap; }
+.mup .btn { flex: none; }
+@media (max-width: 560px) { .tiles.lt3 .tile .v { font-size: clamp(17px, 5.2vw, 26px); overflow-wrap: anywhere; } .mup { gap: 8px; } .mup .mdate { width: 40px; } .mup .btn.small { padding: 6px 10px; font-size: 12.5px; } .fenvl { min-width: 0; font-size: 12px; } }
+.mpanel, .mlist, .mup { min-width: 0; } .fcomemain { flex: 1 1 0; }

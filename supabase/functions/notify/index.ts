@@ -46,7 +46,7 @@ function payPeriod(recs: Rec[], today: string) {
   for (let i = 0; p <= today && i < 600; i++) p = addMonths(p, 1);
   return { start: addMonths(p, -1), next: p };
 }
-const everyday = (x: Rec) => !x.bill && !x.debt;
+const everyday = (x: Rec) => !x.bill && !x.debt && !x.transfer;
 const catName = (c?: Rec) => c ? [c.emoji, c.name].filter(Boolean).join(' ') : 'Other';
 
 /* ---------- what each notification says ---------- */
