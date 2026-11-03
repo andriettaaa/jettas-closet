@@ -471,9 +471,10 @@ const KINDS = {
   },
   fcats: {
     one: 'category', many: 'Your plan',
-    fields: [F('name', 'Name'), F('emoji', 'Emoji', 'text', { half: 1 }), F('budget', 'Budget per pay', 'money', { half: 1 }), F('notes', 'Notes', 'long')],
+    fields: [F('name', 'Name'), F('emoji', 'Emoji', 'text', { half: 1 }), F('budget', 'Budget per pay', 'money', { half: 1 }),
+      F('nospend', 'Not spending (moving money to my own savings)', 'check'), F('notes', 'Notes', 'long')],
     title: r => [r.emoji, r.name].filter(Boolean).join(' ') || 'Category', sorts: [['-budget', 'Biggest budget'], ['name', 'A to Z']],
-    sub: r => { const s = fSpentBy(r.id); return num(r.budget) ? `${eur(s)} of ${eur(num(r.budget))} this pay` : `${eur(s)} this pay`; }
+    sub: r => { const s = fSpentBy(r.id); if (r.nospend) return `${eur(fSum(recs('ftx').filter(x => x.category === r.id && x.date >= fStart() && x.date <= today())))} moved this pay · not counted as spending`; return num(r.budget) ? `${eur(s)} of ${eur(num(r.budget))} this pay` : `${eur(s)} this pay`; }
   },
   fdebts: {
     one: 'debt', many: 'Debts',
@@ -1032,7 +1033,8 @@ function fOccs(from, to) {
   return recs('fbills').flatMap(b => fDates(b, from, to).map(d => { const key = b.id + '@' + d, p = pm.get(key); return { key, bill: b, date: d, amount: num(b.amount) || 0, type: b.type || 'Bill', paid: !!p?.paid, skipped: !!p?.skipped }; }))
     .sort((a, b) => a.date.localeCompare(b.date) || b.amount - a.amount);
 }
-const fEveryday = x => !x.bill && !x.debt;
+const fMoved = x => !!(x.category && L.byId[x.category]?.nospend);
+const fEveryday = x => !x.bill && !x.debt && !fMoved(x);
 const fSpentBy = catId => { const s = fStart(), t = today(); return fSum(recs('ftx').filter(x => fEveryday(x) && x.category === catId && x.date >= s && x.date <= t)); };
 function fState() {
   const t = today(), pay = fPayday(), start = fStart(), buf = fBuffer();
@@ -1280,7 +1282,7 @@ function fHealth(m) {
 }
 function fSankey(d) {
   const left = d.out; if (!left) return quiet('Nothing went out this month.');
-  const bills = d.tx.filter(x => !fEveryday(x)), every = d.every, mids = [['Bills', bills, 'var(--c8)'], ['Everyday', every, 'var(--c1)']].filter(m => m[1].length);
+  const bills = d.tx.filter(x => !fEveryday(x) && !fMoved(x)), every = d.every, mids = [['Bills', bills, 'var(--c8)'], ['Everyday', every, 'var(--c1)']].filter(m => m[1].length);
   const rights = []; const top = (list, key) => { const g = new Map(); for (const x of list) { const k = key(x); g.set(k, (g.get(k) || 0) + (num(x.amount) || 0)); } const s = [...g.entries()].sort((a, b) => b[1] - a[1]); return s.length > 5 ? [...s.slice(0, 4), ['Other', s.slice(4).reduce((n, e) => n + e[1], 0)]] : s; };
   mids.forEach(([name, list, c], mi) => top(list, x => name === 'Bills' ? (L.byId[(x.bill || '').split('@')[0]]?.name || x.name || 'Debt') : (titleOf(L.byId[x.category] || {}) !== 'Untitled' ? titleOf(L.byId[x.category]) : 'Other')).forEach(([k, v]) => rights.push({ k, v, mi, c: mi ? ['var(--c6)', 'var(--c3)', 'var(--c2)', 'var(--c4)', 'var(--c5)'][rights.filter(r => r.mi === mi).length % 5] : 'var(--c8)' })));
   const H = 320, G = 10, W = 1000, x0 = 230, x1 = 540, x2 = 730, nw = 12, scaleM = (H - G * (mids.length - 1)) / left, scaleR = (H - G * (rights.length - 1)) / left;
@@ -1321,7 +1323,7 @@ function moneyReviews(host) {
       <div class="mfacts">${most ? `<p><span>🏆 Most went on ${esc(most[0])}</span><b>${fEur0(most[1])}</b></p>` : ''}${biggest ? `<p><span>🧾 Biggest purchase: ${esc(biggest.name)}</span><b>${fEur0(num(biggest.amount))}</b></p>` : ''}<p><span>🌿 Days with nothing spent</span><b>${zero}</b></p>${env ? `<p><span>${fSum(d.every) <= env ? '✅' : '⚠️'} Everyday spending within the plan</span><b>${fEur0(fSum(d.every))} / ${fEur0(env)}</b></p>` : ''}</div>`)}</div>
   ${MP('Where the money went', fSankey(d), `<span class="lnone">${esc(fMonthName(m, { month: 'long' }))}${isCur ? ' so far' : ''}</span>`, 'r-went')}
   <div class="mrow2 meq">${MP('How the month added up', `<p class="mmuted">${esc(fMonthName(hm, { month: 'long' }))}: ${eur(hd.in)} came in and ${eur(hd.out)} went out, so you ${hd.in >= hd.out ? `kept ${eur(hd.in - hd.out)}` : `spent ${eur(hd.out - hd.in)} more than came in, from your balance`}.</p>
-      <div class="mfacts"><p><span>Pay</span><b>${eur(fSum(hd.inc.filter(i => i.type === 'Pay')))}</b></p><p><span>Other money in</span><b>${eur(fSum(hd.inc.filter(i => i.type !== 'Pay')))}</b></p><p><span>Bills and debt</span><b>${eur(fSum(hd.tx.filter(x => !fEveryday(x))))}</b></p><p><span>Everyday spending</span><b>${eur(fSum(hd.every))}</b></p></div>`, '', 'r-added')}
+      <div class="mfacts"><p><span>Pay</span><b>${eur(fSum(hd.inc.filter(i => i.type === 'Pay')))}</b></p><p><span>Other money in</span><b>${eur(fSum(hd.inc.filter(i => i.type !== 'Pay')))}</b></p><p><span>Bills and debt</span><b>${eur(fSum(hd.tx.filter(x => !fEveryday(x) && !fMoved(x))))}</b></p><p><span>Everyday spending</span><b>${eur(fSum(hd.every))}</b></p></div>`, '', 'r-added')}
     ${MP(`So far, against all of ${fMonthName(fPrevMonth(m), { month: 'long' })}`, against.length ? `<div class="magainst">${against.map(x => `<button class="mag" data-act="open" data-id="${x.c.id}"><span class="mbl"><span>${esc(titleOf(x.c))}</span><b>${fEur0(x.a)} <small>/ ${fEur0(x.b)}</small></b></span><span class="lprog"><i style="width:${(100 * x.a / maxA).toFixed(1)}%"></i></span><span class="lprog mlast"><i style="width:${(100 * x.b / maxA).toFixed(1)}%"></i></span></button>`).join('')}</div><p class="mlegend"><span><i style="background:var(--accent)"></i>${esc(fMonthName(m, { month: 'short' }))}</span><span><i style="background:var(--tag)"></i>${esc(fMonthName(fPrevMonth(m), { month: 'short' }))}</span></p>` : quiet('Nothing to compare yet.'), '', 'r-against')}</div>
   ${MP('12 months', `<div class="m12">${months12.map(x => `<div class="mcol"><div class="mbox mpair2"><i style="height:${(100 * x.in / max12).toFixed(1)}%;background:var(--c5)" title="In ${eur(x.in)}"></i><i style="height:${(100 * x.out / max12).toFixed(1)}%;background:var(--c1)" title="Out ${eur(x.out)}"></i></div><span>${esc(fMonthName(x.k, { month: 'short' }))}</span></div>`).join('')}</div><p class="mlegend"><span><i style="background:var(--c5)"></i>In</span><span><i style="background:var(--c1)"></i>Out</span></p>`, '', 'r-12')}
   ${MP(`This year, ${yr}`, `<div class="mpair m3"><p><span>Came in</span><b class="mgood">${fEur0(yIn)}</b></p><p><span>Went out</span><b>${fEur0(yOut)}</b></p><p><span>Difference</span><b>${fSigned(yIn - yOut)}</b></p></div>`, '', 'r-year')}`;
@@ -1385,7 +1387,7 @@ function moneyToday(host) {
   const run = st.pay ? `<div class="mdots">${runDays.map(d => `<i class="${d < t ? 'past' : d === t ? 'now' : ''}"></i>`).join('')}<i class="pay" title="Payday"></i></div>
     <div class="mpair"><p><span>Left to last</span><b>${fSigned(st.until)}</b></p><p><span>Each day</span><b>${fSigned(st.perDay)}</b></p></div>` : quiet('Set your payday under Accounts.');
   const w0 = addDays(t, -6), w7 = tx.filter(x => x.date >= w0 && x.date <= t);
-  const last7 = `<div class="mpair col"><p><span>Spent</span><b>${eur(fSum(w7.filter(fEveryday)))}</b></p><p><span>Bills paid</span><b>${eur(fSum(w7.filter(x => !fEveryday(x))))}</b></p><p><span>Money in</span><b>${eur(fSum(recs('fincome').filter(i => i.date >= w0 && i.date <= t)))}</b></p></div>`;
+  const last7 = `<div class="mpair col"><p><span>Spent</span><b>${eur(fSum(w7.filter(fEveryday)))}</b></p><p><span>Bills paid</span><b>${eur(fSum(w7.filter(x => !fEveryday(x) && !fMoved(x))))}</b></p><p><span>Money in</span><b>${eur(fSum(recs('fincome').filter(i => i.date >= w0 && i.date <= t)))}</b></p></div>`;
   /* goals, debt, net worth */
   const owned = [...st.bal.entries()].reduce((n, [id, b]) => n + (L.byId[id]?.type !== 'Card' && b != null ? b : 0), 0);
   const owed = recs('fdebts').reduce((n, d) => n + Math.max(0, fDebtBal(d)), 0);
