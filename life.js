@@ -371,8 +371,19 @@ const KINDS = {
   },
   meditation: {
     one: 'session', many: 'Meditation',
-    fields: [F('date', 'Date', 'date', { half: 1 }), F('minutes', 'Minutes', 'num', { half: 1 }), F('type', 'Type', 'select', { options: ['Meditation', 'Breathwork', 'Yoga nidra', 'Mindfulness', 'Prayer'] }), F('notes', 'How it felt', 'long')],
-    title: r => r.type || 'Session', sorts: [['-date', 'Newest']], sub: r => [niceDate(r.date), r.minutes ? r.minutes + ' min' : ''].filter(Boolean).join(' · ')
+    fields: [F('date', 'Date', 'date', { half: 1 }), F('minutes', 'Minutes', 'num', { half: 1 }), F('type', 'Type', 'select', { options: ['Meditation', 'Breathwork', 'Yoga nidra', 'Mindfulness', 'Prayer'] }), F('guide', 'From the library', 'rel', { to: 'mindful' }), F('notes', 'How it felt', 'long')],
+    title: r => relName(r.guide) || r.type || 'Session', sorts: [['-date', 'Newest']], sub: r => [niceDate(r.date), r.minutes ? r.minutes + ' min' : ''].filter(Boolean).join(' · ')
+  },
+  mindful: {
+    one: 'mindfulness item', ones: 'items', many: 'Mindfulness library', facet: 'type', photo: 'photo',
+    fields: [F('name', 'Name'), F('url', 'Link', 'url'), F('type', 'Type', 'select', { options: ['Guided meditation', 'Breathwork', 'Body scan', 'Sleep', 'Yoga nidra', 'Affirmations', 'Podcast', 'Music'], half: 1 }),
+      F('minutes', 'Minutes', 'num', { half: 1 }), F('teacher', 'Teacher or app', 'text', { half: 1 }), F('mood', 'Good for', 'multi', { options: ['Calm', 'Focus', 'Sleep', 'Energy', 'Anxiety', 'Gratitude', 'Morning', 'Evening'], half: 1 }),
+      F('fav', 'Pinned', 'check', { half: 1 }), F('rating', 'Rating', 'rating'), F('photo', 'Cover', 'photo'), F('notes', 'Notes', 'long')],
+    sorts: [['-fav', 'Pinned first'], ['minutes', 'Shortest'], ['name', 'A to Z']],
+    filters: [['all', 'All'], ['short', 'Under 15 min'], ['long', '15 min or more']],
+    filter: (r, f) => f === 'short' ? (num(r.minutes) || 0) < 15 : f === 'long' ? (num(r.minutes) || 0) >= 15 : true,
+    sub: r => { const n = recs('meditation').filter(m => m.guide === r.id).length; return [r.teacher, r.minutes && r.minutes + ' min', [].concat(r.mood || []).join(', '), n ? `done ${n}×` : ''].filter(Boolean).join(' · '); },
+    quick: r => ({ on: recs('meditation').some(m => m.guide === r.id && m.date === today()), label: 'Start', act: () => startMindful(r) })
   },
 
   /* home */
@@ -798,7 +809,7 @@ function fitTile() {
 /* ---------- sections and their pages ---------- */
 const SECTIONS = [
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile, views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book], ['meals', 'Meal plan', P.calendar], ['groceries', 'Groceries', P.cart], ['pantry', 'Pantry', P.jar], ['gear', 'Gear', P.spoon]] },
-  { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Habits', P.repeat], ['growth', 'Growth', P.target], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['docs', 'Documents', P.doc]] },
+  { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Habits', P.repeat], ['growth', 'Growth', P.target], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['mindful', 'Mindfulness', P.moon], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['docs', 'Documents', P.doc]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc], ['settings', 'Settings', P.gear]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
   { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['feed', 'Feed', P.grid], ['posts', 'Posts', P.phone], ['ideas', 'Ideas', P.star], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
@@ -811,7 +822,7 @@ const PAGES = {
   'kitchen/groceries': { title: 'Groceries', segs: [{ key: 'list', label: 'Shopping list', kind: 'ingredients', fill: groceryFill, tools: false }] },
   'kitchen/pantry': { title: 'Pantry', segs: [{ kind: 'ingredients' }] },
   'kitchen/gear': { title: 'Kitchen gear', segs: [{ kind: 'gear' }] },
-  'care/today': { render: careToday, adds: ['lgoals', 'courses', 'hobbies', 'habits', 'routines', 'journal', 'sleep', 'beauty', 'supplements', 'appts', 'symptoms', 'meditation', 'ideas', 'gifts', 'documents'] },
+  'care/today': { render: careToday, adds: ['mindful', 'lgoals', 'courses', 'hobbies', 'habits', 'routines', 'journal', 'sleep', 'beauty', 'supplements', 'appts', 'symptoms', 'meditation', 'ideas', 'gifts', 'documents'] },
   'care/beauty': { title: 'Beauty', segs: [{ kind: 'beauty' }, { kind: 'bsched', label: 'Week schedule' }] },
   'care/supplements': { title: 'Supplements', segs: [{ kind: 'supplements' }, { kind: 'suplog' }] },
   'care/cycle': { title: 'Cycle', segs: [{ kind: 'cycles', label: 'Periods', top: cycleTop }] },
@@ -819,6 +830,7 @@ const PAGES = {
   'care/ideas': { title: 'Ideas', segs: [{ kind: 'ideas' }] },
   'care/habits': { title: 'Habits', segs: [{ kind: 'habits', top: habitWeek }, { kind: 'routines' }] },
   'care/gifts': { title: 'Gifts', segs: [{ kind: 'gifts' }] },
+  'care/mindful': { title: 'Mindfulness', segs: [{ kind: 'mindful', top: mindTop }, { kind: 'meditation', label: 'Sessions' }] },
   'care/growth': { title: 'Growth', segs: [{ kind: 'lgoals', top: growthTop }, { kind: 'courses' }, { kind: 'hobbies' }] },
   'care/docs': { title: 'Documents', segs: [{ kind: 'documents' }] },
   'social/tasks': { title: 'Tasks', segs: [{ kind: 'tasks' }] },
@@ -1704,6 +1716,18 @@ function feedDrag(host) {
   FD.cancel = () => end(false);
   host.addEventListener('keydown', e => { const t = e.target.closest?.('[data-feedid]'); if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openRecord(t.dataset.feedid); } });
   const far = (s, e) => Math.hypot(e.clientX - s.x, e.clientY - s.y) > 8;
+}
+// mindfulness: start logs a session for today and opens the recording
+function startMindful(r) {
+  create('meditation', { date: today(), minutes: num(r.minutes) || '', type: r.type === 'Breathwork' ? 'Breathwork' : r.type === 'Yoga nidra' ? 'Yoga nidra' : 'Meditation', guide: r.id })
+    .then(() => C.toast(`${r.name} logged for today`)).catch(() => {});
+  if (r.url) window.open(r.url, '_blank', 'noopener');
+}
+function mindTop() {
+  const ms = recs('meditation').filter(m => m.date), t = today(), wk = weekStart(0);
+  const week = ms.filter(m => m.date >= wk && m.date <= addDays(wk, 6)), mins = week.reduce((n, m) => n + (num(m.minutes) || 0), 0);
+  const days = new Set(ms.map(m => m.date)); let d = days.has(t) ? t : addDays(t, -1), streak = 0; while (days.has(d) && streak < 3650) { streak++; d = addDays(d, -1); }
+  return `<div class="tiles lt3">${fTile('This week', String(week.length), plural(week.length, 'session'))}${fTile('Minutes', String(mins), 'of calm this week')}${fTile('Streak', String(streak), streak === 1 ? 'day in a row' : 'days in a row')}</div>`;
 }
 // goals per life area at a glance
 function growthTop() {
