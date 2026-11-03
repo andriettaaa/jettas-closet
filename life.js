@@ -209,7 +209,7 @@ const KINDS = {
     filters: [['all', 'All'], ['own', 'I have'], ['want', 'Wishlist']],
     filter: (r, f) => f === 'own' ? !!r.own : f === 'want' ? !r.own : true,
     sub: r => [r.category, eur(r.price)].filter(Boolean).join(' · '),
-    quick: r => ({ on: !!r.own, label: 'Have it', act: () => save(r, { own: !r.own, bought: !r.own && !r.bought ? today() : r.bought }) })
+    quick: r => ({ on: !!r.own, label: 'Have it', act: () => r.own || !recs('faccounts').length ? save(r, { own: !r.own, bought: !r.own && !r.bought ? today() : r.bought }) : buyWish('gear', r.id) })
   },
 
   /* self-care */
@@ -429,7 +429,7 @@ const KINDS = {
     filter: (r, f) => f === 'have' ? (r.status || 'Have') === 'Have' : f === 'want' ? ['Wishlist', 'Ordered'].includes(r.status) : true,
     sub: r => [r.room, r.category, r.qty && r.qty !== '1' ? r.qty + '×' : '', r.status === 'Ordered' ? 'ordered' : ''].filter(Boolean).join(' · '),
     side: r => [r.priority && ['Wishlist', 'Ordered'].includes(r.status) ? r.priority : '', eur(r.price)].filter(Boolean).join(' · '),
-    quick: r => ['Wishlist', 'Ordered'].includes(r.status) ? { on: false, label: 'Bought', act: () => save(r, { status: 'Have', bought: r.bought || today() }) } : null
+    quick: r => ['Wishlist', 'Ordered'].includes(r.status) ? { on: false, label: 'Bought', act: () => recs('faccounts').length ? buyWish('inventory', r.id) : save(r, { status: 'Have', bought: r.bought || today() }) } : null
   },
   repairs: {
     one: 'repair', many: 'Repairs', facet: 'status',
@@ -486,9 +486,9 @@ const KINDS = {
   ftx: {
     one: 'purchase', many: 'Purchases',
     fields: [F('name', 'What'), F('amount', 'Amount', 'money', { half: 1 }), F('date', 'Date', 'date', { half: 1 }),
-      F('category', 'Category', 'rel', { to: 'fcats', half: 1 }), F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 }), F('notes', 'Notes', 'long')],
+      F('category', 'Category', 'rel', { to: 'fcats', half: 1 }), F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 }), F('tags', 'Tags', 'multi', { options: ['wishlist'] }), F('notes', 'Notes', 'long')],
     sorts: [['-date', 'Newest'], ['-amount', 'Biggest'], ['name', 'A to Z']],
-    sub: r => [niceDate(r.date), relName(r.category), relName(r.account), r.bill ? 'bill' : r.debt ? 'debt payment' : ''].filter(Boolean).join(' · '),
+    sub: r => [niceDate(r.date), relName(r.category), relName(r.account), r.bill ? 'bill' : r.debt ? 'debt payment' : '', isWishTx(r) ? 'wishlist' : ''].filter(Boolean).join(' · '),
     side: r => eur(num(r.amount))
   },
   fincome: {
@@ -707,12 +707,12 @@ const KINDS = {
     fields: [F('name', 'Item'), F('category', 'Wishlist', 'select', { options: WISH_CATS, half: 1 }), F('type', 'Type', 'text', { half: 1 }),
       F('brand', 'Brand', 'text', { half: 1 }), F('shop', 'Shop', 'text', { half: 1 }), F('price', 'Price', 'money', { half: 1 }), F('color', 'Colour', 'text', { half: 1 }),
       F('priority', 'Priority', 'select', { options: WISH_PRIO, half: 1 }), F('status', 'Status', 'select', { options: ['Wish', 'Ordered', 'Bought', 'Dropped'], half: 1 }),
-      F('since', 'On the list since', 'date', { half: 1 }), F('by', 'Want it by', 'date', { half: 1 }), F('url', 'Link', 'url'),
+      F('since', 'On the list since', 'date', { half: 1 }), F('by', 'Want it by', 'date', { half: 1 }), F('wait', 'Wait this many hours first', 'num', { half: 1 }), F('planBuy', 'Plan to buy on', 'date', { half: 1 }), F('url', 'Link', 'url'),
       F('why', 'Why do I want this?', 'long'), F('specs', 'Specifications', 'long'), F('fav', 'Favourite', 'check', { half: 1 }), F('archived', 'Archived', 'check', { half: 1 }), F('photo', 'Photo', 'photo')],
     sorts: [['-created', 'Newest'], ['since', 'Longest on the list'], ['-price', 'Priciest'], ['price', 'Cheapest'], ['name', 'A to Z']],
     hide: r => r.archived || ['Bought', 'Dropped'].includes(r.status), hideLabel: 'Show bought and archived',
     sub: r => [r.brand, r.type, eur(num(r.price)), r.status && r.status !== 'Wish' ? r.status : '', daysSince(r.since || (r.created && iso(new Date(r.created)))) != null ? daysSince(r.since || iso(new Date(r.created))) + ' days on the list' : ''].filter(Boolean).join(' · '),
-    quick: r => ({ on: r.status === 'Bought', label: 'Bought', act: () => save(r, { status: r.status === 'Bought' ? 'Wish' : 'Bought' }) })
+    quick: r => ({ on: r.status === 'Bought', label: 'Bought', act: () => r.status === 'Bought' ? save(r, { status: 'Wish' }) : buyWish('wishes', r.id) })
   },
   winbox: {
     one: 'link', many: 'Inbox', facet: 'status',
@@ -906,7 +906,7 @@ const curSeg = page => { const ss = segsOf(page), u = uiOf(page); return ss.find
 const recs = kind => L.all.filter(r => r.kind === kind);
 const dataOf = r => { const { id, kind, ...d } = r; return d; };
 const isMissing = e => ['PGRST205', '42P01'].includes(e?.code) || /does not exist|could not find the table/i.test(e?.message || '');
-function index() { L.byId = Object.fromEntries(L.all.map(r => [r.id, r])); }
+function index() { L.byId = Object.fromEntries(L.all.map(r => [r.id, r])); L.ver = (L.ver || 0) + 1; }
 function cacheSave() { try { localStorage.setItem('hangtag:life:' + C.uid(), JSON.stringify(L.all)); } catch {} }
 function cacheLoad() { try { const v = JSON.parse(localStorage.getItem('hangtag:life:' + C.uid()) || 'null'); if (Array.isArray(v)) { L.all = v; index(); return true; } } catch {} return false; }
 async function load() {
@@ -937,13 +937,14 @@ function applyRule(kind, id, data) {
 const undoName = (kind, d) => { const K = KINDS[kind]; const t = K ? ((K.title ? K.title({ ...d, kind }) : d.name) || K.one) : 'item'; return String(t).slice(0, 40); };
 // what is still a wish, per kind; when a record stops being one, it gets a stamp: bought or let go, and when
 const WISHY = { wishes: r => !r.archived && !['Bought', 'Dropped'].includes(r.status), beauty: r => !!r.wish && !r.archived, supplements: r => !!r.wish && !r.finished,
-  gear: r => !r.own, fitgear: r => !r.own, inventory: r => ['Wishlist', 'Ordered'].includes(r.status) };
+  gear: r => !r.own && !r.dropped, fitgear: r => !r.own && !r.dropped, inventory: r => ['Wishlist', 'Ordered'].includes(r.status), fwait: r => (!r.status || r.status === 'Waiting') && !r.moved };
 function stampWish(kind, id, data) {
   const w = WISHY[kind], was = L.byId[id]; if (!w || !was) return data;
   const before = w(was), now = w(data);
   if (!before && now && data.wishOut) { const { wishOut, wishOutOn, ...rest } = data; return rest; }
   if (!before || now || data.wishOut) return data;
-  const dropped = kind === 'wishes' ? data.status === 'Dropped' || (data.archived && data.status !== 'Bought') : kind === 'inventory' ? ['Returned', 'Gone'].includes(data.status) : kind === 'beauty' || kind === 'supplements' ? !!data.wish : false;
+  if (kind === 'fwait' && data.moved) return data;
+  const dropped = kind === 'wishes' ? data.status === 'Dropped' || (data.archived && data.status !== 'Bought') : kind === 'inventory' ? ['Returned', 'Gone'].includes(data.status) : kind === 'beauty' || kind === 'supplements' ? !!data.wish : kind === 'fwait' ? data.status === 'Let go' : !!data.dropped;
   return { ...data, wishOut: dropped ? 'dropped' : 'bought', wishOutOn: today() };
 }
 async function put(kind, id, data) {
@@ -1029,12 +1030,12 @@ const tick = (label, on, attrs) => `<button class="lquick ${on ? 'on' : ''}" ${a
 function row(r) {
   const K = KINDS[r.kind], q = K.quick?.(r), side = K.side?.(r);
   const ph = photoOf(r);
-  return `<div class="lrow ${K.hide?.(r) ? 'gone' : ''}">${ph ? `<button class="lthumb" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : ''}<button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b>${K.sub?.(r) ? `<span>${esc(K.sub(r))}</span>` : ''}</button>${side ? `<span class="lside ${/overdue|expired|today/.test(side) ? 'hot' : ''}">${esc(side)}</span>` : ''}${q ? tick(q.label, q.on, `data-act="quick" data-id="${r.id}"`) : ''}</div>`;
+  return `<div class="lrow ${K.hide?.(r) ? 'gone' : ''}">${ph ? `<button class="lthumb" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : ''}<button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b>${(() => { const t = [K.sub?.(r), WISHY[r.kind] ? wishLine(r.kind, r.id) : ''].filter(Boolean).join(' · '); return t ? `<span>${esc(t)}</span>` : ''; })()}</button>${side ? `<span class="lside ${/overdue|expired|today/.test(side) ? 'hot' : ''}">${esc(side)}</span>` : ''}${q ? tick(q.label, q.on, `data-act="quick" data-id="${r.id}"`) : ''}</div>`;
 }
 // a product tile looks like a closet piece: the whole photo on a soft stage, name and price under it
 function prodCard(r, act = 'open') {
   const K = KINDS[r.kind] || {}, ph = r.closet ? r.photo : photoOf(r), price = num(r.price);
-  const sub = r.closet ? [r.brand, price ? eur(price) : ''].filter(Boolean).join(' · ') : [K.sub?.(r), price && !String(K.sub?.(r) || '').includes(eur(price)) ? eur(price) : ''].filter(Boolean).join(' · ');
+  const sub = [...(r.closet ? [r.brand, price ? eur(price) : ''] : [K.sub?.(r), price && !String(K.sub?.(r) || '').includes(eur(price)) ? eur(price) : '']), WISHY[r.kind] || r.closet ? wishLine(r.closet ? 'closet' : r.kind, r.id, price, r.closet ? r.plan : undefined) : ''].filter(Boolean).join(' · ');
   return `<button class="lcard prod" data-act="${act}" data-id="${r.id}"><div class="stage"><span class="pini">${esc(String(r.name || titleOf(r)).slice(0, 1))}</span>${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${r.fav ? '<i class="lfav" aria-label="Favourite">★</i>' : ''}</div><div class="meta"><b>${esc(r.closet ? r.name || 'Piece' : titleOf(r))}</b><span>${esc(sub)}</span></div></button>`;
 }
 function card(r) {
@@ -1266,7 +1267,7 @@ function moneyTile() {
 
 const MP = (t, body, more, id = '') => `<section class="panel lpanel mpanel" ${id ? `id="m-${id}"` : ''}><div class="lph3"><h3 class="mh">${esc(t)}</h3>${more || ''}</div>${body}</section>`;
 const mLink = (label, v) => `<button class="chip link" data-act="go" data-v="${v}">${esc(label)}</button>`;
-const TYPE_COL = { Bill: 'var(--c8)', Subscription: 'var(--c6)', Debt: 'var(--c7)', Pay: 'var(--c5)' };
+const TYPE_COL = { Bill: 'var(--c8)', Subscription: 'var(--c6)', Debt: 'var(--c7)', Pay: 'var(--c5)', Wish: 'var(--c3)' };
 function fChart(pts, buf, pay) {
   const W = 600, H = 170, P = 6, vs = pts.map(p => p.v), lo = Math.min(...vs, buf), hi = Math.max(...vs, buf), r = hi - lo || 1;
   const x = i => P + i * (W - 2 * P) / (pts.length - 1), y = v => P + (hi - v) * (H - 2 * P) / r;
@@ -1293,7 +1294,7 @@ function fPace() {
 }
 function fProject(st, n, extra) {
   const pay = num(fset().payAmount) || 0, { pace, days } = fPace(), end = addDays(st.t, n);
-  const occs = fOccs(st.start, end).filter(st.counts), paydays = new Set();
+  const occs = fOccs(st.start, end).filter(st.counts), paydays = new Set(), plan = plannedWishes(st.t, end);
   for (let p = st.pay, i = 0; p && p <= end && i < 40; p = addMonths(p, 1), i++) paydays.add(p);
   let v = st.inAcc - fSum(occs.filter(o => o.date < st.t)); const pts = [];
   for (let i = 0; i <= n; i++) {
@@ -1301,6 +1302,7 @@ function fProject(st, n, extra) {
     if (due.length) { v -= fSum(due); ev.push(due.some(o => o.type === 'Debt') ? 'debt' : 'bill'); }
     if (paydays.has(d)) { v += pay; ev.push('in'); }
     if (extra?.amount && d === extra.date) { v -= extra.amount; ev.push('buy'); }
+    const pw = plan.filter(p => p.date === d); if (pw.length) { v -= fSum(pw); ev.push('buy'); }
     pts.push({ d, v, ev });
     v -= st.pay && d < st.pay ? Math.max(0, st.perDay) : pace;
   }
@@ -1323,11 +1325,12 @@ function moneyForecast(host) {
   host.innerHTML = `<div class="viewhead dviewhead"><div><p class="mh mkick">The next ${n} days</p><h1>Forecast</h1></div><div class="spacer"></div>${[30, 60, 90].map(d => `<button class="btn small ${d === n ? 'primary' : ''}" data-fdays="${d}">${d} days</button>`).join('')}</div>
   <div class="tiles lt3">${fTile('Now', fSigned(st.inAcc), 'in the accounts that count')}${fTile('Lowest point', 'about ' + fEur0(Math.round(low.v)), `on ${esc(shortDate(low.d))}${low.v < st.buf ? `, ${eur(st.buf - low.v)} below your protected ${fEur0(st.buf)}` : ''}`, low.v < st.buf ? 'mneg' : '')}${fTile(`In ${n} days`, 'about ' + fEur0(Math.round(last.v)), 'on ' + esc(shortDate(last.d)))}</div>
   ${MP('Your balance, day by day', `${fChart2(pts, st.buf, { dots: true, ticks: true, h: 260 })}
-    <p class="mlegend"><span><i class="mdotk"></i>bill or subscription</span><span><i class="mdotk debt"></i>debt payment</span><span><i class="mdotk in"></i>money in</span><span>- - - protected ${fEur0(st.buf)} (your buffer)</span></p>
+    <p class="mlegend"><span><i class="mdotk"></i>bill or subscription</span><span><i class="mdotk debt"></i>debt payment</span><span><i class="mdotk in"></i>money in</span><span><i class="mdotk buy"></i>planned wish or what-if</span><span>- - - protected ${fEur0(st.buf)} (your buffer)</span></p>
     <p class="mmuted">Assumes you spend ${fSigned(Math.max(0, st.perDay))} a day until payday${st.pay ? ' on ' + esc(shortDate(st.pay)) : ''} (today’s safe amount), then about ${eur(pace)} a day, your usual on the ${plural(days, 'day')} you tracked. Bills and pay land on their dates.</p>
     <div class="mwhatif"><p class="mwh"><b>What if I buy something?</b><span>Slide to try a purchase.</span></p>
       <label class="mslide"><span>How much</span><input type="range" min="0" max="2000" step="10" value="${w.amount}" data-fw="amount"><b data-fwv="amount">${fEur0(w.amount)}</b></label>
-      <label class="mslide"><span>When</span><input type="range" min="0" max="${n}" step="1" value="${Math.min(w.off, n)}" data-fw="off"><b data-fwv="off">${esc(shortDate(extra.date))}</b></label></div>`)}`;
+      <label class="mslide"><span>When</span><input type="range" min="0" max="${n}" step="1" value="${Math.min(w.off, n)}" data-fw="off"><b data-fwv="off">${esc(shortDate(extra.date))}</b></label></div>`)}
+  ${(() => { const pl = plannedWishes(st.t, addDays(st.t, n)); return MP('Planned wishes', pl.length ? `<div class="lrows">${pl.sort((a, b) => a.date.localeCompare(b.date)).map(p => `<div class="lrow"><span class="lmain"><b>${esc(p.name)}</b><span>${esc(shortDate(p.date))}</span></span><span class="lside">${fEur0(p.amount)}</span></div>`).join('')}</div><p class="mmuted">${fEur0(fSum(pl))} planned, already in the line above.</p>` : quiet('Give a wish a planned buy date on its sheet and it counts here.'), mLink('Wishlists', 'wish/today')); })()}`;
   if (!host.dataset.fwired) {
     host.dataset.fwired = '1';
     host.addEventListener('click', e => { const b = e.target.closest('[data-fdays]'); if (b) { L.fdays = Number(b.dataset.fdays); moneyForecast(host); } });
@@ -1484,7 +1487,7 @@ function moneyReviews(host) {
   const months12 = Array.from({ length: 12 }, (_, i) => fPrevMonth(m, 11 - i)).map(k => ({ k, ...fMonthData(k) })), max12 = Math.max(1, ...months12.map(x => Math.max(x.in, x.out)));
   const yr = m.slice(0, 4), yd = Array.from({ length: Number(m.slice(5)) }, (_, i) => `${yr}-${String(i + 1).padStart(2, '0')}`).map(fMonthData);
   const yIn = yd.reduce((n, x) => n + x.in, 0), yOut = yd.reduce((n, x) => n + x.out, 0);
-  const jump = [['m-r-health', 'Money health'], ['m-r-went', 'Where the money went'], ['m-r-added', 'How the month added up'], ['m-r-against', 'Against last month'], ['m-r-12', '12 months'], ['m-r-year', 'This year']];
+  const jump = [['m-r-health', 'Money health'], ['m-r-went', 'Where the money went'], ['m-r-added', 'How the month added up'], ['m-r-against', 'Against last month'], ['m-r-12', '12 months'], ['m-r-year', 'This year'], ['m-r-wish', 'Wishlists']];
   host.innerHTML = `<div class="viewhead dviewhead"><div><p class="mh mkick">${isCur ? 'This month so far' : 'Looking back'}</p><h1>Reviews</h1></div><div class="spacer"></div><button class="iconbtn" data-rmon="1" aria-label="Previous month">${svg(P.left)}</button><b class="mmon">${esc(fMonthName(m))}</b><button class="iconbtn" data-rmon="-1" aria-label="Next month" ${isCur ? 'disabled' : ''}>${svg(P.right)}</button><button class="btn small" onclick="print()">Print</button></div>
   <nav class="mjump">${jump.map(([id, l]) => `<button class="chip" data-jump="${id}">${l}</button>`).join('')}</nav>
   <div class="mtop mrev">${MP('Money health', `<div class="mhealth"><svg viewBox="0 0 42 42" class="mgauge"><circle cx="21" cy="21" r="${R}" class="mring"/><circle cx="21" cy="21" r="${R}" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round" stroke-dasharray="${pct} ${100 - pct}" stroke-dashoffset="25"/><text x="21" y="24.5" text-anchor="middle" class="mgn">${h.score}</text></svg><div><p class="lbig">${h.label}</p><p class="mmuted">out of 100, in five parts</p></div></div>
@@ -1498,7 +1501,8 @@ function moneyReviews(host) {
       <div class="mfacts"><p><span>Pay</span><b>${eur(fSum(hd.inc.filter(i => i.type === 'Pay')))}</b></p><p><span>Other money in</span><b>${eur(fSum(hd.inc.filter(i => i.type !== 'Pay')))}</b></p><p><span>Bills and debt</span><b>${eur(fSum(hd.tx.filter(x => !fEveryday(x) && !fMoved(x))))}</b></p><p><span>Everyday spending</span><b>${eur(fSum(hd.every))}</b></p></div>`, '', 'r-added')}
     ${MP(`So far, against all of ${fMonthName(fPrevMonth(m), { month: 'long' })}`, against.length ? `<div class="magainst">${against.map(x => `<button class="mag" data-act="open" data-id="${x.c.id}"><span class="mbl"><span>${esc(titleOf(x.c))}</span><b>${fEur0(x.a)} <small>/ ${fEur0(x.b)}</small></b></span><span class="lprog"><i style="width:${(100 * x.a / maxA).toFixed(1)}%"></i></span><span class="lprog mlast"><i style="width:${(100 * x.b / maxA).toFixed(1)}%"></i></span></button>`).join('')}</div><p class="mlegend"><span><i style="background:var(--accent)"></i>${esc(fMonthName(m, { month: 'short' }))}</span><span><i style="background:var(--tag)"></i>${esc(fMonthName(fPrevMonth(m), { month: 'short' }))}</span></p>` : quiet('Nothing to compare yet.'), '', 'r-against')}</div>
   ${MP('12 months', `<div class="m12">${months12.map(x => `<div class="mcol"><div class="mbox mpair2"><i style="height:${(100 * x.in / max12).toFixed(1)}%;background:var(--c5)" title="In ${eur(x.in)}"></i><i style="height:${(100 * x.out / max12).toFixed(1)}%;background:var(--c1)" title="Out ${eur(x.out)}"></i></div><span>${esc(fMonthName(x.k, { month: 'short' }))}</span></div>`).join('')}</div><p class="mlegend"><span><i style="background:var(--c5)"></i>In</span><span><i style="background:var(--c1)"></i>Out</span></p>`, '', 'r-12')}
-  ${MP(`This year, ${yr}`, `<div class="mpair m3"><p><span>Came in</span><b class="mgood">${fEur0(yIn)}</b></p><p><span>Went out</span><b>${fEur0(yOut)}</b></p><p><span>Difference</span><b>${fSigned(yIn - yOut)}</b></p></div>`, '', 'r-year')}`;
+  ${MP(`This year, ${yr}`, `<div class="mpair m3"><p><span>Came in</span><b class="mgood">${fEur0(yIn)}</b></p><p><span>Went out</span><b>${fEur0(yOut)}</b></p><p><span>Difference</span><b>${fSigned(yIn - yOut)}</b></p></div>`, '', 'r-year')}
+  ${MP('Wishlists this month', wishReview(m, fMonthName(m, { month: 'long' })), mLink('Wishlists', 'wish/today'), 'r-wish')}`;
   if (!host.dataset.rwired) {
     host.dataset.rwired = '1';
     host.addEventListener('click', e => { const b = e.target.closest('[data-rmon]'); if (b) { L.rmon = Math.max(0, (L.rmon || 0) + Number(b.dataset.rmon)); moneyReviews(host); return; } const j = e.target.closest('[data-jump]'); if (j) document.getElementById(j.dataset.jump)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
@@ -1535,9 +1539,10 @@ function moneyToday(host) {
   const upcoming = fOccs(st.start, addDays(t, 60)).filter(o => !o.paid && !o.skipped).slice(0, 5);
   const wk = weekStart(0), days35 = Array.from({ length: 35 }, (_, i) => addDays(wk, i)), occ35 = fOccs(wk, days35[34]);
   const pays = s.payday ? days35.filter(d => fromISO(d).getDate() === fromISO(fPayday() || s.payday).getDate() && d >= addDays(fPayday() || s.payday, -1)) : [];
-  const outNext = fSum(occ35.filter(o => !o.paid && !o.skipped && o.date >= t)), inNext = pays.filter(d => d >= t).length * (num(s.payAmount) || 0);
+  const plan35 = plannedWishes(t, days35[34]);
+  const outNext = fSum(occ35.filter(o => !o.paid && !o.skipped && o.date >= t)) + fSum(plan35), inNext = pays.filter(d => d >= t).length * (num(s.payAmount) || 0);
   const chip = (amt, ty, paid) => `<span class="mpay ${paid ? 'paid' : ''}" style="--c:${TYPE_COL[ty] || TYPE_COL.Bill}">${fEur0(amt)}</span>`;
-  const cal = `<div class="mcal">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<b class="mdow">${d}</b>`).join('')}${days35.map(d => { const os = occ35.filter(o => o.date === d), dd = fromISO(d); const items = [...(pays.includes(d) ? [chip(num(s.payAmount) || 0, 'Pay')] : []), ...os.map(o => chip(o.amount, o.type, o.paid))]; return `<div class="mday ${d === t ? 'now' : ''} ${d < t ? 'past' : ''}"><span>${dd.getDate() === 1 ? dd.toLocaleDateString('en-GB', { month: 'short' }) + ' 1' : d === t ? shortDate(d) : dd.getDate()}</span>${items.slice(0, 2).join('')}${items.length > 2 ? `<em>+${items.length - 2}</em>` : ''}</div>`; }).join('')}</div>
+  const cal = `<div class="mcal">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<b class="mdow">${d}</b>`).join('')}${days35.map(d => { const os = occ35.filter(o => o.date === d), dd = fromISO(d); const items = [...(pays.includes(d) ? [chip(num(s.payAmount) || 0, 'Pay')] : []), ...os.map(o => chip(o.amount, o.type, o.paid)), ...plan35.filter(p => p.date === d).map(p => chip(p.amount, 'Wish'))]; return `<div class="mday ${d === t ? 'now' : ''} ${d < t ? 'past' : ''}"><span>${dd.getDate() === 1 ? dd.toLocaleDateString('en-GB', { month: 'short' }) + ' 1' : d === t ? shortDate(d) : dd.getDate()}</span>${items.slice(0, 2).join('')}${items.length > 2 ? `<em>+${items.length - 2}</em>` : ''}</div>`; }).join('')}</div>
     <p class="mlegend">${Object.entries(TYPE_COL).map(([k, c]) => `<span><i style="background:${c}"></i>${k}</span>`).join('')}</p>`;
   /* every day this month */
   const m0 = t.slice(0, 8) + '01', mDays = new Date(fromISO(t).getFullYear(), fromISO(t).getMonth() + 1, 0).getDate();
@@ -1592,7 +1597,7 @@ function moneyToday(host) {
   const recent = every.filter(x => x.date <= t).sort((a, b) => (b.date + fSeq(b)).localeCompare(a.date + fSeq(a))).slice(0, 2);
   const chipRow = `<div class="mchips">${recent.map(x => `<button class="chip mrecent" data-act="frepeat" data-id="${x.id}">${esc(x.name || 'Again')} ${eur(num(x.amount))}</button>`).join('')}${chips.map(c => `<button class="chip" data-act="fchip" data-id="${c.id}">${esc(titleOf(c))} ${eur(num(c.amount))}</button>`).join('')}</div>`;
   const pts = fProject(st, 30).pts, low = pts.reduce((m, p) => p.v < m.v ? p : m, pts[0]);
-  const jump = [['m-safe', 'Safe to spend'], ['m-look', 'Worth a look'], ['m-wins', 'Small wins'], ['m-next', 'Next 30 days'], ['m-pay', 'Payments coming'], ['m-days', 'Every day this month'], ['m-went', 'Where the money went'], ['m-net', 'Goals, debt, net worth'], ['m-cats', 'Per category'], ['m-months', 'Month by month'], ['m-big', 'Biggest spending']];
+  const jump = [['m-safe', 'Safe to spend'], ['m-look', 'Worth a look'], ['m-wins', 'Small wins'], ['m-next', 'Next 30 days'], ['m-pay', 'Payments coming'], ['m-days', 'Every day this month'], ['m-went', 'Where the money went'], ['m-net', 'Goals, debt, net worth'], ['m-cats', 'Per category'], ['m-months', 'Month by month'], ['m-big', 'Biggest spending'], ...(allWishes().length || wishBudget() ? [['m-wish', 'Wishlists']] : [])];
   host.innerHTML = `<div class="viewhead dviewhead"><h1>${hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'}</h1><span class="sub">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span><div class="spacer"></div><button class="btn small" data-act="fcheck">Check my money</button><button class="btn small primary" data-act="new" data-v="ftx">+ Add spending</button></div>
   <nav class="mjump" aria-label="On this page">${jump.map(([id, l]) => `<button class="chip" data-jump="${id}">${l}</button>`).join('')}</nav>
   <div class="mtop">${safe}${MP('Small wins', `${wins.join('')}<p class="lnone">${nWin ? `${nWin} down. That counts.` : 'Start with one.'}</p>`, `<span class="lnone">${nWin} of 3</span>`, 'wins')}</div>
@@ -1605,6 +1610,7 @@ function moneyToday(host) {
   ${tiles}
   ${MP('Spending per category', bars + chipRow, mLink('Open spending', 'money/spending'), 'cats')}
   ${MP('Month by month', monthly, `<span class="lnone">money in and out, own transfers left out</span>`, 'months')}
+  ${wishMoneyPanel()}
   ${MP('Biggest spending', biggest, `<span class="lnone">this pay · ${esc(shortDate(st.start))} – ${esc(shortDate(t))}</span>`, 'big')}
   `;
   if (!host.dataset.mwired) { host.dataset.mwired = '1'; host.addEventListener('click', e => { const j = e.target.closest('[data-jump]'); if (j) { e.preventDefault(); e.stopPropagation(); document.getElementById(j.dataset.jump)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }, true); }
@@ -1865,14 +1871,15 @@ const lastMonths = (n = 12) => { const d = new Date(), out = []; for (let k = n 
    supplements, kitchen gear, fitness gear and the home inventory. Each stays managed on its own page. */
 function allWishes() {
   const out = [], add = (list, source, page, map) => list.forEach(r => out.push({ source, page, ...map(r) }));
-  const base = r => ({ id: r.id, name: titleOf(r), price: num(r.price) || 0, photo: photoOf(r), since: r.since || r.added || (r.created ? iso(new Date(r.created)) : ''), brand: r.brand || '', shop: r.shop || '', prio: wishPrio(r.priority) });
+  const base = r => ({ id: r.id, name: titleOf(r), price: num(r.price) || 0, photo: photoOf(r), since: r.since || r.added || (r.created ? iso(new Date(r.created)) : ''), brand: r.brand || '', shop: r.shop || '', prio: wishPrio(r.priority), plan: r.planBuy || '', kind: r.kind });
   for (const c of WISH_CATS) add(recs('wishes').filter(w => (w.category || 'Other') === c && !w.archived && !['Bought', 'Dropped'].includes(w.status)), c, 'wish/master', base);
-  add(C.closetWish?.() || [], 'Clothing', 'wishlist', r => ({ id: r.id, name: r.name || 'Piece', price: num(r.price) || 0, photo: r.photo, since: r.since, closet: true, brand: r.brand || '', shop: r.shop || '', prio: wishPrio(r.priority) }));
+  add(C.closetWish?.() || [], 'Clothing', 'wishlist', r => ({ id: r.id, name: r.name || 'Piece', price: num(r.price) || 0, photo: r.photo, since: r.since, closet: true, kind: 'closet', brand: r.brand || '', shop: r.shop || '', prio: wishPrio(r.priority), plan: r.planBuy || '' }));
   add(recs('beauty').filter(b => b.wish && !b.archived), 'Beauty', 'care/beauty', base);
   add(recs('supplements').filter(b => b.wish && !b.finished), 'Supplements', 'care/supplements', base);
-  add(recs('gear').filter(g => !g.own), 'Kitchen', 'kitchen/gear', base);
-  add(recs('fitgear').filter(g => !g.own), 'Fitness', 'fit/gear', base);
-  add(recs('inventory').filter(i => ['Wishlist', 'Ordered'].includes(i.status)), 'Home', 'home/inventory', base);
+  add(recs('gear').filter(WISHY.gear), 'Kitchen', 'kitchen/gear', base);
+  add(recs('fitgear').filter(WISHY.fitgear), 'Fitness', 'fit/gear', base);
+  add(recs('inventory').filter(WISHY.inventory), 'Home', 'home/inventory', base);
+  add(recs('fwait').filter(WISHY.fwait), 'Wait list', 'money/plan', base);
   return out;
 }
 function wishTile() {
@@ -1881,21 +1888,172 @@ function wishTile() {
 }
 // every wish that left a list: bought or let go, with its price and date (older ones without a date only count in totals)
 function wishHistory() {
-  const out = [], srcOf = { wishes: r => r.category || 'Other', beauty: () => 'Beauty', supplements: () => 'Supplements', gear: () => 'Kitchen', fitgear: () => 'Fitness', inventory: () => 'Home' };
+  const out = [], srcOf = { wishes: r => r.category || 'Other', beauty: () => 'Beauty', supplements: () => 'Supplements', gear: () => 'Kitchen', fitgear: () => 'Fitness', inventory: () => 'Home', fwait: () => 'Wait list' };
   for (const kind of Object.keys(WISHY)) for (const r of recs(kind)) {
     let o = r.wishOut, d = r.wishOutOn || '';
     if (!o && kind === 'wishes') { if (r.status === 'Bought') o = 'bought'; else if (r.status === 'Dropped' || r.archived) o = 'dropped'; }
+    if (!o && kind === 'fwait' && !r.moved) { if (r.status === 'Bought') o = 'bought'; else if (r.status === 'Let go') o = 'dropped'; }
+    if (!d && o && kind === 'fwait') d = r.added || '';
     if (o) out.push({ name: titleOf(r), price: num(r.price) || 0, out: o, date: d || (o === 'bought' ? r.bought || '' : ''), source: srcOf[kind](r) });
   }
   for (const r of C.closetDone?.() || []) out.push({ ...r, price: num(r.price) || 0, source: 'Clothing' });
   return out;
 }
+/* ---------- wishes and money ----------
+   Every wishlist talks to Finance: buying a wish writes a purchase (tag "wishlist", category from your sort rules),
+   saving for one makes a goal, each wish says whether it fits in safe to spend, letting one go counts as money
+   saved, and planned buys show up in the forecast. Each action is one step to undo. */
+const isWishTx = x => [].concat(x.tags || []).includes('wishlist');
+const fMainAcc = () => fAccs().find(a => a.safe && a.type === 'Spending') || fAccs().find(a => a.type !== 'Card') || fAccs()[0] || null;
+const wishGoal = id => recs('fgoals').find(g => g.wish === id && !g.done) || null;
+const wishBudget = () => num(fset().wishBudget) || 0;
+const wishSpent = (w = fWindow()) => fSum(recs('ftx').filter(x => isWishTx(x) && x.date >= w.start && x.date <= w.end && x.date <= today()));
+const wishSaved = () => fSum(wishHistory().filter(h => h.out === 'dropped'), 'price');
+const wishWaitLeft = r => { const h = num(r.wait); if (r.kind === 'fwait') return Math.ceil((waitEnd(r) - Date.now()) / 36e5); if (!h) return null; return Math.ceil(((num(r.waitFrom) || r.created || Date.now()) + h * 36e5 - Date.now()) / 36e5); };
+const BUY_PATCH = { wishes: () => ({ status: 'Bought' }), beauty: d => ({ wish: false, bought: d }), supplements: d => ({ wish: false, bought: d }), gear: d => ({ own: true, bought: d }), fitgear: d => ({ own: true, bought: d }), inventory: d => ({ status: 'Have', bought: d }), fwait: () => ({ status: 'Bought' }) };
+const DROP_PATCH = { wishes: () => ({ status: 'Dropped' }), beauty: () => ({ archived: true }), supplements: () => ({ finished: true }), gear: () => ({ dropped: true }), fitgear: () => ({ dropped: true }), inventory: () => ({ status: 'Gone' }), fwait: () => ({ status: 'Let go' }) };
+function wishRef(kind, id) {
+  if (kind === 'closet') { const c = (C.closetWish?.() || []).find(x => x.id === id); return c ? { kind, id, name: c.name || 'Piece', price: num(c.price) || 0, plan: c.planBuy || '' } : null; }
+  const r = L.byId[id]; return r && WISHY[r.kind] ? { kind: r.kind, id, name: titleOf(r), price: num(r.price) || 0, plan: r.planBuy || '' } : null;
+}
+// what you usually have left at the end of a month: money in minus money out, over the last three full months
+function fSurplus() {
+  let n = 0; for (let k = 1; k <= 3; k++) { const m = fPrevMonth(fMonth(today()), k); n += fSum(recs('fincome').filter(i => !i.transfer && i.confirmed !== false && fMonth(i.date || '') === m)) - fSum(recs('ftx').filter(x => !x.transfer && !fMoved(x) && fMonth(x.date || '') === m)); }
+  return n / 3;
+}
+let AFF = null;
+// a short answer to "can I afford it?": fits now, or about how long saving takes
+function affordLine(price, id) {
+  if (!(price > 0) || !recs('faccounts').length) return '';
+  if (!AFF || AFF.v !== L.ver) { const st = fState(); AFF = { v: L.ver, until: st.until, surplus: fSurplus() }; }
+  const g = id && wishGoal(id), have = g ? num(g.saved) || 0 : 0, need = price - have;
+  if (g && have >= price) return 'ready to buy';
+  if (need <= AFF.until) return 'fits in safe to spend now';
+  const gap = need - Math.max(0, AFF.until);
+  if (AFF.surplus <= 0) return `needs ${fEur0(gap)} more than is safe now`;
+  const days = Math.ceil(gap / (AFF.surplus / 30.4));
+  return days <= 45 ? `about ${plural(days, 'day')} of saving` : `about ${plural(Math.round(days / 30.4), 'payday')} of saving`;
+}
+// the extra words in a wish's description: waiting, planned, saved so far, can I afford it; or cost per use once bought
+function wishLine(kind, id, price, plan) {
+  const r = kind === 'closet' ? null : L.byId[id];
+  if (r && !WISHY[r.kind]?.(r)) {
+    if (!(r.wishOut === 'bought' || (r.kind === 'wishes' && r.status === 'Bought'))) return '';
+    const u = num(r.uses) || 0, paid = num(r.paid) ?? num(r.price);
+    return paid ? (u ? `${eur(paid / u)} per use · ${plural(u, 'use')}` : 'not used yet') : '';
+  }
+  const w = r ? wishWaitLeft(r) : null, g = wishGoal(id), p = num(price ?? r?.price) || 0, pl = plan ?? r?.planBuy;
+  return [w != null && w > 0 ? `waiting, decide in ${w} h` : '', pl ? `planned ${shortDate(pl)}` : '', g && (num(g.saved) || 0) < (num(g.target) || 0) ? `${fEur0(num(g.saved) || 0)} of ${fEur0(num(g.target) || 0)} saved` : '', affordLine(p, id)].filter(Boolean).join(' · ');
+}
+// the money part of a wish's sheet
+function wishPanel(kind, id) {
+  const r = kind === 'closet' ? null : L.byId[id];
+  if (r && !WISHY[r.kind]?.(r)) {
+    if (!(r.wishOut === 'bought' || (r.kind === 'wishes' && r.status === 'Bought')) || r.kind === 'fwait') return '';
+    const u = num(r.uses) || 0, paid = num(r.paid) ?? num(r.price);
+    return `<div class="wmoney"><p><b>${paid ? (u ? `${eur(paid / u)} per use` : 'Not used yet') : 'Bought'}</b><span>${[paid ? `paid ${eur(paid)}` : '', plural(u, 'use')].filter(Boolean).join(' · ')}${r.tx && L.byId[r.tx] ? ' · in Finance' : ''}</span></p><div class="dbtns"><button type="button" class="btn small primary" data-wact="use" data-kind="${r.kind}" data-id="${id}">+1 use</button>${u ? `<button type="button" class="btn small" data-wact="unuse" data-kind="${r.kind}" data-id="${id}">−1</button>` : ''}</div></div>`;
+  }
+  const w = wishRef(kind, id); if (!w) return '';
+  const g = wishGoal(id), aff = affordLine(w.price, id), left = r ? wishWaitLeft(r) : null;
+  return `<div class="wmoney"><p><b>${w.price ? eur(w.price) : 'No price yet'}</b><span>${[aff ? aff.charAt(0).toUpperCase() + aff.slice(1) : '', g ? `${eur(num(g.saved) || 0)} of ${eur(num(g.target) || 0)} saved in ${esc(titleOf(g))}` : '', left != null && left > 0 ? `waiting, decide in ${left} h` : ''].filter(Boolean).join(' · ') || 'Set up Finance to see whether it fits.'}</span></p>
+    <div class="dbtns"><button type="button" class="btn small primary" data-wact="buy" data-kind="${kind}" data-id="${id}">Bought</button>${g ? `<button type="button" class="btn small" data-wact="goal" data-kind="${kind}" data-id="${id}">Open goal</button>` : w.price ? `<button type="button" class="btn small" data-wact="save" data-kind="${kind}" data-id="${id}">Save for this</button>` : ''}${kind !== 'closet' ? `<button type="button" class="btn small" data-wact="drop" data-kind="${kind}" data-id="${id}">Let go</button>` : ''}${r?.kind === 'wishes' && !(left > 0) ? `<button type="button" class="btn small" data-wact="wait" data-kind="${kind}" data-id="${id}">Wait 48 hours</button>` : ''}
+    <label class="wplan"><span>Plan to buy on</span><input type="date" data-wplan="${id}" data-kind="${kind}" value="${esc(w.plan || '')}"></label></div></div>`;
+}
+// several changes as one undo step: purchase, wish, goal and (for the closet) the piece
+async function wishSteps(label, fn) {
+  const befores = [], closet = [];
+  const step = async (kind, id, data) => { befores.push([id, L.byId[id] ? { kind: L.byId[id].kind, data: dataOf(L.byId[id]) } : null]); await put(kind, id, data); };
+  L.batch = true;
+  try { await C.undoQuiet(() => fn(step, (id, b) => closet.push([id, b]))); } finally { L.batch = false; }
+  C.undoPush(label, async () => {
+    L.batch = true;
+    try { for (const [id, b] of befores.reverse()) b ? await put(b.kind, id, b.data) : await del(id); for (const [id, b] of closet) await C.closetRestore(id, b); }
+    finally { L.batch = false; }
+  }, true);
+}
+function buyWish(kind, id) {
+  const w = wishRef(kind, id); if (!w) return;
+  const accs = fAccs(), main = fMainAcc();
+  if (!accs.length) { C.toast('Add an account in Finance first, so the purchase has somewhere to go.'); return; }
+  const sh = C.sheet({
+    title: 'Bought ' + w.name,
+    body: `<div class="form"><div class="field"><label for="wb-p">Price paid</label><input id="wb-p" type="number" inputmode="decimal" step="any" value="${w.price || ''}"></div>
+      <div class="field"><label for="wb-d">Date</label><input id="wb-d" type="date" value="${today()}"></div>
+      <div class="field full"><label for="wb-a">Paid from</label><select id="wb-a">${accs.map(a => `<option value="${a.id}" ${a.id === main?.id ? 'selected' : ''}>${esc(a.name || 'Account')}</option>`).join('')}</select></div></div>
+      <p class="lnone">This writes the purchase down in Finance with the tag wishlist (your sort rules pick the category) and moves the wish to bought. One step to undo.</p>`,
+    foot: `<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-wbuy>Save</button>`
+  });
+  sh.querySelector('[data-wbuy]').addEventListener('click', async e => {
+    const price = num(String(sh.querySelector('#wb-p').value).replace(',', '.')) || 0, date = sh.querySelector('#wb-d').value || today(), account = sh.querySelector('#wb-a').value;
+    e.target.disabled = true;
+    try { await wishBought(w, { price, date, account }); C.closeSheet(); C.toast(`${w.name} bought, ${eur(price)} written down`); if (kind === 'closet') C.openItem?.(id); }
+    catch (err) { console.error(err); sh.querySelector('[data-msg]').textContent = 'Could not save. Try again.'; e.target.disabled = false; }
+  });
+}
+function wishBought(w, { price, date, account }) {
+  const txId = C.uuid(), goal = wishGoal(w.id);
+  return wishSteps(`Bought ${w.name}`, async (step, closetDone) => {
+    await step('ftx', txId, { name: w.name, amount: price, date, account, tags: ['wishlist'], wish: w.id, created: Date.now() });
+    if (w.kind === 'closet') closetDone(w.id, await C.closetBuy(w.id, { price, bought: date, tx: txId }));
+    else { const r = L.byId[w.id], { planBuy, ...d } = dataOf(r); await step(w.kind, w.id, { ...d, ...BUY_PATCH[w.kind](date), tx: txId, paid: price, wishOut: 'bought', wishOutOn: date }); }
+    if (goal) await step('fgoals', goal.id, { ...dataOf(goal), done: true });
+  });
+}
+async function dropWish(kind, id) {
+  const r = L.byId[id]; if (!r || !DROP_PATCH[kind]) return;
+  await save(r, DROP_PATCH[kind]());
+  C.toast(num(r.price) ? `Let go. ${eur(num(r.price))} saved` : 'Let go');
+}
+async function saveForWish(kind, id) {
+  const w = wishRef(kind, id); if (!w) return;
+  const g = wishGoal(id); if (g) { openRecord(g.id); return; }
+  try { await create('fgoals', { name: w.name, target: w.price, saved: 0, wish: id }); C.toast('Goal added. Put money by in Finance › Goals.'); } catch { C.toast('Could not save. Try again.'); }
+}
+async function planWish(kind, id, date) {
+  try { if (kind === 'closet') await C.closetPatch(id, { planBuy: date }); else { const r = L.byId[id]; if (r) { const { planBuy, ...d } = dataOf(r); await put(r.kind, id, date ? { ...d, planBuy: date } : d); } } C.toast(date ? `Planned for ${shortDate(date)}, it now counts in the forecast` : 'No longer planned'); }
+  catch { C.toast('Could not save. Try again.'); }
+}
+// planned wishes between two dates, for the forecast and the money calendar
+const plannedWishes = (from, to) => allWishes().filter(w => w.plan && w.plan >= from && w.plan <= to).map(w => ({ date: w.plan, amount: w.price, name: w.name }));
+// one wait list: older wait-list items move into the wishlists, the originals stay readable and point at their wish
+function moveWaitList() {
+  const old = recs('fwait').filter(WISHY.fwait); if (!old.length) return;
+  const rows = [];
+  for (const f of old) {
+    const id = C.uuid();
+    rows.push({ id, kind: 'wishes', data: { name: f.name || 'Something', price: num(f.price) ?? undefined, url: f.url, why: f.notes, since: f.added || today(), wait: num(f.wait) ?? 48, waitFrom: waitEnd(f) - (num(f.wait) ?? 48) * 36e5, status: 'Wish', category: 'Other', fromWait: f.id, created: f.created || Date.now() } });
+    rows.push({ id: f.id, kind: 'fwait', data: { ...dataOf(f), moved: id } });
+  }
+  for (const r of rows) for (const k of Object.keys(r.data)) if (r.data[k] === undefined || r.data[k] === '') delete r.data[k];
+  return putMany(rows, null, `Moved ${plural(old.length, 'wait-list item')} into Wishlists`).then(() => C.toast('Your wait list now lives in Wishlists')).catch(() => C.toast('Could not move them. Try again.'));
+}
+// a month of wishes: bought, let go, spent against the wishlist budget
+function wishMonth(m) {
+  const h = wishHistory().filter(x => (x.date || '').startsWith(m)), b = h.filter(x => x.out === 'bought'), d = h.filter(x => x.out === 'dropped');
+  return { bought: b, dropped: d, spent: fSum(recs('ftx').filter(x => isWishTx(x) && (x.date || '').startsWith(m))), saved: fSum(d, 'price') };
+}
+function wishReview(m, label) {
+  const x = wishMonth(m), bud = wishBudget(), mode = fMode(), budM = bud ? (mode === 'month' ? bud : bud) : 0;
+  const li = l => l.length ? `<div class="lrows">${l.slice(0, 6).map(h => `<div class="lrow"><span class="lmain"><b>${esc(h.name || 'Wish')}</b><span>${esc([h.source, h.date ? shortDate(h.date) : ''].filter(Boolean).join(' · '))}</span></span><span class="lside">${h.price ? fEur0(h.price) : ''}</span></div>`).join('')}${l.length > 6 ? `<p class="lnone">and ${l.length - 6} more</p>` : ''}</div>` : '';
+  return `<div class="mpair m3"><p><span>Bought</span><b>${x.bought.length} · ${fEur0(fSum(x.bought, 'price'))}</b></p><p><span>Let go</span><b class="mgood">${x.dropped.length} · ${fEur0(x.saved)} saved</b></p><p><span>Spent from wishlists</span><b class="${budM && x.spent > budM ? 'mneg' : ''}">${fEur0(x.spent)}${budM ? ` <small>/ ${fEur0(budM)}</small>` : ''}</b></p></div>
+    ${budM ? `<span class="lprog mprog"><i style="width:${Math.min(100, 100 * x.spent / budM)}%"></i></span><p class="mmuted">${x.spent <= budM ? `${fEur0(budM - x.spent)} of the wishlist budget left${mode === 'pay' ? ' (budget per paycheck)' : ''}.` : `${fEur0(x.spent - budM)} over the wishlist budget.`}</p>` : `<p class="mmuted">Set a wishlist budget in Finance or Wishlists settings to see this against a plan.</p>`}
+    ${x.bought.length || x.dropped.length ? `<div class="vsplit"><div>${x.bought.length ? `<p class="dsub">Bought in ${esc(label)}</p>${li(x.bought)}` : ''}</div><div>${x.dropped.length ? `<p class="dsub">Let go in ${esc(label)}</p>${li(x.dropped)}` : ''}</div></div>` : quiet(`Nothing bought or let go in ${label} yet.`)}`;
+}
+// the Finance overview's view of every wishlist
+function wishMoneyPanel() {
+  const all = allWishes(); if (!all.length && !wishBudget()) return '';
+  const by = new Map(); for (const w of all) { const g = by.get(w.source) || { label: w.source, v: 0, n: 0 }; g.v += w.price; g.n++; by.set(w.source, g); }
+  const rows = [...by.values()].sort((a, b) => b.v - a.v), total = all.reduce((n, w) => n + w.price, 0), bud = wishBudget(), spent = wishSpent(), mode = fMode();
+  return MP('Wishlists', `<div class="mpair m3"><p><span>All wishes together</span><b>${fEur0(total)}</b></p><p><span>Spent from wishlists this ${mode === 'month' ? 'month' : 'pay'}</span><b class="${bud && spent > bud ? 'mneg' : ''}">${fEur0(spent)}${bud ? ` <small>/ ${fEur0(bud)}</small>` : ''}</b></p><p><span>Saved by letting go</span><b class="mgood">${fEur0(wishSaved())}</b></p></div>
+    ${rows.length ? vHBars(rows.map(r => ({ label: r.label, v: r.v, sub: plural(r.n, 'wish', 'wishes') })), { color: 'var(--c4)' }) : ''}`, mLink('Open Wishlists', 'wish/today'), 'wish');
+}
+
 function wishToday(host) {
   const all = allWishes(), total = all.reduce((n, w) => n + w.price, 0), by = new Map();
   for (const w of all) { const g = by.get(w.source) || { n: 0, sum: 0 }; g.n++; g.sum += w.price; by.set(w.source, g); }
   const groups = [...by].sort((a, b) => b[1].sum - a[1].sum);
   const old = all.filter(w => w.since).sort((a, b) => a.since.localeCompare(b.since))[0];
-  const inbox = recs('winbox').filter(r => r.status !== 'Done');
+  const inbox = recs('winbox').filter(r => r.status !== 'Done'), hist = wishHistory(), savedAll = fSum(hist.filter(h => h.out === 'dropped'), 'price');
   /* money per wishlist */
   const catDonut = vDonut(groups.map(([src, g]) => ({ label: src, v: g.sum, go: all.find(w => w.source === src).page, src })), { act: 'wishgo', unit: 'total', empty: 'Add prices to your wishes to see this.' });
   const catTable = lTbl(['Wishlist', 'Wishes', 'Total'], groups.map(([src, g]) => [esc(src), g.n, fEur0(g.sum)]), ['All', all.length, fEur0(total)]);
@@ -1904,9 +2062,9 @@ function wishToday(host) {
   let noDate = 0; for (const w of all) { const d = daysSince(w.since); if (d == null) { noDate++; continue; } const i = BK.findIndex(([, m]) => d < m); bk[i].n++; bk[i].v += w.price; }
   const ages = all.length ? vHBars(bk.map(b => ({ label: b.label, v: b.n, sub: b.v ? fEur0(b.v) : '' })), { fmt: n => String(n), color: 'var(--c2)' }) + (noDate ? `<p class="lnone">${plural(noDate, 'wish', 'wishes')} without a date.</p>` : '') : quiet('Nothing on your wishlists yet.');
   /* bought vs let go */
-  const hist = wishHistory(), months = lastMonths(12).map(m => ({ ...m, bought: 0, dropped: 0, nb: 0, nd: 0 }));
+  const months = lastMonths(12).map(m => ({ ...m, bought: 0, dropped: 0, nb: 0, nd: 0 }));
   for (const h of hist) { const m = months.find(x => h.date && x.key === h.date.slice(0, 7)); if (!m) continue; if (h.out === 'bought') { m.bought += h.price; m.nb++; } else { m.dropped += h.price; m.nd++; } }
-  const savedAll = fSum(hist.filter(h => h.out === 'dropped'), 'price'), saved12 = months.reduce((n, m) => n + m.dropped, 0), bought12 = months.reduce((n, m) => n + m.bought, 0);
+  const saved12 = months.reduce((n, m) => n + m.dropped, 0), bought12 = months.reduce((n, m) => n + m.bought, 0);
   const SBD = [{ k: 'bought', label: 'Bought', color: 'var(--c1)' }, { k: 'dropped', label: 'Let go (saved)', color: 'var(--c2)' }];
   const flow = hist.length ? `${vCols(months, SBD)}<p class="mmuted">Last 12 months: <b>${fEur0(bought12)}</b> spent on wishes, <b>${fEur0(saved12)}</b> saved by letting go${savedAll > saved12 ? ` · ${fEur0(savedAll)} saved in all` : ''}.</p>
     ${asTable(lTbl(['Month', 'Bought', 'Let go', 'Saved'], months.filter(m => m.nb || m.nd).reverse().map(m => [`${m.label} ${m.title}`, m.nb ? `${m.nb} · ${fEur0(m.bought)}` : '–', m.nd || '–', m.dropped ? fEur0(m.dropped) : '–']), ['Total', fEur0(bought12), months.reduce((n, m) => n + m.nd, 0), fEur0(saved12)]))}` : quiet('When you buy a wish or let one go, it shows up here per month.');
@@ -1924,15 +2082,16 @@ function wishToday(host) {
   const prio = pr.length ? `<p class="mlegend"><span><i style="background:var(--c1)"></i>Wanted</span>${have.length ? '<span><i style="background:var(--c5)"></i>Money you have</span>' : ''}</p>${vHBars([...pr, ...have], { max: pmax })}
     <p class="mmuted">${!st ? 'Set up Finance to see this against what is safe to spend.' : must <= 0 ? 'No must-haves with a price yet.' : must <= safe ? `Your must-haves (${fEur0(must)}) fit in what is safe to spend now.` : `Your must-haves need ${fEur0(must - safe)} more than is safe to spend now${gSaved ? `, or ${fEur0(Math.max(0, must - gSaved))} past what your goals hold` : ''}.`}</p>` : quiet('Nothing on your wishlists yet.');
   host.innerHTML = `${head('Wishlists')}
-  <div class="tiles lt3">${fTile('Wishes', String(all.length), `on ${plural(groups.length, 'list')}`)}${fTile('All together', fEur0(total), 'for what has a price')}${fTile('Longest wanted', old ? daysSince(old.since) + ' days' : '–', old ? esc(old.name) : 'nothing yet')}</div>
+  <div class="tiles">${fTile('Wishes', String(all.length), `on ${plural(groups.length, 'list')}`)}${fTile('All together', fEur0(total), 'for what has a price')}${fTile('Saved by letting go', `<span class="mgood">${fEur0(savedAll)}</span>`, plural(hist.filter(h => h.out === 'dropped').length, 'wish', 'wishes') + ' let go')}${wishBudget() ? fTile('Wishlist budget', fEur0(Math.max(0, wishBudget() - wishSpent())), `left of ${fEur0(wishBudget())} this ${fMode() === 'month' ? 'month' : 'pay'} · ${fEur0(wishSpent())} spent`, wishSpent() > wishBudget() ? 'mneg' : '') : fTile('Longest wanted', old ? daysSince(old.since) + ' days' : '–', old ? esc(old.name) : 'nothing yet')}</div>
   <div class="panels">
     ${panel('Money per wishlist', `${catDonut}${groups.length ? asTable(catTable) : ''}`)}
     ${panel('How long on the list', ages)}
     ${panel('Inbox', `<form class="lqadd" data-winbox><input placeholder="Paste a link to sort later" aria-label="Paste a link"><button class="btn small" type="submit">Add</button></form>${inbox.length ? `<div class="lrows">${inbox.slice(0, 6).map(row).join('')}</div>` : quiet('Nothing to sort.')}`, ['wish/inbox', 'Inbox'])}
   </div>
   <div class="mrow2 wrow2">${panel('Bought and let go', flow)}${panel('Priority and budget', prio)}</div>
-  ${panel('Brands and shops', bs)}
-  <div class="wtables">${groups.map(([src]) => { const list = all.filter(w => w.source === src).sort((a, b) => (a.since || '9').localeCompare(b.since || '9')), page = list[0].page; return `<section class="panel wtable" style="--n:${Math.min(6, list.length)};--m:${Math.min(3, list.length)}"><div class="lph3"><h3>${esc(src)}</h3><button class="chip link" data-act="wishgo" data-v="${esc(page)}" data-src="${esc(src)}">All ${list.length} →</button></div><div class="lgrid wgrid">${list.slice(0, 6).map(w => prodCard(w.closet ? w : { ...L.byId[w.id] }, w.closet ? 'openitem' : 'open')).join('')}</div></section>`; }).join('')}</div>`;
+  <div class="wrow2">${panel(`This month, ${new Date().toLocaleDateString('en-GB', { month: 'long' })}`, wishReview(today().slice(0, 7), 'this month'), ['money/reviews', 'Monthly reviews'])}</div>
+  <div class="wrow2">${panel('Brands and shops', bs)}</div>
+  <div class="wtables">${groups.map(([src]) => { const list = all.filter(w => w.source === src).sort((a, b) => (a.since || '9').localeCompare(b.since || '9')), page = list[0].page; return `<section class="panel wtable" style="--n:${Math.min(6, list.length)};--m:${Math.min(3, list.length)}"><div class="lph3"><h3>${esc(src)}</h3><button class="chip link" data-act="wishgo" data-v="${esc(page)}" data-src="${esc(src)}">All ${list.length} →</button></div><div class="lgrid wgrid">${list.slice(0, 6).map(w => `<div class="wcard">${prodCard(w.closet ? w : { ...L.byId[w.id] }, w.closet ? 'openitem' : 'open')}${recs('faccounts').length ? `<button class="chip wbuy" data-wact="buy" data-kind="${w.kind}" data-id="${esc(w.id)}">Bought</button>` : ''}</div>`).join('')}</div></section>`; }).join('')}</div>`;
 }
 function wishFromInbox(r) {
   const link = /^https?:/.test(r.name || '') ? r.name : '';
@@ -2110,7 +2269,7 @@ function openEditor(kind, id, preset = {}) {
   if (!r) for (const f of K.fields) if (f.type === 'date' && D[f.k] === undefined && ['date', 'start'].includes(f.k)) D[f.k] = today();
   const sh = C.sheet({
     title: r ? titleOf(r) : 'New ' + K.one,
-    body: `<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}">${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
+    body: `${r && WISHY[kind] ? wishPanel(kind, id) : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}">${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
     foot: `${r ? '<button class="btn danger" data-del>Delete</button>' : ''}<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save</button>`,
     onClose: () => { if (D._preview) URL.revokeObjectURL(D._preview); }
   });
@@ -2347,7 +2506,8 @@ document.addEventListener('click', async e => {
     case 'splitsug': saveFset({ split: null }); break;
     case 'fgtile': { const g = L.byId[d.id]; if (!g) break; const f = gridFilled(g), i = +d.v, on = !f.has(i), amt = gridTiles(g)[i] || 0; on ? f.add(i) : f.delete(i); L.gpick = null; save(g, { filled: [...f] }); const goal = g.goal && L.byId[g.goal]; if (goal) save(goal, { saved: Math.max(0, (num(goal.saved) || 0) + (on ? amt : -amt)) }); if (on) C.toast(`${eur(amt)} put by`); break; }
     case 'fgpick': { const g = L.byId[d.id]; if (!g) break; const f = gridFilled(g), tl = gridTiles(g), free = tl.map((a, i) => [a, i]).filter(([, i]) => !f.has(i)); if (!free.length) { C.toast('Every tile is filled. Well done!'); break; } const spare = Math.max(0, fState().perDay || 0), fit = free.filter(([a]) => a <= Math.max(spare, Math.min(...free.map(x => x[0])))), [a, i] = fit[Math.floor(Math.random() * fit.length)]; L.gpick = { id: g.id, i }; C.render(); C.toast(`Put ${eur(a)} by today`); break; }
-    case 'fwset': { const r = L.byId[d.id]; if (r) { save(r, { status: d.v }); C.toast(d.v === 'Let go' ? `${eur(num(r.price) || 0)} not spent` : 'Enjoy it'); } break; }
+    case 'fwset': { const r = L.byId[d.id]; if (!r) break; if (d.v === 'Bought' && recs('faccounts').length) { buyWish(r.kind, r.id); break; } if (r.kind === 'fwait') { save(r, { status: d.v }); C.toast(d.v === 'Let go' ? `${eur(num(r.price) || 0)} not spent` : 'Enjoy it'); } else if (d.v === 'Let go') dropWish(r.kind, r.id); else save(r, { status: 'Bought' }); break; }
+    case 'fwnew': openEditor('wishes', null, { status: 'Wish', since: today(), wait: 48, category: 'Other' }); break;
     case 'fcsv': pickCsv(); break;
     case 'fdups': fDups(); break;
     case 'fclear': fClear(); break;
@@ -2357,7 +2517,8 @@ document.addEventListener('click', async e => {
     case 'feednew': openEditor('posts', null, { platforms: ['Instagram'], stage: 'Planned' }); break;
     case 'feedacc': openEditor('accounts', null, { platform: 'Instagram', active: true }); break;
     case 'wishf': { const b2 = document.querySelector(`.wtable [data-src="${CSS.escape(d.v)}"]`); b2?.closest('.wtable')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); break; }
-    case 'wishgo': if (d.v === 'wish/master') uiOf('wish/master').facet = d.src; C.go(d.v); break;
+    case 'wishgo': if (d.v === 'wish/master') uiOf('wish/master').facet = d.src; if (d.v === 'money/plan') uiOf('money/plan').seg = 'wait'; C.go(d.v); break;
+    case 'wmovewait': moveWaitList(); break;
     case 'openitem': C.openItem?.(d.id); break;
     case 'hday': { const r = L.byId[d.id]; if (r) toggleDay(r, d.d); break; }
     case 'water': water(Number(d.v)); break;
@@ -2408,7 +2569,7 @@ document.addEventListener('change', e => {
   const t = e.target; if (!C || t.closest('.sheet')) return;
   if (t.matches('[data-envr]')) { const c = L.byId[t.dataset.envr]; if (c) save(c, { budget: Number(t.value) }); }
   if (t.matches('[data-split]')) { const k = t.dataset.split, v = num(t.value); if (k === 'pay') saveFset({ payAmount: v }); else saveFset({ split: { ...(fset().split || {}), [k]: v ?? 0 } }); }
-  if (t.matches('[data-fset]')) { const k = t.dataset.fset; saveFset({ [k]: ['payAmount', 'buffer'].includes(k) ? num(t.value) : t.value }); }
+  if (t.matches('[data-fset]')) { const k = t.dataset.fset; saveFset({ [k]: ['payAmount', 'buffer', 'wishBudget'].includes(k) ? num(t.value) : t.value }); }
   if (t.matches('[data-accsafe]')) { const a = L.byId[t.dataset.accsafe]; if (a) save(a, { safe: t.checked }); }
 });
 document.addEventListener('change', e => {
@@ -2471,10 +2632,10 @@ function fComingFill(fill) {
 }
 function fCalFill(fill) {
   const off = L.calOff || 0, m0 = addMonths(today().slice(0, 7) + '-01', off), first = fromISO(m0), lead = (first.getDay() + 6) % 7;
-  const start = addDays(m0, -lead), days = Array.from({ length: 42 }, (_, i) => addDays(start, i)), occ = fOccs(days[0], days[41]), t = today(), s = fset();
+  const start = addDays(m0, -lead), days = Array.from({ length: 42 }, (_, i) => addDays(start, i)), occ = fOccs(days[0], days[41]), t = today(), s = fset(), planC = plannedWishes(days[0], days[41]);
   let pay = s.payday; const pays = []; if (pay) { for (let i = 0; pay > days[0] && i < 60; i++) pay = addMonths(pay, -1); for (let i = 0; pay <= days[41] && i < 60; i++) { if (pay >= days[0]) pays.push(pay); pay = addMonths(pay, 1); } }
   const chip = (txt, c, paid) => `<span class="mpay ${paid ? 'paid' : ''}" style="--c:${c}">${esc(txt)}</span>`;
-  fill.innerHTML = MP(fromISO(m0).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }), `<div class="mcal">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<b class="mdow">${d}</b>`).join('')}${days.map(d => { const os = occ.filter(o => o.date === d); const items = [...(pays.includes(d) ? [chip('Payday', TYPE_COL.Pay)] : []), ...os.map(o => chip(`${o.bill.name} ${fEur0(o.amount)}`, TYPE_COL[o.type] || TYPE_COL.Bill, o.paid))]; return `<div class="mday ${d === t ? 'now' : ''} ${d.slice(0, 7) !== m0.slice(0, 7) ? 'past' : ''}"><span>${fromISO(d).getDate()}</span>${items.slice(0, 3).join('')}${items.length > 3 ? `<em>+${items.length - 3}</em>` : ''}</div>`; }).join('')}</div>`,
+  fill.innerHTML = MP(fromISO(m0).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }), `<div class="mcal">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<b class="mdow">${d}</b>`).join('')}${days.map(d => { const os = occ.filter(o => o.date === d); const items = [...(pays.includes(d) ? [chip('Payday', TYPE_COL.Pay)] : []), ...os.map(o => chip(`${o.bill.name} ${fEur0(o.amount)}`, TYPE_COL[o.type] || TYPE_COL.Bill, o.paid)), ...planC.filter(p => p.date === d).map(p => chip(`${p.name} ${fEur0(p.amount)}`, TYPE_COL.Wish))]; return `<div class="mday ${d === t ? 'now' : ''} ${d.slice(0, 7) !== m0.slice(0, 7) ? 'past' : ''}"><span>${fromISO(d).getDate()}</span>${items.slice(0, 3).join('')}${items.length > 3 ? `<em>+${items.length - 3}</em>` : ''}</div>`; }).join('')}</div>`,
     `<span class="mbtns"><button class="iconbtn small" data-act="calmove" data-v="-1" aria-label="Previous month">${svg(P.left)}</button><button class="chip link" data-act="calmove" data-v="0">Today</button><button class="iconbtn small" data-act="calmove" data-v="1" aria-label="Next month">${svg(P.right)}</button></span>`);
 }
 function fBillsOf(type) { return fill => { const list = sortList(recs('fbills').filter(b => (b.type || 'Bill') === type && b.active !== false), KINDS.fbills, 'name'); fill.innerHTML = `<div class="tiles lt3">${fTile(type === 'Bill' ? 'Bills' : 'Subscriptions', String(list.length), 'active')}${fTile('Per month', eur(list.reduce((n, b) => n + fPerMonth(b), 0)), 'spread over the year')}${fTile('Per year', eur(12 * list.reduce((n, b) => n + fPerMonth(b), 0)), '')}</div>${list.length ? `<div class="lrows">${list.map(row).join('')}</div>` : quiet(`No ${type === 'Bill' ? 'bills' : 'subscriptions'} yet.`)}<button class="btn small mmore" data-act="newbill" data-v="${type}">+ Add ${type === 'Bill' ? 'a bill' : 'a subscription'}</button>`; }; }
@@ -2513,12 +2674,17 @@ function fChallFill(fill) {
 }
 const waitEnd = r => (r.created || Date.parse(r.added || today())) + (num(r.wait) ?? 48) * 36e5;
 function fWaitFill(fill) {
-  const all = recs('fwait'), wait = all.filter(r => !r.status || r.status === 'Waiting').sort((a, b) => waitEnd(a) - waitEnd(b)), gone = all.filter(r => r.status === 'Let go'), bought = all.filter(r => r.status === 'Bought');
-  const now = Date.now(), hrs = r => Math.ceil((waitEnd(r) - now) / 36e5);
-  fill.innerHTML = `<div class="tiles lt3">${fTile('Waiting', String(wait.length), 'each one waits 48 hours')}${fTile('Money you didn’t spend', `<span class="mgood">${fEur0(fSum(gone, 'price'))}</span>`, plural(gone.length, 'thing') + ' you let go')}<div class="tile"><div class="k">How it works</div><div class="h fhow">Want something? Put it here instead of buying it. After two days most wants fade, and the ones that don’t are worth it.</div></div></div>
-  ${wait.length ? MP('Waiting', `<div class="lrows">${wait.map(r => `<div class="lrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(r.name || 'Something')}</b><span>${hrs(r) > 0 ? `decide in ${hrs(r)} h` : 'waited long enough, still want it?'}</span></button><span class="lside">${eur(num(r.price))}</span><button class="lquick" data-act="fwset" data-id="${r.id}" data-v="Bought">Bought</button><button class="lquick" data-act="fwset" data-id="${r.id}" data-v="Let go">Let go</button></div>`).join('')}</div>`)
-    : `<div class="empty lempty"><h2>Nothing waiting</h2><p>Next time something catches your eye, add it here and let it sit for two days.</p><button class="btn primary" data-act="new" data-v="fwait">+ Add a wish</button></div>`}
-  ${gone.length || bought.length ? MP('Decided', `<div class="lrows">${[...gone, ...bought].sort((a, b) => (b.created || 0) - (a.created || 0)).slice(0, 30).map(row).join('')}</div>`) : ''}`;
+  const now = Date.now(), old = recs('fwait').filter(WISHY.fwait);
+  // waiting wishes: the old wait list plus every wish that started with a wait and is still being decided (up to a week after)
+  const fresh = recs('wishes').filter(r => WISHY.wishes(r) && num(r.wait) && wishWaitLeft(r) > -24 * 7);
+  const wait = [...old, ...fresh].sort((a, b) => (wishWaitLeft(a) ?? 0) - (wishWaitLeft(b) ?? 0));
+  const hist = wishHistory(), gone = hist.filter(h => h.out === 'dropped');
+  const decided = recs('fwait').filter(r => r.status && r.status !== 'Waiting');
+  fill.innerHTML = `<div class="tiles lt3">${fTile('Waiting', String(wait.length), 'each one waits 48 hours')}${fTile('Saved by letting go', `<span class="mgood">${fEur0(fSum(gone, 'price'))}</span>`, plural(gone.length, 'wish', 'wishes') + ' you let go, from every wishlist')}<div class="tile"><div class="k">How it works</div><div class="h fhow">Want something? Put it on a wishlist with a 48-hour wait instead of buying it. After two days most wants fade, and the ones that don’t are worth it.</div></div></div>
+  ${old.length ? MP('One wait list', `<p class="lnone">${plural(old.length, 'item')} still on the old wait list. Move them into Wishlists so there is one list to keep. The old entries stay readable, and you can undo it.</p><button class="btn small primary" data-act="wmovewait">Move wait list into Wishlists</button>`) : ''}
+  ${wait.length ? MP('Waiting', `<div class="lrows">${wait.map(r => { const h = wishWaitLeft(r); return `<div class="lrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(r.name || 'Something')}</b><span>${[h > 0 ? `decide in ${h} h` : 'waited long enough, still want it?', r.kind === 'wishes' ? r.category || 'Wishlist' : 'old wait list', affordLine(num(r.price) || 0, r.id)].filter(Boolean).join(' · ')}</span></button><span class="lside">${eur(num(r.price))}</span><button class="lquick" data-act="fwset" data-id="${r.id}" data-v="Bought">Bought</button><button class="lquick" data-act="fwset" data-id="${r.id}" data-v="Let go">Let go</button></div>`; }).join('')}</div>`, '<button class="chip link" data-act="fwnew">+ Add a wish</button>')
+    : `<div class="empty lempty"><h2>Nothing waiting</h2><p>Next time something catches your eye, add it as a wish that waits two days.</p><button class="btn primary" data-act="fwnew">+ Add a wish</button></div>`}
+  ${decided.length ? MP('Decided on the old wait list', `<div class="lrows">${decided.sort((a, b) => (b.created || 0) - (a.created || 0)).slice(0, 30).map(row).join('')}</div>`) : ''}`;
 }
 /* finance settings */
 const CURRENCIES = [['EUR', 'EUR €'], ['USD', 'USD $'], ['GBP', 'GBP £'], ['CHF', 'CHF'], ['SEK', 'SEK kr'], ['DKK', 'DKK kr'], ['NOK', 'NOK kr']];
@@ -2540,7 +2706,8 @@ function fSettings() {
       ${fld('Plan everyday spending', fMode() === 'month' ? 'Per month: each category is a budget for the calendar month.' : 'Per paycheck: each category is an envelope that fills on payday.', `<select class="finp" data-fset="envMode"><option value="pay" ${fMode() === 'pay' ? 'selected' : ''}>Per paycheck (envelopes)</option><option value="month" ${fMode() === 'month' ? 'selected' : ''}>Per month</option></select>`)}
       ${fld('Usual pay', 'Used to plan the paydays ahead and to split your pay.', `<input class="finp" type="number" inputmode="decimal" step="0.01" data-fset="payAmount" value="${s.payAmount ?? ''}">`)}
       ${fld('Next payday', '', `<input class="finp" type="date" data-fset="payday" value="${esc(s.payday || '')}">`)}
-      ${fld('Safety buffer', 'Kept back from safe to spend, for surprises.', `<input class="finp" type="number" inputmode="decimal" step="1" data-fset="buffer" value="${s.buffer ?? 100}">`)}`)}
+      ${fld('Safety buffer', 'Kept back from safe to spend, for surprises.', `<input class="finp" type="number" inputmode="decimal" step="1" data-fset="buffer" value="${s.buffer ?? 100}">`)}
+      ${wishBudgetField()}`)}
     ${MP('Your accounts', `${accs.length ? `<div class="lrows facclist">${accs.map(accRow).join('')}</div>` : quiet('Add your bank accounts to see balances and safe to spend.')}<p class="lnone">Counts: the account is part of safe to spend. Add the IBAN to an account so bank imports land on it by themselves.</p><div class="dbtns"><button class="btn small" data-act="fcheck">Update balances</button><button class="btn small" data-act="fmove">⇄ Move money</button></div>`, '<button class="chip link" data-act="new" data-v="faccounts">+ Add an account</button>')}
     ${MP('Import and backup', `<p class="lnone">Bank statements from ING or Rabobank (CSV). Duplicates are skipped, own transfers are recognised and your sort rules pick the categories.</p><div class="dbtns"><button class="btn small primary" data-act="fcsv">Import bank CSV</button><button class="btn small" data-act="import">Import budget backup</button><button class="btn small" data-act="fdups">Find duplicates</button></div><p class="lnone">Imported something twice? Find duplicates keeps one copy of everything and removes the rest.</p><div class="dbtns"><button class="btn small danger" data-act="fclear">Clear all finance data</button></div><p class="lnone">Removes everything in Finance so you can import again from scratch.</p>`)}
     ${MP('Categories', list('fcats', 'No categories yet.', '+ Category') + '<p class="lnone">Open one to set its budget, let it roll over, or mark it as not spending.</p>')}
@@ -2825,9 +2992,12 @@ function openFound(id, go) {
 }
 
 /* ---------- settings that only one section has ---------- */
+const wishBudgetField = () => `<div class="fset"><div><b>Wishlist budget</b><span>What you allow yourself from your wishlists per ${fMode() === 'month' ? 'month' : 'paycheck'} (follows how you plan everyday spending). Purchases with the tag wishlist count against it.</span></div><input class="finp" type="number" inputmode="decimal" step="1" data-fset="wishBudget" value="${fset().wishBudget ?? ''}" placeholder="No budget"></div>`;
 function settingsPanels(sec) {
   const wrap = h => h ? `<div class="secown">${h}</div>` : '';
   if (sec === 'money') return wrap(fSettings());
+  if (sec === 'wish') { const old = recs('fwait').filter(WISHY.fwait).length; return wrap(`<section class="panel setpanel"><h3>Wishlists and money</h3>${recs('faccounts').length ? wishBudgetField() : '<p class="lnone">Set up Finance to give your wishlists a budget.</p>'}
+    ${old ? `<div class="fset"><div><b>Wait list</b><span>${plural(old, 'item')} still on the old 48-hour wait list in Finance.</span></div><button class="btn small" data-act="wmovewait">Move wait list into Wishlists</button></div>` : ''}</section>`); }
   if (sec === 'care') {
     const goal = Number(C.prefs().waterGoal) || 8, wk = recs('bsched')[0];
     return wrap(`<section class="panel setpanel"><h3>Life</h3>
@@ -2838,6 +3008,24 @@ function settingsPanels(sec) {
   if (sec === 'social') { const acc = recs('accounts'); return wrap(`<section class="panel setpanel"><h3>Accounts</h3>${acc.length ? `<div class="lrows">${acc.map(row).join('')}</div>` : quiet('Add your Instagram and TikTok so the feed planner shows your profile.')}<button class="btn small mmore" data-act="new" data-v="accounts">+ Account</button></section>`); }
   return '';
 }
+document.addEventListener('click', async e => {
+  const b = e.target.closest?.('[data-wact]'); if (!b || !C) return;
+  e.preventDefault(); e.stopPropagation();
+  const { wact, kind, id } = b.dataset, inEditor = !!b.closest('.sheet') && kind !== 'closet';
+  if (wact === 'buy') { buyWish(kind, id); return; }
+  if (wact === 'save') { await saveForWish(kind, id); if (inEditor) { C.closeSheet(); openRecord(id); } else if (kind === 'closet') C.openItem?.(id); return; }
+  if (wact === 'goal') { const g = wishGoal(id); if (g) { C.closeSheet(); openRecord(g.id); } return; }
+  if (wact === 'drop') { C.closeSheet(); dropWish(kind, id); return; }
+  const r = L.byId[id]; if (!r) return;
+  if (wact === 'wait') { await save(r, { wait: 48, waitFrom: Date.now() }); C.toast('Waiting 48 hours. If you still want it then, it’s worth it.'); }
+  if (wact === 'use' || wact === 'unuse') await save(r, { uses: Math.max(0, (num(r.uses) || 0) + (wact === 'use' ? 1 : -1)) });
+  if (inEditor) { C.closeSheet(); openRecord(id); }
+}, true);
+document.addEventListener('change', async e => {
+  const t = e.target; if (!C || !t.matches?.('[data-wplan]')) return;
+  const { kind, wplan: id } = t.dataset; await planWish(kind, id, t.value);
+  if (kind !== 'closet' && t.closest('.sheet')) { C.closeSheet(); openRecord(id); }
+});
 document.addEventListener('change', e => { if (e.target.matches?.('[data-watergoal]')) { const n = Math.round(Number(e.target.value)); if (n > 0 && n < 40) C.savePrefs({ waterGoal: n }).catch(() => C.toast('Could not save. Try again.')); } });
 
 /* ---------- what index.html calls ---------- */
@@ -2847,6 +3035,8 @@ return {
   has: view => !!PAGES[view],
   lists: optionLists, fullList: fullOptions, renameIn: renameOption,
   search, openFound, settingsPanels,
+  buyWish: (kind, id) => buyWish(kind, id), wishPanel, wishLine,
+  canBuyWish: () => fAccs().length > 0,
   // one small card for the overview page; '' while the lists are still loading or missing
   tile(key) {
     const s = SECTIONS.find(x => x.key === key);

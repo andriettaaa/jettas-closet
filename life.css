@@ -497,3 +497,16 @@ header.top .brand { flex: none; white-space: nowrap; }
 .wrow2 > .panel { margin: 0; }
 @media (max-width: 640px) { .vsplit { grid-template-columns: 1fr; } .vhrow { grid-template-columns: minmax(84px, 38%) minmax(0, 1fr) auto; gap: 8px; } }
 .vcols .vtick { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+/* wishes and money */
+.wmoney { display: grid; gap: 10px; background: var(--stage); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+.wmoney p { margin: 0; display: grid; gap: 2px; }
+.wmoney p b { font-size: 17px; }
+.wmoney p span { color: var(--muted); font-size: 13.5px; }
+.wmoney .dbtns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.wplan { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.wplan input { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; }
+.wcard { display: grid; gap: 6px; min-width: 0; align-content: start; }
+.wcard .wbuy { justify-self: start; }
+.detail .wmoney { margin: 0; }
+.mdotk.buy { background: var(--danger); border-color: var(--danger); }
+.wgrid .meta span { white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
