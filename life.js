@@ -489,6 +489,12 @@ const KINDS = {
       F('category', 'Category', 'rel', { to: 'fcats', half: 1 }), F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 })],
     title: r => [r.emoji, r.name].filter(Boolean).join(' '), sorts: [['name', 'A to Z']], sub: r => relName(r.category), side: r => eur(num(r.amount))
   },
+  frules: {
+    one: 'sort rule', many: 'Sort rules',
+    fields: [F('contains', 'When the name contains'), F('category', 'Put it in', 'rel', { to: 'fcats', half: 1 }), F('rename', 'Rename it to', 'text', { half: 1 })],
+    title: r => r.contains ? `“${r.contains}”` : 'Sort rule', sorts: [['contains', 'A to Z']],
+    sub: r => ['→ ' + (relName(r.category) || 'no category'), r.rename && 'renamed to ' + r.rename].filter(Boolean).join(' · ')
+  },
   fset: {
     one: 'setting', many: 'Money settings',
     fields: [F('payday', 'Next payday', 'date', { half: 1 }), F('payAmount', 'Expected pay', 'money', { half: 1 }),
@@ -730,7 +736,7 @@ const PAGES = {
   'social/brand': { title: 'Brand', segs: [{ kind: 'pillars' }, { kind: 'accounts' }] },
   'care/health': { title: 'Health', segs: [{ kind: 'sleep' }, { kind: 'appts' }, { kind: 'symptoms' }, { kind: 'meditation' }, { kind: 'water' }] },
   'money/today': { render: moneyToday, adds: ['ftx', 'fincome', 'fbills', 'fchecks'] },
-  'money/spending': { title: 'Spending', segs: [{ kind: 'fcats', label: 'Your plan', top: fPlanTop }, { kind: 'ftx' }, { kind: 'fincome' }, { key: 'all', label: 'Everything in and out', kind: 'ftx', fill: fAllFill, tools: false }] },
+  'money/spending': { title: 'Spending', segs: [{ kind: 'fcats', label: 'Your plan', top: fPlanTop }, { kind: 'ftx' }, { kind: 'fincome' }, { key: 'all', label: 'Everything in and out', kind: 'ftx', fill: fAllFill, tools: false }, { kind: 'fchips' }, { kind: 'frules' }] },
   'money/repeats': { title: 'Repeats', segs: [{ kind: 'fbills' }, { kind: 'fpaid' }] },
   'money/plan': { title: 'Plan', segs: [{ kind: 'fgoals', top: fGoalsTop }, { key: 'safety', label: 'Safety net', kind: 'fgoals', fill: fSafetyFill, tools: false }, { kind: 'fchall' }, { kind: 'fwait' }] },
   'money/debt': { title: 'Debt', segs: [{ key: 'free', label: 'Debt-free date', kind: 'fdebts', fill: fDebtFreeFill, tools: false }, { key: 'method', label: 'Snowball or avalanche', kind: 'fdebts', fill: fMethodFill, tools: false }, { kind: 'fdebts', label: 'Your debts' }, { key: 'made', label: 'Payments made', kind: 'ftx', fill: fPaymentsFill, tools: false }] },
@@ -778,7 +784,15 @@ function apply(id, kind, data) {
   index(); cacheSave(); C.render();
 }
 // Changes show at once and are rolled back if Supabase says no
+// a sort rule fills in the category (and a cleaner name) of a new purchase that has none
+const ruleFor = name => { const n = norm(name); return n ? recs('frules').find(r => r.contains && n.includes(norm(r.contains))) : null; };
+function applyRule(kind, id, data) {
+  if (kind !== 'ftx' || L.byId[id] || data.category) return data;
+  const r = ruleFor(data.name); if (!r) return data;
+  return { ...data, category: r.category || '', ...(r.rename ? { name: r.rename } : {}) };
+}
 async function put(kind, id, data) {
+  data = applyRule(kind, id, data);
   const before = L.byId[id] ? { ...L.byId[id] } : null;
   apply(id, kind, data);
   const { error } = await C.sb.from('records').upsert({ user_id: C.uid(), id, kind, data, updated_at: new Date().toISOString() });
@@ -1806,6 +1820,8 @@ async function fromBudgetBackup(j) {
     await add(t.id, 'ftx', { name: t.note || 'Purchase', amount: t.amount, date: t.date, seq: t.seq, category: await U(t.categoryId), account: await U(t.accountId), bill: o ? await occKey(o) : null, debt: await U(t.cardPaymentFor || bill?.debtId) });
   }
   for (const i of d.income || []) await add(i.id, 'fincome', { name: i.label, amount: i.amount, date: i.date, seq: i.seq, type: i.kind === 'pay' ? 'Pay' : 'Other', account: await U(i.accountId), confirmed: i.confirmed !== false });
+  for (const c of d.quickChips || []) await add(c.id, 'fchips', { name: c.label, emoji: c.emoji, amount: c.amount, category: await U(c.categoryId), account: await U(c.accountId) });
+  for (const r of d.v3Rules || []) await add(r.id, 'frules', { contains: r.contains, category: await U(r.categoryId), rename: r.rename });
   const st = d.settings || {};
   // your payday and buffer live on one settings record; keep the one already here if there is one
   const fs = recs('fset')[0];
