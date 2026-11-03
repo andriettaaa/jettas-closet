@@ -1006,16 +1006,25 @@ const waterToday = () => recs('water').find(w => w.date === today());
 // any list can show its records as rows or as photo cards; the choice is remembered per list on this device
 const hasPhotos = K => K.fields.some(f => f.type === 'photo');
 const photoOf = r => hasPhotos(KINDS[r.kind]) ? r.photo : '';
-const viewMode = K => { try { const v = localStorage.getItem('lview:' + K.kind); if (v === 'rows' || v === 'cards') return v; } catch {} return K.display === 'cards' || (hasPhotos(K) && recs(K.kind).some(r => r.photo)) ? 'cards' : 'rows'; };  // lists with photos open as a grid
+// products and things you own or want always show as tiles, like the closet
+const PRODUCTS = new Set(['gear', 'beauty', 'supplements', 'inventory', 'fitgear', 'wishes', 'ingredients', 'fwait']);
+const viewMode = K => { if (PRODUCTS.has(K.kind)) return 'cards'; try { const v = localStorage.getItem('lview:' + K.kind); if (v === 'rows' || v === 'cards') return v; } catch {} return K.display === 'cards' || (hasPhotos(K) && recs(K.kind).some(r => r.photo)) ? 'cards' : 'rows'; };  // lists with photos open as a grid
 const setViewMode = (K, v) => { try { localStorage.setItem('lview:' + K.kind, v); } catch {} };
-const viewSwitch = K => `<div class="seg lviews" role="group" aria-label="Show as">${[['rows', 'List', P.list], ['cards', 'Cards', P.grid]].map(([v, l, ic]) => `<button data-act="lview" data-v="${v}" aria-pressed="${viewMode(K) === v}" aria-label="${l}" title="${l}">${svg(ic)}</button>`).join('')}</div>`;
+const viewSwitch = K => PRODUCTS.has(K.kind) ? '' : `<div class="seg lviews" role="group" aria-label="Show as">${[['rows', 'List', P.list], ['cards', 'Cards', P.grid]].map(([v, l, ic]) => `<button data-act="lview" data-v="${v}" aria-pressed="${viewMode(K) === v}" aria-label="${l}" title="${l}">${svg(ic)}</button>`).join('')}</div>`;
 const tick = (label, on, attrs) => `<button class="lquick ${on ? 'on' : ''}" ${attrs} aria-pressed="${on}">${on ? svg(P.check) : ''}${esc(label)}</button>`;
 function row(r) {
   const K = KINDS[r.kind], q = K.quick?.(r), side = K.side?.(r);
   const ph = photoOf(r);
   return `<div class="lrow ${K.hide?.(r) ? 'gone' : ''}">${ph ? `<button class="lthumb" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : ''}<button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b>${K.sub?.(r) ? `<span>${esc(K.sub(r))}</span>` : ''}</button>${side ? `<span class="lside ${/overdue|expired|today/.test(side) ? 'hot' : ''}">${esc(side)}</span>` : ''}${q ? tick(q.label, q.on, `data-act="quick" data-id="${r.id}"`) : ''}</div>`;
 }
+// a product tile looks like a closet piece: the whole photo on a soft stage, name and price under it
+function prodCard(r, act = 'open') {
+  const K = KINDS[r.kind] || {}, ph = r.closet ? r.photo : photoOf(r), price = num(r.price);
+  const sub = r.closet ? [r.brand, price ? eur(price) : ''].filter(Boolean).join(' · ') : [K.sub?.(r), price && !String(K.sub?.(r) || '').includes(eur(price)) ? eur(price) : ''].filter(Boolean).join(' · ');
+  return `<button class="lcard prod" data-act="${act}" data-id="${r.id}"><div class="stage"><span class="pini">${esc(String(r.name || titleOf(r)).slice(0, 1))}</span>${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${r.fav ? '<i class="lfav" aria-label="Favourite">★</i>' : ''}</div><div class="meta"><b>${esc(r.closet ? r.name || 'Piece' : titleOf(r))}</b><span>${esc(sub)}</span></div></button>`;
+}
 function card(r) {
+  if (PRODUCTS.has(r.kind)) return prodCard(r);
   const K = KINDS[r.kind], ph = photoOf(r);
   return `<button class="lcard" data-act="open" data-id="${r.id}"><div class="lph"><span>${esc(titleOf(r).slice(0, 1))}</span>${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${r.fav ? '<i class="lfav" aria-label="Favourite">★</i>' : ''}</div><div class="meta"><b>${esc(titleOf(r))}</b><span>${esc(K.sub?.(r) || '')}</span></div></button>`;
 }
@@ -1801,7 +1810,7 @@ function wishToday(host) {
     ${panel('Cost per wishlist', groups.length ? `<div class="wbars">${groups.map(([s, g]) => `<button class="wbar ${f === s ? 'on' : ''}" data-act="wishf" data-v="${esc(s)}"><span class="wbl"><b>${esc(s)}</b><small>${plural(g.n, 'wish', 'wishes')}</small></span><span class="wbt"><i style="width:${Math.max(2, 100 * g.sum / max)}%"></i></span><b class="wbv">${fEur0(g.sum)}</b></button>`).join('')}</div>` : quiet('Nothing on your wishlists yet.'))}
     ${panel('Inbox', `<form class="lqadd" data-winbox><input placeholder="Paste a link to sort later" aria-label="Paste a link"><button class="btn small" type="submit">Add</button></form>${inbox.length ? `<div class="lrows">${inbox.slice(0, 6).map(row).join('')}</div>` : quiet('Nothing to sort.')}`, ['wish/inbox', 'Inbox'])}
   </div>
-  <div class="wtables">${groups.map(([src]) => { const list = all.filter(w => w.source === src).sort((a, b) => (a.since || '9').localeCompare(b.since || '9')), page = list[0].page; return `<section class="panel wtable"><div class="lph3"><h3>${esc(src)}</h3><button class="chip link" data-act="wishgo" data-v="${esc(page)}" data-src="${esc(src)}">All ${list.length} →</button></div><table><tbody>${list.slice(0, 6).map(w => `<tr data-act="${w.closet ? 'openitem' : 'open'}" data-id="${w.id}" tabindex="0"><td class="wtn">${esc(w.name)}</td><td class="wtd">${w.since ? daysSince(w.since) + ' d' : ''}</td><td class="wtp">${w.price ? fEur0(w.price) : ''}</td></tr>`).join('')}</tbody></table></section>`; }).join('')}</div>`;
+  <div class="wtables">${groups.map(([src]) => { const list = all.filter(w => w.source === src).sort((a, b) => (a.since || '9').localeCompare(b.since || '9')), page = list[0].page; return `<section class="panel wtable" style="--n:${Math.min(6, list.length)};--m:${Math.min(3, list.length)}"><div class="lph3"><h3>${esc(src)}</h3><button class="chip link" data-act="wishgo" data-v="${esc(page)}" data-src="${esc(src)}">All ${list.length} →</button></div><div class="lgrid wgrid">${list.slice(0, 6).map(w => prodCard(w.closet ? w : { ...L.byId[w.id] }, w.closet ? 'openitem' : 'open')).join('')}</div></section>`; }).join('')}</div>`;
 }
 function wishFromInbox(r) {
   const link = /^https?:/.test(r.name || '') ? r.name : '';
