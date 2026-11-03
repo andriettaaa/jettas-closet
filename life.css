@@ -331,7 +331,7 @@ button.lrow.lmain, .lrow > .lmain:only-child { padding-left: 12px; }
 .setmv { display: inline-flex; gap: 4px; flex: none; }
 @media (max-width: 560px) { .setrow { gap: 6px; } .setrow > b { flex: 1; min-width: 0; } .setrow .spacer { display: none; } .settog { font-size: 12px; } }
 /* Settings stays visible at the right edge of the phone's bottom bar, even when the bar scrolls */
-#tabsBottom [data-sec="settings"] { position: sticky; right: 0; background: var(--surface); box-shadow: -10px 0 12px -10px rgba(0, 0, 0, .25); }
+#tabsBottom [data-menu] { position: sticky; right: 0; background: var(--surface); box-shadow: -10px 0 12px -10px rgba(0, 0, 0, .25); }
 
 /* habits: this week as a grid */
 .hgrid { display: grid; grid-template-columns: minmax(0, 1fr) repeat(7, 32px); gap: 6px; align-items: center; }
@@ -452,3 +452,15 @@ header.top .brand { flex: none; white-space: nowrap; }
 .wbt { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
 .wbt i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
 .wbv { font-variant-numeric: tabular-nums; font-size: 14px; }
+/* wishlists: a short table per list */
+.wtables { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-top: 14px; }
+.wtable table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.wtable tr { cursor: pointer; border-top: 1px solid var(--line); }
+.wtable tr:first-child { border-top: 0; }
+.wtable tr:hover td, .wtable tr:focus-visible td { background: var(--stage); }
+.wtable td { padding: 8px 4px; }
+.wtn { max-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.wtd { color: var(--muted); white-space: nowrap; font-size: 12.5px; text-align: right; }
+.wtp { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+/* section settings: the section's own panels span the full width */
+.setpanels > .secown { grid-column: 1 / -1; display: grid; gap: 16px; }

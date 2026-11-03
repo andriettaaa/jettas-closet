@@ -461,6 +461,15 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .settime { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 4px 8px; font: inherit; color: inherit; }
 .setsteps { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: 14px; }
 .setsteps .chip.mono { font-size: 12px; word-break: break-all; white-space: normal; text-align: left; }
+/* toast undo, ☰ menu, settings */
+.toast { display: flex; align-items: center; gap: 12px; }
+.toastbtn { border: 0; background: none; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; padding: 0; cursor: pointer; }
+.menulist { display: grid; gap: 6px; }
+.menuset { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.menuitem { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: inherit; font: inherit; font-weight: 600; text-align: left; }
+.menuitem svg { width: 20px; height: 20px; }
+.menuitem.on { border-color: var(--ink); }
+.setwhen { font-size: 12px; }
 /* search everywhere */
 .findbar { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0 0 16px; padding: 11px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font: inherit; font-size: 15px; text-align: left; cursor: text; }
 .findbar svg, .findbox svg { width: 18px; height: 18px; flex: none; }
@@ -539,17 +548,22 @@ const VIEWS = [
 // header; the pages of the open area sit in the bar below it. A new area in life.js shows up in both, and on the overview.
 const SUN = '<circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>';
 const GEAR = '<circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.8v2.4M12 18.8v2.4M21.2 12h-2.4M5.2 12H2.8M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7M18.5 18.5l-1.7-1.7M7.2 7.2 5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>';
+// on a phone the bottom bar holds four sections unless you pick others; the rest sit behind ☰
+const BOTTOM_DEFAULT = 4;
+const BURGER = '<path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>';
 const SECTIONS = [{ key: 'overview', label: 'Today', icon: SUN }, { key: 'closet', label: 'Closet', icon: VIEWS[0][2] }, ...(window.LIFE?.sections || []), { key: 'settings', label: 'Settings', icon: GEAR }];
 /* the menu follows your Settings: section order, hidden sections, the phone's bottom bar and the tabs inside each section */
 const NAV = () => S.prefs.nav || {};
 const byOrder = (list, order, key = x => x.key) => { const pos = x => { const i = (order || []).indexOf(key(x)); return i < 0 ? 1000 + list.indexOf(x) : i; }; return [...list].sort((a, b) => pos(a) - pos(b)); };
 const navAll = () => byOrder(SECTIONS.filter(s => s.key !== 'settings'), NAV().order);
 const navSections = () => [...navAll().filter(s => !(NAV().hidden || []).includes(s.key)), SECTIONS.find(s => s.key === 'settings')];
+const secSettings = sec => [sec + '/settings', 'Settings', GEAR];
 const viewsAll = sec => byOrder(sec === 'closet' ? VIEWS : (SECTIONS.find(x => x.key === sec)?.views || []), NAV().views?.[sec]?.order, v => v[0]);
-const viewsShown = sec => { const h = NAV().views?.[sec]?.hidden || []; const vs = viewsAll(sec).filter(v => !h.includes(v[0])); return vs.length ? vs : viewsAll(sec).slice(0, 1); };
+const isSecSettings = v => /\/settings$/.test(String(v)) && SECTIONS.some(s => s.key === secOf(v) && !['overview', 'settings'].includes(s.key));
+const viewsShown = sec => { const h = NAV().views?.[sec]?.hidden || []; const vs = viewsAll(sec).filter(v => !h.includes(v[0])); return [...(vs.length ? vs : viewsAll(sec).slice(0, 1)), secSettings(sec)]; };
 const secOf = v => v === 'overview' || v === 'settings' ? v : String(v).includes('/') ? v.split('/')[0] : 'closet';
 const isLife = v => !!window.LIFE?.has(v);
-const okView = v => v === 'overview' || v === 'settings' || VIEWS.some(x => x[0] === v) || isLife(v);
+const okView = v => v === 'overview' || v === 'settings' || VIEWS.some(x => x[0] === v) || isLife(v) || isSecSettings(v);
 const tabsFor = v => ['overview', 'settings'].includes(secOf(v)) ? [] : viewsShown(secOf(v));
 const openSection = k => { if (k === 'overview' || k === 'settings') return go(k); const last = pref.get('view:' + k, k === 'closet' ? 'closet' : k + '/today'), vs = viewsShown(k); go(vs.some(v => v[0] === last) ? last : vs[0][0]); };
 const HANGER = '<svg class="hanger" viewBox="0 0 64 40" aria-hidden="true"><path d="M28 7a4 4 0 1 1 6 3.5c-1.3.8-2 1.6-2 3V15L5 31.5c-2.2 1.4-1.2 4.5 1.4 4.5h51.2c2.6 0 3.6-3.1 1.4-4.5L32 15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -597,10 +611,32 @@ const I = {
 };
 const shortDate = s => fromISO(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 function seasonNow() { const m = new Date().getMonth(); return m <= 1 || m === 11 ? 'Winter' : m <= 4 ? 'Spring' : m <= 7 ? 'Summer' : 'Autumn'; }
-function toast(msg) {
-  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; t.setAttribute('role', 'status');
-  document.body.appendChild(t); setTimeout(() => t.remove(), 2800);
+function toast(msg, action) {
+  document.querySelectorAll('.toast').forEach(x => x.remove());
+  const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status');
+  const sp = document.createElement('span'); sp.textContent = msg; t.appendChild(sp);
+  if (action) { const b = document.createElement('button'); b.className = 'toastbtn'; b.textContent = action.label; b.onclick = () => { t.remove(); action.run(); }; t.appendChild(b); }
+  document.body.appendChild(t); setTimeout(() => t.remove(), action ? 7000 : 2800);
 }
+/* ---------- undo ----------
+   Every change to your lists and every import can be undone from the toast, the Undo panel in Settings or Cmd/Ctrl+Z.
+   The list lives on this device only and keeps the last 30 steps. */
+const UNDO = [];
+let undoing = false;
+function undoPush(label, revert, show) {
+  if (undoing) return;
+  UNDO.unshift({ label, revert, at: Date.now() }); UNDO.length = Math.min(UNDO.length, 30);
+  if (show) toast(label, { label: 'Undo', run: () => undoRun(0) });
+}
+async function undoRun(i = 0) {
+  const u = UNDO.splice(i, 1)[0]; if (!u) return;
+  undoing = true;
+  try { await u.revert(); toast('Undone: ' + u.label.charAt(0).toLowerCase() + u.label.slice(1)); } catch (err) { console.error(err); toast('Could not undo. Try again.'); }
+  finally { undoing = false; render(); }
+}
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !e.target.closest?.('input, textarea, [contenteditable="true"]') && UNDO.length) { e.preventDefault(); undoRun(0); }
+});
 const pref = {
   get(k, d) { try { const v = localStorage.getItem('hangtag:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('hangtag:' + k, JSON.stringify(v)); } catch {} }
@@ -648,9 +684,12 @@ function applyLocal(table, id, data) {
   }
   cacheSave(); derive(); render();
 }
+const noId = ({ id, ...d }) => d;
 const DB = {
   async putMany(table, rows) {
     if (!rows.length) return;
+    const befores = rows.map(r => [r.id, S[table].find(x => x.id === r.id)]);
+    undoPush(`Imported ${rows.length} ${table === 'items' ? 'pieces' : table}`, async () => { for (const [id, b] of befores) b ? await DB.put(table, id, noId(b)) : await DB.del(table, id); }, true);
     const now = new Date().toISOString();
     const { error } = await sb.from(table).upsert(rows.map(r => ({ user_id: UID, id: r.id, data: r.data, updated_at: now })));
     if (error) throw error;
@@ -666,12 +705,16 @@ const DB = {
     cacheSave(); derive(); render(); // trips in prefs can change wear counts
   },
   async put(table, id, data) {
+    const before = table === 'days' ? S.days[id] : S[table]?.find(x => x.id === id);
+    undoPush(`${before ? 'Changed' : 'Added'} ${table === 'days' ? 'a day' : data.name || (table === 'items' ? 'a piece' : 'an outfit')}`, () => before ? DB.put(table, id, table === 'days' ? before : noId(before)) : DB.del(table, id));
     const row = table === 'days' ? { user_id: UID, day: id, data, updated_at: new Date().toISOString() } : { user_id: UID, id, data, updated_at: new Date().toISOString() };
     const { error } = await sb.from(table).upsert(row);
     if (error) throw error;
     applyLocal(table, id, data);
   },
   async del(table, id) {
+    const before = table === 'days' ? S.days[id] : S[table]?.find(x => x.id === id);
+    if (before) undoPush(`Deleted ${table === 'days' ? 'a day' : before.name || (table === 'items' ? 'a piece' : 'an outfit')}`, () => DB.put(table, id, table === 'days' ? before : noId(before)), true);
     const { error } = await sb.from(table).delete().eq(table === 'days' ? 'day' : 'id', id);
     if (error) throw error;
     applyLocal(table, id, null);
@@ -756,14 +799,15 @@ function renderTabs() {
   const n = inboxItems().length;
   const views = tabsFor(S.view), sec = secOf(S.view);
   const btn = s => `<button data-sec="${s.key}" ${s.key === sec ? 'aria-current="page"' : ''}>${icon(s.icon)}<span>${s.label}</span>${s.key === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`;
-  // Settings always sits at the end of the bottom bar, whatever you pick, so you can always get back to it
-  const top = navSections(), bottom = [...(NAV().bottom?.length ? top.filter(s => s.key !== 'settings' && NAV().bottom.includes(s.key)) : top.filter(s => s.key !== 'settings')), top.find(s => s.key === 'settings')];
-  $('#tabsTop').innerHTML = top.map(btn).join(''); $('#tabsBottom').innerHTML = bottom.map(btn).join('');
-  $('#tabsBottom').style.gridTemplateColumns = `repeat(${bottom.length}, minmax(58px, 1fr))`;
+  // the ☰ button sits where Settings used to: it holds the sections that aren't in the bar, and Settings
+  const top = navSections().filter(s => s.key !== 'settings'), bottom = NAV().bottom?.length ? top.filter(s => NAV().bottom.includes(s.key)) : top.slice(0, BOTTOM_DEFAULT);
+  const menuBtn = list => `<button data-menu aria-label="More" ${sec === 'settings' || !list.some(s => s.key === sec) ? 'aria-current="page"' : ''}>${icon(BURGER)}<span>More</span></button>`;
+  $('#tabsTop').innerHTML = top.map(btn).join('') + menuBtn(top); $('#tabsBottom').innerHTML = bottom.map(btn).join('') + menuBtn(bottom);
+  $('#tabsBottom').style.gridTemplateColumns = `repeat(${bottom.length + 1}, minmax(58px, 1fr))`;
   const bar = $('#secBar');
   bar.hidden = !views.length;
   bar.innerHTML = views.map(([k, label, path]) => `<button data-view="${k}" aria-current="${S.view === k}">${icon(path)}<span>${label}</span>${k === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
-  $('#addBtn').hidden = sec === 'overview' || sec === 'settings';
+  $('#addBtn').hidden = sec === 'overview' || sec === 'settings' || isSecSettings(S.view);
   $('#addBtn .addlabel').textContent = sec === 'closet' ? 'Add piece' : sec === 'overview' ? 'Add' : window.LIFE.addLabel(S.view);
 }
 function go(v) {
@@ -776,6 +820,16 @@ function go(v) {
 window.addEventListener('hashchange', () => { const v = (location.hash || '').slice(1); if (v && v !== S.view && okView(v)) go(v); });
 // only the tab buttons: the view container carries data-view too
 document.addEventListener('click', e => { const b = e.target.closest('nav [data-view]'); if (b) go(b.dataset.view); });
+// the ☰ menu: what isn't in the bar you're looking at (hidden sections, or on a phone what's not in the bottom bar), then Settings
+function openMenu(fromBottom) {
+  const visible = navAll().filter(s => !(NAV().hidden || []).includes(s.key));
+  const shown = fromBottom ? (NAV().bottom?.length ? visible.filter(s => NAV().bottom.includes(s.key)) : visible.slice(0, BOTTOM_DEFAULT)) : visible;
+  const more = navAll().filter(s => !shown.includes(s));
+  const item = (k, l, ic) => `<button class="menuitem ${secOf(S.view) === k ? 'on' : ''}" data-gosec="${k}">${icon(ic)}<span>${esc(l)}</span></button>`;
+  sheet({ title: 'Menu', body: `${more.length ? `<div class="menulist">${more.map(s => item(s.key, s.label, s.icon)).join('')}</div>` : '<p class="muted">Every section is in the bar.</p>'}<div class="menulist menuset">${item('settings', 'Settings', GEAR)}</div>` });
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-menu]'); if (b) openMenu(!!b.closest('#tabsBottom')); });
+document.addEventListener('click', e => { if (e.target.closest('.menuitem[data-gosec]')) closeSheet(); }, true);
 // an area opens on the page you last had open there
 document.addEventListener('click', e => { const b = e.target.closest('nav [data-sec], [data-gosec]'); if (b) openSection(b.dataset.sec || b.dataset.gosec); });
 
@@ -796,7 +850,8 @@ function render() {
   if (!host || host.dataset.view !== S.view) {
     host?.remove(); host = document.createElement('div'); host.id = 'viewHost'; host.dataset.view = S.view; m.appendChild(host);
   }
-  if (isLife(S.view)) window.LIFE.render(host, S.view);
+  if (isSecSettings(S.view)) renderSettings(host);
+  else if (isLife(S.view)) window.LIFE.render(host, S.view);
   else ({ overview: renderOverview, settings: renderSettings, closet: renderRail, wishlist: renderRail, outfits: renderOutfits, calendar: renderCalendar, trips: renderTrips, stats: renderStats })[S.view](host);
   S.sheetRefresh?.();
 }
@@ -1719,7 +1774,7 @@ const CLOSET_LISTS = [['occasions', 'Occasion', OCCASIONS], ['fits', 'Fit', FITS
   ['acquired', 'New or secondhand', ACQUIRED], ['purchasePlace', 'Where bought', PLACES], ['seasons', 'Season', SEASONS], ['tags', 'Tags', []], ['tripTypes', 'Trip type', TRIP_TYPES, true], ['slotLabels', 'Packing slots', SLOT_LABELS, true]];
 const SET = { tabs: 'closet', list: 'closet:occasions' };
 function listCatalog() {
-  return [{ group: 'Closet', items: CLOSET_LISTS.map(([k, l]) => ({ id: 'closet:' + k, label: l })) }, ...(window.LIFE?.lists?.() || [])];
+  return [{ group: 'Closet', key: 'closet', items: CLOSET_LISTS.map(([k, l]) => ({ id: 'closet:' + k, label: l })) }, ...(window.LIFE?.lists?.() || [])];
 }
 function fullList(id) {
   if (!id.startsWith('closet:')) return window.LIFE.fullList(id);
@@ -1739,33 +1794,55 @@ async function renameIn(id, from, to) {
     await DB.put('items', iid, { ...data, [key]: Array.isArray(v) ? v.map(x => x === from ? to : x) : to });
   }
 }
+// Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
+// import and backup, undo and whatever only that section needs). Both share the handlers below.
+const APP_VERSION = 'hangtag-v40';
 function renderSettings(host) {
+  const master = S.view === 'settings', sec = master ? null : secOf(S.view), secObj = SECTIONS.find(x => x.key === sec);
   const n = NAV(), hid = n.hidden || [], all = navAll(), shownKeys = all.filter(s => !hid.includes(s.key)).map(s => s.key);
-  const bottom = n.bottom?.length ? n.bottom : shownKeys;
-  const withTabs = all.filter(s => s.key !== 'overview');
-  if (!withTabs.some(s => s.key === SET.tabs)) SET.tabs = withTabs[0]?.key;
-  const vh = n.views?.[SET.tabs]?.hidden || [], vs = viewsAll(SET.tabs);
-  const cat = listCatalog(); if (!cat.some(g => g.items.some(i => i.id === SET.list))) SET.list = cat[0].items[0].id;
-  const L = fullList(SET.list), lh = new Set(L.hidden.map(norm));
+  const bottom = n.bottom?.length ? n.bottom : shownKeys.slice(0, BOTTOM_DEFAULT);
   const mv = (attr, k, i, len) => `<span class="setmv"><button class="iconbtn small" ${attr}="${esc(k)}" data-d="-1" aria-label="Move up" ${i ? '' : 'disabled'}>↑</button><button class="iconbtn small" ${attr}="${esc(k)}" data-d="1" aria-label="Move down" ${i < len - 1 ? '' : 'disabled'}>↓</button></span>`;
-  host.innerHTML = `<div class="viewhead"><h1>Settings</h1><span class="sub">Menu, tabs and choice lists</span></div>
+  const undoPanel = `<section class="panel setpanel" id="set-undo"><h3>Undo</h3><p class="muted">Your last changes and imports on this device. Undo puts things back the way they were.</p>
+      ${UNDO.length ? UNDO.slice(0, 8).map((u, i) => `<div class="setrow"><b>${esc(u.label)}</b><div class="spacer"></div><span class="muted setwhen">${esc(new Date(u.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))}</span><button class="btn small" data-undo="${i}">Undo</button></div>`).join('') : '<p class="muted">Nothing to undo yet.</p>'}</section>`;
+  if (master) {
+    host.innerHTML = `<div class="viewhead"><h1>Settings</h1><span class="sub">Menu, notifications and your account</span></div>
   <div class="panels setpanels">
-    <section class="panel setpanel" id="set-sections"><h3>Sections</h3><p class="muted">Order the menu, hide what you don't use and pick what sits in the bar at the bottom of your phone.</p>
+    <section class="panel setpanel" id="set-sections"><h3>Sections</h3><p class="muted">Order the menu, hide what you don't use and pick what sits in the bar at the bottom of your phone. Hidden sections stay in the ☰ menu.</p>
       ${all.map((s, i) => `<div class="setrow"><span class="seti">${icon(s.icon)}</span><b>${esc(s.label)}</b><div class="spacer"></div>
         <label class="settog"><input type="checkbox" data-nshow="${s.key}" ${hid.includes(s.key) ? '' : 'checked'}> Menu</label>
         <label class="settog"><input type="checkbox" data-nbot="${s.key}" ${bottom.includes(s.key) && !hid.includes(s.key) ? 'checked' : ''} ${hid.includes(s.key) ? 'disabled' : ''}> Bottom bar</label>${mv('data-nmove', s.key, i, all.length)}</div>`).join('')}
-      <button class="chip link" data-nreset>Back to the standard menu</button></section>
-    <section class="panel setpanel" id="set-tabs"><h3>Tabs in a section</h3><p class="muted">Each section opens on its first visible tab.</p>
-      <select class="pill" data-tabsec aria-label="Section">${withTabs.map(s => `<option value="${s.key}" ${s.key === SET.tabs ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}</select>
-      ${vs.map((v, i) => `<div class="setrow"><span class="seti">${icon(v[2])}</span><b>${esc(v[1])}</b><div class="spacer"></div><label class="settog"><input type="checkbox" data-vshow="${esc(v[0])}" ${vh.includes(v[0]) ? '' : 'checked'}> Show</label>${mv('data-vmove', v[0], i, vs.length)}</div>`).join('')}</section>
-    <section class="panel setpanel" id="set-lists"><h3>Choice lists</h3><p class="muted">The options you pick from. Rename one and everything that uses it follows.</p>
-      <select class="pill" data-listsel aria-label="Choice list">${cat.map(g => `<optgroup label="${esc(g.group)}">${g.items.map(i => `<option value="${esc(i.id)}" ${i.id === SET.list ? 'selected' : ''}>${esc(i.label)}</option>`).join('')}</optgroup>`).join('')}</select>
-      ${L.list.map((o, i) => `<div class="setrow"><input class="setname" data-oren="${i}" value="${esc(o)}" aria-label="Rename ${esc(o)}"><label class="settog"><input type="checkbox" data-oshow="${i}" ${lh.has(norm(o)) ? '' : 'checked'}> Show</label>${mv('data-omove', i, i, L.list.length)}</div>`).join('') || '<p class="muted">No options yet.</p>'}
-      <form class="setadd" data-oadd><input placeholder="Add an option" aria-label="Add an option"><button class="btn small" type="submit">Add</button></form></section>
+      <button class="chip link" data-nreset>Back to the standard menu</button>
+      <p class="muted">Tabs and choice lists now live in each section, under its own Settings tab.</p></section>
     ${notiPanel()}
-    ${spendPanel()}
+    <section class="panel setpanel" id="set-account"><h3>Account and app</h3><p class="muted">Signed in as ${esc(EMAIL || 'you')}. Your data lives in your own Supabase project.</p>
+      <div class="setbtns"><button class="btn small" data-reload>Check for an update</button><button class="btn small ghost" data-signout>Sign out on this device</button></div>
+      <p class="muted">Version ${APP_VERSION}</p></section>
+    ${undoPanel}
   </div>`;
-  pushState().then(st => { const el = $('#pushState', host); if (el) { el.innerHTML = st.html; host.querySelectorAll('[data-pushneed]').forEach(b => b.hidden = b.dataset.pushneed !== st.k); } });
+  } else {
+    SET.tabs = sec;
+    const vh = n.views?.[sec]?.hidden || [], vs = viewsAll(sec);
+    const cat = listCatalog().filter(g => g.key === sec), items = cat.flatMap(g => g.items);
+    if (items.length && !items.some(i => i.id === SET.list)) SET.list = items[0].id;
+    const L = items.length ? fullList(SET.list) : { list: [], hidden: [] }, lh = new Set(L.hidden.map(norm));
+    const own = sec === 'closet' ? `<section class="panel setpanel"><h3>Closet</h3><p class="muted">Your categories and a backup of your wardrobe.</p>
+        <div class="setbtns"><button class="btn small" data-editcats>Edit categories</button><button class="btn small" data-cexport>Download backup (.json)</button><button class="btn small" data-cimport>Import from file</button><input type="file" class="vh" data-cimportfile accept=".json,application/json"></div><p class="busy" data-cimportmsg></p></section>`
+      : (window.LIFE?.settingsPanels?.(sec) || '') + (sec === 'money' ? spendPanel() : '');
+    const io = sec === 'closet' ? '' : `<section class="panel setpanel"><h3>Import and backup</h3><p class="muted">Bring lists over from Notion or keep a copy of everything.</p><div class="setbtns"><button class="btn small" data-act="import">Import from Notion</button><button class="btn small" data-act="export">Back up all lists</button></div></section>`;
+    host.innerHTML = `<div class="viewhead"><h1>${esc(secObj?.label || '')} settings</h1><span class="sub">Only for ${esc(secObj?.label || 'this section')}</span></div>
+  <div class="panels setpanels">
+    ${own}
+    <section class="panel setpanel" id="set-tabs"><h3>Tabs</h3><p class="muted">Show, hide and order the tabs of ${esc(secObj?.label || 'this section')}. It opens on the first visible tab.</p>
+      ${vs.map((v, i) => `<div class="setrow"><span class="seti">${icon(v[2])}</span><b>${esc(v[1])}</b><div class="spacer"></div><label class="settog"><input type="checkbox" data-vshow="${esc(v[0])}" ${vh.includes(v[0]) ? '' : 'checked'}> Show</label>${mv('data-vmove', v[0], i, vs.length)}</div>`).join('')}</section>
+    ${items.length ? `<section class="panel setpanel" id="set-lists"><h3>Choice lists</h3><p class="muted">The options you pick from. Rename one and everything that uses it follows.</p>
+      <select class="pill" data-listsel aria-label="Choice list">${items.map(i => `<option value="${esc(i.id)}" ${i.id === SET.list ? 'selected' : ''}>${esc(i.label)}</option>`).join('')}</select>
+      ${L.list.map((o, i) => `<div class="setrow"><input class="setname" data-oren="${i}" value="${esc(o)}" aria-label="Rename ${esc(o)}"><label class="settog"><input type="checkbox" data-oshow="${i}" ${lh.has(norm(o)) ? '' : 'checked'}> Show</label>${mv('data-omove', i, i, L.list.length)}</div>`).join('') || '<p class="muted">No options yet.</p>'}
+      <form class="setadd" data-oadd><input placeholder="Add an option" aria-label="Add an option"><button class="btn small" type="submit">Add</button></form></section>` : ''}
+    ${io}
+    ${undoPanel}
+  </div>`;
+  }
+  if (master) pushState().then(st => { const el = $('#pushState', host); if (el) { el.innerHTML = st.html; host.querySelectorAll('[data-pushneed]').forEach(b => b.hidden = b.dataset.pushneed !== st.k); } });
   if (host.dataset.swired) return;
   host.dataset.swired = '1';
   const saveNav = patch => DB.savePrefs({ nav: { ...NAV(), ...patch } }).catch(err => saveErr(err, 'Could not save. Try again.'));
@@ -1776,16 +1853,28 @@ function renderSettings(host) {
     const vm = t.closest('[data-vmove]'); if (vm) { const ks = viewsAll(SET.tabs).map(v => v[0]), views = { ...(NAV().views || {}) }; views[SET.tabs] = { ...(views[SET.tabs] || {}), order: swap(ks, ks.indexOf(vm.dataset.vmove), +vm.dataset.d) }; return saveNav({ views }); }
     const om = t.closest('[data-omove]'); if (om) { const L = fullList(SET.list); return saveList(SET.list, swap(L.list, +om.dataset.omove, +om.dataset.d), L.hidden); }
     if (t.closest('[data-nreset]')) return DB.savePrefs({ nav: {} });
+    if (t.closest('[data-editcats]')) return openCategories();
+    const ud = t.closest('[data-undo]'); if (ud) return undoRun(+ud.dataset.undo);
+    if (t.closest('[data-signout]')) return sb.auth.signOut();
+    if (t.closest('[data-reload]')) { navigator.serviceWorker?.getRegistration().then(r => r?.update()).finally(() => location.reload()); return; }
+    if (t.closest('[data-cexport]')) return exportBackup();
+    if (t.closest('[data-cimport]')) return $('[data-cimportfile]', host)?.click();
     const pa = t.closest('[data-push]'); if (pa) return pushAction(pa.dataset.push, pa, host);
     const cp = t.closest('[data-copy]'); if (cp) { navigator.clipboard?.writeText(cp.dataset.copy).then(() => toast('Copied'), () => toast('Select it and copy it by hand')); return; }
   });
   host.addEventListener('change', async e => {
     const t = e.target, ns = t.dataset.nshow, nb = t.dataset.nbot, v = t.dataset.vshow;
     if (ns) { const h = new Set(NAV().hidden || []); t.checked ? h.delete(ns) : h.add(ns); return saveNav({ hidden: [...h] }); }
-    if (nb) { const cur = NAV().bottom?.length ? NAV().bottom : navAll().filter(s => !(NAV().hidden || []).includes(s.key)).map(s => s.key); const b = new Set(cur); t.checked ? b.add(nb) : b.delete(nb); return saveNav({ bottom: b.size ? [...b] : null }); }
+    if (nb) { const cur = NAV().bottom?.length ? NAV().bottom : navAll().filter(s => !(NAV().hidden || []).includes(s.key)).map(s => s.key).slice(0, BOTTOM_DEFAULT); const b = new Set(cur); t.checked ? b.add(nb) : b.delete(nb); return saveNav({ bottom: b.size ? [...b] : null }); }
     if (v) { const views = { ...(NAV().views || {}) }, c = { ...(views[SET.tabs] || {}) }, h = new Set(c.hidden || []); t.checked ? h.delete(v) : h.add(v); views[SET.tabs] = { ...c, hidden: [...h] }; return saveNav({ views }); }
     if (t.dataset.non || t.dataset.ntime) { const k = t.dataset.non || t.dataset.ntime, c = notiCfg(); return DB.savePrefs({ notify: { ...c, tz: TZ(), [k]: { ...(c[k] || {}), ...(t.dataset.non ? { on: t.checked } : { time: t.value }) } } }).catch(err => saveErr(err, 'Could not save. Try again.')); }
-    if (t.matches('[data-tabsec]')) { SET.tabs = t.value; return renderSettings(host); }
+    if (t.matches('[data-cimportfile]')) {
+      const file = t.files[0]; t.value = ''; if (!file) return;
+      const say = msg => { const el = $('[data-cimportmsg]', host); if (el) el.textContent = msg; };
+      try { const r = await importFile(file, say); say(`Imported ${r.done} pieces${r.skipped ? `, skipped ${r.skipped} already here` : ''}.`); toast(`Imported ${r.done} pieces`); }
+      catch (err) { console.error(err); say("That file couldn't be imported. Use an A’s Life (or Jetta’s Closet) backup or import file."); }
+      return;
+    }
     if (t.matches('[data-listsel]')) { SET.list = t.value; return renderSettings(host); }
     if (t.dataset.oshow != null) { const L = fullList(SET.list), o = L.list[+t.dataset.oshow], h = L.hidden.filter(x => norm(x) !== norm(o)); if (!t.checked) h.push(o); return saveList(SET.list, L.list, h); }
     if (t.dataset.oren != null) {
@@ -2134,10 +2223,9 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#scrim'
    on its own page; a page or a setting takes you there. */
 const SET_SPOTS = [
   ['set-sections', 'Sections', 'Menu order, hide sections, bottom bar'],
-  ['set-tabs', 'Tabs in a section', 'Show, hide and order the tabs'],
-  ['set-lists', 'Choice lists', 'Rename, hide and order options'],
   ['set-noti', 'Notifications', 'Morning, evening, bills, payday, budget, push'],
-  ['set-spend', 'Apple Pay to Spending', 'Shortcut that saves every payment']
+  ['set-account', 'Account and app', 'Sign out, version, update'],
+  ['set-undo', 'Undo', 'Undo your last changes and imports']
 ];
 function findPages(words) {
   const has = t => words.every(w => t.toLowerCase().includes(w));
@@ -2148,7 +2236,7 @@ function findPages(words) {
     for (const [k, l, ic] of vs) if (has(l) || has(s.label + ' ' + l)) out.push({ t: 'page', v: k, title: l, where: s.label, icon: ic });
   }
   for (const [id, l, h] of SET_SPOTS) if (has(l + ' ' + h + ' settings')) out.push({ t: 'set', v: id, title: l, where: 'Settings · ' + h, icon: GEAR });
-  for (const g of listCatalog()) for (const it of g.items) if (has(it.label) || has(g.group + ' ' + it.label)) out.push({ t: 'list', v: it.id, title: it.label, where: 'Settings · Choice list · ' + g.group, icon: GEAR });
+  for (const g of listCatalog()) for (const it of g.items) if (has(it.label) || has(g.group + ' ' + it.label)) out.push({ t: 'list', v: it.id, sec: g.key, title: it.label, where: g.group + ' · Settings · Choice list', icon: GEAR });
   return out;
 }
 const mark = (text, words) => {
@@ -2182,7 +2270,7 @@ function openSearch(start = '') {
     closeSheet();
     if (r.t === 'rec') return window.LIFE.openFound(r.id, go);
     if (r.t === 'page') return go(r.v);
-    if (r.t === 'list') SET.list = r.v;
+    if (r.t === 'list') { SET.list = r.v; go(r.sec + '/settings'); requestAnimationFrame(() => $('#set-lists')?.scrollIntoView({ block: 'start', behavior: 'smooth' })); return; }
     go('settings');
     requestAnimationFrame(() => $('#' + (r.t === 'list' ? 'set-lists' : r.v))?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
   };
@@ -3067,7 +3155,7 @@ async function start(session) {
   derive(); $('#main').innerHTML = ''; render();
   subscribeLive(); wxRefresh();
   // what life.js needs from the closet: the signed-in Supabase client, photos, sheets and settings
-  window.LIFE?.start({ sb, uid: () => UID, view: () => S.view, go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url })), openItem: id => openItem(id) });
+  window.LIFE?.start({ sb, uid: () => UID, view: () => S.view, go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url })), openItem: id => openItem(id) });
   try { await loadAll(); } catch (e) { console.error(e); S.status = 'offline'; render(); }
 }
 if (!window.supabase || !CFG.url || !CFG.key || /YOUR-/.test(CFG.url + CFG.key)) {

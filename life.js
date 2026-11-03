@@ -835,7 +835,7 @@ function fitTile() {
 const SECTIONS = [
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile, views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book], ['meals', 'Meal plan', P.calendar], ['groceries', 'Groceries', P.cart], ['pantry', 'Pantry', P.jar], ['gear', 'Gear', P.spoon]] },
   { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Habits', P.repeat], ['growth', 'Growth', P.target], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['mindful', 'Mindfulness', P.moon], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['docs', 'Documents', P.doc]] },
-  { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc], ['settings', 'Settings', P.gear]] },
+  { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
   { key: 'wish', label: 'Wishlists', icon: P.heart, tile: wishTile, views: [['today', 'Overview', P.grid], ['master', 'Master', P.heart], ['inbox', 'Inbox', P.inbox]] },
   { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['feed', 'Feed', P.grid], ['posts', 'Posts', P.phone], ['ideas', 'Ideas', P.star], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
@@ -876,7 +876,6 @@ const PAGES = {
   'money/spending': { title: 'Spending', segs: [{ key: 'plan', label: 'Your plan', kind: 'ftx', fill: fEnvFill, tools: false }, { kind: 'ftx' }, { kind: 'fincome' }, { key: 'all', label: 'Everything in and out', kind: 'ftx', fill: fAllFill, tools: false }] },
   'money/repeats': { title: 'Repeats', segs: [{ key: 'coming', label: 'Coming up', kind: 'fbills', fill: fComingFill, tools: false }, { key: 'cal', label: 'Calendar', kind: 'fbills', fill: fCalFill, tools: false }, { key: 'bills', label: 'Bills', kind: 'fbills', fill: fBillsOf('Bill'), tools: false }, { key: 'subs', label: 'Subscriptions', kind: 'fbills', fill: fBillsOf('Subscription'), tools: false }, { key: 'in', label: 'Money in', kind: 'fincome' }, { key: 'split', label: 'Split my pay', kind: 'fbills', fill: fSplitFill, tools: false }, { kind: 'fbills', label: 'All repeats' }, { kind: 'fpaid' }] },
   'money/plan': { title: 'Goals', segs: [{ kind: 'fgoals', top: fGoalsTop }, { key: 'safety', label: 'Safety net', kind: 'fgoals', fill: fSafetyFill, tools: false }, { key: 'chall', label: 'Challenges', kind: 'fgrid', fill: fChallFill, tools: false }, { key: 'wait', label: 'Wait list', kind: 'fwait', fill: fWaitFill, tools: false }] },
-  'money/settings': { render: fSettings, adds: ['faccounts', 'fcats', 'frules', 'fchips', 'fset'] },
   'money/debt': { title: 'Debt', segs: [{ key: 'free', label: 'Debt-free date', kind: 'fdebts', fill: fDebtFreeFill, tools: false }, { key: 'method', label: 'Snowball or avalanche', kind: 'fdebts', fill: fMethodFill, tools: false }, { kind: 'fdebts', label: 'Your debts' }, { key: 'made', label: 'Payments made', kind: 'ftx', fill: fPaymentsFill, tools: false }] },
   'money/forecast': { render: moneyForecast, adds: ['ftx', 'fbills', 'fincome'] },
   'money/year': { render: moneyYear, adds: ['fbills'] },
@@ -931,21 +930,32 @@ function applyRule(kind, id, data) {
   const r = ruleFor(data.name); if (!r) return data;
   return { ...data, category: r.category || '', ...(r.rename ? { name: r.rename } : {}) };
 }
+// what to say in the undo list
+const undoName = (kind, d) => { const K = KINDS[kind]; const t = K ? ((K.title ? K.title({ ...d, kind }) : d.name) || K.one) : 'item'; return String(t).slice(0, 40); };
 async function put(kind, id, data) {
   data = applyRule(kind, id, data);
   const before = L.byId[id] ? { ...L.byId[id] } : null;
+  if (!L.batch) C.undoPush?.(`${before ? 'Changed' : 'Added'} ${undoName(kind, data)}`, () => before ? put(kind, id, dataOf(before)) : del(id));
   apply(id, kind, data);
   const { error } = await C.sb.from('records').upsert({ user_id: C.uid(), id, kind, data, updated_at: new Date().toISOString() });
   if (error) { before ? apply(id, kind, dataOf(before)) : apply(id, kind, null); failed(error); throw error; }
 }
 async function del(id) {
   const before = L.byId[id]; if (!before) return;
+  if (!L.batch) C.undoPush?.(`Deleted ${undoName(before.kind, before)}`, () => put(before.kind, id, dataOf(before)), true);
   apply(id, before.kind, null);
   const { error } = await C.sb.from('records').delete().eq('id', id);
   if (error) { apply(id, before.kind, dataOf(before)); failed(error); throw error; }
 }
-async function putMany(rows, progress) {
+async function putMany(rows, progress, label) {
   const now = new Date().toISOString();
+  const befores = rows.map(r => [r.id, r.kind, L.byId[r.id] ? dataOf(L.byId[r.id]) : null]);
+  C.undoPush?.(label || `Imported ${plural(rows.length, 'record')}`, async () => {
+    const back = befores.filter(b => b[2]), gone = befores.filter(b => !b[2]).map(b => b[0]);
+    if (back.length) await putMany(back.map(([id, kind, data]) => ({ id, kind, data })), null, 'restore');
+    for (let i = 0; i < gone.length; i += 200) { const part = gone.slice(i, i + 200); const { error } = await C.sb.from('records').delete().in('id', part); if (error) throw error; }
+    L.all = L.all.filter(r => !gone.includes(r.id)); index(); cacheSave(); C.render();
+  }, label !== 'restore');
   for (let i = 0; i < rows.length; i += 400) {
     const part = rows.slice(i, i + 400);
     const { error } = await C.sb.from('records').upsert(part.map(r => ({ user_id: C.uid(), id: r.id, kind: r.kind, data: r.data, updated_at: now })));
@@ -1132,7 +1142,7 @@ function kitchenToday(host) {
     ${panel('Grocery list', groc.length ? `<p class="lbig">${plural(groc.length, 'thing')} to buy</p><div class="lwrap">${groc.slice(0, 14).map(i => `<span class="chip">${esc(i.name)}</span>`).join('')}${groc.length > 14 ? `<span class="chip">+${groc.length - 14}</span>` : ''}</div>` : quiet('Nothing on your list. Tap “Add to list” on a recipe or in the pantry.'), ['kitchen/groceries', 'Go shopping'])}
     ${panel('Meal prep', prep.length ? `<div class="lrows">${prep.slice(0, 5).map(row).join('')}</div>` : quiet('No prepped meals waiting.'), ['kitchen/meals', 'All meal prep'])}
     ${panel(ready.length >= 3 ? 'You can cook these now' : 'Something to cook', pick.length ? `<div class="lgrid small">${pick.map(card).join('')}</div>` : quiet('Your recipes show up here.'), ['kitchen/recipes', 'All recipes'])}
-  </div>${dataTools()}`;
+  </div>`;
 }
 /* ---------- money ----------
    Built on the Ultimate Budget Planner's model: a balance check per account plus everything logged since,
@@ -1473,7 +1483,7 @@ function moneyReviews(host) {
 }
 
 function moneyToday(host) {
-  if (!recs('faccounts').length) { host.innerHTML = `${head('Money')}<div class="panels">${panel('Start here', `${quiet('Import your Budget Planner backup, or add your accounts and check your balances.')}<button class="btn small" data-act="new" data-v="faccounts">Add an account</button>`)}</div>${dataTools()}`; return; }
+  if (!recs('faccounts').length) { host.innerHTML = `${head('Money')}<div class="panels">${panel('Start here', `${quiet('Import your Budget Planner backup, or add your accounts and check your balances.')}<button class="btn small" data-act="new" data-v="faccounts">Add an account</button>`)}</div>`; return; }
   const st = fState(), t = st.t, s = fset(), hr = new Date().getHours();
   const tx = recs('ftx'), every = tx.filter(fEveryday);
   const payTx = every.filter(x => x.date >= st.start && x.date <= t), spentPay = fSum(payTx);
@@ -1553,7 +1563,7 @@ function moneyToday(host) {
   <div class="mrow2">${MP('Run to payday', run, `<span class="lnone">${st.pay ? plural(st.days, 'day') + ' left' : ''}</span>`)}${MP('Last 7 days', last7, `<span class="lnone">${esc(shortDate(w0))} – ${esc(shortDate(t))}</span>`)}</div>
   ${tiles}
   ${MP('Everyday spending this pay', bars + chipRow, mLink('Open spending', 'money/spending'))}
-  ${dataTools()}`;
+  `;
   if (!host.dataset.mwired) { host.dataset.mwired = '1'; host.addEventListener('click', e => { const j = e.target.closest('[data-jump]'); if (j) { e.preventDefault(); e.stopPropagation(); document.getElementById(j.dataset.jump)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }, true); }
 }
 
@@ -1662,7 +1672,7 @@ function careToday(host) {
       + (wk ? `<p class="lnone">${esc(KINDS.bsched.sub(wk))}</p><button class="chip link" data-act="open" data-id="${wk.id}">Change the week</button>` : '<button class="btn small" data-act="new" data-v="bsched">Plan your skincare week</button>') : quiet('Mark products as part of your morning or evening routine and they show up here.'), ['care/beauty', 'All products'])}
     ${soon.length ? panel('Use these up', `<div class="lrows">${soon.slice(0, 5).map(row).join('')}</div>`) : ''}
     ${panel('Coming up', appts.length ? `<div class="lrows">${appts.map(row).join('')}</div>` : quiet('No appointments planned.'), ['care/health', 'Appointments'])}
-  </div>${dataTools()}`;
+  </div>`;
 }
 async function toggleSupp(id, tm) {
   const t = today(), hit = recs('suplog').find(l => l.date === t && l.supplement === id && (l.time || 'AM') === tm);
@@ -1791,7 +1801,7 @@ function wishToday(host) {
     ${panel('Cost per wishlist', groups.length ? `<div class="wbars">${groups.map(([s, g]) => `<button class="wbar ${f === s ? 'on' : ''}" data-act="wishf" data-v="${esc(s)}"><span class="wbl"><b>${esc(s)}</b><small>${plural(g.n, 'wish', 'wishes')}</small></span><span class="wbt"><i style="width:${Math.max(2, 100 * g.sum / max)}%"></i></span><b class="wbv">${fEur0(g.sum)}</b></button>`).join('')}</div>` : quiet('Nothing on your wishlists yet.'))}
     ${panel('Inbox', `<form class="lqadd" data-winbox><input placeholder="Paste a link to sort later" aria-label="Paste a link"><button class="btn small" type="submit">Add</button></form>${inbox.length ? `<div class="lrows">${inbox.slice(0, 6).map(row).join('')}</div>` : quiet('Nothing to sort.')}`, ['wish/inbox', 'Inbox'])}
   </div>
-  ${MP(f ? f : 'Every wish', shown.length ? `<div class="lrows">${shown.map(wrow).join('')}</div>` : quiet('Nothing here.'), `${f ? '<button class="chip link" data-act="wishf" data-v="">Show all</button>' : ''}<button class="chip link" data-act="new" data-v="wishes">+ Wish</button>`)}${dataTools()}`;
+  <div class="wtables">${groups.map(([src]) => { const list = all.filter(w => w.source === src).sort((a, b) => (a.since || '9').localeCompare(b.since || '9')), page = list[0].page; return `<section class="panel wtable"><div class="lph3"><h3>${esc(src)}</h3><button class="chip link" data-act="wishgo" data-v="${esc(page)}" data-src="${esc(src)}">All ${list.length} →</button></div><table><tbody>${list.slice(0, 6).map(w => `<tr data-act="${w.closet ? 'openitem' : 'open'}" data-id="${w.id}" tabindex="0"><td class="wtn">${esc(w.name)}</td><td class="wtd">${w.since ? daysSince(w.since) + ' d' : ''}</td><td class="wtp">${w.price ? fEur0(w.price) : ''}</td></tr>`).join('')}</tbody></table></section>`; }).join('')}</div>`;
 }
 function wishFromInbox(r) {
   const link = /^https?:/.test(r.name || '') ? r.name : '';
@@ -1830,7 +1840,7 @@ function homeToday(host) {
     ${panel('Plants to water', plants.length ? `<div class="lrows">${plants.map(row).join('')}</div>` : quiet(recs('plants').length ? 'Every plant has had water.' : 'Add your plants and how often they need water.'), ['home/plants', 'All plants'])}
     ${panel('Repairs and jobs', reps.length ? `<div class="lrows">${reps.slice(0, 6).map(row).join('')}</div>` : quiet('Nothing to fix.'), ['home/repairs', 'All repairs'])}
     ${panel('Still to buy', wish.length ? `<p class="lbig">${plural(wish.length, 'thing')}</p><p class="lnone">${must.length} must-have${must.length === 1 ? '' : 's'}${wishCost ? ', about ' + eur(wishCost) + ' for what has a price' : ''}.</p><div class="lrows">${must.slice(0, 5).map(row).join('')}</div>` : `<p class="lnone">${inv.length ? `You own ${plural(inv.length, 'thing')}${worth ? ' worth ' + eur(worth) : ''}.` : 'Keep track of what you own and what you still want for the house.'}</p>`, ['home/inventory', 'Open inventory'])}
-  </div>${dataTools()}`;
+  </div>`;
 }
 
 /* ---------- fitness ---------- */
@@ -1859,7 +1869,7 @@ function socialToday(host) {
     ${panel('Goals', goals.length ? `<div class="lrows">${goals.slice(0, 5).map(bar).join('')}</div>` : quiet('Set a goal per platform and track how close you are.'), ['social/goals', 'All goals'])}
     ${panel('Collabs', deals.length ? `<div class="lrows">${deals.slice(0, 5).map(row).join('')}</div>` : quiet('No brand deals running.'), ['social/collabs', 'All collabs'])}
     ${panel('Ideas', ideas.length ? `<p class="lbig">${plural(ideas.length, 'idea')}</p><div class="lrows">${ideas.slice(0, 4).map(row).join('')}</div>` : quiet('Save ideas here so they are ready when you plan.'), ['social/ideas', 'All ideas'])}
-  </div>${dataTools()}`;
+  </div>`;
 }
 
 function fitToday(host) {
@@ -1881,7 +1891,7 @@ function fitToday(host) {
     ${recs('fitgoals').some(g => !g.done) ? panel('Goals', `<div class="lrows">${recs('fitgoals').filter(g => !g.done).slice(0, 4).map(g => `<div class="lrow"><button class="lmain" data-act="open" data-id="${g.id}"><b>${esc(g.name || 'Goal')}</b><span>${esc(KINDS.fitgoals.sub(g))}</span><span class="lprog"><i style="width:${fitPct(g)}%"></i></span></button><span class="lside">${fitPct(g)}%</span></div>`).join('')}</div>`, ['fit/fgoals', 'All goals']) : ''}
     ${panel('Planned', planned.length ? `<div class="lrows">${planned.map(row).join('')}</div>` : `${quiet('No workouts planned.')}<button class="btn small" data-act="new" data-v="workouts">Plan a workout</button>`, ['fit/workouts', 'All workouts'])}
     ${panel('Personal records', prs.length ? `<div class="lrows">${prs.map(p => `<div class="lrow"><button class="lmain" data-act="open" data-id="${p.exercise}"><b>${esc(relName(p.exercise))}</b><span>${esc(niceDate(p.date))}</span></button><span class="lside">${p.weight} kg × ${p.reps || 1}</span></div>`).join('')}</div>` : quiet('Log your sets and your best lifts show up here.'), ['fit/exercises', 'Exercises'])}
-  </div>${dataTools()}`;
+  </div>`;
 }
 // the week plan: one video workout per day, chosen from your library
 function fitWeekFill(fill) {
@@ -1932,7 +1942,7 @@ function optionLists() {
   return SECTIONS.map(sec => {
     const kinds = [...new Set(Object.entries(PAGES).filter(([pg]) => pg.startsWith(sec.key + '/')).flatMap(([, c]) => [...(c.segs || []).map(x => x.kind), ...(c.adds || [])]))].filter(k => KINDS[k]);
     const items = kinds.flatMap(kind => KINDS[kind].fields.filter(f => f.type === 'select' || f.type === 'multi').map(f => ({ id: kind + '.' + f.k, label: `${KINDS[kind].many}: ${f.label}` })));
-    return { group: sec.label, items };
+    return { group: sec.label, key: sec.key, items };
   }).filter(g => g.items.length);
 }
 function fieldInner(kind, f, D) {
@@ -2133,7 +2143,7 @@ async function importFile(file) {
         }
       }
       // a record that's already here keeps what the file doesn't mention (its photo, ticks you set in the app)
-      await putMany(rows.map(({ id, kind, data }) => ({ id, kind, data: L.byId[id] ? { ...dataOf(L.byId[id]), ...data } : data })), (n, all) => { msg.textContent = `Saving ${n} of ${all}…`; });
+      await putMany(rows.map(({ id, kind, data }) => ({ id, kind, data: L.byId[id] ? { ...dataOf(L.byId[id]), ...data } : data })), (n, all) => { msg.textContent = `Saving ${n} of ${all}…`; }, `Imported ${plural(rows.length, 'record')}`);
       C.closeSheet(); C.toast(`Imported ${plural(rows.length, 'record')}`);
     }
     catch (err) { console.error(err); msg.textContent = isMissing(err) ? 'The records table is missing in Supabase. See the setup steps.' : 'Could not import. Try again.'; b.disabled = false; if (isMissing(err)) { L.missing = true; C.render(); } }
@@ -2213,7 +2223,8 @@ document.addEventListener('click', async e => {
     case 'feedtab': L.feedTab = d.v; C.render(); break;
     case 'feednew': openEditor('posts', null, { platforms: ['Instagram'], stage: 'Planned' }); break;
     case 'feedacc': openEditor('accounts', null, { platform: 'Instagram', active: true }); break;
-    case 'wishf': L.wishFilter = L.wishFilter === d.v ? '' : d.v; C.render(); break;
+    case 'wishf': { const b2 = document.querySelector(`.wtable [data-src="${CSS.escape(d.v)}"]`); b2?.closest('.wtable')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); break; }
+    case 'wishgo': if (d.v === 'wish/master') uiOf('wish/master').facet = d.src; C.go(d.v); break;
     case 'openitem': C.openItem?.(d.id); break;
     case 'hday': { const r = L.byId[d.id]; if (r) toggleDay(r, d.d); break; }
     case 'water': water(Number(d.v)); break;
@@ -2235,8 +2246,12 @@ document.addEventListener('click', async e => {
     case 'selall': if (L.sel) { const vis = L.sel.visible || [], allOn = vis.every(id => L.sel.ids.has(id)); vis.forEach(id => allOn ? L.sel.ids.delete(id) : L.sel.ids.add(id)); C.render(); } break;
     case 'seldel': {
       if (!L.sel?.ids.size) break;
-      const n = L.sel.ids.size; if (!confirm(`Delete ${n} ${n === 1 ? 'item' : 'items'} for good?`)) break;
-      try { for (const id of [...L.sel.ids]) await del(id); L.sel.ids.clear(); C.toast(`${n} deleted`); } catch { C.toast('Could not delete them all. Try again.'); }
+      const n = L.sel.ids.size; if (!confirm(`Delete ${n} ${n === 1 ? 'item' : 'items'}? You can undo it right after.`)) break;
+      const gone = [...L.sel.ids].map(id => L.byId[id]).filter(Boolean).map(r => ({ id: r.id, kind: r.kind, data: dataOf(r) }));
+      L.batch = true;
+      try { for (const r of gone) await del(r.id); L.sel.ids.clear(); } catch { C.toast('Could not delete them all. Try again.'); }
+      finally { L.batch = false; }
+      C.undoPush?.(`Deleted ${n} ${n === 1 ? 'item' : 'items'}`, () => putMany(gone, null, 'restore'), true);
       C.render(); break;
     }
     case 'selset': if (L.sel?.ids.size) selSet(curSeg(page).kind); break;
@@ -2380,12 +2395,11 @@ function accRow(a) {
   if (a.type === 'Card') return `<div class="lrow facc"><span class="lmain"><b>${accIcon(a)} ${esc(a.name || 'Card')}</b><span>Credit card · its charges are held back until paid</span></span>${debt ? '<button class="btn small" data-act="go" data-v="money/debt">On Debt</button>' : ''}<button class="btn small" data-act="open" data-id="${a.id}">Edit</button></div>`;
   return `<div class="lrow facc ${a.archived ? 'gone' : ''}"><span class="lmain"><b>${accIcon(a)} ${esc(a.name || 'Account')}</b><span>${a.type === 'Savings' ? 'Savings' : 'Everyday account'} · ${b == null ? 'no balance yet' : 'about ' + fSigned(b) + ' now'}</span></span><label class="settog"><input type="checkbox" data-accsafe="${a.id}" ${a.safe ? 'checked' : ''}> Counts</label><button class="btn small" data-act="acchist" data-id="${a.id}">History</button><button class="btn small" data-act="open" data-id="${a.id}">Edit</button></div>`;
 }
-function fSettings(host) {
+function fSettings() {
   const s = fset(), list = (kind, empty, add) => `${recs(kind).length ? `<div class="lrows">${sortList(recs(kind), KINDS[kind], KINDS[kind].sorts?.[0]?.[0] || 'name').map(row).join('')}</div>` : quiet(empty)}<button class="btn small mmore" data-act="new" data-v="${kind}">${add}</button>`;
   const fld = (label, help, input) => `<div class="fset"><div><b>${label}</b>${help ? `<span>${help}</span>` : ''}</div>${input}</div>`;
   const accs = recs('faccounts').sort((a, b) => (a.archived ? 1 : 0) - (b.archived ? 1 : 0) || ['Spending', 'Savings', 'Card'].indexOf(a.type || 'Spending') - ['Spending', 'Savings', 'Card'].indexOf(b.type || 'Spending') || norm(a.name).localeCompare(norm(b.name)));
-  host.innerHTML = `<div class="viewhead"><h1>Finance settings</h1><span class="sub">Everything your money pages run on</span></div>
-  <div class="fsetgrid">
+  return `<div class="fsetgrid">
     ${MP('Your money', `
       ${fld('Your name', 'Shown in the greeting. Optional.', `<input class="finp" data-fset="name" value="${esc(s.name || '')}" placeholder="Your name">`)}
       ${fld('Currency', 'Changes how amounts are written. It doesn’t convert anything.', `<select class="finp" data-fset="currency">${CURRENCIES.map(([c, l]) => `<option value="${c}" ${(s.currency || 'EUR') === c ? 'selected' : ''}>${l}</option>`).join('')}</select>`)}
@@ -2395,7 +2409,7 @@ function fSettings(host) {
       ${fld('Next payday', '', `<input class="finp" type="date" data-fset="payday" value="${esc(s.payday || '')}">`)}
       ${fld('Safety buffer', 'Kept back from safe to spend, for surprises.', `<input class="finp" type="number" inputmode="decimal" step="1" data-fset="buffer" value="${s.buffer ?? 100}">`)}`)}
     ${MP('Your accounts', `${accs.length ? `<div class="lrows facclist">${accs.map(accRow).join('')}</div>` : quiet('Add your bank accounts to see balances and safe to spend.')}<p class="lnone">Counts: the account is part of safe to spend. Add the IBAN to an account so bank imports land on it by themselves.</p><div class="dbtns"><button class="btn small" data-act="fcheck">Update balances</button><button class="btn small" data-act="fmove">⇄ Move money</button></div>`, '<button class="chip link" data-act="new" data-v="faccounts">+ Add an account</button>')}
-    ${MP('Import and backup', `<p class="lnone">Bank statements from ING or Rabobank (CSV). Duplicates are skipped, own transfers are recognised and your sort rules pick the categories.</p><div class="dbtns"><button class="btn small primary" data-act="fcsv">Import bank CSV</button><button class="btn small" data-act="import">Import budget backup</button><button class="btn small" data-act="export">Back up all lists</button></div>`)}
+    ${MP('Import and backup', `<p class="lnone">Bank statements from ING or Rabobank (CSV). Duplicates are skipped, own transfers are recognised and your sort rules pick the categories.</p><div class="dbtns"><button class="btn small primary" data-act="fcsv">Import bank CSV</button><button class="btn small" data-act="import">Import budget backup</button></div>`)}
     ${MP('Categories', list('fcats', 'No categories yet.', '+ Category') + '<p class="lnone">Open one to set its budget, let it roll over, or mark it as not spending.</p>')}
     ${MP('Sort rules', list('frules', 'No rules yet. A rule puts every purchase whose name contains a word in a category.', '+ Sort rule'))}
     ${MP('Quick adds', list('fchips', 'No quick adds yet.', '+ Quick add'))}
@@ -2515,7 +2529,7 @@ async function fCsvImport(file) {
         recsOut.push({ id: C.uuid(), kind: 'fchecks', data: { account: pick[o], amount: last.bal, at: last.date, seq: base + chrono.length + 1, notes: `From ${bank} CSV`, created: base + chrono.length + 1 } });
       }
       for (const pt of p.patch) { const x = L.byId[pt.id]; if (x) recsOut.push({ id: x.id, kind: 'ftx', data: { ...dataOf(x), bankRef: pt.ref } }); }
-      await putMany(recsOut, (n, all) => { msg.textContent = `Saving ${n} of ${all}…`; });
+      await putMany(recsOut, (n, all) => { msg.textContent = `Saving ${n} of ${all}…`; }, `Imported ${bank} statement (${plural(p.add.length, 'line')})`);
       C.closeSheet(); C.toast(`Imported ${plural(p.add.length, 'line')}${p.dup.length ? `, skipped ${p.dup.length} already here` : ''}`);
     } catch (err) { console.error(err); msg.textContent = 'Could not import. Try again.'; b.disabled = false; }
   };
@@ -2565,13 +2579,29 @@ function openFound(id, go) {
   openRecord(id);
 }
 
+/* ---------- settings that only one section has ---------- */
+function settingsPanels(sec) {
+  const wrap = h => h ? `<div class="secown">${h}</div>` : '';
+  if (sec === 'money') return wrap(fSettings());
+  if (sec === 'care') {
+    const goal = Number(C.prefs().waterGoal) || 8, wk = recs('bsched')[0];
+    return wrap(`<section class="panel setpanel"><h3>Life</h3>
+      <div class="fset"><div><b>Daily water goal</b><span>Glasses a day on Today and in Life.</span></div><input class="finp" type="number" min="1" max="40" data-watergoal value="${goal}"></div>
+      <div class="fset"><div><b>Skincare week</b><span>${esc(wk ? KINDS.bsched.sub(wk) : 'Which night is acid, retinoid or recovery.')}</span></div><button class="btn small" data-act="${wk ? 'open' : 'new'}" ${wk ? `data-id="${wk.id}"` : 'data-v="bsched"'}>${wk ? 'Change' : 'Plan it'}</button></div></section>`);
+  }
+  if (sec === 'fit') { const wk = recs('fsched')[0]; return wrap(`<section class="panel setpanel"><h3>Fitness</h3><div class="fset"><div><b>Workout week</b><span>${esc(wk ? KINDS.fsched.sub(wk) : 'One video workout per day.')}</span></div><button class="btn small" data-act="${wk ? 'open' : 'new'}" ${wk ? `data-id="${wk.id}"` : 'data-v="fsched"'}>${wk ? 'Change' : 'Plan it'}</button></div></section>`); }
+  if (sec === 'social') { const acc = recs('accounts'); return wrap(`<section class="panel setpanel"><h3>Accounts</h3>${acc.length ? `<div class="lrows">${acc.map(row).join('')}</div>` : quiet('Add your Instagram and TikTok so the feed planner shows your profile.')}<button class="btn small mmore" data-act="new" data-v="accounts">+ Account</button></section>`); }
+  return '';
+}
+document.addEventListener('change', e => { if (e.target.matches?.('[data-watergoal]')) { const n = Math.round(Number(e.target.value)); if (n > 0 && n < 40) C.savePrefs({ waterGoal: n }).catch(() => C.toast('Could not save. Try again.')); } });
+
 /* ---------- what index.html calls ---------- */
 const sectionOf = view => SECTIONS.find(s => view.startsWith(s.key + '/'));
 return {
   sections: SECTIONS.map(s => ({ key: s.key, label: s.label, icon: G(s.icon), views: s.views.map(([k, l, ic]) => [s.key + '/' + k, l, G(ic)]) })),
   has: view => !!PAGES[view],
   lists: optionLists, fullList: fullOptions, renameIn: renameOption,
-  search, openFound,
+  search, openFound, settingsPanels,
   // one small card for the overview page; '' while the lists are still loading or missing
   tile(key) {
     const s = SECTIONS.find(x => x.key === key);
