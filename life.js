@@ -133,6 +133,17 @@ const routineNow = () => { const want = new Date().getHours() >= 15 ? 'Evening' 
 const AREAS = ['Health & Nutrition', 'Fitness', 'Mindset', 'Growth', 'Career', 'Finances', 'Home', 'Organization', 'Relationship', 'Family', 'Social', 'Creativity', 'Leisure', 'Lifestyle', 'Spirituality', 'Digital Life'];
 const goalTasks = g => recs('tasks').filter(t => [].concat(t.goal || []).includes(g.id));
 const goalPct = g => { if (g.status === 'Completed') return 100; const ts = goalTasks(g); return ts.length ? Math.round(100 * ts.filter(t => t.status === 'Completed').length / ts.length) : (num(g.progress) || 0); };
+// fitness extra: goals, video library and the week plan
+const VW_TYPES = ['Pilates', 'Yoga', 'Strength', 'HIIT', 'Cardio', 'Dance', 'Barre', 'Stretching', 'Walk'];
+const fitPct = g => { const a = num(g.start) ?? 0, b = num(g.target), c = num(g.current) ?? a; if (g.done) return 100; if (b == null || b === a) return 0; return Math.max(0, Math.min(100, Math.round(100 * (c - a) / (b - a)))); };
+const vwCount = v => recs('workouts').filter(w => w.video === v.id && w.done).length;
+const todayVW = () => { const s = recs('fsched')[0]; const k = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][new Date().getDay()]; return s?.[k] ? L.byId[s[k]] : null; };
+function doVideo(v) {
+  if (!v) return;
+  create('workouts', { name: v.name, date: today(), minutes: num(v.minutes) || '', type: VW_TYPES.includes(v.type) && ['Pilates', 'Yoga', 'Strength', 'HIIT', 'Cardio'].includes(v.type) ? v.type : 'Other', video: v.id, done: true })
+    .then(() => C.toast(`${v.name} logged for today`)).catch(() => {});
+  if (v.url) window.open(v.url, '_blank', 'noopener');
+}
 // tile sets for savings challenges
 const GRID_PRESETS = { '100 envelopes (€1 to €100)': () => Array.from({ length: 100 }, (_, i) => i + 1), '52 weeks (€1 to €52)': () => Array.from({ length: 52 }, (_, i) => i + 1), '€5 a day for 30 days': () => Array(30).fill(5), '€10 to €100 (20 tiles)': () => Array.from({ length: 20 }, (_, i) => 10 + Math.round(i * 90 / 19 / 5) * 5) };
 const WEEK = [['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'], ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']];
@@ -418,7 +429,7 @@ const KINDS = {
     fields: [F('name', 'Workout'), F('date', 'Date', 'date', { half: 1 }), F('minutes', 'Minutes', 'num', { half: 1 }),
       F('type', 'Type', 'select', { options: ['Strength', 'Cardio', 'HIIT', 'Pilates', 'Yoga', 'Walk', 'Run', 'Cycling', 'Stretching', 'Sport', 'Other'] }),
       F('intensity', 'Intensity', 'select', { options: ['Easy', 'Moderate', 'Hard'] }),
-      F('plan', 'Workout plan', 'rel', { to: 'plans' }), F('exercises', 'Exercises', 'rel', { to: 'exercises', multi: 1 }),
+      F('plan', 'Workout plan', 'rel', { to: 'plans' }), F('video', 'Video workout', 'rel', { to: 'vworkouts' }), F('exercises', 'Exercises', 'rel', { to: 'exercises', multi: 1 }),
       F('done', 'Done', 'check', { half: 1 }), F('skipped', 'Skipped', 'check', { half: 1 }), F('notes', 'Notes', 'long')],
     title: r => r.name || relName(r.plan) || r.type || 'Workout', sorts: [['-date', 'Newest'], ['date', 'Oldest']],
     hide: r => r.skipped, hideLabel: 'Show skipped',
@@ -563,6 +574,32 @@ const KINDS = {
       F('thigh', 'Thigh', 'num', { unit: 'cm', half: 1 }), F('fat', 'Body fat', 'num', { unit: '%', half: 1 }), F('notes', 'Notes', 'long')],
     title: r => r.date ? niceDate(r.date) : 'Measurement', sorts: [['-date', 'Newest']],
     sub: r => [r.weight != null ? r.weight + ' kg' : '', r.waist ? 'waist ' + r.waist : '', r.hips ? 'hips ' + r.hips : '', r.fat ? r.fat + '% fat' : ''].filter(Boolean).join(' · ')
+  },
+  fitgoals: {
+    one: 'fitness goal', many: 'Fitness goals',
+    fields: [F('name', 'Goal'), F('unit', 'Measured in (km, kg, reps, min)', 'text', { half: 1 }), F('due', 'Deadline', 'date', { half: 1 }),
+      F('start', 'Start value', 'num', { half: 1 }), F('target', 'Target', 'num', { half: 1 }), F('current', 'Where I am now', 'num', { half: 1 }),
+      F('exercise', 'Exercise', 'rel', { to: 'exercises', half: 1 }), F('lgoal', 'Part of life goal', 'rel', { to: 'lgoals', half: 1 }), F('done', 'Reached', 'check', { half: 1 }), F('notes', 'Notes', 'long')],
+    sorts: [['due', 'Deadline first'], ['name', 'A to Z']], hide: r => r.done, hideLabel: 'Show reached',
+    sub: r => [num(r.target) != null ? `${num(r.current) ?? num(r.start) ?? 0} of ${num(r.target)} ${r.unit || ''}`.trim() : '', r.due && !r.done ? 'by ' + shortDate(r.due) : ''].filter(Boolean).join(' · '),
+    side: r => fitPct(r) + '%',
+    quick: r => ({ on: !!r.done, label: 'Reached', act: () => save(r, { done: !r.done }) })
+  },
+  vworkouts: {
+    one: 'video workout', many: 'Video library', facet: 'type', photo: 'photo', display: 'cards',
+    fields: [F('name', 'Name'), F('url', 'Video link', 'url'), F('type', 'Type', 'select', { options: VW_TYPES, half: 1 }), F('minutes', 'Minutes', 'num', { half: 1 }),
+      F('instructor', 'Instructor', 'text', { half: 1 }), F('level', 'Level', 'select', { options: ['Beginner', 'Intermediate', 'Advanced'], half: 1 }),
+      F('materials', 'Materials', 'multi', { options: ['No equipment', 'Mat', 'Dumbbells', 'Resistance band', 'Ankle weights', 'Pilates ball', 'Kettlebell', 'Bench'] }),
+      F('rating', 'Rating', 'rating'), F('fav', 'Pinned', 'check', { half: 1 }), F('photo', 'Cover', 'photo'), F('notes', 'Notes', 'long')],
+    sorts: [['-fav', 'Pinned first'], ['minutes', 'Shortest'], ['name', 'A to Z']],
+    sub: r => [r.instructor, r.minutes && r.minutes + ' min', r.level, vwCount(r) ? `done ${vwCount(r)}×` : ''].filter(Boolean).join(' · '),
+    quick: r => ({ on: false, label: 'Do it now', act: () => doVideo(r) })
+  },
+  fsched: {
+    one: 'workout week', many: 'Workout week',
+    fields: WEEK.map(([k, l]) => F(k, l, 'rel', { to: 'vworkouts', half: 1 })),
+    title: () => 'Workout week',
+    sub: r => WEEK.map(([k, l]) => `${l.slice(0, 2)} ${r[k] ? relName(r[k]) : 'rest'}`).join(' · ')
   },
   fitgear: {
     one: 'item', many: 'Fitness gear', facet: 'category',
@@ -748,8 +785,10 @@ function fitTile() {
   const now = ws.filter(w => w.date === t && !w.skipped);
   const next = ws.filter(w => !w.done && !w.skipped && w.date && w.date > t).sort((a, b) => a.date.localeCompare(b.date))[0];
   const wk = weekStart(0), week = ws.filter(w => w.done && w.date >= wk && w.date <= addDays(wk, 6)).length;
+  const vw = todayVW(), vwDone = vw && ws.some(w => w.video === vw.id && w.date === t && w.done);
   return tileBody([
-    now.length ? tileList(now) : '<p class="lnone">No workout today.</p>',
+    vw ? `<p class="dsub">Today's video</p><div class="lrow"><button class="lmain" data-act="open" data-id="${vw.id}"><b>${esc(vw.name)}</b><span>${esc(KINDS.vworkouts.sub(vw))}</span></button>${tick(vwDone ? 'Done' : 'Do it now', vwDone, `data-act="${vwDone ? 'open' : 'quick'}" data-id="${vw.id}"`)}</div>` : '',
+    now.length ? tileList(now) : vw ? '' : '<p class="lnone">No workout today.</p>',
     next && !now.length ? `<p class="dline"><span>Next</span><b>${esc(titleOf(next))}, ${esc(relDay(next.date))}</b></p>` : '',
     `<p class="dline"><span>This week</span><b>${plural(week, 'workout')} done</b></p>`,
     now.length ? '' : '<button class="btn small" data-act="new" data-v="workouts">Plan a workout</button>'
@@ -763,7 +802,7 @@ const SECTIONS = [
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc], ['settings', 'Settings', P.gear]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
   { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['feed', 'Feed', P.grid], ['posts', 'Posts', P.phone], ['ideas', 'Ideas', P.star], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
-  { key: 'fit', label: 'Fitness', icon: P.dumbbell, tile: fitTile, views: [['today', 'Overview', P.grid], ['workouts', 'Workouts', P.run], ['plans', 'Plans', P.list], ['exercises', 'Exercises', P.dumbbell], ['body', 'Body', P.scale], ['gear', 'Gear', P.box]] }
+  { key: 'fit', label: 'Fitness', icon: P.dumbbell, tile: fitTile, views: [['today', 'Overview', P.grid], ['workouts', 'Workouts', P.run], ['library', 'Videos', P.star], ['fgoals', 'Goals', P.target], ['plans', 'Plans', P.list], ['exercises', 'Exercises', P.dumbbell], ['body', 'Body', P.scale], ['gear', 'Gear', P.box]] }
 ];
 const PAGES = {
   'kitchen/today': { render: kitchenToday, adds: ['meals', 'recipes', 'ingredients', 'mealprep'] },
@@ -807,8 +846,10 @@ const PAGES = {
   'home/plants': { title: 'Plants', segs: [{ kind: 'plants' }] },
   'home/inventory': { title: 'Inventory', segs: [{ kind: 'inventory' }] },
   'home/repairs': { title: 'Repairs', segs: [{ kind: 'repairs' }] },
-  'fit/today': { render: fitToday, adds: ['workouts', 'sets', 'body', 'exercises'] },
+  'fit/today': { render: fitToday, adds: ['workouts', 'vworkouts', 'fitgoals', 'sets', 'body', 'exercises'] },
   'fit/workouts': { title: 'Workouts', segs: [{ kind: 'workouts' }] },
+  'fit/library': { title: 'Video workouts', segs: [{ kind: 'vworkouts' }, { key: 'week', label: 'Week plan', kind: 'fsched', fill: fitWeekFill, tools: false }] },
+  'fit/fgoals': { title: 'Fitness goals', segs: [{ kind: 'fitgoals' }] },
   'fit/plans': { title: 'Workout plans', segs: [{ kind: 'plans' }] },
   'fit/exercises': { title: 'Exercises', segs: [{ kind: 'exercises' }, { kind: 'sets' }] },
   'fit/body': { title: 'Body', segs: [{ kind: 'body', top: bodyTop }] },
@@ -934,7 +975,7 @@ const quiet = t => `<p class="lnone">${esc(t)}</p>`;
 /* ---------- list pages ---------- */
 function sortList(list, K, key) {
   const desc = key.startsWith('-'), k = desc ? key.slice(1) : key;
-  const val = r => k === 'routine' ? (ROUTINES.includes(r.routine) ? ROUTINES.indexOf(r.routine) : 9) : k === 'prio' ? (PRIO.includes(r.priority) ? PRIO.indexOf(r.priority) : 9) : k === 'time' ? (totalTime(r) || 1e9) : k === 'due' ? (r.kind === 'plants' ? (plantDue(r) || '9999') : choreDue(r)) : k === 'name' ? norm(titleOf(r)) : r[k];
+  const val = r => k === 'routine' ? (ROUTINES.includes(r.routine) ? ROUTINES.indexOf(r.routine) : 9) : k === 'prio' ? (PRIO.includes(r.priority) ? PRIO.indexOf(r.priority) : 9) : k === 'time' ? (totalTime(r) || 1e9) : k === 'due' && ['chores', 'plants'].includes(r.kind) ? (r.kind === 'plants' ? (plantDue(r) || '9999') : choreDue(r)) : k === 'name' ? norm(titleOf(r)) : r[k];
   return list.sort((a, b) => {
     let x = val(a), y = val(b);
     const ex = x == null || x === '', ey = y == null || y === '';
@@ -1743,9 +1784,17 @@ function fitToday(host) {
     <div class="tile"><div class="k">Active time</div><div class="v">${minsWeek}</div><div class="h">minutes this week</div></div>
     <div class="tile"><div class="k">Weight</div><div class="v">${last ? last.weight : '–'}</div><div class="h">${last ? (ref && ref !== last ? `kg, ${(last.weight - ref.weight > 0 ? '+' : '') + (Math.round((last.weight - ref.weight) * 10) / 10)} since ${shortDate(ref.date)}` : 'kg on ' + shortDate(last.date)) : 'log it under Body'}</div></div></div>
   <div class="panels">
+    ${(() => { const vw = todayVW(); return vw ? panel('Today’s video', `<div class="lrows">${row(vw)}</div>`, ['fit/library', 'Library']) : ''; })()}
+    ${recs('fitgoals').some(g => !g.done) ? panel('Goals', `<div class="lrows">${recs('fitgoals').filter(g => !g.done).slice(0, 4).map(g => `<div class="lrow"><button class="lmain" data-act="open" data-id="${g.id}"><b>${esc(g.name || 'Goal')}</b><span>${esc(KINDS.fitgoals.sub(g))}</span><span class="lprog"><i style="width:${fitPct(g)}%"></i></span></button><span class="lside">${fitPct(g)}%</span></div>`).join('')}</div>`, ['fit/fgoals', 'All goals']) : ''}
     ${panel('Planned', planned.length ? `<div class="lrows">${planned.map(row).join('')}</div>` : `${quiet('No workouts planned.')}<button class="btn small" data-act="new" data-v="workouts">Plan a workout</button>`, ['fit/workouts', 'All workouts'])}
     ${panel('Personal records', prs.length ? `<div class="lrows">${prs.map(p => `<div class="lrow"><button class="lmain" data-act="open" data-id="${p.exercise}"><b>${esc(relName(p.exercise))}</b><span>${esc(niceDate(p.date))}</span></button><span class="lside">${p.weight} kg × ${p.reps || 1}</span></div>`).join('')}</div>` : quiet('Log your sets and your best lifts show up here.'), ['fit/exercises', 'Exercises'])}
   </div>${dataTools()}`;
+}
+// the week plan: one video workout per day, chosen from your library
+function fitWeekFill(fill) {
+  const s = recs('fsched')[0], k = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][new Date().getDay()];
+  fill.innerHTML = `<div class="lrows">${WEEK.map(([d, l]) => { const v = s?.[d] && L.byId[s[d]]; return `<div class="lrow ${d === k ? 'fwtoday' : ''}"><span class="rowlbl fwday">${l.slice(0, 3)}</span><span class="lmain"><b>${v ? esc(v.name) : 'Rest day'}</b>${v ? `<span>${esc(KINDS.vworkouts.sub(v))}</span>` : ''}</span>${v && d === k ? tick('Do it now', false, `data-act="quick" data-id="${v.id}"`) : ''}</div>`; }).join('')}</div>
+  <button class="btn small mmore" data-act="${s ? 'open' : 'new'}" ${s ? `data-id="${s.id}"` : 'data-v="fsched"'}>${s ? 'Change the week' : 'Plan your week'}</button>`;
 }
 function bodyTop() {
   const b = recs('body').filter(x => x.date && num(x.weight) != null).sort((a, c) => a.date.localeCompare(c.date));
