@@ -453,12 +453,18 @@ header.top .brand { flex: none; white-space: nowrap; }
 .wbt i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
 .wbv { font-variant-numeric: tabular-nums; font-size: 14px; }
 /* wishlists: a short table per list */
-.wtables { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-top: 14px; }
-.wtable table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.wtable tr { cursor: pointer; border-top: 1px solid var(--line); }
-.wtable tr:first-child { border-top: 0; }
-.wtable tr:hover td, .wtable tr:focus-visible td { background: var(--stage); }
-.wtable td { padding: 8px 4px; }
+/* one tile column per wish: a list with one wish takes one sixth of the row (a third on a phone), so short lists sit side by side */
+.wtables { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+.wtable { grid-column: span var(--n); min-width: 0; }
+.wtable .lph3 { flex-wrap: wrap; gap: 4px 10px; margin-bottom: 10px; }
+.wgrid { grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 900px) { .wtables { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; } .wtable { grid-column: span var(--m); } .wgrid { grid-template-columns: repeat(var(--m), minmax(0, 1fr)); gap: 10px; } }
+@media (max-width: 520px) { .wtable { padding: 12px; } }
+/* product tiles: same stage as a closet piece */
+.lcard.prod { position: relative; }
+.lcard.prod .stage .pini { font-family: var(--display); font-weight: 800; font-size: 34px; color: var(--muted); opacity: .5; }
+.lcard.prod .lfav { position: absolute; top: 8px; right: 8px; z-index: 1; }
+.lcard.prod .meta b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wtn { max-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .wtd { color: var(--muted); white-space: nowrap; font-size: 12.5px; text-align: right; }
 .wtp { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
