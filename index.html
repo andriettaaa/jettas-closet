@@ -453,6 +453,25 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .confirm input { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 5px 8px; min-width: 0; }
 .confirm input[type="date"] { width: 150px; }
 .confirm input.amt { width: 90px; }
+/* search everywhere */
+.findbar { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0 0 16px; padding: 11px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font: inherit; font-size: 15px; text-align: left; cursor: text; }
+.findbar svg, .findbox svg { width: 18px; height: 18px; flex: none; }
+.findbar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.findbtn svg { width: 18px; height: 18px; }
+.findbox { display: flex; align-items: center; gap: 10px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); position: sticky; top: 0; z-index: 1; }
+.findbox input { flex: 1; min-width: 0; border: 0; background: none; padding: 11px 0; font: inherit; font-size: 16px; color: var(--ink); outline: none; }
+.findh { font-size: 13px; font-weight: 600; margin: 18px 0 8px; color: var(--muted); }
+.findlist { display: grid; gap: 6px; }
+.findrow { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: inherit; font: inherit; text-align: left; min-width: 0; }
+.findrow:hover, .findrow:focus-visible { border-color: var(--ink); }
+.findic { width: 30px; height: 30px; border-radius: 999px; display: grid; place-items: center; background: var(--bg); flex: none; color: var(--muted); }
+.findic svg { width: 17px; height: 17px; }
+.findtx { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.findtx b { font-weight: 600; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.findtx span { font-size: 13px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.findtx small { font-size: 12px; color: var(--muted); }
+.findtx mark { background: color-mix(in srgb, var(--accent, #e8c547) 35%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+.findhint { margin: 16px 2px; }
 </style>
 <link rel="stylesheet" href="life.css">
 </head>
@@ -462,6 +481,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
     <div class="brand"><svg viewBox="0 0 64 40" aria-hidden="true"><path d="M28 7a4 4 0 1 1 6 3.5c-1.3.8-2 1.6-2 3V15L5 31.5c-2.2 1.4-1.2 4.5 1.4 4.5h51.2c2.6 0 3.6-3.1 1.4-4.5L32 15" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>A’s Life</div>
     <nav class="tabs" id="tabsTop" aria-label="Sections"></nav>
     <div class="spacer"></div>
+    <button class="iconbtn findbtn" id="findBtn" hidden aria-label="Search everything" title="Search everything (/)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
     <button class="btn primary" id="addBtn" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span class="addlabel">Add piece</span></button>
   </div>
   <div class="wrap secwrap"><nav class="secbar" id="secBar" aria-label="Areas" hidden></nav></div>
@@ -756,7 +776,7 @@ function render() {
   const signedIn = !!UID;
   $('#tabsTop').hidden = $('#tabsBottom').hidden = !signedIn;
   if (!signedIn) $('#secBar').hidden = true;
-  $('#addBtn').hidden = !signedIn;
+  $('#addBtn').hidden = $('#findBtn').hidden = !signedIn;
   if (!signedIn) return;
   renderTabs();
   const m = $('#main');
@@ -1722,15 +1742,15 @@ function renderSettings(host) {
   const mv = (attr, k, i, len) => `<span class="setmv"><button class="iconbtn small" ${attr}="${esc(k)}" data-d="-1" aria-label="Move up" ${i ? '' : 'disabled'}>↑</button><button class="iconbtn small" ${attr}="${esc(k)}" data-d="1" aria-label="Move down" ${i < len - 1 ? '' : 'disabled'}>↓</button></span>`;
   host.innerHTML = `<div class="viewhead"><h1>Settings</h1><span class="sub">Menu, tabs and choice lists</span></div>
   <div class="panels setpanels">
-    <section class="panel setpanel"><h3>Sections</h3><p class="muted">Order the menu, hide what you don't use and pick what sits in the bar at the bottom of your phone.</p>
+    <section class="panel setpanel" id="set-sections"><h3>Sections</h3><p class="muted">Order the menu, hide what you don't use and pick what sits in the bar at the bottom of your phone.</p>
       ${all.map((s, i) => `<div class="setrow"><span class="seti">${icon(s.icon)}</span><b>${esc(s.label)}</b><div class="spacer"></div>
         <label class="settog"><input type="checkbox" data-nshow="${s.key}" ${hid.includes(s.key) ? '' : 'checked'}> Menu</label>
         <label class="settog"><input type="checkbox" data-nbot="${s.key}" ${bottom.includes(s.key) && !hid.includes(s.key) ? 'checked' : ''} ${hid.includes(s.key) ? 'disabled' : ''}> Bottom bar</label>${mv('data-nmove', s.key, i, all.length)}</div>`).join('')}
       <button class="chip link" data-nreset>Back to the standard menu</button></section>
-    <section class="panel setpanel"><h3>Tabs in a section</h3><p class="muted">Each section opens on its first visible tab.</p>
+    <section class="panel setpanel" id="set-tabs"><h3>Tabs in a section</h3><p class="muted">Each section opens on its first visible tab.</p>
       <select class="pill" data-tabsec aria-label="Section">${withTabs.map(s => `<option value="${s.key}" ${s.key === SET.tabs ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}</select>
       ${vs.map((v, i) => `<div class="setrow"><span class="seti">${icon(v[2])}</span><b>${esc(v[1])}</b><div class="spacer"></div><label class="settog"><input type="checkbox" data-vshow="${esc(v[0])}" ${vh.includes(v[0]) ? '' : 'checked'}> Show</label>${mv('data-vmove', v[0], i, vs.length)}</div>`).join('')}</section>
-    <section class="panel setpanel"><h3>Choice lists</h3><p class="muted">The options you pick from. Rename one and everything that uses it follows.</p>
+    <section class="panel setpanel" id="set-lists"><h3>Choice lists</h3><p class="muted">The options you pick from. Rename one and everything that uses it follows.</p>
       <select class="pill" data-listsel aria-label="Choice list">${cat.map(g => `<optgroup label="${esc(g.group)}">${g.items.map(i => `<option value="${esc(i.id)}" ${i.id === SET.list ? 'selected' : ''}>${esc(i.label)}</option>`).join('')}</optgroup>`).join('')}</select>
       ${L.list.map((o, i) => `<div class="setrow"><input class="setname" data-oren="${i}" value="${esc(o)}" aria-label="Rename ${esc(o)}"><label class="settog"><input type="checkbox" data-oshow="${i}" ${lh.has(norm(o)) ? '' : 'checked'}> Show</label>${mv('data-omove', i, i, L.list.length)}</div>`).join('') || '<p class="muted">No options yet.</p>'}
       <form class="setadd" data-oadd><input placeholder="Add an option" aria-label="Add an option"><button class="btn small" type="submit">Add</button></form></section>
@@ -1775,6 +1795,7 @@ function renderOverview(host) {
   const hello = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
   const hidden = dashHidden(), cards = dashCards().filter(s => !hidden.has(s.key));
   host.innerHTML = `<div class="viewhead dviewhead"><h1>${hello}</h1><span class="sub">${t.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span><div class="spacer"></div><button class="btn small" data-dasharrange>Arrange</button></div>
+    <button class="findbar" data-find>${I.search}<span>Search recipes, notes, pages, settings…</span></button>
     ${wxStrip()}
     ${cards.length ? '' : '<p class="muted">Every card is hidden. Tap Arrange to bring some back.</p>'}
     <div class="dash">${cards.map(s => {
@@ -2021,6 +2042,76 @@ function closeSheet() {
   s._onClose?.(); S.sheetRefresh = null; s.remove(); document.body.style.overflow = '';
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#scrim')) closeSheet(); });
+
+/* ---------- search everywhere ----------
+   One box over every list in the life sections, every page and your settings. A record opens in its editor
+   on its own page; a page or a setting takes you there. */
+const SET_SPOTS = [
+  ['set-sections', 'Sections', 'Menu order, hide sections, bottom bar'],
+  ['set-tabs', 'Tabs in a section', 'Show, hide and order the tabs'],
+  ['set-lists', 'Choice lists', 'Rename, hide and order options']
+];
+function findPages(words) {
+  const has = t => words.every(w => t.toLowerCase().includes(w));
+  const out = [];
+  for (const s of navAll().concat(SECTIONS.find(x => x.key === 'settings'))) {
+    const vs = ['overview', 'settings'].includes(s.key) ? [] : viewsAll(s.key);
+    if (has(s.label)) out.push({ t: 'page', v: s.key, title: s.label, where: 'Section', icon: s.icon });
+    for (const [k, l, ic] of vs) if (has(l) || has(s.label + ' ' + l)) out.push({ t: 'page', v: k, title: l, where: s.label, icon: ic });
+  }
+  for (const [id, l, h] of SET_SPOTS) if (has(l + ' ' + h + ' settings')) out.push({ t: 'set', v: id, title: l, where: 'Settings · ' + h, icon: GEAR });
+  for (const g of listCatalog()) for (const it of g.items) if (has(it.label) || has(g.group + ' ' + it.label)) out.push({ t: 'list', v: it.id, title: it.label, where: 'Settings · Choice list · ' + g.group, icon: GEAR });
+  return out;
+}
+const mark = (text, words) => {
+  let h = esc(text);
+  for (const w of words) h = h.replace(new RegExp('(' + esc(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')(?![^<]*>)', 'gi'), '<mark>$1</mark>');
+  return h;
+};
+// a long note shows the bit around the word you searched for
+const around = (text, words) => {
+  const t = String(text).replace(/\s+/g, ' '), lo = t.toLowerCase();
+  const i = Math.min(...words.map(w => lo.indexOf(w)).filter(n => n >= 0));
+  return !isFinite(i) || i < 40 ? t.slice(0, 140) : '…' + t.slice(t.lastIndexOf(' ', i - 25) + 1, i + 100);
+};
+function openSearch(start = '') {
+  const sh = sheet({ title: 'Search', wide: true, body: `<div class="findbox">${I.search}<input type="search" id="findQ" placeholder="Search everything" aria-label="Search everything" autocomplete="off" enterkeyhint="go" value="${esc(start)}"></div><div id="findRes" aria-live="polite"></div>` });
+  const inp = $('#findQ', sh), res = $('#findRes', sh);
+  let found = [];
+  const draw = () => {
+    const q = inp.value, words = norm(q).split(/\s+/).filter(Boolean);
+    if (!words.length) { found = []; res.innerHTML = '<p class="muted findhint">Type a word: a recipe, an ingredient, a note, a page or a setting. Every word has to match.</p>'; return; }
+    const pages = findPages(words), recs = window.LIFE?.search?.(q) || [];
+    found = [...pages, ...recs.map(r => ({ ...r, t: 'rec' }))];
+    const rowOf = (r, i) => `<button class="findrow" data-fi="${i}"><span class="findic">${icon(r.icon)}</span><span class="findtx"><b>${mark(r.title, words)}</b>${r.sub ? `<span>${r.label ? esc(r.label) + ': ' : ''}${mark(around(r.sub, words), words)}</span>` : ''}<small>${esc(r.where)}</small></span></button>`;
+    const shown = 60, more = recs.length > shown ? `<p class="muted findhint">${recs.length - shown} more. Add a word to narrow it down.</p>` : '';
+    res.innerHTML = !found.length ? `<p class="muted findhint">Nothing found for “${esc(q.trim())}”.</p>`
+      : (pages.length ? `<h3 class="findh">Pages and settings</h3><div class="findlist">${pages.map(rowOf).join('')}</div>` : '')
+      + (recs.length ? `<h3 class="findh">In your lists <span class="muted">${recs.length}</span></h3><div class="findlist">${recs.slice(0, shown).map((r, i) => rowOf(r, pages.length + i)).join('')}</div>${more}` : '');
+  };
+  const pick = r => {
+    if (!r) return;
+    closeSheet();
+    if (r.t === 'rec') return window.LIFE.openFound(r.id, go);
+    if (r.t === 'page') return go(r.v);
+    if (r.t === 'list') SET.list = r.v;
+    go('settings');
+    requestAnimationFrame(() => $('#' + (r.t === 'list' ? 'set-lists' : r.v))?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+  };
+  inp.addEventListener('input', draw);
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); pick(found[0]); } });
+  res.addEventListener('click', e => { const b = e.target.closest('[data-fi]'); if (b) pick(found[+b.dataset.fi]); });
+  S.sheetRefresh = draw; // your lists can change while the box is open
+  draw(); inp.focus();
+  if (start) inp.setSelectionRange(start.length, start.length);
+}
+document.addEventListener('click', e => { if (e.target.closest('#findBtn, [data-find]')) openSearch(); });
+// "/" or Cmd/Ctrl+K opens it from anywhere you're not typing
+document.addEventListener('keydown', e => {
+  if (!UID || $('#scrim')) return;
+  const typing = e.target.closest?.('input, textarea, select, [contenteditable="true"]');
+  if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey)) { e.preventDefault(); openSearch(); }
+});
 
 /* ---------- picking the item-only shop photo ---------- */
 // Shops mix product shots with photos of models. A product shot has a plain background around the item
