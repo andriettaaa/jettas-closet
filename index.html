@@ -49,7 +49,7 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #17110D; --surface: #211913; --surface-2: #2C2219; --stage: #261D16; --ink: #F1E7DC; --muted: #B29C88;
     --line: #3A2E24; --accent: #C99A6B; --accent-ink: #1E140C; --tag: #5A4029; --tag-ink: #F2DBBE;
     --warn: #E0A85A; --danger: #EE8A78; --check-a: #2A2119; --check-b: #211913;
@@ -57,6 +57,35 @@
     --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.3); color-scheme: dark;
   }
 }
+:root[data-theme="dark"] {
+    --bg: #17110D; --surface: #211913; --surface-2: #2C2219; --stage: #261D16; --ink: #F1E7DC; --muted: #B29C88;
+    --line: #3A2E24; --accent: #C99A6B; --accent-ink: #1E140C; --tag: #5A4029; --tag-ink: #F2DBBE;
+    --warn: #E0A85A; --danger: #EE8A78; --check-a: #2A2119; --check-b: #211913;
+    --c1: #BF7838; --c2: #1F9EA6; --c3: #B48C2C; --c4: #CC648A; --c5: #62973E; --c6: #8183DE; --c7: #CC6A3C; --c8: #8C7867; --none: #3A2E24;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.3); color-scheme: dark;
+}
+/* your look: accent colour, letters, text size and a compact closet, chosen in Settings › Look */
+:root[data-accent="olive"] { --accent: #4F5D2F; } :root[data-accent="rose"] { --accent: #94445A; } :root[data-accent="navy"] { --accent: #2C4A6E; } :root[data-accent="terracotta"] { --accent: #A0432A; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="olive"] { --accent: #A9B77A; } :root:not([data-theme="light"])[data-accent="rose"] { --accent: #DB9DAE; } :root:not([data-theme="light"])[data-accent="navy"] { --accent: #93B3D8; } :root:not([data-theme="light"])[data-accent="terracotta"] { --accent: #E28C6A; } }
+:root[data-theme="dark"][data-accent="olive"] { --accent: #A9B77A; } :root[data-theme="dark"][data-accent="rose"] { --accent: #DB9DAE; } :root[data-theme="dark"][data-accent="navy"] { --accent: #93B3D8; } :root[data-theme="dark"][data-accent="terracotta"] { --accent: #E28C6A; }
+:root[data-font="classic"] { --display: "Fraunces", Georgia, serif; }
+:root[data-font="round"] { --display: "Nunito", system-ui, sans-serif; --body: "Nunito", system-ui, sans-serif; }
+:root[data-font="clean"] { --display: "Inter", system-ui, sans-serif; --body: "Inter", system-ui, sans-serif; }
+:root[data-font="hand"] { --display: "Caveat", "Bradley Hand", cursive; }
+:root[data-font="hand"] h1 { font-size: 1.25em; letter-spacing: 0; }
+:root[data-size="s"] { zoom: .93; } :root[data-size="l"] { zoom: 1.08; } :root[data-size="xl"] { zoom: 1.16; }
+:root[data-compact] .grid, :root[data-compact] .lgrid:not(.small) { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 8px; }
+@media (max-width: 520px) { :root[data-compact] .grid, :root[data-compact] .lgrid:not(.small) { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; } :root[data-compact] .card .meta, :root[data-compact] .lcard .meta { padding: 6px 7px; } :root[data-compact] .card .meta b, :root[data-compact] .lcard .meta b { font-size: 12.5px; } :root[data-compact] .card .meta span, :root[data-compact] .lcard .meta span { font-size: 11px; } }
+.lookopts { display: flex; flex-wrap: wrap; gap: 8px; }
+.lookopts button { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 8px 12px; display: grid; gap: 2px; text-align: left; min-width: 0; }
+.lookopts button[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.lookopts .sw { width: 22px; height: 22px; border-radius: 50%; display: block; }
+.lookopts .fs { font-size: 18px; line-height: 1.1; }
+.lookopts small { color: var(--muted); font-size: 12px; }
+.setgroup { display: grid; gap: 6px; margin: 10px 0; }
+.quickacts { display: flex; gap: 8px; flex-wrap: wrap; margin: -4px 0 14px; }
+.wxpick { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; margin-top: 4px; }
+.wxpick .dpieces img { background: var(--stage); }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 /* file pickers stay technically visible: Safari won't open a file field that is display:none */
@@ -212,7 +241,7 @@ dl.props dd .chip.link { margin-right: 6px; }
 .tile .v { font-family: var(--display); font-weight: 800; font-size: clamp(24px, 3.4vw, 34px); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .tile .h { font-size: 12.5px; color: var(--muted); }
 .panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-@media (max-width: 860px) { .panels { grid-template-columns: 1fr; } }
+@media (max-width: 860px) { .panels { grid-template-columns: minmax(0, 1fr); } }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; min-width: 0; }
 .panel h3 { font-size: 17px; margin-bottom: 4px; }
 .panel .hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
@@ -651,6 +680,18 @@ const pref = {
   get(k, d) { try { const v = localStorage.getItem('hangtag:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('hangtag:' + k, JSON.stringify(v)); } catch {} }
 };
+// look and feel: stored in prefs so every device matches, cached here so it shows before you're signed in
+const LOOK_FONTS = { house: null, classic: 'Fraunces:opsz,wght@9..144,600;9..144,800', round: 'Nunito:wght@400;500;600;700;800', clean: 'Inter:wght@400;500;600;700;800', hand: 'Caveat:wght@600;700' };
+function applyLook(look = pref.get('look', {})) {
+  const r = document.documentElement, set = (k, v) => v ? r.setAttribute('data-' + k, v) : r.removeAttribute('data-' + k);
+  set('theme', look.theme && look.theme !== 'auto' ? look.theme : ''); set('accent', look.accent && look.accent !== 'brown' ? look.accent : '');
+  set('font', look.font && look.font !== 'house' ? look.font : ''); set('size', look.size && look.size !== 'm' ? look.size : ''); set('compact', look.compact ? '1' : '');
+  const fam = LOOK_FONTS[look.font];
+  if (fam && !document.querySelector(`link[data-lookfont="${look.font}"]`)) { const l = document.createElement('link'); l.rel = 'stylesheet'; l.dataset.lookfont = look.font; l.href = `https://fonts.googleapis.com/css2?family=${fam}&display=swap`; document.head.appendChild(l); }
+  const dark = look.theme === 'dark' || (look.theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.removeAttribute('media'); m.content = dark ? '#17110D' : '#F3EEE8'; });
+}
+applyLook();
 function toggleIn(arr, v) { const i = arr.indexOf(v); i >= 0 ? arr.splice(i, 1) : arr.push(v); }
 const cats = () => S.cats.map(c => c.name);
 const catKey = name => S.cats.find(c => c.name === name)?.key;
@@ -680,6 +721,7 @@ async function loadAll() {
   ]);
   const err = a.error || b.error || c.error; if (err) throw err;
   S.prefs = pr.data?.data || {};
+  if (S.prefs.look) { pref.set('look', S.prefs.look); applyLook(S.prefs.look); }
   if (Array.isArray(S.prefs.categories) && S.prefs.categories.length) S.cats = S.prefs.categories;
   S.items = a.data.map(r => ({ ...r.data, id: r.id }));
   S.outfits = b.data.map(r => ({ ...r.data, id: r.id }));
@@ -851,7 +893,7 @@ function go(v) {
   $('#main').innerHTML = ''; render(); window.scrollTo(0, 0);
 }
 // a typed or pasted #page link opens that page without a reload
-window.addEventListener('hashchange', () => { const v = (location.hash || '').slice(1); if (v && v !== S.view && okView(v)) go(v); });
+window.addEventListener('hashchange', () => { const v = (location.hash || '').slice(1), q = /^do=(\w+)/.exec(v); if (q) { try { history.replaceState(null, '', '#' + S.view); } catch {} quickAction(q[1]); return; } if (v && v !== S.view && okView(v)) go(v); });
 // only the tab buttons: the view container carries data-view too
 document.addEventListener('click', e => { const b = e.target.closest('nav [data-view]'); if (b) go(b.dataset.view); });
 // the ☰ menu: what isn't in the bar you're looking at (hidden sections, or on a phone what's not in the bottom bar), then Settings
@@ -1763,6 +1805,26 @@ const STATS_TABS = [['overview', 'Overview'], ['breakdown', 'Breakdown'], ['mone
 /* ---------- overview ---------- */
 // One card per area with what matters today. The closet card lives here; every other area hands over its own
 // card through LIFE.tile(key), so a new area appears without touching this page.
+// a look for today's weather: a saved outfit that fits, the one you wore longest ago; or pieces you haven't
+// worn in a while. It stays the same all day; "Another" steps to the next one.
+function weatherPick() {
+  const t = today(), w = wxDay(t) || wxDay(t, 'alm'); if (!w) return null;
+  const hi = w.hi, wet = (w.p ?? 0) >= 50, seasons = hi >= 22 ? ['Summer'] : hi >= 15 ? ['Spring', 'Summer', 'Autumn'] : hi >= 8 ? ['Autumn', 'Spring', 'Winter'] : ['Winter', 'Autumn'];
+  const fits = it => it && inCloset(it) && (!(it.seasons || []).length || it.seasons.some(x => seasons.includes(x)));
+  const last = {}; for (const [d, v] of Object.entries(S.days)) if (v.outfit && d < t && (!last[v.outfit] || d > last[v.outfit])) last[v.outfit] = d;
+  const outfits = S.outfits.filter(o => (o.pieces || []).length && o.pieces.every(p => fits(S.byId[p.id]))).sort((a, b) => (last[a.id] || '').localeCompare(last[b.id] || ''));
+  const picks = outfits.map(o => ({ outfit: o.id, ids: o.pieces.map(p => p.id), name: o.name || 'Saved outfit' }));
+  // pieces: per kind the one worn longest ago, cycling with "Another"
+  const pool = S.items.filter(i => fits(i) && i.photo), by = key => pool.filter(i => catKey(i.cat) === key).sort((a, b) => (S.lastWorn[a.id] || '').localeCompare(S.lastWorn[b.id] || ''));
+  const tops = [...by('tops'), ...by('knitwear')], bottoms = by('bottoms'), shoes = by('shoes'), outer = by('outerwear');
+  for (let k = 0; k < 3 && tops.length && bottoms.length; k++) {
+    const ids = [tops[k % tops.length], bottoms[k % bottoms.length], ...(shoes.length ? [shoes[k % shoes.length]] : []), ...((hi < 15 || wet) && outer.length ? [outer[k % outer.length]] : [])].map(i => i.id);
+    picks.push({ ids, name: 'Pieces you haven’t worn in a while' });
+  }
+  if (!picks.length) return null;
+  const n = S.wxPickN || 0, pick = picks[n % picks.length];
+  return { ...pick, count: picks.length, why: `${wmo(w.c)[1]} ${hi}°${wet ? ', rain likely' : ''}` };
+}
 function closetTile() {
   const t = today(), rec = S.days[t], o = rec?.outfit && S.outById[rec.outfit];
   const ids = dayItems(rec).filter(id => S.byId[id]);
@@ -1772,9 +1834,13 @@ function closetTile() {
   const pic = look ? `<div class="dlook">${pimg(look, 'Your look today')}</div>`
     : o ? `<div class="dlook">${boardHTML(o.pieces)}</div>`
     : withPhoto.length ? `<div class="dpieces">${withPhoto.slice(0, 6).map(id => pimg(S.byId[id].photo, S.byId[id].name || '', 'loading="lazy"')).join('')}</div>` : '';
+  const wp = !rec ? weatherPick() : null;
+  const wpick = wp ? `<div class="wxpick"><p class="dline"><span>For today’s weather · ${esc(wp.why)}</span><b>${esc(wp.name)}</b></p>
+      ${wp.outfit ? `<div class="dlook">${boardHTML(S.outById[wp.outfit].pieces)}</div>` : `<div class="dpieces">${wp.ids.map(id => S.byId[id]?.photo ? pimg(S.byId[id].photo, S.byId[id].name || '', 'loading="lazy"') : '').join('')}</div>`}
+      <div class="dbtns"><button class="btn small primary" data-wxwear>Wear this today</button>${wp.count > 1 ? '<button class="btn small" data-wxnext>Another</button>' : ''}</div></div>` : '';
   return `${pic ? `<button class="dpic" data-overday="${t}" aria-label="Open today's outfit">${pic}</button>` : ''}
     <p class="dline"><span>Today’s outfit</span><b>${o ? esc(o.name || 'Saved outfit') : ids.length ? `${ids.length} piece${ids.length === 1 ? '' : 's'}` : 'Nothing planned yet'}</b></p>
-    <div class="dbtns"><button class="btn small" data-overday="${t}">${rec ? 'Change outfit' : 'Pick today’s outfit'}</button>${inbox ? `<button class="chip link" data-overgo="closet">${inbox} new in your inbox</button>` : ''}</div>`;
+    <div class="dbtns"><button class="btn small" data-overday="${t}">${rec ? 'Change outfit' : 'Pick today’s outfit'}</button>${inbox ? `<button class="chip link" data-overgo="closet">${inbox} new in your inbox</button>` : ''}</div>${wpick}`;
 }
 // your order and hidden cards live in prefs.dash, so they're the same on every device; new areas join at the end
 function dashCards() {
@@ -1829,7 +1895,30 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v48';
+const APP_VERSION = 'hangtag-v49';
+const LOOK_OPTS = {
+  theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
+  accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
+  font: [['house', 'House', 'Bricolage + Figtree', '"Bricolage Grotesque"'], ['classic', 'Classic', 'Fraunces headings', 'Fraunces, Georgia, serif'], ['round', 'Round', 'Nunito', 'Nunito'], ['clean', 'Clean', 'Inter', 'Inter'], ['hand', 'Handwritten', 'Caveat headings', 'Caveat, cursive']],
+  size: [['s', 'Small', '93%'], ['m', 'Normal', '100%'], ['l', 'Large', '108%'], ['xl', 'Extra large', '116%']]
+};
+function lookPanel() {
+  const L = { theme: 'auto', accent: 'brown', font: 'house', size: 'm', ...(S.prefs.look || pref.get('look', {})) };
+  const row = (k, title, render) => `<div class="setgroup"><p class="dsub">${title}</p><div class="lookopts" role="group" aria-label="${title}">${LOOK_OPTS[k].map(o => `<button data-look="${k}" data-v="${o[0]}" aria-pressed="${L[k] === o[0]}">${render(o)}</button>`).join('')}</div></div>`;
+  return `<section class="panel setpanel" id="set-look"><h3>Look</h3><p class="muted">Make the app yours. It changes on every device you're signed in on.</p>
+    ${row('theme', 'Light or dark', o => `<b>${o[1]}</b><small>${o[2]}</small>`)}
+    ${row('accent', 'Accent colour', o => `<span class="sw" style="background:${o[2]}"></span><small>${o[1]}</small>`)}
+    ${row('font', 'Letters', o => `<span class="fs" style="font-family:${o[3]}">${o[1]}</span><small>${o[2]}</small>`)}
+    ${row('size', 'Text size', o => `<b>${o[1]}</b><small>${o[2]}</small>`)}
+    <div class="setrow"><label class="settog"><input type="checkbox" data-lookcompact ${L.compact ? 'checked' : ''}> <b>Compact closet</b></label><span class="muted setsub">More pieces and products per row, with smaller text under each tile.</span></div></section>`;
+}
+async function saveLook(patch) {
+  const look = { ...(S.prefs.look || pref.get('look', {})), ...patch };
+  pref.set('look', look); applyLook(look);
+  try { await DB.savePrefs({ look }); } catch (err) { saveErr(err, 'Saved on this device only. Try again to save it everywhere.'); }
+}
+document.addEventListener('click', e => { const b = e.target.closest?.('[data-look]'); if (b) saveLook({ [b.dataset.look]: b.dataset.v }); });
+document.addEventListener('change', e => { if (e.target.matches?.('[data-lookcompact]')) saveLook({ compact: e.target.checked }); });
 function renderSettings(host) {
   const master = S.view === 'settings', sec = master ? null : secOf(S.view), secObj = SECTIONS.find(x => x.key === sec);
   const n = NAV(), hid = n.hidden || [], all = navAll(), shownKeys = all.filter(s => !hid.includes(s.key)).map(s => s.key);
@@ -1840,12 +1929,13 @@ function renderSettings(host) {
   if (master) {
     host.innerHTML = `<div class="viewhead"><h1>Settings</h1><span class="sub">Menu, notifications and your account</span></div>
   <div class="panels setpanels">
-    <section class="panel setpanel" id="set-sections"><h3>Sections</h3><p class="muted">Order the menu, hide what you don't use and pick what sits in the bar at the bottom of your phone. Hidden sections stay in the ☰ menu.</p>
+    <section class="panel setpanel" id="set-sections"><h3>Sections</h3><p class="muted">Order the menu, hide what you don't use and pick what sits in the bar at the bottom of your phone (tick <b>Bottom bar</b>, up to five reads best). Hidden sections stay in the ☰ menu.</p>
       ${all.map((s, i) => `<div class="setrow"><span class="seti">${icon(s.icon)}</span><b>${esc(s.label)}</b><div class="spacer"></div>
         <label class="settog"><input type="checkbox" data-nshow="${s.key}" ${hid.includes(s.key) ? '' : 'checked'}> Menu</label>
         <label class="settog"><input type="checkbox" data-nbot="${s.key}" ${bottom.includes(s.key) && !hid.includes(s.key) ? 'checked' : ''} ${hid.includes(s.key) ? 'disabled' : ''}> Bottom bar</label>${mv('data-nmove', s.key, i, all.length)}</div>`).join('')}
       <button class="chip link" data-nreset>Back to the standard menu</button>
       <p class="muted">Tabs and choice lists now live in each section, under its own Settings tab.</p></section>
+    ${lookPanel()}
     ${notiPanel()}
     <section class="panel setpanel" id="set-account"><h3>Account and app</h3><p class="muted">Signed in as ${esc(EMAIL || 'you')}. Your data lives in your own Supabase project.</p>
       <div class="setbtns"><button class="btn small" data-reload>Check for an update</button><button class="btn small ghost" data-signout>Sign out on this device</button></div>
@@ -1998,12 +2088,21 @@ function spendPanel() {
     <li>Pay once with Apple Pay. The purchase shows up here and you get a notification.</li></ol></section>`;
 }
 
+// quick actions: a row on Today, and links like #do=spend that the app icon's shortcuts open
+const QUICK = [['spend', '+ Spending', () => !!window.LIFE?.newRecord], ['outfit', 'What do I wear?', () => true], ['groceries', 'Grocery list', () => !!window.LIFE?.has('kitchen/groceries')], ['wish', '+ Wish', () => !!window.LIFE?.newRecord]];
+function quickAction(k) {
+  if (k === 'spend') { go('money/today'); window.LIFE?.newRecord?.('ftx'); }
+  else if (k === 'wish') { go('wish/today'); window.LIFE?.newRecord?.('wishes'); }
+  else if (k === 'groceries') go('kitchen/groceries');
+  else if (k === 'outfit') { if (S.view !== 'overview') go('overview'); setTimeout(() => document.querySelector('.wxpick, [data-overday]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); }
+}
 function renderOverview(host) {
   const t = new Date(), hr = t.getHours();
   const hello = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
   const hidden = dashHidden(), cards = dashCards().filter(s => !hidden.has(s.key));
   host.innerHTML = `<div class="viewhead dviewhead"><h1>${hello}</h1><span class="sub">${t.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span><div class="spacer"></div><button class="btn small" data-dasharrange>Arrange</button></div>
     <button class="findbar" data-find>${I.search}<span>Search recipes, notes, pages, settings…</span></button>
+    <div class="quickacts">${QUICK.filter(q => q[2]()).map(([k, l]) => `<button class="chip" data-quick="${k}">${esc(l)}</button>`).join('')}</div>
     ${wxStrip()}
     ${cards.length ? '' : '<p class="muted">Every card is hidden. Tap Arrange to bring some back.</p>'}
     <div class="dash">${cards.map(s => {
@@ -2017,6 +2116,10 @@ function renderOverview(host) {
       if (e.target.closest('[data-dasharrange]')) return arrangeDash();
       const d = e.target.closest('[data-overday], .wxday[data-day]'); if (d) return openDay(d.dataset.overday || d.dataset.day);
       const g = e.target.closest('[data-overgo]'); if (g) go(g.dataset.overgo);
+      if (e.target.closest('[data-wxnext]')) { S.wxPickN = (S.wxPickN || 0) + 1; render(); }
+      if (e.target.closest('[data-wxwear]')) { const wp = weatherPick(); if (!wp) return; const t = today(), cur = S.days[t] || {};
+        DB.put('days', t, { outfit: wp.outfit || null, items: wp.outfit ? cur.items || [] : [...new Set([...(cur.items || []), ...wp.ids])], note: cur.note || '', photos: cur.photos || [], place: cur.place || '' }).then(() => toast('Logged for today')).catch(err => saveErr(err, 'Could not log that. Try again.')); }
+      const q = e.target.closest('[data-quick]'); if (q) quickAction(q.dataset.quick);
     });
   }
 }
@@ -3203,6 +3306,7 @@ async function start(session) {
     // closet wishes that left the list: bought (in the closet now) or let go (wishlist archive)
     closetDone: () => S.items.filter(it => it.wishSince && !isWish(it) && !isInbox(it)).map(it => isPassed(it) ? { name: it.name, price: it.price, out: 'dropped', date: it.passedDate || '' } : { name: it.name, price: it.price, out: 'bought', date: it.bought || '' }), openItem: id => openItem(id) });
   try { await loadAll(); await lifeLoad; purgePhotos(); } catch (e) { console.error(e); S.status = 'offline'; render(); }
+  const qd = /^#do=(\w+)/.exec(location.hash || ''); if (qd) { try { history.replaceState(null, '', '#' + S.view); } catch {} quickAction(qd[1]); }
 }
 if (!window.supabase || !CFG.url || !CFG.key || /YOUR-/.test(CFG.url + CFG.key)) {
   if (!window.supabase && CFG.url && !/YOUR-/.test(CFG.url) && (UID = pref.get('lastUid', null))) {

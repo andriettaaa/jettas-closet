@@ -3037,6 +3037,7 @@ return {
   search, openFound, settingsPanels,
   buyWish: (kind, id) => buyWish(kind, id), wishPanel, wishLine,
   canBuyWish: () => fAccs().length > 0,
+  newRecord: kind => KINDS[kind] && openEditor(kind, null),
   // every photo path the lists use, once they loaded fresh from Supabase (null until then)
   photoRefs: () => L.fresh || L.missing ? JSON.stringify(L.all) : null,
   // one small card for the overview page; '' while the lists are still loading or missing
