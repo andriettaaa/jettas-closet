@@ -7,6 +7,12 @@
 //   { "token": "...", "action": "fill", "recipes": [{ "id": "<recipe id>", "instructions": "...", "lines": ["200 g kipfilet", ...], "photo": "https://..." }] }
 //     fills in what an existing recipe is missing (instructions, the ingredient lines with amounts, a photo); it never
 //     overwrites what is already there and never touches the linked pantry ingredients.
+// One review inbox for everything you share or save (iPhone share sheet, the Albo task, links pasted in the app):
+//   { "token": "...", "action": "share", "url": "...", "text": "...", "note": "...", "source": "Share" }
+//     → lands in the inbox; with "target" and "draft" it arrives ready for review (used by the Albo task)
+//   { "token": "...", "action": "inbox" }  → the items that still need sorting
+//   { "token": "...", "action": "sort", "items": [{ "id": "...", "target": "recipes", "title": "...", "photo": "...", "why": "...", "draft": {...} }] }
+//     → the sorting task fills in what each link is; you accept or change it in the app
 // "save" replaces last week's deals, keeps one plan per week, and sends a notification.
 // Photos from recipe sites are copied into your own photo storage, so they stay when the site changes. All of this is
 // for your own private use in your own app.
@@ -92,6 +98,43 @@ Deno.serve(async req => {
       // what you like and don't like, from Kitchen › Settings
       const { data: pr } = await sb.from('prefs').select('data').eq('user_id', uid).maybeSingle();
       return json({ recipes, pantry, recent, food: pr?.data?.food || {}, learned });
+    }
+
+    const TARGETS = ['recipes', 'wishes', 'closet', 'beauty', 'supplements', 'gear', 'fitgear', 'inventory', 'ideas', 'cideas', 'gifts', 'keep'];
+    const cleanDraft = (d: any) => { const o: Record<string, unknown> = {}; if (d && typeof d === 'object') for (const [k, v] of Object.entries(d).slice(0, 40)) { if (!/^[a-zA-Z]{1,24}$/.test(k)) continue; o[k] = typeof v === 'string' ? v.slice(0, 12000) : Array.isArray(v) ? v.slice(0, 60).map(x => typeof x === 'string' ? x.slice(0, 200) : x) : typeof v === 'number' || typeof v === 'boolean' ? v : undefined; } return clean(o); };
+    if (body.action === 'share') {
+      const text = str(body.text, 4000), url = str(body.url, 1000) || (text.match(/https?:\/\/\S+/) || [''])[0].replace(/[),.]+$/, '');
+      if (!url && !text) return json({ error: 'nothing to save' }, 400);
+      const target = TARGETS.includes(body.target) ? body.target : '', draft = target ? cleanDraft(body.draft) : {};
+      if (draft.photo) draft.photo = await keepPhoto(uid, String(draft.photo));
+      const data = clean({ url, text: text && text !== url ? text : '', note: str(body.note, 1000), source: str(body.source, 40) || 'Share', status: target ? 'Ready' : 'New', target, title: str(body.title, 200) || (target ? str(draft.name, 200) : ''), why: str(body.why, 400), photo: draft.photo || '', draft, extId: str(body.extId, 80), created: Date.now() });
+      // the same Albo item twice updates instead of duplicating
+      let id = crypto.randomUUID();
+      if (data.extId) { const { data: same } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'inbox').filter('data->>extId', 'eq', data.extId); if (same?.[0]) { if (['Done', 'Skipped'].includes(same[0].data.status)) return json({ ok: true, id: same[0].id, already: true }); id = same[0].id; } }
+      const { error } = await sb.from('records').upsert({ user_id: uid, id, kind: 'inbox', data, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      return json({ ok: true, id, message: 'In your inbox' });
+    }
+    if (body.action === 'inbox') {
+      const { data, error } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'inbox');
+      if (error) throw error;
+      return json({ items: data.filter((r: any) => r.data.status === 'New').map((r: any) => clean({ id: r.id, url: r.data.url, text: r.data.text, note: r.data.note, source: r.data.source, created: r.data.created })) });
+    }
+    if (body.action === 'sort') {
+      const items = (Array.isArray(body.items) ? body.items : []).slice(0, 40);
+      const { data, error } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'inbox').in('id', items.map((x: any) => str(x?.id, 60)));
+      if (error) throw error;
+      let n = 0;
+      for (const it of items) {
+        const r = data.find((x: any) => x.id === it.id); if (!r || !['New', 'Ready'].includes(r.data.status)) continue;
+        const target = TARGETS.includes(it.target) ? it.target : 'keep', draft = cleanDraft(it.draft);
+        if (draft.photo) draft.photo = await keepPhoto(uid, String(draft.photo));
+        const d = clean({ ...r.data, status: 'Ready', target, title: str(it.title, 200) || str(draft.name, 200) || r.data.title, why: str(it.why, 400), photo: draft.photo || r.data.photo || '', draft, problem: str(it.problem, 300) });
+        const { error: e } = await sb.from('records').upsert({ user_id: uid, id: r.id, kind: 'inbox', data: d, updated_at: new Date().toISOString() });
+        if (e) throw e; n++;
+      }
+      if (n) await send(uid, { title: 'Your inbox is sorted', body: `${n} new ${n === 1 ? 'link is' : 'links are'} ready for you to check.`, url: './#inbox/review', tag: 'inbox' });
+      return json({ ok: true, sorted: n });
     }
 
     if (body.action === 'fill') {
