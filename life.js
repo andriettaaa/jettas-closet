@@ -1204,9 +1204,11 @@ const INBOX_EXTRA = { wishes: () => ({ status: 'Wish', since: today() }), beauty
 const inboxOpen = () => recs('inbox').filter(r => ['New', 'Ready'].includes(r.status));
 const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
 function inboxTile() {
-  const l = inboxOpen(), ready = l.filter(r => r.status === 'Ready').length;
-  return tileBody([`<p class="dline"><span>To check</span><b>${plural(ready, 'card')}</b></p>`, l.length - ready ? `<p class="dline"><span>Being sorted</span><b>${plural(l.length - ready, 'link')}</b></p>` : '', `<button class="chip link" data-act="go" data-v="inbox/review">Open the inbox</button>`]);
+  const l = inboxOpen().sort((a, b) => (a.status === 'Ready' ? 0 : 1) - (b.status === 'Ready' ? 0 : 1) || (b.created || 0) - (a.created || 0)), ready = l.filter(r => r.status === 'Ready').length;
+  return tileBody([`<p class="dline"><span>To check</span><b>${plural(ready, 'card')}</b></p>`, l.length - ready ? `<p class="dline"><span>Being sorted</span><b>${plural(l.length - ready, 'link')}</b></p>` : '', inboxMini(l.slice(0, 3)), `<button class="chip link" data-act="go" data-v="inbox/review">Open the inbox</button>`]);
 }
+// a short preview of inbox cards, with Accept where a card is ready
+const inboxMini = l => l.length ? `<div class="lrows ibxmini">${l.map(r => { const to = INBOX_TO[r.target], ph = r.photo || r.draft?.photo; return `<div class="lrow">${ph ? `<span class="lthumb"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></span>` : ''}<button class="lmain" data-act="go" data-v="inbox/review"><b>${esc(r.title || r.draft?.name || hostOf(r.url) || 'Link')}</b><span>${esc(r.status === 'Ready' && to ? '→ ' + to[0] : 'being sorted')}</span></button>${r.status === 'Ready' && to ? `<button class="lquick" data-act="ibxok" data-id="${r.id}">Accept</button>` : ''}</div>`; }).join('')}</div>` : '';
 function inboxCard(r) {
   const to = INBOX_TO[r.target], d = r.draft || {}, ph = r.photo || d.photo;
   const facts = [d.brand, d.shop, num(d.price) ? eur(num(d.price)) : '', d.category || d.cat || d.type || d.area, d.servings ? plural(d.servings, 'portion') : '', d.prep ? `${d.prep} min` : ''].filter(Boolean).join(' · ');
@@ -2464,7 +2466,8 @@ function wishToday(host) {
   <div class="panels">
     ${panel('Money per wishlist', `${catDonut}${groups.length ? asTable(catTable) : ''}`)}
     ${panel('How long on the list', ages)}
-    ${panel('Inbox', `<form class="lqadd" data-winbox><input placeholder="Paste a link to sort later" aria-label="Paste a link"><button class="btn small" type="submit">Add</button></form>${inbox.length ? `<div class="lrows">${inbox.slice(0, 6).map(row).join('')}</div>` : quiet('Nothing to sort.')}`, ['wish/inbox', 'Inbox'])}
+    ${(() => { const WT = ['wishes', 'closet', 'beauty', 'supplements', 'gear', 'fitgear', 'inventory', 'gifts'], l = inboxOpen().filter(r => r.status === 'New' || WT.includes(r.target)).sort((a, b) => (a.status === 'Ready' ? 0 : 1) - (b.status === 'Ready' ? 0 : 1) || (b.created || 0) - (a.created || 0));
+      return panel('Inbox', `<form class="lqadd" data-winbox><input placeholder="Paste a link to sort later" aria-label="Paste a link"><button class="btn small" type="submit">Add</button></form>${l.length ? inboxMini(l.slice(0, 4)) + (l.length > 4 ? `<p class="lnone">and ${l.length - 4} more</p>` : '') : quiet('Nothing to check. Share a link with “Naar A’s Life”.')}${inbox.length ? `<p class="lnone">${plural(inbox.length, 'link')} still in the old wishlist inbox.</p>` : ''}`, ['inbox/review', 'Open the inbox']); })()}
   </div>
   <div class="mrow2 wrow2">${panel('Bought and let go', flow)}${panel('Priority and budget', prio)}</div>
   <div class="wrow2">${panel(`This month, ${new Date().toLocaleDateString('en-GB', { month: 'long' })}`, wishReview(today().slice(0, 7), 'this month'), ['money/reviews', 'Monthly reviews'])}</div>
@@ -3374,10 +3377,82 @@ function openFound(id, go) {
   openRecord(id);
 }
 
+/* ---------- your own overview per section ----------
+   Every section's overview is made of blocks (the tiles, each panel). In the section's Settings you show or hide
+   each block, put them in your own order, and add blocks of your own: a list from this section or a note.
+   Saved in your prefs, so every device shows the same. */
+const overviewOf = sec => { const s = SECTIONS.find(x => x.key === sec); if (!s) return ''; const p = sec + '/' + s.views[0][0]; return PAGES[p]?.render ? p : ''; };
+const ovCfg = page => ({ hidden: [], order: [], extra: [], ...((C.prefs().ov || {})[page] || {}) });
+const ovSlug = t => 'p:' + deUml(String(t).split(',')[0]).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+function ovBlocks(host) {
+  const out = [], seen = new Map(), isBlock = el => el.matches('section.panel, .tiles, .quickacts, .mjump, .note.dnote');
+  const walk = el => { for (const c of el.children) { if (c.matches('.viewhead, h1, form')) continue; if (isBlock(c)) { let key, label;
+    if (c.matches('.tiles')) { key = 't:' + out.filter(b => b.key.startsWith('t:')).length; label = 'Summary tiles' + (key === 't:0' ? '' : ' ' + key.slice(2)); }
+    else if (c.matches('.quickacts')) { key = 'q'; label = 'Buttons'; } else if (c.matches('.mjump')) { key = 'j'; label = 'Jump menu'; } else if (c.matches('.note')) { key = 'n'; label = 'Tip of the week'; }
+    else { label = (c.querySelector('h3, h2')?.textContent || 'Panel').trim(); key = c.dataset.ov || ovSlug(label); }
+    const n = (seen.get(key) || 0) + 1; seen.set(key, n); if (n > 1) key += '-' + n;
+    out.push({ key, label, el: c, wide: !c.parentElement.matches('.panels, .mrow2, .mtop, .wtables') }); } else if (c.children.length && !c.matches('section, .panel')) walk(c); } };
+  walk(host); return out;
+}
+function ovExtraHTML(x) {
+  if (x.type === 'note') return `<section class="panel lpanel" data-ov="x:${x.id}"><div class="lph3"><h3>${esc(x.title || 'Note')}</h3></div><p class="ovnote">${esc(x.text || '')}</p></section>`;
+  const K = KINDS[x.kind]; if (!K) return '';
+  const list = sortList(recs(x.kind).filter(r => !K.hide?.(r)), K, K.sorts?.[0]?.[0] || '-created').slice(0, num(x.n) || 6);
+  return `<section class="panel lpanel" data-ov="x:${x.id}"><div class="lph3"><h3>${esc(x.title || K.many)}</h3></div>${list.length ? (PRODUCTS.has(x.kind) ? `<div class="lgrid small">${list.map(card).join('')}</div>` : `<div class="lrows">${list.map(row).join('')}</div>`) : quiet('Nothing here yet.')}</section>`;
+}
+function layoutOverview(host, page) {
+  const cfg = ovCfg(page);
+  if (cfg.extra.length) host.insertAdjacentHTML('beforeend', `<div class="ovextra">${cfg.extra.map(ovExtraHTML).join('')}</div>`);
+  if (!cfg.hidden.length && !cfg.order.length) return;
+  const blocks = ovBlocks(host), hid = new Set(cfg.hidden);
+  if (cfg.order.length) {
+    // your own order: all blocks in one flowing grid, wide blocks across the full width
+    const rank = b => { const i = cfg.order.indexOf(b.key); return i < 0 ? 1000 + blocks.indexOf(b) : i; };
+    const flow = document.createElement('div'); flow.className = 'ovflow';
+    for (const b of [...blocks].sort((a, c) => rank(a) - rank(c))) { b.el.classList.toggle('ovwide', b.wide); flow.appendChild(b.el); }
+    const head = host.querySelector('.viewhead'); (head?.parentElement === host ? head : host.firstElementChild)?.after(flow);
+    host.querySelectorAll('.panels, .mrow2, .mtop, .wtables, .ovextra').forEach(w => { if (!w.children.length) w.remove(); });
+  }
+  for (const b of blocks) if (hid.has(b.key)) b.el.hidden = true;
+  host.querySelectorAll('.panels, .mrow2, .mtop, .wtables').forEach(w => { if ([...w.children].every(c => c.hidden)) w.hidden = true; });
+}
+function ovPanel(sec) {
+  const page = overviewOf(sec); if (!page) return '';
+  const div = document.createElement('div');
+  try { PAGES[page].render(div); layoutOverview(div, page); } catch { return ''; }
+  const cfg = ovCfg(page), blocks = ovBlocks(div), keys = blocks.map(b => b.key);
+  const order = cfg.order.length ? [...cfg.order.filter(k => keys.includes(k)), ...keys.filter(k => !cfg.order.includes(k))] : keys;
+  const byKey = new Map(blocks.map(b => [b.key, b]));
+  const kinds = [...new Set(Object.entries(PAGES).filter(([pg]) => pg.startsWith(sec + '/')).flatMap(([, c]) => [...(c.segs || []).map(x => x.kind), ...(c.adds || [])]))].filter(k => KINDS[k]);
+  return `<section class="panel setpanel" id="set-ov"><h3>Overview</h3><p class="muted">Show, hide and order what's on the overview of this section, and add blocks of your own.</p>
+    ${order.map((k, i) => { const b = byKey.get(k), x = k.startsWith('x:') ? cfg.extra.find(e => 'x:' + e.id === k) : null; return `<div class="setrow"><b>${esc(b.label)}</b><div class="spacer"></div>
+      <label class="settog"><input type="checkbox" data-ovshow="${esc(page)}" data-k="${esc(k)}" ${cfg.hidden.includes(k) ? '' : 'checked'}> Show</label>
+      <span class="setmv"><button class="iconbtn small" data-ovmove="${esc(page)}" data-k="${esc(k)}" data-d="-1" aria-label="Move up" ${i ? '' : 'disabled'}>↑</button><button class="iconbtn small" data-ovmove="${esc(page)}" data-k="${esc(k)}" data-d="1" aria-label="Move down" ${i < order.length - 1 ? '' : 'disabled'}>↓</button></span>
+      ${x ? `<button class="iconbtn small" data-ovdel="${esc(page)}" data-k="${esc(x.id)}" aria-label="Remove ${esc(b.label)}">×</button>` : ''}</div>`; }).join('')}
+    <div class="ovadd"><p class="dsub">Add a block</p>
+      <div class="ovaddrow"><select class="pill" data-ovkind aria-label="List">${kinds.map(k => `<option value="${k}">${esc(KINDS[k].many)}</option>`).join('')}</select><input class="finp" data-ovtitle placeholder="Title (optional)" aria-label="Title"><button class="btn small" data-ovaddlist="${esc(page)}">Add list</button></div>
+      <div class="ovaddrow"><input class="finp" data-ovnote placeholder="A note, a goal, a reminder" aria-label="Note"><button class="btn small" data-ovaddnote="${esc(page)}">Add note</button></div></div>
+    <button class="chip link" data-ovreset="${esc(page)}">Back to the standard overview</button></section>`;
+}
+async function ovSave(page, patch) {
+  const all = { ...(C.prefs().ov || {}) }; all[page] = patch ? { ...ovCfg(page), ...patch } : undefined; if (!patch) delete all[page];
+  try { await C.savePrefs({ ov: all }); } catch { C.toast('Could not save. Try again.'); }
+}
+document.addEventListener('change', e => { const t = e.target; if (!C || !t.matches?.('[data-ovshow]')) return; const page = t.dataset.ovshow, h = new Set(ovCfg(page).hidden); t.checked ? h.delete(t.dataset.k) : h.add(t.dataset.k); ovSave(page, { hidden: [...h] }); });
+document.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-ovmove], [data-ovdel], [data-ovaddlist], [data-ovaddnote], [data-ovreset]'); if (!b || !C) return;
+  const box = b.closest('#set-ov');
+  if (b.dataset.ovmove) { const page = b.dataset.ovmove, keys = [...box.querySelectorAll('[data-ovmove][data-d="-1"]')].map(x => x.dataset.k), i = keys.indexOf(b.dataset.k), j = i + Number(b.dataset.d); if (j < 0 || j >= keys.length) return; [keys[i], keys[j]] = [keys[j], keys[i]]; ovSave(page, { order: keys }); }
+  if (b.dataset.ovdel) { const page = b.dataset.ovdel, c = ovCfg(page); ovSave(page, { extra: c.extra.filter(x => x.id !== b.dataset.k), order: c.order.filter(k => k !== 'x:' + b.dataset.k) }); }
+  if (b.dataset.ovaddlist) { const page = b.dataset.ovaddlist, c = ovCfg(page); ovSave(page, { extra: [...c.extra, { id: C.uuid().slice(0, 8), type: 'list', kind: box.querySelector('[data-ovkind]').value, title: box.querySelector('[data-ovtitle]').value.trim() }] }).then(() => C.toast('Added to the overview')); }
+  if (b.dataset.ovaddnote) { const page = b.dataset.ovaddnote, c = ovCfg(page), v = box.querySelector('[data-ovnote]').value.trim(); if (!v) return; ovSave(page, { extra: [...c.extra, { id: C.uuid().slice(0, 8), type: 'note', title: 'Note', text: v }] }).then(() => C.toast('Added to the overview')); }
+  if (b.dataset.ovreset) ovSave(b.dataset.ovreset, null).then(() => C.toast('Back to the standard overview'));
+});
+
 /* ---------- settings that only one section has ---------- */
 const wishBudgetField = () => `<div class="fset"><div><b>Wishlist budget</b><span>What you allow yourself from your wishlists per ${fMode() === 'month' ? 'month' : 'paycheck'} (follows how you plan everyday spending). Purchases with the tag wishlist count against it.</span></div><input class="finp" type="number" inputmode="decimal" step="1" data-fset="wishBudget" value="${fset().wishBudget ?? ''}" placeholder="No budget"></div>`;
-function settingsPanels(sec) {
-  if (!C) return '';
+function settingsPanels(sec) { if (!C) return ''; return secOwn(sec) + ovPanel(sec); }
+function secOwn(sec) {
   const wrap = h => h ? `<div class="secown">${h}</div>` : '';
   if (sec === 'money') return wrap(fSettings());
   if (sec === 'kitchen') {
@@ -3452,7 +3527,7 @@ return {
     if (!C) { host.dataset.sig = ''; host.innerHTML = `<div class="viewhead"><h1>${esc(cfg.title || sectionOf(view)?.label || '')}</h1><span class="sub">Connecting…</span></div>`; return; }
     if (L.missing) { setupCard(host); return; }
     if (L.status === 'loading' && !L.all.length) { host.dataset.sig = ''; host.innerHTML = `<div class="viewhead"><h1>${esc(cfg.title || sectionOf(view)?.label || '')}</h1><span class="sub">Loading…</span></div>`; return; }
-    if (cfg.render) { host.dataset.sig = ''; cfg.render(host); } else listPage(host, view);
+    if (cfg.render) { host.dataset.sig = ''; cfg.render(host); if (view === overviewOf(sectionOf(view)?.key)) layoutOverview(host, view); } else listPage(host, view);
   },
   addLabel(view) {
     const cfg = PAGES[view]; if (!cfg) return 'Add';

@@ -537,3 +537,14 @@ header.top .brand { flex: none; white-space: nowrap; }
 .chip.rvno { background: color-mix(in srgb, var(--danger) 14%, var(--surface)); border-color: var(--danger); }
 /* one review inbox */
 .ibx .ibxto { max-width: 100%; font-size: 13px; padding: 5px 10px; }
+/* your own overview */
+.ovflow { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 16px; align-items: start; margin-bottom: 16px; }
+.ovflow > * { margin: 0 !important; min-width: 0; }
+.ovflow > .ovwide { grid-column: 1 / -1; }
+.ovextra { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 16px; margin-top: 16px; }
+.ovnote { margin: 0; white-space: pre-wrap; }
+.ovadd { display: grid; gap: 8px; margin: 12px 0; }
+.ovaddrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ovaddrow .finp { flex: 1 1 160px; min-width: 0; }
+.ibxmini .lthumb img { width: 40px; height: 40px; object-fit: cover; border-radius: 8px; }
+.ovflow > .wtable { grid-column: auto; }
