@@ -529,3 +529,9 @@ header.top .brand { flex: none; white-space: nowrap; }
 .dgrid .meta span { white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .fsetcol { grid-template-columns: minmax(0, 1fr) !important; } .fsetcol textarea { width: 100%; resize: vertical; }
 .qtips .lmain span { white-space: normal; overflow: visible; text-overflow: clip; }
+/* reviews and the "what shall I eat?" helper */
+.rvw { display: grid; gap: 14px; }
+.rvb { display: grid; gap: 6px; }
+.rvstars button { width: 36px; height: 36px; }
+.chip.rvlike { background: color-mix(in srgb, var(--c5) 18%, var(--surface)); border-color: var(--c5); }
+.chip.rvno { background: color-mix(in srgb, var(--danger) 14%, var(--surface)); border-color: var(--danger); }

@@ -66,10 +66,20 @@ Deno.serve(async req => {
     const uid = Deno.env.get('SPEND_USER_ID')!;
 
     if (body.action === 'recipes') {
-      const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['recipes', 'ingredients', 'wplans']);
+      const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['recipes', 'ingredients', 'wplans', 'rreviews']);
       if (error) throw error;
       const ing = new Map(data.filter((r: any) => r.kind === 'ingredients').map((r: any) => [r.id, r.data]));
+      // reviews: per recipe how it went, and across all reviews which ingredients you like or not
+      const revs = data.filter((r: any) => r.kind === 'rreviews').map((r: any) => r.data);
+      const byRecipe = new Map<string, any[]>(); for (const v of revs) { if (!v.recipe) continue; const l = byRecipe.get(v.recipe) || []; l.push(v); byRecipe.set(v.recipe, l); }
+      const score = new Map<string, number>(), lean = { salt: 0, spice: 0, taste: 0 }, sign = (v: string) => /Too little|Too mild|Too bland/.test(v || '') ? 1 : /Too much|Too hot|Too strong/.test(v || '') ? -1 : 0;
+      for (const v of revs) { for (const n of v.liked || []) score.set(n, (score.get(n) || 0) + 1); for (const n of v.disliked || []) score.set(n, (score.get(n) || 0) - 2); lean.salt += sign(v.salt); lean.spice += sign(v.spice); lean.taste += sign(v.taste); }
+      const learned = { reviews: revs.length, likes: [...score].filter(([, s]) => s > 0).sort((a, b) => b[1] - a[1]).map(([n]) => n).slice(0, 30), dislikes: [...score].filter(([, s]) => s < 0).sort((a, b) => a[1] - b[1]).map(([n]) => n).slice(0, 30),
+        wantsMoreSalt: lean.salt > 1 || undefined, wantsLessSalt: lean.salt < -1 || undefined, wantsMoreHeat: lean.spice > 1 || undefined, wantsLessHeat: lean.spice < -1 || undefined, wantsBolder: lean.taste > 1 || undefined, wantsGentler: lean.taste < -1 || undefined,
+        notes: revs.filter((v: any) => v.notes).slice(-15).map((v: any) => v.notes) };
       const recipes = data.filter((r: any) => r.kind === 'recipes').map((r: any) => clean({
+        reviews: (byRecipe.get(r.id) || []).sort((a: any, b: any) => String(b.date).localeCompare(String(a.date))).slice(0, 3).map((v: any) => clean({ date: v.date, score: v.score, again: v.again, taste: v.taste, salt: v.salt, spice: v.spice, effort: v.effort, reheat: v.reheat, notes: v.notes })),
+        feel: r.data.feel,
         id: r.id, name: r.data.name, category: r.data.category, servings: r.data.servings, prep: r.data.prep, cook: r.data.cook, rating: r.data.rating, fav: r.data.fav || undefined,
         protein: r.data.protein, link: r.data.link, ingredients: [].concat(r.data.ingredients || []).map((id: string) => (ing.get(id) as any)?.name).filter(Boolean),
         helps: r.data.helps, hasInstructions: !!String(r.data.instructions || '').trim() || undefined, hasPhoto: !!r.data.photo || undefined,
@@ -81,7 +91,7 @@ Deno.serve(async req => {
         .map((p: any) => ({ start: p.start, dinners: (p.dinners || []).map((d: any) => d.name) }));
       // what you like and don't like, from Kitchen › Settings
       const { data: pr } = await sb.from('prefs').select('data').eq('user_id', uid).maybeSingle();
-      return json({ recipes, pantry, recent, food: pr?.data?.food || {} });
+      return json({ recipes, pantry, recent, food: pr?.data?.food || {}, learned });
     }
 
     if (body.action === 'fill') {

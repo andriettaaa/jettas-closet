@@ -40,6 +40,11 @@
       "url": "./#do=outfit"
     },
     {
+      "name": "What shall I eat?",
+      "short_name": "Eat",
+      "url": "./#do=eat"
+    },
+    {
       "name": "Grocery list",
       "short_name": "Groceries",
       "url": "./#do=groceries"

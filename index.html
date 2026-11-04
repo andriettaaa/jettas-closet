@@ -1895,7 +1895,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v51';
+const APP_VERSION = 'hangtag-v52';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2089,11 +2089,12 @@ function spendPanel() {
 }
 
 // quick actions: a row on Today, and links like #do=spend that the app icon's shortcuts open
-const QUICK = [['spend', '+ Spending', () => !!window.LIFE?.newRecord], ['outfit', 'What do I wear?', () => true], ['groceries', 'Grocery list', () => !!window.LIFE?.has('kitchen/groceries')], ['wish', '+ Wish', () => !!window.LIFE?.newRecord]];
+const QUICK = [['spend', '+ Spending', () => !!window.LIFE?.newRecord], ['outfit', 'What do I wear?', () => true], ['eat', 'What shall I eat?', () => !!window.LIFE?.chooser], ['groceries', 'Grocery list', () => !!window.LIFE?.has('kitchen/groceries')], ['wish', '+ Wish', () => !!window.LIFE?.newRecord]];
 function quickAction(k) {
   if (k === 'spend') { go('money/today'); window.LIFE?.newRecord?.('ftx'); }
   else if (k === 'wish') { go('wish/today'); window.LIFE?.newRecord?.('wishes'); }
   else if (k === 'groceries') go('kitchen/groceries');
+  else if (k === 'eat') window.LIFE?.chooser?.();
   else if (k === 'outfit') { if (S.view !== 'overview') go('overview'); setTimeout(() => document.querySelector('.wxpick, [data-overday]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); }
 }
 function renderOverview(host) {
