@@ -1224,7 +1224,9 @@ function inboxPage(host) {
     <details class="vtable"><summary>Set up the share shortcut</summary><ol class="setsteps"><li>Open <b>Shortcuts</b>, tap <b>+</b> and name it <b>Naar A’s Life</b>.</li><li>Tap the <b>ⓘ</b> and turn on <b>Show in Share Sheet</b>. Let it receive URLs, Safari web pages, text and images.</li>
       <li>Add <b>Get contents of URL</b> with <span class="mono">${esc(String(C.sb?.supabaseUrl || '').replace(/\/$/, ''))}/functions/v1/offers</span>, method <b>POST</b>, request body <b>JSON</b> with: <span class="mono">token</span> (your OFFERS_TOKEN), <span class="mono">action</span> = share, <span class="mono">url</span> = Shortcut Input, <span class="mono">text</span> = Shortcut Input.</li>
       <li>Add <b>Show notification</b> “In je inbox”.</li></ol></details>`)}
-  ${ready.length ? panel('Check these', `<div class="ibgrid">${ready.map(inboxCard).join('')}</div>`) : ''}
+  ${ready.length ? (() => { const by = new Map(); for (const r of ready) by.set(r.target, (by.get(r.target) || 0) + 1);
+    return panel('Check these', `<div class="dbtns ibxall"><button class="btn small primary" data-act="ibxall">Accept all ${ready.length}</button>${[...by].filter(([, n]) => n > 1 && by.size > 1).map(([t, n]) => `<button class="btn small" data-act="ibxall" data-v="${t}">All ${n} ${esc(INBOX_TO[t]?.[0].toLowerCase() || t)}${n > 1 && !/s$/.test(INBOX_TO[t]?.[0] || '') ? 's' : ''}</button>`).join('')}</div>
+      <div class="ibgrid">${ready.slice(0, L.ibxMore || 60).map(inboxCard).join('')}</div>${ready.length > (L.ibxMore || 60) ? `<button class="btn small" data-act="ibxmore">Show ${Math.min(60, ready.length - (L.ibxMore || 60))} more</button>` : ''}`); })() : ''}
   ${waiting.length ? panel('Waiting to be sorted', `<div class="ibgrid">${waiting.map(inboxCard).join('')}</div>`) : ''}
   ${!l.length ? panel('All clear', quiet('Nothing to check. Share a link from your phone and it shows up here.')) : ''}
   ${(() => { const old = recs('winbox').filter(r => r.status !== 'Done'); return old.length ? panel('Older links', `<p class="lnone">From the old wishlist inbox. Tap “Make a wish” on one, or open the old list.</p><div class="lrows">${old.slice(0, 8).map(row).join('')}</div>`, ['wish/oldinbox', `All ${old.length}`]) : ''; })()}
@@ -1249,7 +1251,13 @@ async function inboxAccept(id, target) {
     });
     C.toast(`${name} is on your closet wishlist`); return;
   }
-  const K = KINDS[target]; if (!K) return;
+  const rows = inboxRows(r, target, now); if (!rows) return;
+  try { await putMany(rows, null, `Added ${name} to ${INBOX_TO[target][0].toLowerCase()}`); C.toast(`${name} is in ${INBOX_TO[target][0].toLowerCase()} now`); } catch { C.toast('Could not save. Try again.'); }
+}
+// the records one inbox card becomes; "made" keeps ingredients made earlier in the same batch, so none is made twice
+function inboxRows(r, target, now, made = new Map()) {
+  const K = KINDS[target]; if (!K) return null;
+  const d = { ...(r.draft || {}) }, name = d.name || r.title || hostOf(r.url) || 'Link';
   const keys = new Set(K.fields.map(f => f.k)), urlKey = K.fields.find(f => f.type === 'url')?.k, photoKey = K.fields.find(f => f.type === 'photo')?.k;
   const data = { created: now, ...(INBOX_EXTRA[target]?.() || {}) };
   for (const [k, v] of Object.entries(d)) if (keys.has(k) && K.fields.find(f => f.k === k).type !== 'rel' && v !== '' && v != null) data[k] = v;
@@ -1261,12 +1269,26 @@ async function inboxAccept(id, target) {
     const lines = d.lines || [], steps = d.steps || d.instructions || '';
     if (!data.instructions && (lines.length || steps)) data.instructions = [lines.length ? 'Ingrediënten:\n' + lines.map(l => '- ' + l).join('\n') : '', steps ? (lines.length ? 'Bereiding:\n' : '') + steps : ''].filter(Boolean).join('\n\n');
     const seen = new Set();
-    for (const n of [].concat(d.ingredients || [])) { const ir = ingRow(n); if (seen.has(ir.id)) continue; seen.add(ir.id); if (!L.byId[ir.id]) rows.push(ir); }
+    for (const n of [].concat(d.ingredients || [])) { const k = deUml(n); let ir = made.get(k); if (!ir) { ir = ingRow(n); if (!L.byId[ir.id]) { made.set(k, ir); rows.push(ir); } } if (seen.has(ir.id)) continue; seen.add(ir.id); }
     if (seen.size) data.ingredients = [...seen];
   }
   for (const k of Object.keys(data)) if (data[k] === '' || data[k] == null) delete data[k];
   rows.push({ id: rid, kind: target, data }, { id: r.id, kind: 'inbox', data: { ...dataOf(r), status: 'Done', target, made: rid, doneAt: now } });
-  try { await putMany(rows, null, `Added ${name} to ${INBOX_TO[target][0].toLowerCase()}`); C.toast(`${name} is in ${INBOX_TO[target][0].toLowerCase()} now`); } catch { C.toast('Could not save. Try again.'); }
+  return rows;
+}
+// accept many cards at once (all, or all of one kind) as one step to undo; closet pieces follow one by one
+async function inboxAcceptAll(only) {
+  const list = inboxOpen().filter(r => r.status === 'Ready' && r.target && (!only || r.target === only));
+  if (!list.length) return;
+  if (list.length > 20 && !confirm(`Accept ${list.length} cards and put each where it was sorted?`)) return;
+  const now = Date.now(), made = new Map(), rows = [], later = [];
+  for (const r of list) { if (r.target === 'closet') { later.push(r); continue; } if (r.target === 'keep') { rows.push({ id: r.id, kind: 'inbox', data: { ...dataOf(r), status: 'Kept', doneAt: now } }); continue; } const rr = inboxRows(r, r.target, now, made); if (rr) rows.push(...rr); }
+  C.toast(`Accepting ${plural(list.length, 'card')}…`);
+  try {
+    if (rows.length) await putMany(rows, null, `Accepted ${plural(list.length - later.length, 'inbox card')}`);
+    for (const r of later) await inboxAccept(r.id, 'closet');
+    C.toast(`${plural(list.length, 'card')} accepted`);
+  } catch { C.toast('Could not save them all. Try again.'); }
 }
 document.addEventListener('change', e => { const t = e.target; if (!C || !t.matches?.('[data-ibxto]') || !t.value) return; inboxAccept(t.dataset.ibxto, t.value); });
 document.addEventListener('submit', e => {
@@ -2903,6 +2925,8 @@ document.addEventListener('click', async e => {
     case 'dkeep': case 'dplan': case 'dgroc': dealsAct(d.act, d.k, Number(d.i)); break;
     case 'quitadd': quitAdd(); break;
     case 'ibxok': inboxAccept(d.id); break;
+    case 'ibxall': inboxAcceptAll(d.v); break;
+    case 'ibxmore': L.ibxMore = (L.ibxMore || 60) + 60; C.render(); break;
     case 'ibxskip': { const r = L.byId[d.id]; if (r) save(r, { status: 'Skipped', doneAt: Date.now() }).then(() => C.toast('Skipped')); break; }
     case 'openitem': C.openItem?.(d.id); break;
     case 'hday': { const r = L.byId[d.id]; if (r) toggleDay(r, d.d); break; }
