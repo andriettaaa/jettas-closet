@@ -9,8 +9,45 @@
   "background_color": "#F3EEE8",
   "theme_color": "#6B4226",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Add spending",
+      "short_name": "Spending",
+      "url": "./#do=spend"
+    },
+    {
+      "name": "What do I wear?",
+      "short_name": "Outfit",
+      "url": "./#do=outfit"
+    },
+    {
+      "name": "Grocery list",
+      "short_name": "Groceries",
+      "url": "./#do=groceries"
+    },
+    {
+      "name": "Add a wish",
+      "short_name": "Wish",
+      "url": "./#do=wish"
+    }
   ]
 }
