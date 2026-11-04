@@ -251,6 +251,13 @@ nav.bottom { display: none; }
   nav.bottom button svg { width: 22px; height: 22px; }
   nav.bottom button .badge { position: absolute; top: 0; left: calc(50% + 6px); }
   nav.bottom button[aria-current="page"] { color: var(--accent); }
+  /* where you are: a soft pill with a glow behind the icon of the section you're in */
+  nav.bottom button svg { box-sizing: content-box; padding: 3px 14px; border-radius: 999px; transition: background .2s ease, box-shadow .2s ease; }
+  nav.bottom button[aria-current="page"] svg { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent), 0 3px 10px color-mix(in srgb, var(--accent) 35%, transparent); }
+  nav.bottom button .badge { left: calc(50% + 10px); }
+  /* the bar slides away while you scroll and comes back when you stop */
+  nav.bottom { transition: transform .25s ease; will-change: transform; }
+  nav.bottom.away { transform: translateY(calc(100% + 4px)); }
   .addlabel { display: none; }
   main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
 }
@@ -812,6 +819,16 @@ const lookPhotos = () => Object.entries(S.days).flatMap(([date, d]) => (d.photos
 const outfitPhotos = id => lookPhotos().filter(l => l.outfit === id);
 
 /* ---------- navigation ---------- */
+// the bottom bar slides away while the page scrolls and comes back a moment after it stops
+(() => {
+  let t = null, lastY = window.scrollY;
+  window.addEventListener('scroll', () => {
+    const bar = document.getElementById('tabsBottom'), y = window.scrollY; if (!bar) return;
+    if (Math.abs(y - lastY) > 4 && y > 0) bar.classList.add('away');
+    lastY = y; clearTimeout(t);
+    t = setTimeout(() => bar.classList.remove('away'), 350);
+  }, { passive: true });
+})();
 function renderTabs() {
   const n = inboxItems().length;
   const views = tabsFor(S.view), sec = secOf(S.view);
@@ -1812,7 +1829,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v47';
+const APP_VERSION = 'hangtag-v48';
 function renderSettings(host) {
   const master = S.view === 'settings', sec = master ? null : secOf(S.view), secObj = SECTIONS.find(x => x.key === sec);
   const n = NAV(), hid = n.hidden || [], all = navAll(), shownKeys = all.filter(s => !hid.includes(s.key)).map(s => s.key);
