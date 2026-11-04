@@ -3,7 +3,7 @@
 //   { "token": "...", "action": "recipes" }  → your recipes (name, category, servings, ingredients) and pantry
 //   { "token": "...", "action": "save", "week": { "start": "2026-11-04", "end": "2026-11-10" },
 //     "offers": [{ "store": "Dirk", "name": "Kipfilet 1 kg", "price": 6.99, "was": 9.49, "deal": "25% korting", ... }],
-//     "plan": { "dinners": [...], "lunches": [...], "breakfasts": [...], "snacks": [...], "shared": [...], "shopping": [...], "tips": "..." } }
+//     "plan": { "dinners": [...], "lunches": [...], "breakfasts": [...], "snacks": [...], "drinks": [...], "shared": [...], "shopping": [...], "tips": "..." } }
 // "save" replaces last week's deals, keeps one plan per week, and sends a notification.
 // Secrets: OFFERS_TOKEN, SPEND_USER_ID (your user id), VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY. Turn off "Verify JWT" for this function.
 import { createClient } from 'npm:@supabase/supabase-js@2.50.0';
@@ -57,7 +57,9 @@ Deno.serve(async req => {
       // the last plans, so a new week doesn't repeat the same recipes
       const recent = data.filter((r: any) => r.kind === 'wplans').map((r: any) => r.data).sort((a: any, b: any) => String(b.start).localeCompare(String(a.start))).slice(0, 3)
         .map((p: any) => ({ start: p.start, dinners: (p.dinners || []).map((d: any) => d.name) }));
-      return json({ recipes, pantry, recent });
+      // what you like and don't like, from Kitchen › Settings
+      const { data: pr } = await sb.from('prefs').select('data').eq('user_id', uid).maybeSingle();
+      return json({ recipes, pantry, recent, food: pr?.data?.food || {} });
     }
 
     if (body.action === 'save') {
@@ -71,7 +73,7 @@ Deno.serve(async req => {
       const plan = clean({
         name: `Week of ${start}`, start, end, made: new Date().toISOString(),
         dinners: (p.dinners || []).slice(0, 10).map(meal), lunches: (p.lunches || []).slice(0, 6).map(meal),
-        breakfasts: (p.breakfasts || []).slice(0, 6).map(meal), snacks: (p.snacks || []).slice(0, 6).map(meal),
+        breakfasts: (p.breakfasts || []).slice(0, 6).map(meal), snacks: (p.snacks || []).slice(0, 6).map(meal), drinks: (p.drinks || []).slice(0, 6).map(meal),
         shared: (p.shared || []).slice(0, 30).map((s: any) => clean({ name: str(s?.name, 120), store: str(s?.store, 40), price: num(s?.price), deal: str(s?.deal, 120), in: (Array.isArray(s?.in) ? s.in : []).map((x: unknown) => str(x, 140)).slice(0, 12) })),
         shopping: (p.shopping || []).slice(0, 80).map((s: any) => clean({ name: str(s?.name, 120), store: str(s?.store, 40), price: num(s?.price), deal: str(s?.deal, 120), qty: str(s?.qty, 40), have: s?.have === true ? true : undefined })),
         tips: str(p.tips, 1200)

@@ -1204,7 +1204,7 @@ function dealsPage(host) {
   ${plan?.tips ? `<div class="note dnote">${esc(plan.tips)}</div>` : ''}
   ${block('dinners', 'Dinners', 'Cook once, eat twice: each one is enough for 2 days.')}
   <div class="mrow2 dmrow">${block('lunches', 'Lunch for the office', 'Make ahead, take along, warm up in the microwave.') || ''}${block('breakfasts', 'Breakfast', 'Quick, or ready the night before.') || ''}</div>
-  ${block('snacks', 'Snacks and baking', 'Something for in between.')}
+  <div class="mrow2 dmrow">${block('snacks', 'Snacks', 'Something for in between.') || ''}${block('drinks', 'Instead of soda', 'Drinks without added sugar that still taste of something.') || ''}</div>
   <div class="mrow2 dmrow">${plan?.shared?.length ? panel('Used in several recipes', `<div class="lrows">${plan.shared.map(x => `<div class="lrow"><span class="lmain"><b>${esc(x.name)}</b><span>${esc([x.store, x.deal, num(x.price) ? eur(num(x.price)) : '', (x.in || []).length ? 'in ' + x.in.join(', ') : ''].filter(Boolean).join(' · '))}</span></span></div>`).join('')}</div>`) : ''}
     ${shopping.length ? panel('Shopping list', `${shopBy.map(([s, l]) => `<p class="dsub">${esc(s)}</p><div class="lrows">${l.map(x => `<div class="lrow ${x.have ? 'gone' : ''}"><span class="lmain"><b>${esc(x.name)}</b><span>${esc([x.qty, x.deal, num(x.price) ? eur(num(x.price)) : '', x.have ? 'you have this' : ''].filter(Boolean).join(' · '))}</span></span></div>`).join('')}</div>`).join('')}<button class="btn small primary" data-act="dgroc">Put on my grocery list</button>`) : ''}</div>
   ${mine.length ? panel('Your recipes with deals', `<div class="lrows">${mine.map(({ r, hits }) => `<div class="lrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(hits.slice(0, 4).map(o => `${o.name} (${o.store})`).join(', '))}${hits.length > 4 ? ` and ${hits.length - 4} more` : ''}</span></button><span class="lside">${plural(hits.length, 'deal')}</span></div>`).join('')}</div>`) : ''}
@@ -1228,7 +1228,7 @@ async function dealsAct(act, k, i) {
   if (!m) return;
   if (act === 'dkeep') {
     const ings = (m.ingredients || []).map(n => ingRow(n)), rid = C.uuid(), seen = new Set(), ingRows = ings.filter(r => !seen.has(r.id) && seen.add(r.id));
-    const cat = { dinners: 'Dinner', lunches: 'Lunch', breakfasts: 'Breakfast', snacks: 'Snack' }[k];
+    const cat = { dinners: 'Dinner', lunches: 'Lunch', breakfasts: 'Breakfast', snacks: 'Snack', drinks: 'Drink' }[k];
     const rows = [...ingRows.filter(r => !L.byId[r.id]), { id: rid, kind: 'recipes', data: { name: m.name || 'Recipe', category: cat, link: m.link, photo: m.photo, servings: m.servings, notes: m.why, ingredients: [...seen], created: Date.now() } }];
     const copy = JSON.parse(JSON.stringify(dataOf(plan))); copy[k][i] = { ...m, recipe: rid };
     rows.push({ id: plan.id, kind: 'wplans', data: copy });
@@ -1237,7 +1237,7 @@ async function dealsAct(act, k, i) {
     return;
   }
   if (act === 'dplan') {
-    const slot = { dinners: 'Dinner', lunches: 'Lunch', breakfasts: 'Breakfast', snacks: 'Snack' }[k], n = k === 'dinners' ? (num(m.days) || 2) : k === 'snacks' ? 1 : (num(m.days) || 2);
+    const slot = { dinners: 'Dinner', lunches: 'Lunch', breakfasts: 'Breakfast', snacks: 'Snack', drinks: 'Snack' }[k], n = k === 'dinners' ? (num(m.days) || 2) : ['snacks', 'drinks'].includes(k) ? 1 : (num(m.days) || 2);
     const taken = new Set(recs('meals').filter(x => x.slot === slot).map(x => x.date)), dates = [];
     for (let d = today(), j = 0; dates.length < n && j < 21; j++, d = addDays(d, 1)) if (!taken.has(d) && (k !== 'lunches' || ![0, 6].includes(fromISO(d).getDay()))) dates.push(d);
     const rows = dates.map(date => ({ id: C.uuid(), kind: 'meals', data: { date, slot, ...(m.recipe && L.byId[m.recipe] ? { recipe: m.recipe } : { what: m.name || 'Recipe' }), notes: 'From the deals of the week', created: Date.now() } }));
@@ -3090,8 +3090,17 @@ function openFound(id, go) {
 /* ---------- settings that only one section has ---------- */
 const wishBudgetField = () => `<div class="fset"><div><b>Wishlist budget</b><span>What you allow yourself from your wishlists per ${fMode() === 'month' ? 'month' : 'paycheck'} (follows how you plan everyday spending). Purchases with the tag wishlist count against it.</span></div><input class="finp" type="number" inputmode="decimal" step="1" data-fset="wishBudget" value="${fset().wishBudget ?? ''}" placeholder="No budget"></div>`;
 function settingsPanels(sec) {
+  if (!C) return '';
   const wrap = h => h ? `<div class="secown">${h}</div>` : '';
   if (sec === 'money') return wrap(fSettings());
+  if (sec === 'kitchen') {
+    const f = C.prefs().food || {}, ta = (k, label, help, ph) => `<div class="fset fsetcol"><div><b>${label}</b><span>${help}</span></div><textarea class="finp" rows="2" data-food="${k}" placeholder="${ph}">${esc(f[k] || '')}</textarea></div>`;
+    return wrap(`<section class="panel setpanel"><h3>Taste</h3><p class="muted">The weekly deals plan follows this. Separate things with commas.</p>
+      ${ta('no', 'I don’t eat', 'Never in a suggestion.', 'e.g. nuts, avocado')}
+      ${ta('hidden', 'Only if you can’t taste it', 'Fine when it is fully worked into the dish.', 'e.g. coconut milk in a curry')}
+      ${ta('love', 'I love', 'Gets picked more often.', 'e.g. aged cheese, savoury snacks')}
+      ${ta('notes', 'Anything else', 'Goals, swaps, how you like to eat.', 'e.g. plant-based instead of milk')}</section>`);
+  }
   if (sec === 'wish') { const old = recs('fwait').filter(WISHY.fwait).length; return wrap(`<section class="panel setpanel"><h3>Wishlists and money</h3>${recs('faccounts').length ? wishBudgetField() : '<p class="lnone">Set up Finance to give your wishlists a budget.</p>'}
     ${old ? `<div class="fset"><div><b>Wait list</b><span>${plural(old, 'item')} still on the old 48-hour wait list in Finance.</span></div><button class="btn small" data-act="wmovewait">Move wait list into Wishlists</button></div>` : ''}</section>`); }
   if (sec === 'care') {
@@ -3122,6 +3131,7 @@ document.addEventListener('change', async e => {
   const { kind, wplan: id } = t.dataset; await planWish(kind, id, t.value);
   if (kind !== 'closet' && t.closest('.sheet')) { C.closeSheet(); openRecord(id); }
 });
+document.addEventListener('change', e => { const t = e.target; if (!C || !t.matches?.('[data-food]')) return; C.savePrefs({ food: { ...(C.prefs().food || {}), [t.dataset.food]: t.value.trim() } }).then(() => C.toast('Saved')).catch(() => C.toast('Could not save. Try again.')); });
 document.addEventListener('change', e => { if (e.target.matches?.('[data-watergoal]')) { const n = Math.round(Number(e.target.value)); if (n > 0 && n < 40) C.savePrefs({ waterGoal: n }).catch(() => C.toast('Could not save. Try again.')); } });
 
 /* ---------- what index.html calls ---------- */

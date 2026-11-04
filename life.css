@@ -527,3 +527,4 @@ header.top .brand { flex: none; white-space: nowrap; }
 @media (max-width: 520px) { .dmeal { grid-template-columns: 64px minmax(0, 1fr); } .dmeal img { width: 64px; height: 64px; } }
 .ldeals > section.panel { margin-bottom: 16px; } .ldeals > .mrow2 { margin-top: 0; }
 .dgrid .meta span { white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.fsetcol { grid-template-columns: minmax(0, 1fr) !important; } .fsetcol textarea { width: 100%; resize: vertical; }
