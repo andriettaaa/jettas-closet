@@ -31,6 +31,7 @@ const svg = p => `<svg viewBox="0 0 24 24" aria-hidden="true">${G(p)}</svg>`;
 
 /* ---------- icons ---------- */
 const P = {
+  tag: '<path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1.4 1.4 0 0 1 0 2l-6.7 6.7a1.4 1.4 0 0 1-2 0Z"/><circle cx="8" cy="8" r="1.4"/>',
   pot: '<path d="M4 10h16v4.5a5.5 5.5 0 0 1-5.5 5.5h-5A5.5 5.5 0 0 1 4 14.5Z"/><path d="M2.5 10h19M9.5 6.5c0-1.2 1-1.6 1-3M13.5 6.5c0-1.2 1-1.6 1-3"/>',
   house: '<path d="M4 11 12 4l8 7v8.5a1 1 0 0 1-1 1h-4.5V15h-5v5.5H5a1 1 0 0 1-1-1Z"/>',
   sparkle: '<path d="M12 3c.6 4.2 2.8 6.4 7 7-4.2.6-6.4 2.8-7 7-.6-4.2-2.8-6.4-7-7 4.2-.6 6.4-2.8 7-7Z"/><path d="M19 16.5v4M17 18.5h4"/>',
@@ -82,6 +83,7 @@ const P = {
 /* ---------- what each list holds ---------- */
 const F = (k, label, type = 'text', o = {}) => ({ k, label, type, ...o });
 const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
+const STORES = ['Dirk', 'Aldi', 'Albert Heijn'];
 const ROOMS = ['Entree', 'Woonkamer', 'Keuken', 'Slaapkamer', 'Badkamer', 'Toilet', 'Wasruimte', 'Balkon', 'Schoonmaak', 'Overig'];
 const PRIO = ['Must-have', 'Binnen 3 maanden', 'Handig', 'Kan later'];
 const FREQ = { 'Daily': 1, 'Every 2 days': 2, 'Twice a week': 3, 'Weekly': 7, 'Every 2 weeks': 14, 'Monthly': 30, 'Every 3 months': 91, 'Every 6 months': 182, 'Yearly': 365 };
@@ -180,6 +182,19 @@ const KINDS = {
     filter: (r, f) => f === 'in' ? !!r.stock : f === 'out' ? !r.stock : true,
     sub: r => [r.category, r.location, r.list ? 'on grocery list' : ''].filter(Boolean).join(' · '),
     quick: r => ({ on: !!r.stock, label: 'In stock', act: () => save(r, { stock: !r.stock }) })
+  },
+  offers: {
+    one: 'deal', many: 'Deals', facet: 'store', photo: 'photo', display: 'cards',
+    fields: [F('name', 'Product'), F('store', 'Shop', 'select', { options: STORES, half: 1 }), F('deal', 'Deal', 'text', { half: 1 }),
+      F('price', 'Deal price', 'money', { half: 1 }), F('was', 'Normal price', 'money', { half: 1 }), F('unit', 'Amount', 'text', { half: 1 }), F('category', 'Category', 'text', { half: 1 }),
+      F('from', 'From', 'date', { half: 1 }), F('until', 'Until', 'date', { half: 1 }), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo')],
+    sorts: [['store', 'Shop'], ['name', 'A to Z'], ['price', 'Cheapest']],
+    sub: r => [r.store, r.deal, r.unit, num(r.price) ? eur(num(r.price)) + (num(r.was) ? ` (was ${eur(num(r.was))})` : '') : '', r.until ? 'until ' + shortDate(r.until) : ''].filter(Boolean).join(' · ')
+  },
+  wplans: {
+    one: 'week plan', many: 'Week plans',
+    fields: [F('name', 'Week'), F('start', 'From', 'date', { half: 1 }), F('end', 'Until', 'date', { half: 1 }), F('tips', 'Tips', 'long')],
+    sorts: [['-start', 'Newest']], sub: r => [r.start && shortDate(r.start), plural((r.dinners || []).length, 'dinner')].filter(Boolean).join(' · ')
   },
   meals: {
     one: 'meal', many: 'Meals',
@@ -836,7 +851,7 @@ function fitTile() {
 
 /* ---------- sections and their pages ---------- */
 const SECTIONS = [
-  { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile, views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book], ['meals', 'Meal plan', P.calendar], ['groceries', 'Groceries', P.cart], ['pantry', 'Pantry', P.jar], ['gear', 'Gear', P.spoon]] },
+  { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile, views: [['today', 'Overview', P.grid], ['deals', 'Deals', P.tag], ['recipes', 'Recipes', P.book], ['meals', 'Meal plan', P.calendar], ['groceries', 'Groceries', P.cart], ['pantry', 'Pantry', P.jar], ['gear', 'Gear', P.spoon]] },
   { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Habits', P.repeat], ['growth', 'Growth', P.target], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['mindful', 'Mindfulness', P.moon], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['docs', 'Documents', P.doc]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
@@ -846,6 +861,7 @@ const SECTIONS = [
 ];
 const PAGES = {
   'kitchen/today': { render: kitchenToday, adds: ['meals', 'recipes', 'ingredients', 'mealprep'] },
+  'kitchen/deals': { render: dealsPage, adds: ['recipes'] },
   'kitchen/recipes': { title: 'Recipes', segs: [{ kind: 'recipes' }] },
   'kitchen/meals': { title: 'Meal plan', segs: [{ key: 'week', label: 'Week', kind: 'meals', fill: weekFill, tools: false }, { kind: 'mealprep' }] },
   'kitchen/groceries': { title: 'Groceries', segs: [{ key: 'list', label: 'Shopping list', kind: 'ingredients', fill: groceryFill, tools: false }] },
@@ -1022,7 +1038,7 @@ const waterToday = () => recs('water').find(w => w.date === today());
 const hasPhotos = K => K.fields.some(f => f.type === 'photo');
 const photoOf = r => hasPhotos(KINDS[r.kind]) ? r.photo : '';
 // products and things you own or want always show as tiles, like the closet
-const PRODUCTS = new Set(['gear', 'beauty', 'supplements', 'inventory', 'fitgear', 'wishes', 'ingredients', 'fwait']);
+const PRODUCTS = new Set(['offers', 'gear', 'beauty', 'supplements', 'inventory', 'fitgear', 'wishes', 'ingredients', 'fwait']);
 const viewMode = K => { if (PRODUCTS.has(K.kind)) return 'cards'; try { const v = localStorage.getItem('lview:' + K.kind); if (v === 'rows' || v === 'cards') return v; } catch {} return K.display === 'cards' || (hasPhotos(K) && recs(K.kind).some(r => r.photo)) ? 'cards' : 'rows'; };  // lists with photos open as a grid
 const setViewMode = (K, v) => { try { localStorage.setItem('lview:' + K.kind, v); } catch {} };
 const viewSwitch = K => PRODUCTS.has(K.kind) ? '' : `<div class="seg lviews" role="group" aria-label="Show as">${[['rows', 'List', P.list], ['cards', 'Cards', P.grid]].map(([v, l, ic]) => `<button data-act="lview" data-v="${v}" aria-pressed="${viewMode(K) === v}" aria-label="${l}" title="${l}">${svg(ic)}</button>`).join('')}</div>`;
@@ -1152,6 +1168,83 @@ function emptyList(K, any) {
 }
 
 /* ---------- kitchen ---------- */
+/* ---------- deals of the week ----------
+   A weekly task reads the folders of Dirk, Aldi and Albert Heijn and sends the deals plus a plan here (Supabase
+   function "offers"): five dinners that each last two days, lunches for the office that reheat in a microwave,
+   breakfasts and snacks, built so the same deal ingredients come back in several recipes. This page shows the
+   plan, matches the deals to your own recipes, and puts the plan into your meal plan and grocery list. */
+const deUml = s => norm(s).normalize('NFD').replace(/[̀-ͯ]/g, '');
+const ingWords = name => deUml(name).split(/[^a-z]+/).filter(w => w.length >= 4 && !['vers', 'verse', 'stuks', 'gram', 'kilo', 'pakje', 'blik'].includes(w));
+// which deals hit an ingredient name: a word of the ingredient appears in the deal's name
+const dealsFor = (name, offers) => { const ws = ingWords(name); return ws.length ? offers.filter(o => { const n = deUml(o.name); return ws.some(w => n.includes(w)); }) : []; };
+const curPlan = () => recs('wplans').filter(p => p.start && p.start <= addDays(today(), 3)).sort((a, b) => b.start.localeCompare(a.start))[0] || null;
+const liveOffers = () => recs('offers').filter(o => !o.until || o.until >= today());
+function recipeDeals(offers) {
+  const ingName = id => L.byId[id]?.name || '';
+  return recs('recipes').map(r => { const hits = new Map(); for (const id of [].concat(r.ingredients || [])) for (const o of dealsFor(ingName(id), offers)) hits.set(o.id, o); return { r, hits: [...hits.values()] }; })
+    .filter(x => x.hits.length).sort((a, b) => b.hits.length - a.hits.length || (b.r.rating || 0) - (a.r.rating || 0));
+}
+function dealsPage(host) {
+  const plan = curPlan(), offers = liveOffers(), byStore = STORES.map(s => [s, offers.filter(o => o.store === s)]).filter(([, l]) => l.length);
+  const mine = recipeDeals(offers).slice(0, 8);
+  const mealCard = (m, i, k) => {
+    const own = m.recipe && L.byId[m.recipe], name = own ? titleOf(own) : m.name || 'Recipe', ph = own ? photoOf(own) : m.photo;
+    const words = [k === 'dinners' && m.days ? `for ${plural(m.days, 'day')}` : '', m.servings ? plural(m.servings, 'portion') : '', m.microwave ? 'reheats in the microwave' : '', m.time ? `${m.time} min` : '', m.cost ? `about ${fEur0(m.cost)}` : '', own ? 'your recipe' : 'new recipe'].filter(Boolean).join(' · ');
+    return `<div class="dmeal">${ph ? `<img referrerpolicy="no-referrer" src="${esc(own ? C.photoURL(ph) : ph)}" alt="" loading="lazy" onerror="this.remove()">` : ''}<div class="dmb"><b>${esc(name)}</b><span>${esc(words)}</span>${m.why ? `<p>${esc(m.why)}</p>` : ''}
+      ${(m.uses || []).length ? `<p class="duses">Uses: ${m.uses.map(esc).join(', ')}</p>` : ''}
+      <div class="dbtns">${own ? `<button class="btn small" data-act="open" data-id="${own.id}">Open recipe</button>` : `${m.link ? `<a class="btn small" href="${esc(m.link)}" target="_blank" rel="noopener">Open recipe</a>` : ''}<button class="btn small" data-act="dkeep" data-k="${k}" data-i="${i}">Add to my recipes</button>`}
+      <button class="btn small primary" data-act="dplan" data-k="${k}" data-i="${i}">Put in meal plan</button></div></div></div>`;
+  };
+  const block = (k, title, sub) => { const l = plan?.[k] || []; return l.length ? panel(title, `<p class="lnone">${esc(sub)}</p><div class="dmeals">${l.map((m, i) => mealCard(m, i, k)).join('')}</div>`) : ''; };
+  const shopping = plan?.shopping || [], shopBy = [...STORES, 'Other'].map(s => [s, shopping.filter(x => (STORES.includes(x.store) ? x.store : 'Other') === s)]).filter(([, l]) => l.length);
+  const saved = fSum(offers.filter(o => num(o.was) > num(o.price)).map(o => ({ amount: num(o.was) - num(o.price) })));
+  host.innerHTML = `${head('Deals of the week')}<div class="ldeals">
+  <div class="tiles">${fTile('Deals', String(offers.length), byStore.map(([s, l]) => `${s} ${l.length}`).join(' · ') || 'none yet')}${fTile('Dinners', String((plan?.dinners || []).length), plan ? `each for 2 days · ${esc(shortDate(plan.start))} to ${esc(shortDate(plan.end))}` : 'no plan yet')}${fTile('Shared', String((plan?.shared || []).length), 'deal ingredients used in more than one recipe')}${fTile('Your recipes', String(mine.length), 'use something on offer')}</div>
+  ${!plan && !offers.length ? panel('How this works', `<p class="lnone">Every Wednesday a task reads the folders of Dirk, Aldi and Albert Heijn, looks through your recipes and your pantry, and puts this week's deals here with a plan: 5 dinners that each last 2 days, 3 office lunches that reheat in a microwave, 3 breakfasts and a few snacks. It reuses the same deal ingredients across recipes, so you buy less and waste less.</p><p class="lnone">It needs the Supabase function <b>offers</b> with the secret <b>OFFERS_TOKEN</b>. Then the first plan shows up after the next Wednesday.</p>`) : ''}
+  ${plan?.tips ? `<div class="note dnote">${esc(plan.tips)}</div>` : ''}
+  ${block('dinners', 'Dinners', 'Cook once, eat twice: each one is enough for 2 days.')}
+  <div class="mrow2 dmrow">${block('lunches', 'Lunch for the office', 'Make ahead, take along, warm up in the microwave.') || ''}${block('breakfasts', 'Breakfast', 'Quick, or ready the night before.') || ''}</div>
+  ${block('snacks', 'Snacks and baking', 'Something for in between.')}
+  <div class="mrow2 dmrow">${plan?.shared?.length ? panel('Used in several recipes', `<div class="lrows">${plan.shared.map(x => `<div class="lrow"><span class="lmain"><b>${esc(x.name)}</b><span>${esc([x.store, x.deal, num(x.price) ? eur(num(x.price)) : '', (x.in || []).length ? 'in ' + x.in.join(', ') : ''].filter(Boolean).join(' · '))}</span></span></div>`).join('')}</div>`) : ''}
+    ${shopping.length ? panel('Shopping list', `${shopBy.map(([s, l]) => `<p class="dsub">${esc(s)}</p><div class="lrows">${l.map(x => `<div class="lrow ${x.have ? 'gone' : ''}"><span class="lmain"><b>${esc(x.name)}</b><span>${esc([x.qty, x.deal, num(x.price) ? eur(num(x.price)) : '', x.have ? 'you have this' : ''].filter(Boolean).join(' · '))}</span></span></div>`).join('')}</div>`).join('')}<button class="btn small primary" data-act="dgroc">Put on my grocery list</button>`) : ''}</div>
+  ${mine.length ? panel('Your recipes with deals', `<div class="lrows">${mine.map(({ r, hits }) => `<div class="lrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(hits.slice(0, 4).map(o => `${o.name} (${o.store})`).join(', '))}${hits.length > 4 ? ` and ${hits.length - 4} more` : ''}</span></button><span class="lside">${plural(hits.length, 'deal')}</span></div>`).join('')}</div>`) : ''}
+  ${byStore.length ? panel('All deals', `${byStore.map(([s, l]) => `<p class="dsub">${esc(s)} · ${l.length}</p><div class="lgrid dgrid">${l.sort((a, b) => norm(a.category || 'zz').localeCompare(norm(b.category || 'zz')) || norm(a.name).localeCompare(norm(b.name))).map(o => prodCard(o)).join('')}</div>`).join('')}${saved ? `<p class="mmuted">Together about ${fEur0(saved)} off the normal prices.</p>` : ''}`) : ''}</div>`;
+}
+// find an ingredient in your pantry by name, or make it
+function ingRow(name, extra = {}) {
+  const n = deUml(name), hit = recs('ingredients').find(i => deUml(i.name) === n);
+  return hit ? { id: hit.id, kind: 'ingredients', data: { ...dataOf(hit), ...extra } } : { id: C.uuid(), kind: 'ingredients', data: { name: String(name).trim(), created: Date.now(), ...extra } };
+}
+async function dealsAct(act, k, i) {
+  const plan = curPlan(); if (!plan) return;
+  const m = plan[k]?.[i];
+  if (act === 'dgroc') {
+    const rows = [], seen = new Set();
+    for (const x of plan.shopping || []) { if (x.have) continue; const r = ingRow(x.name, { list: true }); if (seen.has(r.id)) continue; seen.add(r.id); rows.push(r); }
+    if (!rows.length) { C.toast('Nothing to add: you have everything.'); return; }
+    try { await putMany(rows, null, `Put ${plural(rows.length, 'thing')} from the deals on the grocery list`); C.toast(`${plural(rows.length, 'thing')} on your grocery list`); } catch { C.toast('Could not save. Try again.'); }
+    return;
+  }
+  if (!m) return;
+  if (act === 'dkeep') {
+    const ings = (m.ingredients || []).map(n => ingRow(n)), rid = C.uuid(), seen = new Set(), ingRows = ings.filter(r => !seen.has(r.id) && seen.add(r.id));
+    const cat = { dinners: 'Dinner', lunches: 'Lunch', breakfasts: 'Breakfast', snacks: 'Snack' }[k];
+    const rows = [...ingRows.filter(r => !L.byId[r.id]), { id: rid, kind: 'recipes', data: { name: m.name || 'Recipe', category: cat, link: m.link, photo: m.photo, servings: m.servings, notes: m.why, ingredients: [...seen], created: Date.now() } }];
+    const copy = JSON.parse(JSON.stringify(dataOf(plan))); copy[k][i] = { ...m, recipe: rid };
+    rows.push({ id: plan.id, kind: 'wplans', data: copy });
+    for (const r of rows) for (const key of Object.keys(r.data)) if (r.data[key] == null || r.data[key] === '') delete r.data[key];
+    try { await putMany(rows, null, `Added ${m.name || 'a recipe'} to your recipes`); C.toast('In your recipes now'); } catch { C.toast('Could not save. Try again.'); }
+    return;
+  }
+  if (act === 'dplan') {
+    const slot = { dinners: 'Dinner', lunches: 'Lunch', breakfasts: 'Breakfast', snacks: 'Snack' }[k], n = k === 'dinners' ? (num(m.days) || 2) : k === 'snacks' ? 1 : (num(m.days) || 2);
+    const taken = new Set(recs('meals').filter(x => x.slot === slot).map(x => x.date)), dates = [];
+    for (let d = today(), j = 0; dates.length < n && j < 21; j++, d = addDays(d, 1)) if (!taken.has(d) && (k !== 'lunches' || ![0, 6].includes(fromISO(d).getDay()))) dates.push(d);
+    const rows = dates.map(date => ({ id: C.uuid(), kind: 'meals', data: { date, slot, ...(m.recipe && L.byId[m.recipe] ? { recipe: m.recipe } : { what: m.name || 'Recipe' }), notes: 'From the deals of the week', created: Date.now() } }));
+    try { await putMany(rows, null, `Planned ${m.name || 'a recipe'} for ${plural(rows.length, 'day')}`); C.toast(`In your meal plan: ${dates.map(d => shortDate(d)).join(', ')}`); } catch { C.toast('Could not save. Try again.'); }
+  }
+}
+
 function kitchenToday(host) {
   const t = today(), meals = recs('meals').filter(m => m.date === t);
   const groc = recs('ingredients').filter(i => i.list).sort((a, b) => norm(a.name).localeCompare(norm(b.name)));
@@ -1160,8 +1253,10 @@ function kitchenToday(host) {
   const rs = recs('recipes');
   const ready = rs.filter(r => r.ingredients?.length && r.ingredients.every(id => stock.has(id)));
   const pick = shuffle(ready.length >= 3 ? ready : rs).slice(0, 4);
+  const dp = curPlan(), dn = liveOffers().length;
   host.innerHTML = `${head('Kitchen')}
   <div class="panels">
+    ${dp || dn ? panel('Deals this week', `<p class="lbig">${plural(dn, 'deal')} at Dirk, Aldi and AH</p>${(dp?.dinners || []).length ? `<div class="lwrap">${dp.dinners.slice(0, 5).map(m => `<span class="chip">${esc(m.recipe && L.byId[m.recipe] ? titleOf(L.byId[m.recipe]) : m.name || 'Recipe')}</span>`).join('')}</div>` : ''}`, ['kitchen/deals', 'See the plan']) : ''}
     ${panel('Today’s meals', `<div class="lslots">${MEALS.map(s => { const m = meals.filter(x => x.slot === s); return `<div class="lslot"><span class="rowlbl">${s}</span>${m.map(x => `<button class="chip" data-act="open" data-id="${x.id}">${esc(titleOf(x))}</button>`).join('')}<button class="chip ghost" data-act="slot" data-date="${t}" data-slot="${s}" aria-label="Plan ${s.toLowerCase()}">+</button></div>`; }).join('')}</div>`, ['kitchen/meals', 'Meal plan'])}
     ${panel('Grocery list', groc.length ? `<p class="lbig">${plural(groc.length, 'thing')} to buy</p><div class="lwrap">${groc.slice(0, 14).map(i => `<span class="chip">${esc(i.name)}</span>`).join('')}${groc.length > 14 ? `<span class="chip">+${groc.length - 14}</span>` : ''}</div>` : quiet('Nothing on your list. Tap “Add to list” on a recipe or in the pantry.'), ['kitchen/groceries', 'Go shopping'])}
     ${panel('Meal prep', prep.length ? `<div class="lrows">${prep.slice(0, 5).map(row).join('')}</div>` : quiet('No prepped meals waiting.'), ['kitchen/meals', 'All meal prep'])}
@@ -2519,6 +2614,7 @@ document.addEventListener('click', async e => {
     case 'wishf': { const b2 = document.querySelector(`.wtable [data-src="${CSS.escape(d.v)}"]`); b2?.closest('.wtable')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); break; }
     case 'wishgo': if (d.v === 'wish/master') uiOf('wish/master').facet = d.src; if (d.v === 'money/plan') uiOf('money/plan').seg = 'wait'; C.go(d.v); break;
     case 'wmovewait': moveWaitList(); break;
+    case 'dkeep': case 'dplan': case 'dgroc': dealsAct(d.act, d.k, Number(d.i)); break;
     case 'openitem': C.openItem?.(d.id); break;
     case 'hday': { const r = L.byId[d.id]; if (r) toggleDay(r, d.d); break; }
     case 'water': water(Number(d.v)); break;

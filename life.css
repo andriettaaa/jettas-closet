@@ -510,3 +510,20 @@ header.top .brand { flex: none; white-space: nowrap; }
 .detail .wmoney { margin: 0; }
 .mdotk.buy { background: var(--danger); border-color: var(--danger); }
 .wgrid .meta span { white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+/* deals of the week */
+.dmeals { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.dmeal { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 12px; align-items: start; background: var(--stage); border-radius: 12px; padding: 10px; min-width: 0; }
+.dmeal:not(:has(img)) { grid-template-columns: minmax(0, 1fr); }
+.dmeal img { width: 84px; height: 84px; object-fit: cover; border-radius: 10px; background: var(--surface-2); }
+.dmb { display: grid; gap: 4px; min-width: 0; }
+.dmb > span { color: var(--muted); font-size: 13px; }
+.dmb p { margin: 0; font-size: 13.5px; }
+.dmb .duses { color: var(--muted); font-size: 12.5px; }
+.dmb .dbtns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.dmrow { margin-top: 16px; }
+.dmrow > .panel { margin: 0; }
+.dnote { margin: 0 0 16px; }
+.dgrid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+@media (max-width: 520px) { .dmeal { grid-template-columns: 64px minmax(0, 1fr); } .dmeal img { width: 64px; height: 64px; } }
+.ldeals > section.panel { margin-bottom: 16px; } .ldeals > .mrow2 { margin-top: 0; }
+.dgrid .meta span { white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
