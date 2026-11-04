@@ -730,7 +730,21 @@ async function uploadPhoto(blob) {
   if (error) throw error;
   return path;
 }
-function deletePhoto(path) { if (path && !/^https?:/.test(path)) sb.storage.from('photos').remove([path]).catch(() => {}); }
+// A deleted photo waits in a trash list on this device until the next start of the app, so Undo can bring
+// back a piece together with its photo. At the next start, photos that nothing uses any more are removed for good.
+const trashKey = () => 'photoTrash:' + UID;
+function deletePhoto(path) {
+  if (!path || /^https?:/.test(path) || !UID) return;
+  const t = pref.get(trashKey(), []); if (!t.includes(path)) { t.push(path); pref.set(trashKey(), t); }
+}
+function purgePhotos() {
+  const t = pref.get(trashKey(), []), life = window.LIFE?.photoRefs?.();
+  if (!t.length || !sb || life === null) return; // the lists did not load fresh: try again next time
+  const used = JSON.stringify([S.items, S.outfits, S.days, S.prefs]) + (life || '');
+  const gone = t.filter(p => !used.includes(p));
+  pref.set(trashKey(), []);
+  if (gone.length) sb.storage.from('photos').remove(gone).catch(() => pref.set(trashKey(), [...new Set([...pref.get(trashKey(), []), ...gone])]));
+}
 let channel = null;
 function subscribeLive() {
   channel?.unsubscribe();
@@ -1798,7 +1812,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v46';
+const APP_VERSION = 'hangtag-v47';
 function renderSettings(host) {
   const master = S.view === 'settings', sec = master ? null : secOf(S.view), secObj = SECTIONS.find(x => x.key === sec);
   const n = NAV(), hid = n.hidden || [], all = navAll(), shownKeys = all.filter(s => !hid.includes(s.key)).map(s => s.key);
@@ -3163,7 +3177,7 @@ async function start(session) {
   derive(); $('#main').innerHTML = ''; render();
   subscribeLive(); wxRefresh();
   // what life.js needs from the closet: the signed-in Supabase client, photos, sheets and settings
-  window.LIFE?.start({ sb, uid: () => UID, view: () => S.view, go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url, shop: it.shop, planBuy: it.planBuy || '' })),
+  const lifeLoad = window.LIFE?.start({ sb, uid: () => UID, view: () => S.view, go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url, shop: it.shop, planBuy: it.planBuy || '' })),
     undoQuiet,
     // a closet wish bought through Finance: into the closet at the price paid; hands back what it was, for undo
     closetBuy: async (id, { price, bought, tx }) => { const before = noId(S.byId[id]), { planBuy, ...rest } = before; await DB.put('items', id, { ...rest, status: 'closet', price, bought, tx, updated: Date.now() }); return before; },
@@ -3171,7 +3185,7 @@ async function start(session) {
     closetPatch: (id, patch) => DB.put('items', id, { ...noId(S.byId[id]), ...patch, updated: Date.now() }),
     // closet wishes that left the list: bought (in the closet now) or let go (wishlist archive)
     closetDone: () => S.items.filter(it => it.wishSince && !isWish(it) && !isInbox(it)).map(it => isPassed(it) ? { name: it.name, price: it.price, out: 'dropped', date: it.passedDate || '' } : { name: it.name, price: it.price, out: 'bought', date: it.bought || '' }), openItem: id => openItem(id) });
-  try { await loadAll(); } catch (e) { console.error(e); S.status = 'offline'; render(); }
+  try { await loadAll(); await lifeLoad; purgePhotos(); } catch (e) { console.error(e); S.status = 'offline'; render(); }
 }
 if (!window.supabase || !CFG.url || !CFG.key || /YOUR-/.test(CFG.url + CFG.key)) {
   if (!window.supabase && CFG.url && !/YOUR-/.test(CFG.url) && (UID = pref.get('lastUid', null))) {

@@ -917,7 +917,7 @@ async function load() {
     rows.push(...data);
     if (data.length < 1000) break;
   }
-  L.missing = false; L.status = 'ok';
+  L.missing = false; L.status = 'ok'; L.fresh = true;
   L.all = rows.map(r => ({ ...r.data, id: r.id, kind: r.kind })); index(); cacheSave(); C.render();
 }
 function apply(id, kind, data) {
@@ -3037,6 +3037,8 @@ return {
   search, openFound, settingsPanels,
   buyWish: (kind, id) => buyWish(kind, id), wishPanel, wishLine,
   canBuyWish: () => fAccs().length > 0,
+  // every photo path the lists use, once they loaded fresh from Supabase (null until then)
+  photoRefs: () => L.fresh || L.missing ? JSON.stringify(L.all) : null,
   // one small card for the overview page; '' while the lists are still loading or missing
   tile(key) {
     const s = SECTIONS.find(x => x.key === key);
