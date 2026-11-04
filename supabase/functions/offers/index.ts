@@ -227,7 +227,7 @@ Deno.serve(async req => {
         const { error: e } = await sb.from('records').upsert({ user_id: uid, id: r.id, kind: 'inbox', data: d, updated_at: new Date().toISOString() });
         if (e) throw e; n++;
       }
-      if (n && items.some((it: any) => { const r = data.find((x: any) => x.id === it.id); return r && !r.data.quick; })) await send(uid, { title: 'Your inbox is sorted', body: `${n} new ${n === 1 ? 'link is' : 'links are'} ready for you to check.`, url: './#inbox/review', tag: 'inbox' });
+      if (n && items.some((it: any) => { const r = data.find((x: any) => x.id === it.id); return r && !r.data.quick; })) await send(uid, { title: 'Your inbox is sorted', body: `${n} new ${n === 1 ? 'link is' : 'links are'} ready for you to check.`, url: './#wish/inbox', tag: 'inbox' });
       return json({ ok: true, sorted: n });
     }
 

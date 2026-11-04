@@ -877,14 +877,11 @@ const SECTIONS = [
   { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Habits', P.repeat], ['growth', 'Growth', P.target], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['mindful', 'Mindfulness', P.moon], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['docs', 'Documents', P.doc]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
-  { key: 'wish', label: 'Wishlists', icon: P.heart, tile: wishTile, views: [['today', 'Overview', P.grid], ['master', 'Master', P.heart], ['inbox', 'Inbox', P.inbox]] },
+  { key: 'wish', label: 'Wishlists', icon: P.heart, tile: wishTile, views: [['today', 'Overview', P.grid], ['inbox', 'Inbox', P.inbox], ['master', 'Master', P.heart], ['saved', 'Saved links', P.link]] },
   { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['feed', 'Feed', P.grid], ['posts', 'Posts', P.phone], ['ideas', 'Ideas', P.star], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
-  { key: 'inbox', label: 'Inbox', icon: P.inbox, tile: inboxTile, views: [['review', 'Review', P.inbox], ['saved', 'Saved links', P.link]] },
   { key: 'fit', label: 'Fitness', icon: P.dumbbell, tile: fitTile, views: [['today', 'Overview', P.grid], ['workouts', 'Workouts', P.run], ['library', 'Videos', P.star], ['fgoals', 'Goals', P.target], ['plans', 'Plans', P.list], ['exercises', 'Exercises', P.dumbbell], ['body', 'Body', P.scale], ['gear', 'Gear', P.box]] }
 ];
 const PAGES = {
-  'inbox/review': { render: inboxPage, adds: [] },
-  'inbox/saved': { title: 'Saved links', segs: [{ kind: 'inbox', fill: savedFill, tools: false }] },
   'kitchen/today': { render: kitchenToday, adds: ['meals', 'recipes', 'ingredients', 'mealprep'] },
   'kitchen/deals': { render: dealsPage, adds: ['recipes'] },
   'kitchen/quit': { render: quitPage, adds: ['recipes', 'ingredients'] },
@@ -909,7 +906,9 @@ const PAGES = {
   'social/today': { render: socialToday, adds: ['tasks', 'projects', 'posts', 'cideas', 'deals', 'sgoals'] },
   'wish/today': { render: wishToday, adds: ['wishes', 'winbox'] },
   'wish/master': { title: 'Master wishlist', segs: [{ kind: 'wishes' }] },
-  'wish/inbox': { title: 'Wishlist inbox', segs: [{ kind: 'winbox' }] },
+  'wish/inbox': { render: inboxPage, adds: ['winbox'] },
+  'wish/saved': { title: 'Saved links', segs: [{ kind: 'inbox', fill: savedFill, tools: false }] },
+  'wish/oldinbox': { title: 'Old wishlist inbox', segs: [{ kind: 'winbox' }] },
   'social/posts': { title: 'Posts', segs: [{ kind: 'posts' }] },
   'social/feed': { render: socialFeed, adds: ['posts', 'highlights', 'accounts'] },
   'social/ideas': { title: 'Content ideas', segs: [{ kind: 'cideas' }] },
@@ -1199,16 +1198,12 @@ function emptyList(K, any) {
    times a day, works out what it is (recipe, wish, closet piece, beauty, supplement, gear, home, idea, content,
    gift) and fills in a card. You accept it, send it somewhere else, keep it as a saved link, or skip it. */
 const INBOX_TO = { recipes: ['Recipe', 'kitchen/recipes'], wishes: ['Wish', 'wish/master'], closet: ['Closet wishlist', 'wishlist'], beauty: ['Beauty', 'care/beauty'], supplements: ['Supplement', 'care/supplements'],
-  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], gifts: ['Gift idea', 'care/gifts'], keep: ['Saved link', 'inbox/saved'] };
+  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], gifts: ['Gift idea', 'care/gifts'], keep: ['Saved link', 'wish/saved'] };
 const INBOX_EXTRA = { wishes: () => ({ status: 'Wish', since: today() }), beauty: () => ({ wish: true }), supplements: () => ({ wish: true }), gear: () => ({ own: false }), fitgear: () => ({ own: false }), inventory: () => ({ status: 'Wishlist' }), cideas: () => ({ status: 'Idea', source: 'Inbox' }), gifts: () => ({ status: 'Idea' }) };
 const inboxOpen = () => recs('inbox').filter(r => ['New', 'Ready'].includes(r.status));
 const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
-function inboxTile() {
-  const l = inboxOpen().sort((a, b) => (a.status === 'Ready' ? 0 : 1) - (b.status === 'Ready' ? 0 : 1) || (b.created || 0) - (a.created || 0)), ready = l.filter(r => r.status === 'Ready').length;
-  return tileBody([`<p class="dline"><span>To check</span><b>${plural(ready, 'card')}</b></p>`, l.length - ready ? `<p class="dline"><span>Being sorted</span><b>${plural(l.length - ready, 'link')}</b></p>` : '', inboxMini(l.slice(0, 3)), `<button class="chip link" data-act="go" data-v="inbox/review">Open the inbox</button>`]);
-}
 // a short preview of inbox cards, with Accept where a card is ready
-const inboxMini = l => l.length ? `<div class="ibstrip">${l.map(r => { const to = INBOX_TO[r.target], ph = r.photo || r.draft?.photo, name = r.title || r.draft?.name || hostOf(r.url) || 'Link'; return `<div class="ibmini"><button class="ibstage" data-act="go" data-v="inbox/review" aria-label="${esc(name)}"><span class="pini">${esc(name.slice(0, 1))}</span>${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}</button><b>${esc(name)}</b><span>${esc(r.status === 'Ready' && to ? '→ ' + to[0] : 'being sorted')}</span>${r.status === 'Ready' && to ? `<button class="chip" data-act="ibxok" data-id="${r.id}">Accept</button>` : ''}</div>`; }).join('')}</div>` : '';
+const inboxMini = l => l.length ? `<div class="ibstrip">${l.map(r => { const to = INBOX_TO[r.target], ph = r.photo || r.draft?.photo, name = r.title || r.draft?.name || hostOf(r.url) || 'Link'; return `<div class="ibmini"><button class="ibstage" data-act="go" data-v="wish/inbox" aria-label="${esc(name)}"><span class="pini">${esc(name.slice(0, 1))}</span>${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}</button><b>${esc(name)}</b><span>${esc(r.status === 'Ready' && to ? '→ ' + to[0] : 'being sorted')}</span>${r.status === 'Ready' && to ? `<button class="chip" data-act="ibxok" data-id="${r.id}">Accept</button>` : ''}</div>`; }).join('')}</div>` : '';
 function inboxCard(r) {
   const to = INBOX_TO[r.target], d = r.draft || {}, ph = r.photo || d.photo;
   const facts = [d.brand, d.shop, num(d.price) ? eur(num(d.price)) : '', d.category || d.cat || d.type || d.area, d.servings ? plural(d.servings, 'portion') : '', d.prep ? `${d.prep} min` : ''].filter(Boolean).join(' · ');
@@ -1232,6 +1227,7 @@ function inboxPage(host) {
   ${ready.length ? panel('Check these', `<div class="ibgrid">${ready.map(inboxCard).join('')}</div>`) : ''}
   ${waiting.length ? panel('Waiting to be sorted', `<div class="ibgrid">${waiting.map(inboxCard).join('')}</div>`) : ''}
   ${!l.length ? panel('All clear', quiet('Nothing to check. Share a link from your phone and it shows up here.')) : ''}
+  ${(() => { const old = recs('winbox').filter(r => r.status !== 'Done'); return old.length ? panel('Older links', `<p class="lnone">From the old wishlist inbox. Tap “Make a wish” on one, or open the old list.</p><div class="lrows">${old.slice(0, 8).map(row).join('')}</div>`, ['wish/oldinbox', `All ${old.length}`]) : ''; })()}
   ${done.length ? panel('Recently sorted', `<div class="lrows">${done.map(r => `<div class="lrow"><button class="lmain" ${r.made && L.byId[r.made] ? `data-act="open" data-id="${r.made}"` : ''}><b>${esc(r.title || hostOf(r.url) || 'Link')}</b><span>${esc(INBOX_TO[r.target]?.[0] || '')}</span></button></div>`).join('')}</div>`) : ''}</div>`;
 }
 function savedFill(fill) {
@@ -2265,7 +2261,10 @@ function allWishes() {
 }
 function wishTile() {
   const all = allWishes(), inbox = recs('winbox').filter(r => r.status !== 'Done').length;
-  return tileBody([`<p class="dline"><span>On your wishlists</span><b>${plural(all.length, 'wish', 'wishes')}</b></p>`, `<p class="dline"><span>All together</span><b>${eur(all.reduce((n, w) => n + w.price, 0))}</b></p>`, inbox ? `<p class="dline"><span>Inbox</span><b>${plural(inbox, 'link')} to sort</b></p>` : '']);
+  const l = inboxOpen().sort((a, b) => (a.status === 'Ready' ? 0 : 1) - (b.status === 'Ready' ? 0 : 1) || (b.created || 0) - (a.created || 0)), ready = l.filter(r => r.status === 'Ready').length;
+  return tileBody([`<p class="dline"><span>On your wishlists</span><b>${plural(all.length, 'wish', 'wishes')}</b></p>`, `<p class="dline"><span>All together</span><b>${eur(all.reduce((n, w) => n + w.price, 0))}</b></p>`,
+    l.length ? `<p class="dline"><span>Inbox</span><b>${plural(ready, 'card')} to check${l.length - ready ? ` · ${l.length - ready} being sorted` : ''}</b></p>` : inbox ? `<p class="dline"><span>Old inbox</span><b>${plural(inbox, 'link')} to sort</b></p>` : '',
+    inboxMini(l.slice(0, 3)), l.length ? `<button class="chip link" data-act="go" data-v="wish/inbox">Open the inbox</button>` : '']);
 }
 // every wish that left a list: bought or let go, with its price and date (older ones without a date only count in totals)
 function wishHistory() {
@@ -2468,7 +2467,7 @@ function wishToday(host) {
     ${panel('Money per wishlist', `${catDonut}${groups.length ? asTable(catTable) : ''}`)}
     ${panel('How long on the list', ages)}
     ${(() => { const WT = ['wishes', 'closet', 'beauty', 'supplements', 'gear', 'fitgear', 'inventory', 'gifts'], l = inboxOpen().filter(r => r.status === 'New' || WT.includes(r.target)).sort((a, b) => (a.status === 'Ready' ? 0 : 1) - (b.status === 'Ready' ? 0 : 1) || (b.created || 0) - (a.created || 0));
-      return panel('Inbox', `<form class="lqadd" data-winbox><input placeholder="Paste a link to sort later" aria-label="Paste a link"><button class="btn small" type="submit">Add</button></form>${l.length ? inboxMini(l.slice(0, 4)) + (l.length > 4 ? `<p class="lnone">and ${l.length - 4} more</p>` : '') : quiet('Nothing to check. Share a link with “Naar A’s Life”.')}${inbox.length ? `<p class="lnone">${plural(inbox.length, 'link')} still in the old wishlist inbox.</p>` : ''}`, ['inbox/review', 'Open the inbox']); })()}
+      return panel('Inbox', `<form class="lqadd" data-winbox><input placeholder="Paste a link to sort later" aria-label="Paste a link"><button class="btn small" type="submit">Add</button></form>${l.length ? inboxMini(l.slice(0, 4)) + (l.length > 4 ? `<p class="lnone">and ${l.length - 4} more</p>` : '') : quiet('Nothing to check. Share a link with “Naar A’s Life”.')}${inbox.length ? `<p class="lnone">${plural(inbox.length, 'link')} still in the old wishlist inbox.</p>` : ''}`, ['wish/inbox', 'Open the inbox']); })()}
   </div>
   <div class="mrow2 wrow2">${panel('Bought and let go', flow)}${panel('Priority and budget', prio)}</div>
   <div class="wrow2">${panel(`This month, ${new Date().toLocaleDateString('en-GB', { month: 'long' })}`, wishReview(today().slice(0, 7), 'this month'), ['money/reviews', 'Monthly reviews'])}</div>
