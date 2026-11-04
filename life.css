@@ -535,3 +535,5 @@ header.top .brand { flex: none; white-space: nowrap; }
 .rvstars button { width: 36px; height: 36px; }
 .chip.rvlike { background: color-mix(in srgb, var(--c5) 18%, var(--surface)); border-color: var(--c5); }
 .chip.rvno { background: color-mix(in srgb, var(--danger) 14%, var(--surface)); border-color: var(--danger); }
+/* one review inbox */
+.ibx .ibxto { max-width: 100%; font-size: 13px; padding: 5px 10px; }

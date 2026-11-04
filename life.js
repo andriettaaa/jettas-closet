@@ -207,6 +207,12 @@ const KINDS = {
     title: r => relName(r.recipe) || 'Review', sorts: [['-date', 'Newest']],
     sub: r => [r.date && niceDate(r.date), r.score ? `${r.score}/5` : '', r.again ? `again: ${r.again.toLowerCase()}` : ''].filter(Boolean).join(' · ')
   },
+  inbox: {
+    one: 'link', many: 'Inbox', facet: 'status',
+    fields: [F('title', 'Title'), F('url', 'Link', 'url'), F('note', 'Note', 'long'), F('status', 'Status', 'select', { options: ['New', 'Ready', 'Done', 'Skipped', 'Kept'], half: 1 }), F('target', 'Goes to', 'text', { half: 1 })],
+    title: r => r.title || (r.url ? String(r.url).replace(/^https?:\/\/(www\.)?/, '').slice(0, 70) : 'Link'), sorts: [['-created', 'Newest']],
+    sub: r => [r.source, r.status, INBOX_TO[r.target]?.[0]].filter(Boolean).join(' · ')
+  },
   wplans: {
     one: 'week plan', many: 'Week plans',
     fields: [F('name', 'Week'), F('start', 'From', 'date', { half: 1 }), F('end', 'Until', 'date', { half: 1 }), F('tips', 'Tips', 'long')],
@@ -873,9 +879,12 @@ const SECTIONS = [
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
   { key: 'wish', label: 'Wishlists', icon: P.heart, tile: wishTile, views: [['today', 'Overview', P.grid], ['master', 'Master', P.heart], ['inbox', 'Inbox', P.inbox]] },
   { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['feed', 'Feed', P.grid], ['posts', 'Posts', P.phone], ['ideas', 'Ideas', P.star], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
+  { key: 'inbox', label: 'Inbox', icon: P.inbox, tile: inboxTile, views: [['review', 'Review', P.inbox], ['saved', 'Saved links', P.link]] },
   { key: 'fit', label: 'Fitness', icon: P.dumbbell, tile: fitTile, views: [['today', 'Overview', P.grid], ['workouts', 'Workouts', P.run], ['library', 'Videos', P.star], ['fgoals', 'Goals', P.target], ['plans', 'Plans', P.list], ['exercises', 'Exercises', P.dumbbell], ['body', 'Body', P.scale], ['gear', 'Gear', P.box]] }
 ];
 const PAGES = {
+  'inbox/review': { render: inboxPage, adds: [] },
+  'inbox/saved': { title: 'Saved links', segs: [{ kind: 'inbox', fill: savedFill, tools: false }] },
   'kitchen/today': { render: kitchenToday, adds: ['meals', 'recipes', 'ingredients', 'mealprep'] },
   'kitchen/deals': { render: dealsPage, adds: ['recipes'] },
   'kitchen/quit': { render: quitPage, adds: ['recipes', 'ingredients'] },
@@ -1185,6 +1194,90 @@ function emptyList(K, any) {
 }
 
 /* ---------- kitchen ---------- */
+/* ---------- one review inbox ----------
+   Everything you share from your phone, save in Albo or paste in the app lands here. A task opens each link a few
+   times a day, works out what it is (recipe, wish, closet piece, beauty, supplement, gear, home, idea, content,
+   gift) and fills in a card. You accept it, send it somewhere else, keep it as a saved link, or skip it. */
+const INBOX_TO = { recipes: ['Recipe', 'kitchen/recipes'], wishes: ['Wish', 'wish/master'], closet: ['Closet wishlist', 'wishlist'], beauty: ['Beauty', 'care/beauty'], supplements: ['Supplement', 'care/supplements'],
+  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], gifts: ['Gift idea', 'care/gifts'], keep: ['Saved link', 'inbox/saved'] };
+const INBOX_EXTRA = { wishes: () => ({ status: 'Wish', since: today() }), beauty: () => ({ wish: true }), supplements: () => ({ wish: true }), gear: () => ({ own: false }), fitgear: () => ({ own: false }), inventory: () => ({ status: 'Wishlist' }), cideas: () => ({ status: 'Idea', source: 'Inbox' }), gifts: () => ({ status: 'Idea' }) };
+const inboxOpen = () => recs('inbox').filter(r => ['New', 'Ready'].includes(r.status));
+const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
+function inboxTile() {
+  const l = inboxOpen(), ready = l.filter(r => r.status === 'Ready').length;
+  return tileBody([`<p class="dline"><span>To check</span><b>${plural(ready, 'card')}</b></p>`, l.length - ready ? `<p class="dline"><span>Being sorted</span><b>${plural(l.length - ready, 'link')}</b></p>` : '', `<button class="chip link" data-act="go" data-v="inbox/review">Open the inbox</button>`]);
+}
+function inboxCard(r) {
+  const to = INBOX_TO[r.target], d = r.draft || {}, ph = r.photo || d.photo;
+  const facts = [d.brand, d.shop, num(d.price) ? eur(num(d.price)) : '', d.category || d.cat || d.type || d.area, d.servings ? plural(d.servings, 'portion') : '', d.prep ? `${d.prep} min` : ''].filter(Boolean).join(' · ');
+  return `<div class="dmeal ibx">${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}<div class="dmb">
+    <b>${esc(r.title || d.name || hostOf(r.url) || 'Link')}</b><span>${esc([r.status === 'Ready' && to ? '→ ' + to[0] : 'waiting to be sorted', r.source, hostOf(r.url)].filter(Boolean).join(' · '))}</span>
+    ${facts ? `<p>${esc(facts)}</p>` : ''}${r.why ? `<p class="duses">${esc(r.why)}</p>` : ''}${r.note ? `<p class="duses">Your note: ${esc(r.note)}</p>` : ''}${r.problem ? `<p class="duses">${esc(r.problem)}</p>` : ''}
+    <div class="dbtns">${r.status === 'Ready' && to ? `<button class="btn small primary" data-act="ibxok" data-id="${r.id}">Accept</button>` : ''}
+      <select class="pill ibxto" data-ibxto="${r.id}" aria-label="Put it somewhere else"><option value="">${r.status === 'Ready' ? 'Somewhere else…' : 'Put it in…'}</option>${Object.entries(INBOX_TO).map(([k, [l]]) => `<option value="${k}">${esc(l)}</option>`).join('')}</select>
+      ${r.url ? `<a class="btn small" href="${esc(r.url)}" target="_blank" rel="noopener">Open link</a>` : ''}<button class="btn small" data-act="ibxskip" data-id="${r.id}">Skip</button></div></div></div>`;
+}
+function inboxPage(host) {
+  const l = inboxOpen().sort((a, b) => (b.created || 0) - (a.created || 0)), ready = l.filter(r => r.status === 'Ready'), waiting = l.filter(r => r.status === 'New');
+  const done = recs('inbox').filter(r => r.status === 'Done').sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 8);
+  host.innerHTML = `${head('Inbox')}<div class="ldeals">
+  <div class="tiles lt3">${fTile('To check', String(ready.length), 'cards ready for you')}${fTile('Being sorted', String(waiting.length), 'a task looks at them a few times a day')}${fTile('Sorted', String(recs('inbox').filter(r => r.status === 'Done').length), 'put where they belong')}</div>
+  ${panel('Add a link', `<form class="lqadd" data-ibxadd><input placeholder="Paste a link, or type an idea" aria-label="Paste a link"><button class="btn small" type="submit">Add</button></form><p class="lnone">From your iPhone: share any page with the shortcut “Naar A’s Life” and it lands here.</p>
+    <details class="vtable"><summary>Set up the share shortcut</summary><ol class="setsteps"><li>Open <b>Shortcuts</b>, tap <b>+</b> and name it <b>Naar A’s Life</b>.</li><li>Tap the <b>ⓘ</b> and turn on <b>Show in Share Sheet</b>. Let it receive URLs, Safari web pages, text and images.</li>
+      <li>Add <b>Get contents of URL</b> with <span class="mono">${esc(String(C.sb?.supabaseUrl || '').replace(/\/$/, ''))}/functions/v1/offers</span>, method <b>POST</b>, request body <b>JSON</b> with: <span class="mono">token</span> (your OFFERS_TOKEN), <span class="mono">action</span> = share, <span class="mono">url</span> = Shortcut Input, <span class="mono">text</span> = Shortcut Input.</li>
+      <li>Add <b>Show notification</b> “In je inbox”.</li></ol></details>`)}
+  ${ready.length ? panel('Check these', `<div class="dmeals">${ready.map(inboxCard).join('')}</div>`) : ''}
+  ${waiting.length ? panel('Waiting to be sorted', `<div class="dmeals">${waiting.map(inboxCard).join('')}</div>`) : ''}
+  ${!l.length ? panel('All clear', quiet('Nothing to check. Share a link from your phone and it shows up here.')) : ''}
+  ${done.length ? panel('Recently sorted', `<div class="lrows">${done.map(r => `<div class="lrow"><button class="lmain" ${r.made && L.byId[r.made] ? `data-act="open" data-id="${r.made}"` : ''}><b>${esc(r.title || hostOf(r.url) || 'Link')}</b><span>${esc(INBOX_TO[r.target]?.[0] || '')}</span></button></div>`).join('')}</div>`) : ''}</div>`;
+}
+function savedFill(fill) {
+  const l = recs('inbox').filter(r => r.status === 'Kept').sort((a, b) => (b.created || 0) - (a.created || 0));
+  fill.innerHTML = l.length ? `<div class="lrows">${l.map(r => `<div class="lrow"><a class="lmain" href="${esc(r.url || '#')}" target="_blank" rel="noopener"><b>${esc(r.title || hostOf(r.url) || r.text || 'Link')}</b><span>${esc([hostOf(r.url), r.why || r.note].filter(Boolean).join(' · '))}</span></a><button class="lquick" data-act="open" data-id="${r.id}">Edit</button></div>`).join('')}</div>` : quiet('Links you keep without a place go here.');
+}
+// put a card where it belongs, as one undo step
+async function inboxAccept(id, target) {
+  const r = L.byId[id]; if (!r) return;
+  target = target || r.target; const d = { ...(r.draft || {}) }, now = Date.now();
+  if (target === 'keep') { await save(r, { status: 'Kept', target, doneAt: now }); C.toast('Kept under Saved links'); return; }
+  const name = d.name || r.title || hostOf(r.url) || 'Link';
+  if (target === 'closet') {
+    let before = null; const iid = C.uuid();
+    await wishSteps(`Added ${name} to your closet wishlist`, async (step, closetDone) => {
+      before = await C.closetAdd(iid, { name, brand: d.brand || '', cat: d.cat || d.category || '', price: num(d.price) || 0, photo: d.photo || r.photo || '', link: r.url || d.url || '', shop: d.shop || hostOf(r.url), why: d.why || r.note || '', notes: d.notes || '' });
+      closetDone(iid, before);
+      await step('inbox', r.id, { ...dataOf(r), status: 'Done', target, made: iid, doneAt: now });
+    });
+    C.toast(`${name} is on your closet wishlist`); return;
+  }
+  const K = KINDS[target]; if (!K) return;
+  const keys = new Set(K.fields.map(f => f.k)), urlKey = K.fields.find(f => f.type === 'url')?.k, photoKey = K.fields.find(f => f.type === 'photo')?.k;
+  const data = { created: now, ...(INBOX_EXTRA[target]?.() || {}) };
+  for (const [k, v] of Object.entries(d)) if (keys.has(k) && K.fields.find(f => f.k === k).type !== 'rel' && v !== '' && v != null) data[k] = v;
+  data.name = name; if (urlKey && !data[urlKey]) data[urlKey] = r.url || d.url || ''; if (photoKey && !data[photoKey] && (d.photo || r.photo)) data[photoKey] = d.photo || r.photo;
+  const noteKey = keys.has('notes') ? 'notes' : keys.has('why') ? 'why' : keys.has('desc') ? 'desc' : '';
+  if (noteKey && r.note && !String(data[noteKey] || '').includes(r.note)) data[noteKey] = [data[noteKey], r.note].filter(Boolean).join('\n');
+  const rows = [], rid = C.uuid();
+  if (target === 'recipes') {
+    const lines = d.lines || [], steps = d.steps || d.instructions || '';
+    if (!data.instructions && (lines.length || steps)) data.instructions = [lines.length ? 'Ingrediënten:\n' + lines.map(l => '- ' + l).join('\n') : '', steps ? (lines.length ? 'Bereiding:\n' : '') + steps : ''].filter(Boolean).join('\n\n');
+    const seen = new Set();
+    for (const n of [].concat(d.ingredients || [])) { const ir = ingRow(n); if (seen.has(ir.id)) continue; seen.add(ir.id); if (!L.byId[ir.id]) rows.push(ir); }
+    if (seen.size) data.ingredients = [...seen];
+  }
+  for (const k of Object.keys(data)) if (data[k] === '' || data[k] == null) delete data[k];
+  rows.push({ id: rid, kind: target, data }, { id: r.id, kind: 'inbox', data: { ...dataOf(r), status: 'Done', target, made: rid, doneAt: now } });
+  try { await putMany(rows, null, `Added ${name} to ${INBOX_TO[target][0].toLowerCase()}`); C.toast(`${name} is in ${INBOX_TO[target][0].toLowerCase()} now`); } catch { C.toast('Could not save. Try again.'); }
+}
+document.addEventListener('change', e => { const t = e.target; if (!C || !t.matches?.('[data-ibxto]') || !t.value) return; inboxAccept(t.dataset.ibxto, t.value); });
+document.addEventListener('submit', e => {
+  if (!e.target.matches?.('[data-ibxadd]')) return; e.preventDefault();
+  const inp = e.target.querySelector('input'), v = inp.value.trim(); if (!v) return;
+  const url = (v.match(/https?:\/\/\S+/) || [''])[0];
+  create('inbox', { url, text: url === v ? '' : v, source: 'App', status: 'New' }).then(() => C.toast('In your inbox')).catch(() => {});
+  inp.value = '';
+});
+
 /* ---------- recipe reviews and what to eat ----------
    A review is a few fixed blocks you tap through after eating: score, make it again, flavour, salt, heat, texture,
    how it felt, which ingredients you liked or not, effort, portion and how it reheated. Together they build a taste
@@ -2806,6 +2899,8 @@ document.addEventListener('click', async e => {
     case 'wmovewait': moveWaitList(); break;
     case 'dkeep': case 'dplan': case 'dgroc': dealsAct(d.act, d.k, Number(d.i)); break;
     case 'quitadd': quitAdd(); break;
+    case 'ibxok': inboxAccept(d.id); break;
+    case 'ibxskip': { const r = L.byId[d.id]; if (r) save(r, { status: 'Skipped', doneAt: Date.now() }).then(() => C.toast('Skipped')); break; }
     case 'openitem': C.openItem?.(d.id); break;
     case 'hday': { const r = L.byId[d.id]; if (r) toggleDay(r, d.d); break; }
     case 'water': water(Number(d.v)); break;
@@ -2867,7 +2962,8 @@ document.addEventListener('submit', e => { if (e.target.matches('[data-qadd]')) 
 document.addEventListener('submit', e => {
   if (!e.target.matches('[data-winbox]')) return; e.preventDefault();
   const inp = e.target.querySelector('input'), v = inp.value.trim(); if (!v) return;
-  create('winbox', { name: v, status: 'New', added: today() }).then(() => C.toast('In your inbox')).catch(() => {});
+  const url = (v.match(/https?:\/\/\S+/) || [''])[0];
+  create('inbox', { url, text: url === v ? '' : v, source: 'App', status: 'New' }).then(() => C.toast('In your inbox. It gets sorted within a few hours.')).catch(() => {});
   inp.value = '';
 });
 
@@ -3337,6 +3433,7 @@ return {
   canBuyWish: () => fAccs().length > 0,
   newRecord: kind => KINDS[kind] && openEditor(kind, null),
   chooser: () => openChooser(),
+  inboxCount: () => inboxOpen().length,
   // every photo path the lists use, once they loaded fresh from Supabase (null until then)
   photoRefs: () => L.fresh || L.missing ? JSON.stringify(L.all) : null,
   // one small card for the overview page; '' while the lists are still loading or missing
