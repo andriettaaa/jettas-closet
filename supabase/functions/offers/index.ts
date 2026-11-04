@@ -4,7 +4,12 @@
 //   { "token": "...", "action": "save", "week": { "start": "2026-11-04", "end": "2026-11-10" },
 //     "offers": [{ "store": "Dirk", "name": "Kipfilet 1 kg", "price": 6.99, "was": 9.49, "deal": "25% korting", ... }],
 //     "plan": { "dinners": [...], "lunches": [...], "breakfasts": [...], "snacks": [...], "drinks": [...], "shared": [...], "shopping": [...], "tips": "..." } }
+//   { "token": "...", "action": "fill", "recipes": [{ "id": "<recipe id>", "instructions": "...", "lines": ["200 g kipfilet", ...], "photo": "https://..." }] }
+//     fills in what an existing recipe is missing (instructions, the ingredient lines with amounts, a photo); it never
+//     overwrites what is already there and never touches the linked pantry ingredients.
 // "save" replaces last week's deals, keeps one plan per week, and sends a notification.
+// Photos from recipe sites are copied into your own photo storage, so they stay when the site changes. All of this is
+// for your own private use in your own app.
 // Secrets: OFFERS_TOKEN, SPEND_USER_ID (your user id), VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY. Turn off "Verify JWT" for this function.
 import { createClient } from 'npm:@supabase/supabase-js@2.50.0';
 import webpush from 'npm:web-push@3.6.7';
@@ -25,8 +30,23 @@ const meal = (m: any) => clean({
   recipe: str(m?.recipe, 60), name: str(m?.name, 140), link: str(m?.link, 500), photo: str(m?.photo, 500),
   servings: num(m?.servings), days: num(m?.days), why: str(m?.why, 400), uses: (Array.isArray(m?.uses) ? m.uses : []).map((x: unknown) => str(x, 80)).filter(Boolean).slice(0, 20),
   ingredients: (Array.isArray(m?.ingredients) ? m.ingredients : []).map((x: unknown) => str(x, 120)).filter(Boolean).slice(0, 40),
-  microwave: m?.microwave === true ? true : undefined, cost: num(m?.cost), time: num(m?.time)
+  microwave: m?.microwave === true ? true : undefined, cost: num(m?.cost), time: num(m?.time),
+  lines: (Array.isArray(m?.lines) ? m.lines : []).map((x: unknown) => str(x, 160)).filter(Boolean).slice(0, 60),
+  steps: str(m?.steps, 12000), quit: m?.quit === true ? true : undefined
 });
+// copy a picture from the web into your own storage; on any problem keep the web address
+async function keepPhoto(uid: string, url: string) {
+  if (!/^https?:\/\//.test(url) || url.includes('/storage/v1/object/public/photos/')) return url;
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (A’s Life recipe copy)' } });
+    const type = r.headers.get('content-type') || '';
+    if (!r.ok || !type.startsWith('image/')) return url;
+    const buf = new Uint8Array(await r.arrayBuffer()); if (buf.length > 6e6) return url;
+    const ext = type.includes('png') ? 'png' : type.includes('webp') ? 'webp' : 'jpg', path = `${uid}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await sb.storage.from('photos').upload(path, buf, { contentType: type, cacheControl: '31536000', upsert: false });
+    return error ? url : path;
+  } catch { return url; }
+}
 
 async function send(uid: string, msg: { title: string; body: string; url?: string; tag?: string }) {
   if (!vapid) return;
@@ -51,7 +71,9 @@ Deno.serve(async req => {
       const ing = new Map(data.filter((r: any) => r.kind === 'ingredients').map((r: any) => [r.id, r.data]));
       const recipes = data.filter((r: any) => r.kind === 'recipes').map((r: any) => clean({
         id: r.id, name: r.data.name, category: r.data.category, servings: r.data.servings, prep: r.data.prep, cook: r.data.cook, rating: r.data.rating, fav: r.data.fav || undefined,
-        protein: r.data.protein, link: r.data.link, ingredients: [].concat(r.data.ingredients || []).map((id: string) => (ing.get(id) as any)?.name).filter(Boolean)
+        protein: r.data.protein, link: r.data.link, ingredients: [].concat(r.data.ingredients || []).map((id: string) => (ing.get(id) as any)?.name).filter(Boolean),
+        helps: r.data.helps, hasInstructions: !!String(r.data.instructions || '').trim() || undefined, hasPhoto: !!r.data.photo || undefined,
+        webPhoto: /^https?:/.test(String(r.data.photo || '')) || undefined
       }));
       const pantry = [...ing.values()].map((i: any) => clean({ name: i.name, stock: i.stock ? true : undefined, category: i.category }));
       // the last plans, so a new week doesn't repeat the same recipes
@@ -60,6 +82,27 @@ Deno.serve(async req => {
       // what you like and don't like, from Kitchen › Settings
       const { data: pr } = await sb.from('prefs').select('data').eq('user_id', uid).maybeSingle();
       return json({ recipes, pantry, recent, food: pr?.data?.food || {} });
+    }
+
+    if (body.action === 'fill') {
+      const want = (Array.isArray(body.recipes) ? body.recipes : []).slice(0, 60);
+      const ids = want.map((x: any) => str(x?.id, 60)).filter(Boolean);
+      const { data, error } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'recipes').in('id', ids);
+      if (error) throw error;
+      let filled = 0;
+      for (const w of want) {
+        const r = data.find((x: any) => x.id === w.id); if (!r) continue;
+        const d = { ...r.data }, before = JSON.stringify(d);
+        const lines = (Array.isArray(w.lines) ? w.lines : []).map((x: unknown) => str(x, 160)).filter(Boolean).slice(0, 60), steps = str(w.instructions, 12000);
+        if (!String(d.instructions || '').trim() && (steps || lines.length)) d.instructions = [lines.length ? 'Ingrediënten:\n' + lines.map((l: string) => '- ' + l).join('\n') : '', steps ? (lines.length ? 'Bereiding:\n' : '') + steps : ''].filter(Boolean).join('\n\n');
+        if (!d.photo && w.photo) d.photo = await keepPhoto(uid, str(w.photo, 500));
+        else if (/^https?:/.test(String(d.photo || ''))) d.photo = await keepPhoto(uid, d.photo);
+        if (Array.isArray(w.helps) && w.helps.length && !d.helps) d.helps = w.helps.map((x: unknown) => str(x, 40));
+        if (JSON.stringify(d) === before) continue;
+        const { error: e } = await sb.from('records').upsert({ user_id: uid, id: r.id, kind: 'recipes', data: d, updated_at: new Date().toISOString() });
+        if (e) throw e; filled++;
+      }
+      return json({ ok: true, filled });
     }
 
     if (body.action === 'save') {
@@ -74,10 +117,12 @@ Deno.serve(async req => {
         name: `Week of ${start}`, start, end, made: new Date().toISOString(),
         dinners: (p.dinners || []).slice(0, 10).map(meal), lunches: (p.lunches || []).slice(0, 6).map(meal),
         breakfasts: (p.breakfasts || []).slice(0, 6).map(meal), snacks: (p.snacks || []).slice(0, 6).map(meal), drinks: (p.drinks || []).slice(0, 6).map(meal),
+        quit: (p.quit || []).slice(0, 6).map(meal), quitTips: str(p.quitTips, 1500),
         shared: (p.shared || []).slice(0, 30).map((s: any) => clean({ name: str(s?.name, 120), store: str(s?.store, 40), price: num(s?.price), deal: str(s?.deal, 120), in: (Array.isArray(s?.in) ? s.in : []).map((x: unknown) => str(x, 140)).slice(0, 12) })),
         shopping: (p.shopping || []).slice(0, 80).map((s: any) => clean({ name: str(s?.name, 120), store: str(s?.store, 40), price: num(s?.price), deal: str(s?.deal, 120), qty: str(s?.qty, 40), have: s?.have === true ? true : undefined })),
         tips: str(p.tips, 1200)
       });
+      for (const k of ['dinners', 'lunches', 'breakfasts', 'snacks', 'drinks']) for (const m of (plan as any)[k] || []) if (m.photo && !m.recipe) m.photo = await keepPhoto(uid, m.photo);
       // out with last week's deals, in with this week's
       const { data: old, error: e1 } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'offers');
       if (e1) throw e1;
