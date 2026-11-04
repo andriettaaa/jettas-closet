@@ -85,6 +85,8 @@ const F = (k, label, type = 'text', o = {}) => ({ k, label, type, ...o });
 const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 const STORES = ['Dirk', 'Aldi', 'Albert Heijn'];
 const HELPS = ['Stop smoking'];
+const FEELS = ['Comfort', 'Light', 'Fresh', 'Hearty', 'Quick', 'Savoury', 'Sweet', 'Spicy'];
+const TEXTURES = ['Crispy', 'Creamy', 'Crunchy', 'Soft', 'Chewy', 'Saucy', 'Dry', 'Mushy'];
 const QUIT = 'Stop smoking', helpsQuit = r => [].concat(r.helps || []).includes(QUIT);
 const ROOMS = ['Entree', 'Woonkamer', 'Keuken', 'Slaapkamer', 'Badkamer', 'Toilet', 'Wasruimte', 'Balkon', 'Schoonmaak', 'Overig'];
 const PRIO = ['Must-have', 'Binnen 3 maanden', 'Handig', 'Kan later'];
@@ -168,7 +170,7 @@ const KINDS = {
       F('rating', 'Rating', 'rating'), F('fav', 'Favourite', 'check'),
       F('prep', 'Prep time', 'num', { unit: 'min', half: 1 }), F('cook', 'Cook time', 'num', { unit: 'min', half: 1 }),
       F('servings', 'Servings', 'num', { half: 1 }), F('protein', 'Protein', 'text', { half: 1 }),
-      F('link', 'Recipe link', 'url'), F('ingredients', 'Ingredients', 'rel', { to: 'ingredients', multi: 1 }), F('helps', 'Helps with', 'multi', { options: HELPS }),
+      F('link', 'Recipe link', 'url'), F('ingredients', 'Ingredients', 'rel', { to: 'ingredients', multi: 1 }), F('helps', 'Helps with', 'multi', { options: HELPS }), F('feel', 'Feels like', 'multi', { options: FEELS }),
       F('instructions', 'Instructions', 'long'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['-rating', 'Best rated'], ['-created', 'Newest'], ['time', 'Quickest']],
     sub: r => [r.category, mins(totalTime(r)), stars(r.rating)].filter(Boolean).join(' · ')
@@ -192,6 +194,18 @@ const KINDS = {
       F('from', 'From', 'date', { half: 1 }), F('until', 'Until', 'date', { half: 1 }), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo')],
     sorts: [['store', 'Shop'], ['name', 'A to Z'], ['price', 'Cheapest']],
     sub: r => [r.store, r.deal, r.unit, num(r.price) ? eur(num(r.price)) + (num(r.was) ? ` (was ${eur(num(r.was))})` : '') : '', r.until ? 'until ' + shortDate(r.until) : ''].filter(Boolean).join(' · ')
+  },
+  rreviews: {
+    one: 'review', many: 'Recipe reviews',
+    fields: [F('recipe', 'Recipe', 'rel', { to: 'recipes' }), F('date', 'Eaten on', 'date', { half: 1 }), F('score', 'Overall', 'rating', { half: 1 }),
+      F('again', 'Make it again?', 'select', { options: ['Yes', 'Maybe', 'No'], half: 1 }), F('taste', 'Flavour', 'select', { options: ['Too bland', 'Just right', 'Too strong'], half: 1 }),
+      F('salt', 'Salt', 'select', { options: ['Too little', 'Just right', 'Too much'], half: 1 }), F('spice', 'Heat', 'select', { options: ['Too mild', 'Just right', 'Too hot'], half: 1 }),
+      F('texture', 'Texture I liked', 'multi', { options: TEXTURES }), F('feel', 'It felt', 'multi', { options: FEELS }),
+      F('liked', 'Ingredients I liked', 'multi', { options: [] }), F('disliked', 'Ingredients I didn’t like', 'multi', { options: [] }),
+      F('effort', 'Effort', 'select', { options: ['Easy', 'OK', 'Too much work'], half: 1 }), F('portion', 'Portion', 'select', { options: ['Too little', 'Just right', 'Too much'], half: 1 }),
+      F('reheat', 'Next day / reheated', 'select', { options: ['Great', 'OK', 'Not good', 'Didn’t try'], half: 1 }), F('notes', 'What I’d change', 'long')],
+    title: r => relName(r.recipe) || 'Review', sorts: [['-date', 'Newest']],
+    sub: r => [r.date && niceDate(r.date), r.score ? `${r.score}/5` : '', r.again ? `again: ${r.again.toLowerCase()}` : ''].filter(Boolean).join(' · ')
   },
   wplans: {
     one: 'week plan', many: 'Week plans',
@@ -1171,6 +1185,136 @@ function emptyList(K, any) {
 }
 
 /* ---------- kitchen ---------- */
+/* ---------- recipe reviews and what to eat ----------
+   A review is a few fixed blocks you tap through after eating: score, make it again, flavour, salt, heat, texture,
+   how it felt, which ingredients you liked or not, effort, portion and how it reheated. Together they build a taste
+   profile: ingredients you like or don't, and whether you usually want more or less salt and heat. The weekly
+   deals task and "What shall I eat?" both use it. */
+const reviewsOf = id => recs('rreviews').filter(v => v.recipe === id).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+function tasteProfile() {
+  const ing = new Map(), add = (n, w) => { const k = deUml(n); if (!k) return; const g = ing.get(k) || { name: n, s: 0, n: 0 }; g.s += w; g.n++; ing.set(k, g); };
+  const lean = { salt: 0, spice: 0, taste: 0 }, sign = v => /Too little|Too mild|Too bland/.test(v || '') ? 1 : /Too much|Too hot|Too strong/.test(v || '') ? -1 : 0;
+  const feel = new Map();
+  for (const v of recs('rreviews')) {
+    const w = v.score ? (v.score - 3) / 2 : 0;
+    for (const n of [].concat(v.liked || [])) add(n, 1 + Math.max(0, w));
+    for (const n of [].concat(v.disliked || [])) add(n, -2);
+    lean.salt += sign(v.salt); lean.spice += sign(v.spice); lean.taste += sign(v.taste);
+    if ((v.score || 0) >= 4) for (const f of [].concat(v.feel || [])) feel.set(f, (feel.get(f) || 0) + 1);
+  }
+  const list = [...ing.values()];
+  return { likes: list.filter(g => g.s > 0).sort((a, b) => b.s - a.s).map(g => g.name), dislikes: list.filter(g => g.s < 0).sort((a, b) => a.s - b.s).map(g => g.name),
+    lean, feels: [...feel].sort((a, b) => b[1] - a[1]).map(([f]) => f), n: recs('rreviews').length };
+}
+function reviewPanel(id) {
+  const vs = reviewsOf(id), avg = vs.filter(v => v.score).reduce((n, v, _, a) => n + v.score / a.length, 0), last = vs[0];
+  return `<div class="wmoney"><p><b>${vs.length ? `${avg ? avg.toFixed(1) + '/5 · ' : ''}${plural(vs.length, 'review')}` : 'Not reviewed yet'}</b><span>${last ? esc([last.again ? `make again: ${last.again.toLowerCase()}` : '', last.notes || ''].filter(Boolean).join(' · ')) : 'Tap through a few questions after eating, and the app learns what you like.'}</span></p>
+    <div class="dbtns"><button type="button" class="btn small primary" data-rvw="${id}">Review</button>${vs.length ? `<button type="button" class="btn small" data-rvwall="${id}">All reviews</button>` : ''}</div></div>`;
+}
+// the review sheet: tappable blocks, ingredients cycle between neutral, liked and not liked
+function openReview(recipeId, date = today()) {
+  const r = L.byId[recipeId]; if (!r) return;
+  const ings = [].concat(r.ingredients || []).map(i => L.byId[i]?.name).filter(Boolean);
+  const D = { recipe: recipeId, date, score: 0, liked: [], disliked: [], texture: [], feel: [] };
+  const one = (k, title, opts) => `<div class="rvb"><p class="dsub">${title}</p><div class="lwrap">${opts.map(o => `<button type="button" class="chip" data-rk="${k}" data-v="${esc(o)}" aria-pressed="false">${esc(o)}</button>`).join('')}</div></div>`;
+  const many = (k, title, opts) => `<div class="rvb"><p class="dsub">${title}</p><div class="lwrap">${opts.map(o => `<button type="button" class="chip" data-rm="${k}" data-v="${esc(o)}" aria-pressed="false">${esc(o)}</button>`).join('')}</div></div>`;
+  const sh = C.sheet({
+    title: 'How was ' + titleOf(r) + '?',
+    body: `<div class="rvw">
+      <div class="rvb"><p class="dsub">Overall</p><div class="lrating rvstars">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-rs="${n}" aria-label="${n} of 5" aria-pressed="false">${svg(P.star)}</button>`).join('')}</div></div>
+      ${one('again', 'Make it again?', ['Yes', 'Maybe', 'No'])}
+      ${one('taste', 'Flavour', ['Too bland', 'Just right', 'Too strong'])}
+      ${one('salt', 'Salt', ['Too little', 'Just right', 'Too much'])}
+      ${one('spice', 'Heat', ['Too mild', 'Just right', 'Too hot'])}
+      ${many('texture', 'Texture I liked', TEXTURES)}
+      ${many('feel', 'It felt', FEELS)}
+      ${ings.length ? `<div class="rvb"><p class="dsub">Ingredients · tap once if you liked it, twice if you didn't</p><div class="lwrap">${ings.map(n => `<button type="button" class="chip" data-ri="${esc(n)}">${esc(n)}</button>`).join('')}</div></div>` : ''}
+      ${one('effort', 'Effort', ['Easy', 'OK', 'Too much work'])}
+      ${one('portion', 'Portion', ['Too little', 'Just right', 'Too much'])}
+      ${one('reheat', 'Next day / reheated', ['Great', 'OK', 'Not good', 'Didn’t try'])}
+      <div class="field full"><label for="rv-n">What I’d change</label><textarea id="rv-n" rows="3" placeholder="e.g. more garlic, less rice, use oat cream"></textarea></div>
+      <div class="field"><label for="rv-d">Eaten on</label><input id="rv-d" type="date" value="${esc(date)}"></div></div>`,
+    foot: `<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-rsave>Save review</button>`
+  });
+  sh.addEventListener('click', async e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.rs) { D.score = Number(b.dataset.rs); sh.querySelectorAll('[data-rs]').forEach(x => x.setAttribute('aria-pressed', Number(x.dataset.rs) <= D.score)); }
+    if (b.dataset.rk) { const k = b.dataset.rk; D[k] = D[k] === b.dataset.v ? '' : b.dataset.v; sh.querySelectorAll(`[data-rk="${k}"]`).forEach(x => x.setAttribute('aria-pressed', x.dataset.v === D[k])); }
+    if (b.dataset.rm) { const k = b.dataset.rm, a = D[k], i = a.indexOf(b.dataset.v); i >= 0 ? a.splice(i, 1) : a.push(b.dataset.v); b.setAttribute('aria-pressed', i < 0); }
+    if (b.dataset.ri) {
+      const n = b.dataset.ri, liked = D.liked.includes(n), dis = D.disliked.includes(n);
+      D.liked = D.liked.filter(x => x !== n); D.disliked = D.disliked.filter(x => x !== n);
+      if (!liked && !dis) D.liked.push(n); else if (liked) D.disliked.push(n);
+      b.classList.toggle('rvlike', !liked && !dis); b.classList.toggle('rvno', liked); b.textContent = (!liked && !dis ? '👍 ' : liked ? '👎 ' : '') + n;
+    }
+    if (b.hasAttribute('data-rsave')) {
+      const out = { ...D, notes: sh.querySelector('#rv-n').value.trim(), date: sh.querySelector('#rv-d').value || today(), created: Date.now() };
+      for (const k of Object.keys(out)) if (out[k] === '' || out[k] === 0 || (Array.isArray(out[k]) && !out[k].length)) delete out[k];
+      b.disabled = true;
+      try {
+        await put('rreviews', C.uuid(), out);
+        // a good score also lands on the recipe itself, and the feel tags help "What shall I eat?"
+        if (out.score || out.feel) { const cur = L.byId[recipeId]; await save(cur, { ...(out.score ? { rating: out.score } : {}), ...(out.feel ? { feel: [...new Set([...[].concat(cur.feel || []), ...out.feel])] } : {}) }); }
+        C.closeSheet(); C.toast('Thanks. The app now knows a bit more about what you like.');
+      } catch { sh.querySelector('[data-msg]').textContent = 'Could not save. Try again.'; b.disabled = false; }
+    }
+  });
+}
+// "What shall I eat?": a few quick questions, then your recipes ranked by how well they fit right now
+const CHOOSE = { meal: ['Breakfast', 'Lunch', 'Dinner', 'Snack'], time: [['15', '15 min'], ['30', '30 min'], ['60', 'An hour'], ['', 'Any time']], mood: FEELS };
+function chooseScore(r, q, ctx) {
+  let s = 0; const why = [];
+  const catOk = { Breakfast: ['Breakfast'], Lunch: ['Lunch', 'Soup', 'Side Dish'], Dinner: ['Dinner', 'Soup'], Snack: ['Snack', 'Appetizer', 'Baking', 'Dessert'] }[q.meal] || [];
+  if (q.meal && r.category) { if (catOk.includes(r.category)) s += 3; else return { r, s: -99, why, off: true }; }
+  const mins = (num(r.prep) || 0) + (num(r.cook) || 0);
+  if (q.time && mins) { if (mins <= Number(q.time)) { s += 1.5; why.push(`${mins} min`); } else s -= 2; }
+  const feel = new Set([...[].concat(r.feel || []), ...reviewsOf(r.id).flatMap(v => [].concat(v.feel || []))]);
+  for (const m of q.mood) if (feel.has(m)) { s += 2; why.push(m.toLowerCase()); }
+  const ids = [].concat(r.ingredients || []), names = ids.map(i => L.byId[i]?.name).filter(Boolean);
+  if (ids.length) { const have = ids.filter(i => L.byId[i]?.stock).length, pct = have / ids.length; s += (q.have ? 4 : 1.5) * pct; if (pct >= .6) why.push(`you have ${have} of ${ids.length}`); }
+  const hits = ctx.offers.length ? new Set(names.flatMap(n => dealsFor(n, ctx.offers).map(o => o.id))).size : 0;
+  if (hits) { s += (q.deals ? 2 : .7) * Math.min(3, hits); why.push(plural(hits, 'deal')); }
+  const like = names.filter(n => ctx.likes.has(deUml(n))).length, dis = names.filter(n => ctx.dislikes.has(deUml(n))).length;
+  if (like) { s += like; why.push('things you like'); } if (dis) s -= 3 * dis;
+  const vs = reviewsOf(r.id), last = vs[0];
+  if (last?.again === 'No') s -= 6; else if (last?.again === 'Yes') { s += 1.5; why.push('you wanted it again'); }
+  if (r.rating) s += (r.rating - 3) * .8; if (r.fav) s += 1;
+  const lastAte = recs('meals').filter(m => m.recipe === r.id && m.date <= today()).map(m => m.date).sort().pop();
+  if (lastAte && diffDays(lastAte, today()) < 5) s -= 3;
+  return { r, s: s + Math.random() * .3, why };
+}
+function openChooser() {
+  const q = { meal: new Date().getHours() < 11 ? 'Breakfast' : new Date().getHours() < 15 ? 'Lunch' : 'Dinner', time: '', mood: [], have: false, deals: false }, skip = new Set();
+  const prof = tasteProfile(), ctx = { offers: liveOffers(), likes: new Set(prof.likes.map(deUml)), dislikes: new Set(prof.dislikes.map(deUml)) };
+  const sh = C.sheet({ title: 'What shall I eat?', body: '<div data-ch></div>' });
+  const draw = () => {
+    const ranked = recs('recipes').filter(r => !skip.has(r.id)).map(r => chooseScore(r, q, ctx)).filter(x => !x.off).sort((a, b) => b.s - a.s).slice(0, 3);
+    const seg = (k, opts) => `<div class="lwrap">${opts.map(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<button type="button" class="chip" data-cq="${k}" data-v="${esc(v)}" aria-pressed="${k === 'mood' ? q.mood.includes(v) : q[k] === v}">${esc(l)}</button>`; }).join('')}</div>`;
+    sh.querySelector('[data-ch]').innerHTML = `<div class="rvw">
+      <div class="rvb"><p class="dsub">Which meal</p>${seg('meal', CHOOSE.meal)}</div>
+      <div class="rvb"><p class="dsub">How much time</p>${seg('time', CHOOSE.time)}</div>
+      <div class="rvb"><p class="dsub">I feel like</p>${seg('mood', CHOOSE.mood)}</div>
+      <div class="rvb"><div class="lwrap"><button type="button" class="chip" data-ct="have" aria-pressed="${q.have}">Use what I have</button>${ctx.offers.length ? `<button type="button" class="chip" data-ct="deals" aria-pressed="${q.deals}">Use this week’s deals</button>` : ''}</div></div>
+      ${ranked.length ? `<p class="dsub">Try one of these</p><div class="dmeals">${ranked.map(({ r, why }) => `<div class="dmeal">${photoOf(r) ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(photoOf(r)))}" alt="" onerror="this.remove()">` : ''}<div class="dmb"><b>${esc(titleOf(r))}</b><span>${esc(why.slice(0, 4).join(' · ') || r.category || '')}</span>
+        <div class="dbtns"><button type="button" class="btn small primary" data-ceat="${r.id}">Eat this today</button><button type="button" class="btn small" data-cskip="${r.id}">Not today</button><button type="button" class="btn small" data-act="open" data-id="${r.id}">Open</button></div></div></div>`).join('')}</div>` : quiet('Add some recipes first, then this helps you pick.')}</div>`;
+  };
+  draw();
+  sh.addEventListener('click', async e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.cq) { const k = b.dataset.cq, v = b.dataset.v; if (k === 'mood') { const i = q.mood.indexOf(v); i >= 0 ? q.mood.splice(i, 1) : q.mood.push(v); } else q[k] = q[k] === v && k !== 'meal' ? '' : v; draw(); }
+    if (b.dataset.ct) { q[b.dataset.ct] = !q[b.dataset.ct]; draw(); }
+    if (b.dataset.cskip) { skip.add(b.dataset.cskip); draw(); }
+    if (b.dataset.ceat) { try { await create('meals', { date: today(), slot: q.meal, recipe: b.dataset.ceat }); C.closeSheet(); C.toast(`On today’s ${q.meal.toLowerCase()} plan. Enjoy!`); } catch { C.toast('Could not save. Try again.'); } }
+  });
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-rvw], [data-rvwall], [data-chooser]'); if (!b || !C) return;
+  e.preventDefault(); e.stopPropagation();
+  if (b.dataset.rvw) { C.closeSheet(); openReview(b.dataset.rvw, b.dataset.date || today()); }
+  else if (b.dataset.rvwall) { const id = b.dataset.rvwall; C.closeSheet(); const vs = reviewsOf(id); C.sheet({ title: 'Reviews of ' + relName(id), body: `<div class="lrows">${vs.map(v => `<div class="lrow"><button class="lmain" data-act="open" data-id="${v.id}"><b>${esc([v.date && niceDate(v.date), v.score ? v.score + '/5' : ''].filter(Boolean).join(' · '))}</b><span>${esc([v.again && 'again: ' + v.again.toLowerCase(), v.taste, v.salt && 'salt ' + v.salt.toLowerCase(), v.spice && 'heat ' + v.spice.toLowerCase(), (v.liked || []).length ? '👍 ' + v.liked.join(', ') : '', (v.disliked || []).length ? '👎 ' + v.disliked.join(', ') : '', v.notes].filter(Boolean).join(' · '))}</span></button></div>`).join('')}</div>` }); }
+  else openChooser();
+}, true);
+
 /* ---------- stop smoking ----------
    Recipes and pantry items tagged "Stop smoking", plus what is on offer that fits, and plain tips. Food can't make
    you quit, but it can make cravings easier: something crunchy for the hands and mouth, regular meals so hunger
@@ -1297,8 +1441,11 @@ function kitchenToday(host) {
   const ready = rs.filter(r => r.ingredients?.length && r.ingredients.every(id => stock.has(id)));
   const pick = shuffle(ready.length >= 3 ? ready : rs).slice(0, 4);
   const dp = curPlan(), dn = liveOffers().length;
+  const toReview = recs('meals').filter(m => m.recipe && L.byId[m.recipe] && m.date < t && m.date >= addDays(t, -7) && !recs('rreviews').some(v => v.recipe === m.recipe && v.date >= m.date)).sort((a, b) => b.date.localeCompare(a.date)).filter((m, i, a) => a.findIndex(x => x.recipe === m.recipe) === i).slice(0, 4);
   host.innerHTML = `${head('Kitchen')}
+  <div class="quickacts"><button class="btn small primary" data-chooser>What shall I eat?</button></div>
   <div class="panels">
+    ${toReview.length ? panel('How was it?', `<p class="lnone">A few taps after eating teach the app what you like.</p><div class="lrows">${toReview.map(m => `<div class="lrow"><span class="lmain"><b>${esc(relName(m.recipe))}</b><span>${esc(niceDate(m.date))}${m.slot ? ' · ' + esc(m.slot.toLowerCase()) : ''}</span></span><button class="btn small" data-rvw="${m.recipe}" data-date="${m.date}">Review</button></div>`).join('')}</div>`) : ''}
     ${dp || dn ? panel('Deals this week', `<p class="lbig">${plural(dn, 'deal')} at Dirk, Aldi and AH</p>${(dp?.dinners || []).length ? `<div class="lwrap">${dp.dinners.slice(0, 5).map(m => `<span class="chip">${esc(m.recipe && L.byId[m.recipe] ? titleOf(L.byId[m.recipe]) : m.name || 'Recipe')}</span>`).join('')}</div>` : ''}`, ['kitchen/deals', 'See the plan']) : ''}
     ${panel('Today’s meals', `<div class="lslots">${MEALS.map(s => { const m = meals.filter(x => x.slot === s); return `<div class="lslot"><span class="rowlbl">${s}</span>${m.map(x => `<button class="chip" data-act="open" data-id="${x.id}">${esc(titleOf(x))}</button>`).join('')}<button class="chip ghost" data-act="slot" data-date="${t}" data-slot="${s}" aria-label="Plan ${s.toLowerCase()}">+</button></div>`; }).join('')}</div>`, ['kitchen/meals', 'Meal plan'])}
     ${panel('Grocery list', groc.length ? `<p class="lbig">${plural(groc.length, 'thing')} to buy</p><div class="lwrap">${groc.slice(0, 14).map(i => `<span class="chip">${esc(i.name)}</span>`).join('')}${groc.length > 14 ? `<span class="chip">+${groc.length - 14}</span>` : ''}</div>` : quiet('Nothing on your list. Tap “Add to list” on a recipe or in the pantry.'), ['kitchen/groceries', 'Go shopping'])}
@@ -2407,7 +2554,7 @@ function openEditor(kind, id, preset = {}) {
   if (!r) for (const f of K.fields) if (f.type === 'date' && D[f.k] === undefined && ['date', 'start'].includes(f.k)) D[f.k] = today();
   const sh = C.sheet({
     title: r ? titleOf(r) : 'New ' + K.one,
-    body: `${r && WISHY[kind] ? wishPanel(kind, id) : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}">${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
+    body: `${r && WISHY[kind] ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}">${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
     foot: `${r ? '<button class="btn danger" data-del>Delete</button>' : ''}<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save</button>`,
     onClose: () => { if (D._preview) URL.revokeObjectURL(D._preview); }
   });
@@ -3143,7 +3290,8 @@ function settingsPanels(sec) {
       ${ta('no', 'I don’t eat', 'Never in a suggestion.', 'e.g. nuts, avocado')}
       ${ta('hidden', 'Only if you can’t taste it', 'Fine when it is fully worked into the dish.', 'e.g. coconut milk in a curry')}
       ${ta('love', 'I love', 'Gets picked more often.', 'e.g. aged cheese, savoury snacks')}
-      ${ta('notes', 'Anything else', 'Goals, swaps, how you like to eat.', 'e.g. plant-based instead of milk')}</section>`);
+      ${ta('notes', 'Anything else', 'Goals, swaps, how you like to eat.', 'e.g. plant-based instead of milk')}
+      ${(() => { const t = tasteProfile(); if (!t.n) return '<p class="muted">Review a recipe after eating and what you like shows up here.</p>'; const lean = (v, more, less) => v > 1 ? more : v < -1 ? less : ''; return `<div class="fset fsetcol"><div><b>Learned from ${plural(t.n, 'review')}</b><span>${esc([t.likes.length ? 'You like ' + t.likes.slice(0, 10).join(', ') : '', t.dislikes.length ? 'not keen on ' + t.dislikes.slice(0, 10).join(', ') : '', lean(t.lean.salt, 'you often want more salt', 'you often find it too salty'), lean(t.lean.spice, 'you like more heat', 'you prefer it milder'), lean(t.lean.taste, 'you like bold flavour', 'you prefer it gentler'), t.feels.length ? 'your favourites feel ' + t.feels.slice(0, 3).join(', ').toLowerCase() : ''].filter(Boolean).join('; ') + '.')}</span></div></div>`; })()}</section>`);
   }
   if (sec === 'wish') { const old = recs('fwait').filter(WISHY.fwait).length; return wrap(`<section class="panel setpanel"><h3>Wishlists and money</h3>${recs('faccounts').length ? wishBudgetField() : '<p class="lnone">Set up Finance to give your wishlists a budget.</p>'}
     ${old ? `<div class="fset"><div><b>Wait list</b><span>${plural(old, 'item')} still on the old 48-hour wait list in Finance.</span></div><button class="btn small" data-act="wmovewait">Move wait list into Wishlists</button></div>` : ''}</section>`); }
@@ -3188,6 +3336,7 @@ return {
   buyWish: (kind, id) => buyWish(kind, id), wishPanel, wishLine,
   canBuyWish: () => fAccs().length > 0,
   newRecord: kind => KINDS[kind] && openEditor(kind, null),
+  chooser: () => openChooser(),
   // every photo path the lists use, once they loaded fresh from Supabase (null until then)
   photoRefs: () => L.fresh || L.missing ? JSON.stringify(L.all) : null,
   // one small card for the overview page; '' while the lists are still loading or missing
