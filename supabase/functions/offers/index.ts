@@ -54,6 +54,25 @@ async function keepPhoto(uid: string, url: string) {
   } catch { return url; }
 }
 
+// a quick look at a shared page: its main picture and title, so the inbox shows a photo straight away
+async function peek(url: string): Promise<{ photo?: string; title?: string }> {
+  const get = async (u: string, ms = 7000) => { const c = new AbortController(), t = setTimeout(() => c.abort(), ms); try { return await fetch(u, { signal: c.signal, redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1', 'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.8' } }); } finally { clearTimeout(t); } };
+  try {
+    const host = new URL(url).hostname;
+    const oembed = /tiktok\.com$/.test(host) ? `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}` : /(youtube\.com|youtu\.be)$/.test(host) ? `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(url)}` : /pinterest\./.test(host) ? `https://www.pinterest.com/oembed.json?url=${encodeURIComponent(url)}` : '';
+    if (oembed) { const r = await get(oembed); if (r.ok) { const j = await r.json(); if (j.thumbnail_url) return { photo: j.thumbnail_url, title: j.title }; } }
+    const r = await get(url); if (!r.ok || !(r.headers.get('content-type') || '').includes('html')) return {};
+    const html = (await r.text()).slice(0, 600000);
+    const meta = (k: string) => { const m = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${k}["'][^>]*content=["']([^"']+)["']`, 'i')) || html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["']${k}["']`, 'i')); return m?.[1]?.replace(/&amp;/g, '&') || ''; };
+    let photo = meta('og:image:secure_url') || meta('og:image') || meta('twitter:image') || meta('twitter:image:src');
+    if (!photo) { const ld = html.match(/"image"\s*:\s*(?:\[\s*)?(?:\{[^}]*?"url"\s*:\s*)?"(https?:[^"]+)"/); if (ld) photo = ld[1].replace(/\\\//g, '/'); }
+    if (photo && photo.startsWith('//')) photo = 'https:' + photo;
+    if (photo && !/^https?:/.test(photo)) photo = new URL(photo, r.url).href;
+    const title = meta('og:title') || (html.match(/<title[^>]*>([^<]{1,200})<\/title>/i)?.[1] || '').trim();
+    return { photo, title: title.replace(/&amp;/g, '&').replace(/&#39;|&#x27;/g, "'").replace(/&quot;/g, '"') };
+  } catch { return {}; }
+}
+
 async function send(uid: string, msg: { title: string; body: string; url?: string; tag?: string }) {
   if (!vapid) return;
   const { data: subs } = await sb.from('push_subs').select('endpoint,p256dh,auth').eq('user_id', uid);
@@ -107,7 +126,11 @@ Deno.serve(async req => {
       if (!url && !text) return json({ error: 'nothing to save' }, 400);
       const target = TARGETS.includes(body.target) ? body.target : '', draft = target ? cleanDraft(body.draft) : {};
       if (draft.photo) draft.photo = await keepPhoto(uid, String(draft.photo));
-      const data = clean({ url, text: text && text !== url ? text : '', note: str(body.note, 1000), source: str(body.source, 40) || 'Share', status: target ? 'Ready' : 'New', target, title: str(body.title, 200) || (target ? str(draft.name, 200) : ''), why: str(body.why, 400), photo: draft.photo || '', draft, extId: str(body.extId, 80), created: Date.now() });
+      // no picture yet: take the page's own main picture and title
+      let seen: { photo?: string; title?: string } = {};
+      if (url && !draft.photo && !body.photo) { seen = await peek(url); if (seen.photo) seen.photo = await keepPhoto(uid, seen.photo); }
+      else if (body.photo) seen.photo = await keepPhoto(uid, str(body.photo, 500));
+      const data = clean({ url, text: text && text !== url ? text : '', note: str(body.note, 1000), source: str(body.source, 40) || 'Share', status: target ? 'Ready' : 'New', target, title: str(body.title, 200) || (target ? str(draft.name, 200) : '') || str(seen.title, 200), why: str(body.why, 400), photo: draft.photo || seen.photo || '', draft, extId: str(body.extId, 80), created: Date.now() });
       // the same Albo item twice updates instead of duplicating
       let id = crypto.randomUUID();
       if (data.extId) { const { data: same } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'inbox').filter('data->>extId', 'eq', data.extId); if (same?.[0]) { if (['Done', 'Skipped'].includes(same[0].data.status)) return json({ ok: true, id: same[0].id, already: true }); id = same[0].id; } }
@@ -118,7 +141,7 @@ Deno.serve(async req => {
     if (body.action === 'inbox') {
       const { data, error } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'inbox');
       if (error) throw error;
-      return json({ items: data.filter((r: any) => r.data.status === 'New').map((r: any) => clean({ id: r.id, url: r.data.url, text: r.data.text, note: r.data.note, source: r.data.source, created: r.data.created })) });
+      return json({ items: data.filter((r: any) => r.data.status === 'New').map((r: any) => clean({ id: r.id, url: r.data.url, text: r.data.text, note: r.data.note, source: r.data.source, title: r.data.title, hasPhoto: !!r.data.photo || undefined, created: r.data.created })) });
     }
     if (body.action === 'sort') {
       const items = (Array.isArray(body.items) ? body.items : []).slice(0, 40);

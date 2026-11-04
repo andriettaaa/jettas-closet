@@ -1208,16 +1208,17 @@ function inboxTile() {
   return tileBody([`<p class="dline"><span>To check</span><b>${plural(ready, 'card')}</b></p>`, l.length - ready ? `<p class="dline"><span>Being sorted</span><b>${plural(l.length - ready, 'link')}</b></p>` : '', inboxMini(l.slice(0, 3)), `<button class="chip link" data-act="go" data-v="inbox/review">Open the inbox</button>`]);
 }
 // a short preview of inbox cards, with Accept where a card is ready
-const inboxMini = l => l.length ? `<div class="lrows ibxmini">${l.map(r => { const to = INBOX_TO[r.target], ph = r.photo || r.draft?.photo; return `<div class="lrow">${ph ? `<span class="lthumb"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></span>` : ''}<button class="lmain" data-act="go" data-v="inbox/review"><b>${esc(r.title || r.draft?.name || hostOf(r.url) || 'Link')}</b><span>${esc(r.status === 'Ready' && to ? '→ ' + to[0] : 'being sorted')}</span></button>${r.status === 'Ready' && to ? `<button class="lquick" data-act="ibxok" data-id="${r.id}">Accept</button>` : ''}</div>`; }).join('')}</div>` : '';
+const inboxMini = l => l.length ? `<div class="ibstrip">${l.map(r => { const to = INBOX_TO[r.target], ph = r.photo || r.draft?.photo, name = r.title || r.draft?.name || hostOf(r.url) || 'Link'; return `<div class="ibmini"><button class="ibstage" data-act="go" data-v="inbox/review" aria-label="${esc(name)}"><span class="pini">${esc(name.slice(0, 1))}</span>${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}</button><b>${esc(name)}</b><span>${esc(r.status === 'Ready' && to ? '→ ' + to[0] : 'being sorted')}</span>${r.status === 'Ready' && to ? `<button class="chip" data-act="ibxok" data-id="${r.id}">Accept</button>` : ''}</div>`; }).join('')}</div>` : '';
 function inboxCard(r) {
   const to = INBOX_TO[r.target], d = r.draft || {}, ph = r.photo || d.photo;
   const facts = [d.brand, d.shop, num(d.price) ? eur(num(d.price)) : '', d.category || d.cat || d.type || d.area, d.servings ? plural(d.servings, 'portion') : '', d.prep ? `${d.prep} min` : ''].filter(Boolean).join(' · ');
-  return `<div class="dmeal ibx">${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}<div class="dmb">
-    <b>${esc(r.title || d.name || hostOf(r.url) || 'Link')}</b><span>${esc([r.status === 'Ready' && to ? '→ ' + to[0] : 'waiting to be sorted', r.source, hostOf(r.url)].filter(Boolean).join(' · '))}</span>
-    ${facts ? `<p>${esc(facts)}</p>` : ''}${r.why ? `<p class="duses">${esc(r.why)}</p>` : ''}${r.note ? `<p class="duses">Your note: ${esc(r.note)}</p>` : ''}${r.problem ? `<p class="duses">${esc(r.problem)}</p>` : ''}
+  const name = r.title || d.name || hostOf(r.url) || 'Link';
+  return `<div class="ibcard">${r.url ? `<a class="ibstage" href="${esc(r.url)}" target="_blank" rel="noopener" aria-label="Open ${esc(name)}">` : '<div class="ibstage">'}<span class="pini">${esc(name.slice(0, 1))}</span>${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${r.status === 'Ready' && to ? `<span class="ibto">→ ${esc(to[0])}</span>` : ''}${r.url ? '</a>' : '</div>'}
+    <div class="ibmeta"><b>${esc(name)}</b><span>${esc([r.status === 'Ready' ? facts : 'being sorted', r.source, hostOf(r.url)].filter(Boolean).join(' · '))}</span>
+    ${r.why ? `<p>${esc(r.why)}</p>` : ''}${r.note ? `<p>Your note: ${esc(r.note)}</p>` : ''}${r.problem ? `<p>${esc(r.problem)}</p>` : ''}
     <div class="dbtns">${r.status === 'Ready' && to ? `<button class="btn small primary" data-act="ibxok" data-id="${r.id}">Accept</button>` : ''}
       <select class="pill ibxto" data-ibxto="${r.id}" aria-label="Put it somewhere else"><option value="">${r.status === 'Ready' ? 'Somewhere else…' : 'Put it in…'}</option>${Object.entries(INBOX_TO).map(([k, [l]]) => `<option value="${k}">${esc(l)}</option>`).join('')}</select>
-      ${r.url ? `<a class="btn small" href="${esc(r.url)}" target="_blank" rel="noopener">Open link</a>` : ''}<button class="btn small" data-act="ibxskip" data-id="${r.id}">Skip</button></div></div></div>`;
+      <button class="btn small" data-act="ibxskip" data-id="${r.id}">Skip</button></div></div></div>`;
 }
 function inboxPage(host) {
   const l = inboxOpen().sort((a, b) => (b.created || 0) - (a.created || 0)), ready = l.filter(r => r.status === 'Ready'), waiting = l.filter(r => r.status === 'New');
@@ -1228,8 +1229,8 @@ function inboxPage(host) {
     <details class="vtable"><summary>Set up the share shortcut</summary><ol class="setsteps"><li>Open <b>Shortcuts</b>, tap <b>+</b> and name it <b>Naar A’s Life</b>.</li><li>Tap the <b>ⓘ</b> and turn on <b>Show in Share Sheet</b>. Let it receive URLs, Safari web pages, text and images.</li>
       <li>Add <b>Get contents of URL</b> with <span class="mono">${esc(String(C.sb?.supabaseUrl || '').replace(/\/$/, ''))}/functions/v1/offers</span>, method <b>POST</b>, request body <b>JSON</b> with: <span class="mono">token</span> (your OFFERS_TOKEN), <span class="mono">action</span> = share, <span class="mono">url</span> = Shortcut Input, <span class="mono">text</span> = Shortcut Input.</li>
       <li>Add <b>Show notification</b> “In je inbox”.</li></ol></details>`)}
-  ${ready.length ? panel('Check these', `<div class="dmeals">${ready.map(inboxCard).join('')}</div>`) : ''}
-  ${waiting.length ? panel('Waiting to be sorted', `<div class="dmeals">${waiting.map(inboxCard).join('')}</div>`) : ''}
+  ${ready.length ? panel('Check these', `<div class="ibgrid">${ready.map(inboxCard).join('')}</div>`) : ''}
+  ${waiting.length ? panel('Waiting to be sorted', `<div class="ibgrid">${waiting.map(inboxCard).join('')}</div>`) : ''}
   ${!l.length ? panel('All clear', quiet('Nothing to check. Share a link from your phone and it shows up here.')) : ''}
   ${done.length ? panel('Recently sorted', `<div class="lrows">${done.map(r => `<div class="lrow"><button class="lmain" ${r.made && L.byId[r.made] ? `data-act="open" data-id="${r.made}"` : ''}><b>${esc(r.title || hostOf(r.url) || 'Link')}</b><span>${esc(INBOX_TO[r.target]?.[0] || '')}</span></button></div>`).join('')}</div>`) : ''}</div>`;
 }
