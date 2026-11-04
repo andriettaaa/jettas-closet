@@ -54,23 +54,89 @@ async function keepPhoto(uid: string, url: string) {
   } catch { return url; }
 }
 
-// a quick look at a shared page: its main picture and title, so the inbox shows a photo straight away
-async function peek(url: string): Promise<{ photo?: string; title?: string }> {
+// a quick look at a shared page: picture, title, site, and what JSON-LD says it is (a recipe, a product)
+type Peek = { photo?: string; title?: string; desc?: string; site?: string; social?: boolean; recipe?: any; product?: any; type?: string; crumbs?: string };
+async function peek(url: string): Promise<Peek> {
   const get = async (u: string, ms = 7000) => { const c = new AbortController(), t = setTimeout(() => c.abort(), ms); try { return await fetch(u, { signal: c.signal, redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1', 'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.8' } }); } finally { clearTimeout(t); } };
+  const unent = (x: string) => x.replace(/&amp;/g, '&').replace(/&#39;|&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&nbsp;/g, ' ').trim();
   try {
-    const host = new URL(url).hostname;
+    const host = new URL(url).hostname.replace(/^www\./, '');
+    const social = /(tiktok\.com|instagram\.com|youtube\.com|youtu\.be|pinterest\.|facebook\.com)$/.test(host) || /pinterest\./.test(host);
     const oembed = /tiktok\.com$/.test(host) ? `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}` : /(youtube\.com|youtu\.be)$/.test(host) ? `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(url)}` : /pinterest\./.test(host) ? `https://www.pinterest.com/oembed.json?url=${encodeURIComponent(url)}` : '';
-    if (oembed) { const r = await get(oembed); if (r.ok) { const j = await r.json(); if (j.thumbnail_url) return { photo: j.thumbnail_url, title: j.title }; } }
-    const r = await get(url); if (!r.ok || !(r.headers.get('content-type') || '').includes('html')) return {};
-    const html = (await r.text()).slice(0, 600000);
-    const meta = (k: string) => { const m = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${k}["'][^>]*content=["']([^"']+)["']`, 'i')) || html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["']${k}["']`, 'i')); return m?.[1]?.replace(/&amp;/g, '&') || ''; };
-    let photo = meta('og:image:secure_url') || meta('og:image') || meta('twitter:image') || meta('twitter:image:src');
-    if (!photo) { const ld = html.match(/"image"\s*:\s*(?:\[\s*)?(?:\{[^}]*?"url"\s*:\s*)?"(https?:[^"]+)"/); if (ld) photo = ld[1].replace(/\\\//g, '/'); }
+    if (oembed) { const r = await get(oembed); if (r.ok) { const j = await r.json(); if (j.thumbnail_url) return { photo: j.thumbnail_url, title: j.title, site: j.provider_name || host, social: true }; } }
+    const r = await get(url); if (!r.ok || !(r.headers.get('content-type') || '').includes('html')) return { site: host, social };
+    const html = (await r.text()).slice(0, 900000);
+    const meta = (k: string) => { const m = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${k}["'][^>]*content=["']([^"']+)["']`, 'i')) || html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["']${k}["']`, 'i')); return m?.[1] ? unent(m[1]) : ''; };
+    // JSON-LD: find a Recipe or a Product, wherever it sits in the graph
+    const nodes: any[] = [];
+    const walk = (n: any) => { if (Array.isArray(n)) n.forEach(walk); else if (n && typeof n === 'object') { nodes.push(n); for (const v of Object.values(n)) if (v && typeof v === 'object') walk(v); } };
+    for (const m of html.matchAll(/<script[^>]*application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)) { try { walk(JSON.parse(m[1].trim())); } catch { /* broken JSON-LD */ } }
+    const isT = (n: any, t: string) => [].concat(n['@type'] || []).some((x: string) => String(x).toLowerCase() === t);
+    const recipe = nodes.find(n => isT(n, 'recipe')), product = nodes.find(n => isT(n, 'product') || isT(n, 'productgroup'));
+    const crumbs = nodes.filter(n => isT(n, 'breadcrumblist')).flatMap(n => [].concat(n.itemListElement || []).map((x: any) => x?.name || x?.item?.name || '')).join(' / ');
+    const img = (v: any): string => !v ? '' : typeof v === 'string' ? v : Array.isArray(v) ? img(v[0]) : v.url || v.contentUrl || '';
+    let photo = img(recipe?.image) || img(product?.image) || meta('og:image:secure_url') || meta('og:image') || meta('twitter:image') || meta('twitter:image:src');
     if (photo && photo.startsWith('//')) photo = 'https:' + photo;
     if (photo && !/^https?:/.test(photo)) photo = new URL(photo, r.url).href;
-    const title = meta('og:title') || (html.match(/<title[^>]*>([^<]{1,200})<\/title>/i)?.[1] || '').trim();
-    return { photo, title: title.replace(/&amp;/g, '&').replace(/&#39;|&#x27;/g, "'").replace(/&quot;/g, '"') };
+    const title = meta('og:title') || unent(html.match(/<title[^>]*>([^<]{1,200})<\/title>/i)?.[1] || '');
+    return { photo, title, desc: meta('og:description') || meta('description'), site: meta('og:site_name') || host, social, recipe, product, type: meta('og:type'), crumbs };
   } catch { return {}; }
+}
+// instant sorting with plain rules: what the page says it is, the shop it comes from, and words in the name
+const SHOPS: Record<string, string> = {
+  closet: 'zalando|hm\\.com|zara|asos|mango|cos(stores)?\\.com|arket|uniqlo|weekday|na-kd|aboutyou|bershka|pullandbear|stradivarius|massimodutti|stories\\.com|sezane|levi|drmartens|vans\\.|converse|veja|omoda|nelson|sacha|wehkamp|bijenkorf|guess|tommy|calvinklein|ralphlauren|scotch-soda|ganni|monki|vero-?moda|only\\.com|jdsports|snipes|footlocker|asics|newbalance|lululemon|gymshark|aliexpress-fashion',
+  beauty: 'douglas|sephora|lookfantastic|iciparisxl|paulaschoice|theordinary|rituals|cultbeauty|niche-beauty|skinfluencer|beautyonline|deciem|lush|kiehls|nyx|maccosmetics|charlottetilbury|fentybeauty|glossier',
+  supplements: 'vitaminstore|hollandandbarrett|myprotein|bodyandfit|vitakruid|ekopura|orthica|davitamon',
+  gear: 'cookinglife|kookwinkel|kitchenshop|deleukstekeuken|kitchenaid|lecreuset|tefal|smeg',
+  fitgear: 'decathlon|fitnessdigital|gorilla-?sports|bodybuilding',
+  inventory: 'ikea|kwantum|jysk|leenbakker|xenos|westwing|hornbach|gamma|praxis|karwei|loods5|vtwonen|flinders|homeandliving|zarahome|hm\\.com/nl_nl/home|kave|fonq|nordicnest|eijerkamp'
+};
+const WORDS: Record<string, string> = {
+  closet: 'jas|jack|coat|blazer|jurk|dress|broek|jeans|pants|trouser|rok|skirt|trui|sweater|vest|cardigan|hoodie|shirt|blouse|top|t-shirt|legging|jumpsuit|sneaker|schoen|shoe|laars|boot|sandaal|sandal|pump|heel|loafer|ballerina|tas|bag|riem|belt|sjaal|scarf|muts|beanie|pet|hat|ketting|necklace|oorbel|earring|armband|bracelet|ring|horloge|watch|zonnebril|sunglasses|bikini|badpak|swim|beha|bra|sok|sock',
+  beauty: 'serum|creme|crème|cream|moistur|cleanser|toner|spf|zonnebrand|mascara|foundation|concealer|lipstick|lippen|lip |blush|bronzer|eyeliner|oogschaduw|eyeshadow|parfum|perfume|eau de|shampoo|conditioner|haarmasker|hair mask|haarolie|hair oil|nagellak|nail polish|bodylotion|body lotion|douchegel|scrub|retinol|niacinamide|hyaluron|skincare|make-?up',
+  supplements: 'vitamine|vitamin|supplement|magnesium|omega|visolie|fish oil|eiwit|protein|whey|creatine|collageen|collagen|ijzer|iron|zink|zinc|probiotic|probiotica|multivitamine|ashwagandha',
+  gear: 'koekenpan|pan |pannen|wok|braadpan|airfryer|blender|staafmixer|keukenmachine|mixer|koffiemachine|waterkoker|messen|koksmes|knife|snijplank|cutting board|bakvorm|ovenschaal|rasp|spatel|garde|whisk|vergiet|weegschaal|kitchen|keuken',
+  fitgear: 'dumbbell|halter|kettlebell|yogamat|yoga mat|fitnessmat|weerstandsband|resistance band|springtouw|jump rope|foam roller|ab wheel|pull-?up|gewicht|weights|fitness',
+  inventory: 'lamp|verlichting|kast|stoel|chair|tafel|table|bank |sofa|kussen|cushion|dekbed|duvet|plaid|deken|vaas|vase|spiegel|mirror|rek|shelf|opberg|storage|mand|basket|gordijn|curtain|vloerkleed|rug|kaars|candle|poster|frame|lijst|plant|pot |handdoek|towel|beddengoed|bedding|matras|mattress|kapstok'
+};
+const RECIPEWORDS = /recept|recipe|ingredi|ingrédient|tbsp|tsp|eetlepel|theelepel|\bel\b|\btl\b|gram|\bgr\b|bakken|koken|oven|minuten|minutes|dinner|lunch|ontbijt|breakfast|meal ?prep|soup|soep|salad|salade|pasta|curry|bowl/i;
+const isoMin = (v: any) => { const m = String(v || '').match(/P(?:\d+D)?T?(?:(\d+)H)?(?:(\d+)M)?/i); return m && (m[1] || m[2]) ? (Number(m[1] || 0) * 60 + Number(m[2] || 0)) : undefined; };
+const textOf = (v: any): string => !v ? '' : typeof v === 'string' ? v : Array.isArray(v) ? v.map(textOf).filter(Boolean).join('\n') : v.text || v.name || (v.itemListElement ? textOf(v.itemListElement) : '');
+const CATS: Record<string, string[]> = { Outerwear: ['jas', 'coat', 'jack', 'blazer', 'parka', 'trench'], Knitwear: ['trui', 'sweater', 'cardigan', 'knit', 'gebreid'], Dresses: ['jurk', 'dress', 'jumpsuit'], Bottoms: ['broek', 'jeans', 'pants', 'trouser', 'rok', 'skirt', 'short', 'legging'], Shoes: ['schoen', 'shoe', 'sneaker', 'laars', 'boot', 'sandaal', 'sandal', 'pump', 'loafer', 'ballerina', 'heel'], Bags: ['tas', 'bag', 'clutch', 'shopper'], Accessories: ['riem', 'belt', 'sjaal', 'scarf', 'muts', 'hat', 'pet', 'ketting', 'oorbel', 'armband', 'ring', 'horloge', 'watch', 'zonnebril', 'sunglasses', 'sieraad', 'jewel'], 'Swim & lounge': ['bikini', 'badpak', 'swim', 'pyjama', 'lounge'], Tops: ['shirt', 'top', 'blouse', 'hoodie', 'tee', 'polo'] };
+function quickSort(url: string, p: Peek, text: string, note: string): { target: string; draft: Record<string, unknown>; why: string } {
+  const host = (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } })();
+  const hay = `${url} ${p.title || ''} ${p.crumbs || ''} ${p.product?.name || ''} ${p.product?.category || ''} ${note} ${text}`.toLowerCase();
+  const shop = String(p.site || host).replace(/\.(nl|com|be|de|co\.uk)$/i, '');
+  // 1. the page says it is a recipe
+  if (p.recipe) {
+    const r = p.recipe, lines = [].concat(r.recipeIngredient || r.ingredients || []).map((x: any) => String(x).trim()).filter(Boolean);
+    const steps = textOf(r.recipeInstructions).split('\n').map(x => x.trim()).filter(Boolean).join('\n');
+    const yieldN = Number(String([].concat(r.recipeYield || [])[0] || '').match(/\d+/)?.[0]) || undefined;
+    const cat = String([].concat(r.recipeCategory || [])[0] || '').toLowerCase();
+    const category = /ontbijt|breakfast/.test(cat) ? 'Breakfast' : /lunch/.test(cat) ? 'Lunch' : /soep|soup/.test(cat) ? 'Soup' : /dessert|nagerecht/.test(cat) ? 'Dessert' : /bak|baking|cake|taart/.test(cat) ? 'Baking' : /snack|borrel/.test(cat) ? 'Snack' : /drank|drink/.test(cat) ? 'Drink' : /bijgerecht|side/.test(cat) ? 'Side Dish' : 'Dinner';
+    return { target: 'recipes', why: 'De pagina is een recept met ingrediënten en bereiding.', draft: { name: String(r.name || p.title || '').trim(), category, servings: yieldN, prep: isoMin(r.totalTime) || ((isoMin(r.prepTime) || 0) + (isoMin(r.cookTime) || 0) || undefined), photo: p.photo, lines, steps, notes: String(r.description || '').slice(0, 300) } };
+  }
+  // 2. a social post or video that reads like a recipe
+  if (p.social && RECIPEWORDS.test(`${p.title || ''} ${p.desc || ''} ${note} ${text}`)) return { target: 'recipes', why: 'Een post die op een recept lijkt. De sorteerronde vult de ingrediënten en stappen aan.', draft: { name: p.title, photo: p.photo } };
+  // 3. a product: the shop first, then words in the name
+  const prod = p.product, offer = prod ? [].concat(prod.offers || [])[0] as any : null, offer2 = offer?.offers ? [].concat(offer.offers)[0] as any : offer;
+  const price = Number(offer2?.price ?? offer2?.lowPrice ?? '') || undefined, cur = String(offer2?.priceCurrency || 'EUR').toUpperCase();
+  const brand = typeof prod?.brand === 'string' ? prod.brand : prod?.brand?.name;
+  const isProduct = !!prod || /product/i.test(p.type || '') || Object.values(SHOPS).some(re => new RegExp(re).test(host));
+  if (isProduct) {
+    let target = Object.keys(SHOPS).find(k => new RegExp(SHOPS[k]).test(host)) || '';
+    const byWord = Object.keys(WORDS).find(k => new RegExp(WORDS[k]).test(hay));
+    if (!target || (byWord && ['closet', 'inventory'].includes(target) && byWord !== target && /bijenkorf|wehkamp|hm\.com|zarahome/.test(host))) target = byWord || 'wishes';
+    if (/gift|cadeau|kado/.test(note.toLowerCase())) target = 'gifts';
+    const name = String(prod?.name || p.title || '').replace(/\s+[|–-]\s+[^|–-]*$/, '').trim();
+    const draft: Record<string, unknown> = { name, brand, price: cur === 'EUR' ? price : undefined, shop, photo: p.photo };
+    if (target === 'closet') { const low = name.toLowerCase(); draft.cat = Object.keys(CATS).find(c => CATS[c].some(w => low.includes(w))) || ''; }
+    if (target === 'wishes') draft.category = /boek|book/.test(hay) ? 'Books' : /laptop|telefoon|phone|koptelefoon|headphone|tablet|camera|console|tv|speaker|oordop|earbud|smartwatch/.test(hay) ? 'Tech' : 'Other';
+    const label: Record<string, string> = { closet: 'kleding', beauty: 'beauty', supplements: 'een supplement', gear: 'keukenspullen', fitgear: 'fitnessspullen', inventory: 'iets voor in huis', wishes: 'een product', gifts: 'een cadeau' };
+    return { target, why: `Een product van ${shop}, het lijkt op ${label[target] || 'een product'}.` + (cur !== 'EUR' && price ? ` Prijs is in ${cur}.` : ''), draft };
+  }
+  // 4. anything else: keep it as a saved link until you pick a place
+  return { target: 'keep', why: 'Geen recept of product herkend. Kies zelf een plek, of laat het als bewaarde link staan.', draft: { name: p.title, photo: p.photo, notes: (p.desc || '').slice(0, 300) } };
 }
 
 async function send(uid: string, msg: { title: string; body: string; url?: string; tag?: string }) {
@@ -124,24 +190,29 @@ Deno.serve(async req => {
     if (body.action === 'share') {
       const text = str(body.text, 4000), url = str(body.url, 1000) || (text.match(/https?:\/\/\S+/) || [''])[0].replace(/[),.]+$/, '');
       if (!url && !text) return json({ error: 'nothing to save' }, 400);
-      const target = TARGETS.includes(body.target) ? body.target : '', draft = target ? cleanDraft(body.draft) : {};
+      let target = TARGETS.includes(body.target) ? body.target : '', draft: Record<string, unknown> = target ? cleanDraft(body.draft) : {}, why = str(body.why, 400), quick = false;
+      // nothing told us what it is: look at the page and sort it right away; the sorting task checks it later
+      let seen: Peek = {};
+      if (url && !target) {
+        seen = await peek(url);
+        const q = quickSort(url, seen, text, str(body.note, 1000));
+        target = q.target; draft = cleanDraft(q.draft); why = q.why; quick = true;
+      }
       if (draft.photo) draft.photo = await keepPhoto(uid, String(draft.photo));
-      // no picture yet: take the page's own main picture and title
-      let seen: { photo?: string; title?: string } = {};
-      if (url && !draft.photo && !body.photo) { seen = await peek(url); if (seen.photo) seen.photo = await keepPhoto(uid, seen.photo); }
       else if (body.photo) seen.photo = await keepPhoto(uid, str(body.photo, 500));
-      const data = clean({ url, text: text && text !== url ? text : '', note: str(body.note, 1000), source: str(body.source, 40) || 'Share', status: target ? 'Ready' : 'New', target, title: str(body.title, 200) || (target ? str(draft.name, 200) : '') || str(seen.title, 200), why: str(body.why, 400), photo: draft.photo || seen.photo || '', draft, extId: str(body.extId, 80), created: Date.now() });
+      const data = clean({ url, text: text && text !== url ? text : '', note: str(body.note, 1000), source: str(body.source, 40) || 'Share', status: target ? 'Ready' : 'New', target, title: str(body.title, 200) || str(draft.name, 200) || str(seen.title, 200), why, photo: (draft.photo as string) || seen.photo || '', draft, quick: quick || undefined, extId: str(body.extId, 80), created: Date.now() });
       // the same Albo item twice updates instead of duplicating
       let id = crypto.randomUUID();
       if (data.extId) { const { data: same } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'inbox').filter('data->>extId', 'eq', data.extId); if (same?.[0]) { if (['Done', 'Skipped'].includes(same[0].data.status)) return json({ ok: true, id: same[0].id, already: true }); id = same[0].id; } }
       const { error } = await sb.from('records').upsert({ user_id: uid, id, kind: 'inbox', data, updated_at: new Date().toISOString() });
       if (error) throw error;
-      return json({ ok: true, id, message: 'In your inbox' });
+      const label: Record<string, string> = { recipes: 'recept', closet: 'kast-wishlist', beauty: 'beauty', supplements: 'supplementen', gear: 'keukenspullen', fitgear: 'fitness', inventory: 'wonen', wishes: 'wishlist', ideas: 'idee', cideas: 'contentidee', gifts: 'cadeau', keep: 'bewaarde link' };
+      return json({ ok: true, id, target, message: target ? `In je inbox, als ${label[target] || target}` : 'In je inbox' });
     }
     if (body.action === 'inbox') {
       const { data, error } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'inbox');
       if (error) throw error;
-      return json({ items: data.filter((r: any) => r.data.status === 'New').map((r: any) => clean({ id: r.id, url: r.data.url, text: r.data.text, note: r.data.note, source: r.data.source, title: r.data.title, hasPhoto: !!r.data.photo || undefined, created: r.data.created })) });
+      return json({ items: data.filter((r: any) => r.data.status === 'New' || (r.data.status === 'Ready' && r.data.quick)).map((r: any) => clean({ id: r.id, url: r.data.url, text: r.data.text, note: r.data.note, source: r.data.source, title: r.data.title, hasPhoto: !!r.data.photo || undefined, guess: r.data.quick ? r.data.target : undefined, created: r.data.created })) });
     }
     if (body.action === 'sort') {
       const items = (Array.isArray(body.items) ? body.items : []).slice(0, 40);
@@ -152,11 +223,11 @@ Deno.serve(async req => {
         const r = data.find((x: any) => x.id === it.id); if (!r || !['New', 'Ready'].includes(r.data.status)) continue;
         const target = TARGETS.includes(it.target) ? it.target : 'keep', draft = cleanDraft(it.draft);
         if (draft.photo) draft.photo = await keepPhoto(uid, String(draft.photo));
-        const d = clean({ ...r.data, status: 'Ready', target, title: str(it.title, 200) || str(draft.name, 200) || r.data.title, why: str(it.why, 400), photo: draft.photo || r.data.photo || '', draft, problem: str(it.problem, 300) });
+        const d = clean({ ...r.data, quick: undefined, status: 'Ready', target, title: str(it.title, 200) || str(draft.name, 200) || r.data.title, why: str(it.why, 400), photo: draft.photo || r.data.photo || '', draft, problem: str(it.problem, 300) });
         const { error: e } = await sb.from('records').upsert({ user_id: uid, id: r.id, kind: 'inbox', data: d, updated_at: new Date().toISOString() });
         if (e) throw e; n++;
       }
-      if (n) await send(uid, { title: 'Your inbox is sorted', body: `${n} new ${n === 1 ? 'link is' : 'links are'} ready for you to check.`, url: './#inbox/review', tag: 'inbox' });
+      if (n && items.some((it: any) => { const r = data.find((x: any) => x.id === it.id); return r && !r.data.quick; })) await send(uid, { title: 'Your inbox is sorted', body: `${n} new ${n === 1 ? 'link is' : 'links are'} ready for you to check.`, url: './#inbox/review', tag: 'inbox' });
       return json({ ok: true, sorted: n });
     }
 
