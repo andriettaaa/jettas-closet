@@ -44,7 +44,8 @@ const meal = (m: any) => clean({
 async function keepPhoto(uid: string, url: string) {
   if (!/^https?:\/\//.test(url) || url.includes('/storage/v1/object/public/photos/')) return url;
   try {
-    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (A’s Life recipe copy)' } });
+    // headers must be plain ASCII: a curly quote here made every copy fail silently
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36', 'Accept': 'image/avif,image/webp,image/png,image/jpeg,*/*' } });
     const type = r.headers.get('content-type') || '';
     if (!r.ok || !type.startsWith('image/')) return url;
     const buf = new Uint8Array(await r.arrayBuffer()); if (buf.length > 6e6) return url;
@@ -75,7 +76,9 @@ async function peek(url: string): Promise<Peek> {
     const recipe = nodes.find(n => isT(n, 'recipe')), product = nodes.find(n => isT(n, 'product') || isT(n, 'productgroup'));
     const crumbs = nodes.filter(n => isT(n, 'breadcrumblist')).flatMap(n => [].concat(n.itemListElement || []).map((x: any) => x?.name || x?.item?.name || '')).join(' / ');
     const img = (v: any): string => !v ? '' : typeof v === 'string' ? v : Array.isArray(v) ? img(v[0]) : v.url || v.contentUrl || '';
-    let photo = img(recipe?.image) || img(product?.image) || meta('og:image:secure_url') || meta('og:image') || meta('twitter:image') || meta('twitter:image:src');
+    const tik = (k: string) => { const m = html.match(new RegExp(`"?${k}"?:?"(https:[^"]+)"`)); try { return m ? JSON.parse(`"${m[1]}"`) : ''; } catch { return ''; } };
+    const tok = /tiktok\.com$/.test(host) ? (tik('imagePost[^\\]]*?"urlList":\\[') || tik('originCover') || tik('cover')) : '';
+    let photo = img(recipe?.image) || img(product?.image) || tok || meta('og:image:secure_url') || meta('og:image') || meta('twitter:image') || meta('twitter:image:src');
     if (photo && photo.startsWith('//')) photo = 'https:' + photo;
     if (photo && !/^https?:/.test(photo)) photo = new URL(photo, r.url).href;
     const title = meta('og:title') || unent(html.match(/<title[^>]*>([^<]{1,200})<\/title>/i)?.[1] || '');
@@ -242,8 +245,9 @@ Deno.serve(async req => {
         const d = { ...r.data }, before = JSON.stringify(d);
         const lines = (Array.isArray(w.lines) ? w.lines : []).map((x: unknown) => str(x, 160)).filter(Boolean).slice(0, 60), steps = str(w.instructions, 12000);
         if (!String(d.instructions || '').trim() && (steps || lines.length)) d.instructions = [lines.length ? 'Ingrediënten:\n' + lines.map((l: string) => '- ' + l).join('\n') : '', steps ? (lines.length ? 'Bereiding:\n' : '') + steps : ''].filter(Boolean).join('\n\n');
-        if (!d.photo && w.photo) d.photo = await keepPhoto(uid, str(w.photo, 500));
-        else if (/^https?:/.test(String(d.photo || ''))) d.photo = await keepPhoto(uid, d.photo);
+        // a photo still saved as a web link: copy it; when that link has expired, use the fresh one that was sent
+        if (/^https?:/.test(String(d.photo || ''))) { const kept = await keepPhoto(uid, d.photo); d.photo = kept !== d.photo || !w.photo ? kept : await keepPhoto(uid, str(w.photo, 2000)); }
+        else if (!d.photo && w.photo) d.photo = await keepPhoto(uid, str(w.photo, 2000));
         if (Array.isArray(w.helps) && w.helps.length && !d.helps) d.helps = w.helps.map((x: unknown) => str(x, 40));
         if (JSON.stringify(d) === before) continue;
         const { error: e } = await sb.from('records').upsert({ user_id: uid, id: r.id, kind: 'recipes', data: d, updated_at: new Date().toISOString() });
