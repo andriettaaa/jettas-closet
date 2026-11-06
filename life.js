@@ -358,7 +358,7 @@ const KINDS = {
       F('format', 'Format', 'select', { options: SOCIAL_FORMATS, half: 1 }), F('pillar', 'Pillar', 'rel', { to: 'pillars', half: 1 }),
       F('style', 'Style', 'select', { options: SOCIAL_STYLES, half: 1 }), F('funnel', 'Funnel stage', 'select', { options: SOCIAL_FUNNEL, half: 1 }),
       F('desc', 'What it is', 'long'), F('caption', 'Caption', 'long'), F('hashtags', 'Hashtags', 'text'),
-      F('link', 'Post link', 'url'), F('likes', 'Likes', 'num', { half: 1 }), F('comments', 'Comments', 'num', { half: 1 }), F('top', 'Top performer', 'check', { half: 1 }), F('repurpose', 'Repurpose this', 'check', { half: 1 }),
+      F('link', 'Post link', 'url'), F('views', 'Views', 'num', { half: 1 }), F('likes', 'Likes', 'num', { half: 1 }), F('comments', 'Comments', 'num', { half: 1 }), F('shares', 'Shares', 'num', { half: 1 }), F('top', 'Top performer', 'check', { half: 1 }), F('repurpose', 'Repurpose this', 'check', { half: 1 }),
       F('photo', 'Cover', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['date', 'Soonest'], ['-date', 'Newest'], ['name', 'A to Z']],
     hide: r => r.stage === 'Posted', hideLabel: 'Show posted',
@@ -2372,40 +2372,70 @@ function cycleTop() {
    Your Instagram profile as it will look: every post with a cover, planned ones on top. Drag a tile to change the
    order (dates stay as they are); tap one to open the post. */
 const igPost = p => !p.platforms?.length || [].concat(p.platforms).includes('Instagram');
+const short = n => { n = num(n) || 0; return n >= 1e6 ? (n / 1e6).toFixed(1).replace('.0', '') + 'M' : n >= 1e4 ? Math.round(n / 1e3) + 'k' : n >= 1e3 ? (n / 1e3).toFixed(1).replace('.0', '') + 'k' : String(n); };
+const netPost = net => net === 'TikTok' ? (p => [].concat(p.platforms || []).includes('TikTok')) : igPost;
 const isReel = p => /video|reel/i.test(p.format || '');
-function feedList() {
-  const ps = recs('posts').filter(igPost);
+function feedList(net = L.feedNet || 'Instagram') {
+  const ps = recs('posts').filter(netPost(net));
   const key = p => p.feedPos != null ? 1e15 + num(p.feedPos) : (p.date ? fromISO(p.date).getTime() : 9e14) + (p.created || 0) / 1e13;
   return ps.sort((a, b) => key(b) - key(a));
 }
 // pull your real posts, profile and counts from Instagram (the offers function does the work)
-async function igSync(quiet) {
-  if (L.igBusy) return; L.igBusy = true; if (!quiet) C.toast('Syncing Instagram…');
+// pull your real posts, profile and counts from Instagram or TikTok (the offers function does the work);
+// pictures come over 25 at a time, so it keeps going until they are all in your storage
+async function netSync(net, quiet) {
+  const act = net === 'TikTok' ? 'ttsync' : 'igsync', busy = 'busy' + net; if (L[busy]) return; L[busy] = true;
+  if (!quiet) C.toast(`Syncing ${net}…`);
   try {
-    let j = await C.callFn('offers', { action: 'igsync' }), added = j.added || 0;
-    // pictures come over 25 at a time; keep going until they are all in your storage
-    for (let n = 0; j.photosWaiting && n < 14; n++) { if (!quiet) C.toast(`Copying photos… ${j.photosWaiting} to go`); j = await C.callFn('offers', { action: 'igsync' }); added += j.added || 0; }
-    await load(); C.toast(`Instagram synced: ${plural(j.posts, 'post')}${added ? `, ${added} new` : ''}`);
+    let j = await C.callFn('offers', { action: act }), added = j.added || 0;
+    for (let n = 0; j.photosWaiting && n < 14; n++) { if (!quiet) C.toast(`Copying pictures… ${j.photosWaiting} to go`); j = await C.callFn('offers', { action: act }); added += j.added || 0; }
+    await load(); C.toast(`${net} synced: ${plural(j.posts, net === 'TikTok' ? 'video' : 'post')}${added ? `, ${added} new` : ''}`);
   }
-  catch (e) { if (!quiet) C.toast(/not set/.test(e.message) ? 'Add IG_TOKEN in Supabase first.' : 'Instagram sync did not work: ' + e.message); }
-  finally { L.igBusy = false; }
+  catch (e) { if (!quiet) C.toast(/IG_TOKEN.*not set/.test(e.message) ? 'Add IG_TOKEN in Supabase first.' : `${net} sync did not work: ${e.message}`); }
+  finally { L[busy] = false; }
+}
+const igSync = quiet => netSync('Instagram', quiet);
+// the address TikTok sends you back to; it must match the Redirect URI in the TikTok app exactly
+const ttRedirect = () => location.origin + location.pathname.replace(/index\.html$/, '');
+// Connect TikTok: off to TikTok's login, which comes back to this page with a code
+async function ttConnect() {
+  try {
+    const j = await C.callFn('offers', { action: 'ttstart' }), state = C.uuid().replace(/-/g, '');
+    try { sessionStorage.setItem('tt:state', state); } catch {}
+    const redirect = ttRedirect();
+    location.href = `https://www.tiktok.com/v2/auth/authorize/?client_key=${encodeURIComponent(j.clientKey)}&scope=user.info.basic,user.info.profile,user.info.stats,video.list&response_type=code&redirect_uri=${encodeURIComponent(redirect)}&state=${state}`;
+  } catch (e) { C.toast(/not set/.test(e.message) ? 'Add TIKTOK_CLIENT_KEY in Supabase first.' : 'Could not start TikTok: ' + e.message); }
+}
+// back from TikTok: hand the code to the function, then show the TikTok feed
+async function ttReturn() {
+  const q = new URLSearchParams(location.search), code = q.get('code'), state = q.get('state'); if (!code || !state) return;
+  let want = ''; try { want = sessionStorage.getItem('tt:state') || ''; sessionStorage.removeItem('tt:state'); } catch {}
+  try { history.replaceState(null, '', location.pathname + '#social/feed'); } catch {}
+  if (state !== want) { C.toast('That TikTok login did not come from this app. Try Connect TikTok again.'); return; }
+  L.feedNet = 'TikTok'; C.go('social/feed'); C.toast('Connecting TikTok…');
+  try {
+    let j = await C.callFn('offers', { action: 'ttconnect', code, redirect: ttRedirect() });
+    for (let n = 0; j.photosWaiting && n < 14; n++) j = await C.callFn('offers', { action: 'ttsync' });
+    await load(); C.toast(`TikTok connected: ${plural(j.posts || 0, 'video')}`);
+  } catch (e) { C.toast('TikTok did not connect: ' + e.message); }
 }
 function socialFeed(host) {
-  const acc = recs('accounts').find(a => a.platform === 'Instagram') || null, tab = L.feedTab || 'grid';
-  if (acc?.igSync && Date.now() - acc.igSync > 6 * 36e5 && !L.igTried) { L.igTried = true; igSync(true); }
-  const all = feedList(), list = tab === 'reels' ? all.filter(isReel) : all, hl = sortList(recs('highlights'), KINDS.highlights, 'order');
+  const net = L.feedNet || 'Instagram', tt = net === 'TikTok', acc = recs('accounts').find(a => a.platform === net) || null, tab = L.feedTab || 'grid';
+  const last = tt ? acc?.ttSync : acc?.igSync;
+  if (last && Date.now() - last > 6 * 36e5 && !L['tried' + net]) { L['tried' + net] = true; netSync(net, true); }
+  const all = feedList(net), list = tab === 'reels' && !tt ? all.filter(isReel) : all, hl = sortList(recs('highlights'), KINDS.highlights, 'order');
   const ph = (path, cls) => path ? `<img class="${cls}" referrerpolicy="no-referrer" src="${esc(C.photoURL(path))}" alt="" loading="lazy" draggable="false" onerror="this.remove()">` : '';
   const stat = (n, l) => `<div class="igstat"><b>${n == null || n === '' ? '–' : (num(n) || 0).toLocaleString('en-GB')}</b><span>${l}</span></div>`;
-  host.innerHTML = `<div class="viewhead"><h1>Feed</h1><span class="sub">Drag tiles to plan how your profile looks${acc?.igSync ? ` · synced ${esc(relDay(iso(new Date(acc.igSync))))}` : ''}</span><div class="spacer"></div><button class="btn small" data-act="igsync">Sync Instagram</button><button class="btn small" data-act="new" data-v="highlights">+ Highlight</button><button class="btn small primary" data-act="feednew">+ Post</button></div>
+  host.innerHTML = `<div class="viewhead"><h1>Feed</h1><span class="sub">Drag tiles to plan how your profile looks${last ? ` · synced ${esc(relDay(iso(new Date(last))))}` : ''}</span><div class="spacer"></div><div class="seg" role="group" aria-label="Network">${['Instagram', 'TikTok'].map(n => `<button data-act="feednet" data-v="${n}" aria-pressed="${net === n}">${n}</button>`).join('')}</div>${tt && !last ? '<button class="btn small primary" data-act="ttconnect">Connect TikTok</button>' : `<button class="btn small" data-act="netsync" data-v="${net}">Sync ${net}</button>`}<button class="btn small" data-act="new" data-v="highlights">+ Highlight</button><button class="btn small primary" data-act="feednew">+ Post</button></div>
   <section class="igphone">
     <div class="ighead"><button class="igav" data-act="${acc ? 'open' : 'feedacc'}" ${acc ? `data-id="${acc.id}"` : ''} aria-label="Edit profile">${ph(acc?.avatar, '') || `<span>${esc((acc?.handle || 'A').replace('@', '').slice(0, 1).toUpperCase())}</span>`}</button>
-      <div class="igstats">${stat(all.length, 'posts')}${stat(acc?.followers, 'followers')}${stat(acc?.following, 'following')}</div></div>
+      <div class="igstats">${stat(all.length, tt ? 'videos' : 'posts')}${stat(acc?.followers, 'followers')}${stat(acc?.following, 'following')}${tt ? stat(acc?.likesTotal, 'likes') : ''}</div></div>
     <div class="igbio"><b>${esc(acc?.display || acc?.handle || 'Your profile')}</b>${acc?.handle ? `<span class="muted">${esc(acc.handle.startsWith('@') ? acc.handle : '@' + acc.handle)}</span>` : ''}${acc?.bio ? `<p>${esc(acc.bio)}</p>` : ''}</div>
     <button class="btn small igedit" data-act="${acc ? 'open' : 'feedacc'}" ${acc ? `data-id="${acc.id}"` : ''}>Edit profile</button>
-    <div class="ighl">${hl.map(h => `<button class="ighli" data-act="open" data-id="${h.id}"><span>${ph(h.photo, '')}</span><small>${esc(h.name || '')}</small></button>`).join('')}<button class="ighli new" data-act="new" data-v="highlights"><span>${svg(P.plus)}</span><small>New</small></button></div>
-    <div class="igtabs" role="group"><button data-act="feedtab" data-v="grid" aria-pressed="${tab === 'grid'}" aria-label="All posts">${svg(P.grid)}</button><button data-act="feedtab" data-v="reels" aria-pressed="${tab === 'reels'}" aria-label="Reels">${svg('<rect x="4" y="4" width="16" height="16" rx="4"/><path d="m10.5 9 4 3-4 3Z"/>')}</button></div>
-    ${list.length ? `<div class="iggrid" data-feedgrid>${list.map(p => `<div class="igtile ${p.stage === 'Posted' ? 'posted' : ''}" data-feedid="${p.id}" role="button" tabindex="0" aria-label="${esc(titleOf(p))}${p.likes != null ? `, ${p.likes} likes` : ''}">${p.likes != null ? `<span class="iglk">♥ ${(num(p.likes) || 0).toLocaleString('en-GB')}${p.comments ? ` · 💬 ${p.comments}` : ''}</span>` : ''}${ph(p.photo, '') || `<span class="igph">${esc(titleOf(p))}</span>`}${p.stage !== 'Posted' ? `<i class="igdate">${p.date ? esc(shortDate(p.date)) : 'no date'}</i>` : ''}${isReel(p) ? `<i class="igreel">${svg('<path d="m9 7 8 5-8 5Z"/>')}</i>` : ''}</div>`).join('')}</div>`
-      : `<div class="empty lempty"><h2>${tab === 'reels' ? 'No reels yet' : 'Plan your first post'}</h2><p>Every Instagram post with a cover shows up here, planned ones on top.</p><button class="btn primary" data-act="feednew">+ Post</button></div>`}
+    ${tt ? '' : `<div class="ighl">${hl.map(h => `<button class="ighli" data-act="open" data-id="${h.id}"><span>${ph(h.photo, '')}</span><small>${esc(h.name || '')}</small></button>`).join('')}<button class="ighli new" data-act="new" data-v="highlights"><span>${svg(P.plus)}</span><small>New</small></button></div>`}
+    ${tt ? '' : `<div class="igtabs" role="group"><button data-act="feedtab" data-v="grid" aria-pressed="${tab === 'grid'}" aria-label="All posts">${svg(P.grid)}</button><button data-act="feedtab" data-v="reels" aria-pressed="${tab === 'reels'}" aria-label="Reels">${svg('<rect x="4" y="4" width="16" height="16" rx="4"/><path d="m10.5 9 4 3-4 3Z"/>')}</button></div>`}
+    ${list.length ? `<div class="iggrid" data-feedgrid>${list.map(p => `<div class="igtile ${p.stage === 'Posted' ? 'posted' : ''}" data-feedid="${p.id}" role="button" tabindex="0" aria-label="${esc(titleOf(p))}${p.likes != null ? `, ${p.likes} likes` : ''}">${tt && p.views != null ? `<span class="iglk">▶ ${short(p.views)}</span>` : p.likes != null ? `<span class="iglk">♥ ${short(p.likes)}${p.comments ? ` · 💬 ${short(p.comments)}` : ''}</span>` : ''}${ph(p.photo, '') || `<span class="igph">${esc(titleOf(p))}</span>`}${p.stage !== 'Posted' ? `<i class="igdate">${p.date ? esc(shortDate(p.date)) : 'no date'}</i>` : ''}${isReel(p) ? `<i class="igreel">${svg('<path d="m9 7 8 5-8 5Z"/>')}</i>` : ''}</div>`).join('')}</div>`
+      : `<div class="empty lempty"><h2>${tab === 'reels' ? 'No reels yet' : 'Plan your first post'}</h2><p>${tt ? (last ? 'Your TikTok videos show up here, planned ones on top.' : 'Connect TikTok to see your videos here, or plan one.') : 'Every Instagram post with a cover shows up here, planned ones on top.'}</p><button class="btn primary" data-act="feednew">+ Post</button></div>`}
   </section>`;
   feedDrag(host);
 }
@@ -3194,14 +3224,16 @@ document.addEventListener('click', async e => {
     case 'acchist': accHistory(d.id); break;
     case 'fmove': moveMoney(); break;
     case 'feedtab': L.feedTab = d.v; C.render(); break;
-    case 'feednew': openEditor('posts', null, { platforms: ['Instagram'], stage: 'Planned' }); break;
+    case 'feednew': openEditor('posts', null, { platforms: [L.feedNet || 'Instagram'], stage: 'Planned', ...(L.feedNet === 'TikTok' ? { format: 'Short Video' } : {}) }); break;
+    case 'feednet': L.feedNet = d.v; C.render(); break;
+    case 'netsync': netSync(d.v, false); break;
+    case 'ttconnect': ttConnect(); break;
     case 'feedacc': openEditor('accounts', null, { platform: 'Instagram', active: true }); break;
     case 'wishf': { const b2 = document.querySelector(`.wtable [data-src="${CSS.escape(d.v)}"]`); b2?.closest('.wtable')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); break; }
     case 'wishgo': if (d.v === 'wish/master') { const u = uiOf('wish/master'); u.seg = 'all'; u.allSrc = d.src; } if (d.v === 'money/plan') uiOf('money/plan').seg = 'wait'; C.go(d.v); break;
     case 'wmovewait': moveWaitList(); break;
     case 'dkeep': case 'dplan': case 'dgroc': dealsAct(d.act, d.k, Number(d.i)); break;
     case 'quitadd': quitAdd(); break;
-    case 'igsync': igSync(false); break;
     case 'quitset': quitSet(); break;
     case 'chfree': { const c = C.prefs().chores || {}, f = new Set(c.free || []); f.has(d.v) ? f.delete(d.v) : f.add(d.v); C.savePrefs({ chores: { ...c, free: WDAYS.filter(x => f.has(x)) } }).catch(() => C.toast('Could not save. Try again.')); break; }
     case 'potmove': { const b = L.byId[d.v], n = b && fNext(b); if (!b) break; const to = b.account || fMainAcc()?.id; moveMoney({ from: d.id, to, amt: num(b.amount) || '', date: n ? (addDays(n, -1) < today() ? today() : addDays(n, -1)) : today() }); break; }
@@ -3990,7 +4022,7 @@ return {
     if (L.status === 'loading' && !L.all.length) return '<p class="lnone">Loading…</p>';
     return s.tile();
   },
-  start(bridge) { C = bridge; L.all = []; L.byId = {}; L.missing = false; L.status = cacheLoad() ? 'ok' : 'loading'; subscribe(); return load().catch(e => { console.error(e); if (L.status !== 'ok') L.status = 'offline'; C.render(); }); },
+  start(bridge) { C = bridge; L.all = []; L.byId = {}; L.missing = false; L.status = cacheLoad() ? 'ok' : 'loading'; subscribe(); setTimeout(() => ttReturn(), 0); return load().catch(e => { console.error(e); if (L.status !== 'ok') L.status = 'offline'; C.render(); }); },
   refresh() { if (C?.uid()) load().catch(() => {}); },
   stop() { channel?.unsubscribe(); channel = null; },
   render(host, view) {

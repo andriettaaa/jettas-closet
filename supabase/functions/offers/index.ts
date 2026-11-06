@@ -235,6 +235,65 @@ async function igSync(uid: string) {
   return { ok: true, handle: me.username, posts: media.length, added, followers: me.followers_count, photosWaiting: waiting };
 }
 
+
+/* ---------- TikTok ----------
+   Login Kit with the scopes user.info.basic, user.info.profile, user.info.stats and video.list. You log in once from
+   the app (Connect TikTok); the code comes back to the app, which hands it here. The access token lasts a day, the
+   refresh token a year; both live in a private record (kind ttauth). Videos become posts with platform TikTok. */
+const TT = 'https://open.tiktokapis.com/v2';
+async function ttToken(form: Record<string, string>) {
+  const r = await fetch(`${TT}/oauth/token/`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_key: Deno.env.get('TIKTOK_CLIENT_KEY') || '', client_secret: Deno.env.get('TIKTOK_CLIENT_SECRET') || '', ...form }) });
+  const j = await r.json(); if (!r.ok || j.error) throw new Error(j.error_description || j.error || 'TikTok said no (' + r.status + ')'); return j;
+}
+async function ttSave(uid: string, id: string | undefined, j: any) {
+  const data = { access: j.access_token, refresh: j.refresh_token, until: Date.now() + (j.expires_in || 86400) * 1000 - 6e5, openId: j.open_id };
+  await sb.from('records').upsert({ user_id: uid, id: id || crypto.randomUUID(), kind: 'ttauth', data, updated_at: new Date().toISOString() });
+  return data;
+}
+async function ttConnect(uid: string, code: string, redirect: string) {
+  if (!code) return { error: 'No code from TikTok' };
+  if (!Deno.env.get('TIKTOK_CLIENT_SECRET')) return { error: 'TIKTOK_CLIENT_SECRET is not set in Supabase yet' };
+  const { data: auth } = await sb.from('records').select('id').eq('user_id', uid).eq('kind', 'ttauth').maybeSingle();
+  try { await ttSave(uid, auth?.id, await ttToken({ code, grant_type: 'authorization_code', redirect_uri: redirect })); } catch (e: any) { return { error: e.message }; }
+  return await ttSync(uid);
+}
+async function ttSync(uid: string) {
+  const { data: auth } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'ttauth').maybeSingle();
+  if (!auth?.data?.refresh) return { error: 'TikTok is not connected yet' };
+  let a = auth.data;
+  if (!a.access || Date.now() > a.until) { try { a = await ttSave(uid, auth.id, await ttToken({ grant_type: 'refresh_token', refresh_token: a.refresh })); } catch (e: any) { return { error: 'TikTok login expired, connect again (' + e.message + ')' }; } }
+  const call = async (path: string, init: RequestInit = {}) => { const r = await fetch(TT + path, { ...init, headers: { Authorization: 'Bearer ' + a.access, 'Content-Type': 'application/json', ...(init.headers || {}) } }); const j = await r.json(); if (!r.ok || (j.error && j.error.code && j.error.code !== 'ok')) throw new Error(j.error?.message || 'TikTok said no (' + r.status + ')'); return j.data; };
+  let me: any;
+  try { me = (await call('/user/info/?fields=open_id,avatar_url,display_name,username,bio_description,follower_count,following_count,likes_count,video_count')).user; }
+  catch (e: any) { return { error: e.message }; }
+  const vids: any[] = []; let cursor: number | undefined, more = true;
+  for (let i = 0; more && i < 10; i++) {
+    const d = await call('/video/list/?fields=id,title,video_description,create_time,cover_image_url,share_url,like_count,comment_count,share_count,view_count,duration', { method: 'POST', body: JSON.stringify({ max_count: 20, ...(cursor ? { cursor } : {}) }) });
+    vids.push(...(d.videos || [])); more = !!d.has_more; cursor = d.cursor;
+  }
+  const { data: have, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['posts', 'accounts']);
+  if (error) throw error;
+  const now = new Date().toISOString(), rows: any[] = [];
+  const acc = have.find((r: any) => r.kind === 'accounts' && r.data.platform === 'TikTok');
+  const accData: any = { ...(acc?.data || { platform: 'TikTok', active: true, created: Date.now() }), handle: me.username ? '@' + me.username : acc?.data?.handle, display: me.display_name || '', bio: me.bio_description ?? acc?.data?.bio ?? '', followers: me.follower_count, following: me.following_count, likesTotal: me.likes_count, url: me.username ? 'https://www.tiktok.com/@' + me.username : acc?.data?.url, ttSync: Date.now() };
+  if (me.avatar_url && (!accData.avatar || /^https?:/.test(accData.avatar) || accData.ttAvatarMonth !== now.slice(0, 7))) { accData.avatar = await keepPhoto(uid, me.avatar_url); accData.ttAvatarMonth = now.slice(0, 7); }
+  rows.push({ user_id: uid, id: acc?.id || crypto.randomUUID(), kind: 'accounts', data: clean(accData), updated_at: now });
+  const byTt = new Map(have.filter((r: any) => r.kind === 'posts' && r.data.ttId).map((r: any) => [r.data.ttId, r]));
+  let added = 0, copies = 0, waiting = 0;
+  const flush = async () => { while (rows.length) { const { error: e } = await sb.from('records').upsert(rows.splice(0, 25)); if (e) throw e; } };
+  for (const v of vids) {
+    const old: any = byTt.get(v.id), ts = new Date((v.create_time || 0) * 1000), desc = String(v.video_description || v.title || '');
+    const d: any = old ? { ...old.data } : { name: (v.title || desc.split('\n')[0].replace(/#\S+/g, '').trim()).slice(0, 70) || 'TikTok video', created: ts.getTime(), stage: 'Posted', platforms: ['TikTok'], format: 'Short Video', date: ts.toISOString().slice(0, 10), time: ts.toISOString().slice(11, 16) };
+    Object.assign(d, { ttId: v.id, link: v.share_url, caption: desc, views: v.view_count ?? d.views, likes: v.like_count ?? d.likes, comments: v.comment_count ?? d.comments, shares: v.share_count ?? d.shares, stage: 'Posted' });
+    if ((!d.photo || /^https?:/.test(d.photo)) && v.cover_image_url) { if (copies < 25) { copies++; d.photo = await keepPhoto(uid, v.cover_image_url); } else { d.photo = v.cover_image_url; waiting++; } }
+    if (!old) added++;
+    rows.push({ user_id: uid, id: old?.id || crypto.randomUUID(), kind: 'posts', data: clean(d), updated_at: now });
+    if (rows.length >= 25) await flush();
+  }
+  await flush();
+  return { ok: true, handle: me.username || me.display_name, posts: vids.length, added, followers: me.follower_count, photosWaiting: waiting };
+}
+
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
@@ -244,13 +303,16 @@ Deno.serve(async req => {
     const uid = Deno.env.get('SPEND_USER_ID')!;
     // the app itself may ask for an Instagram sync, signed in as you
     let viaApp = false;
-    if ((!token || token !== Deno.env.get('OFFERS_TOKEN')) && body.action === 'igsync') {
+    if ((!token || token !== Deno.env.get('OFFERS_TOKEN')) && ['igsync', 'ttstart', 'ttconnect', 'ttsync'].includes(body.action)) {
       const jwt = req.headers.get('authorization')?.replace(/^Bearer /, '') || '';
       const { data: u } = await sb.auth.getUser(jwt); viaApp = !!u?.user && u.user.id === uid;
     }
     if (!viaApp && (!token || !Deno.env.get('OFFERS_TOKEN') || token !== Deno.env.get('OFFERS_TOKEN'))) return json({ error: 'forbidden' }, 403);
 
     if (body.action === 'igsync') return json(await igSync(uid));
+    if (body.action === 'ttstart') { const k = Deno.env.get('TIKTOK_CLIENT_KEY'); return json(k ? { clientKey: k } : { error: 'TIKTOK_CLIENT_KEY is not set in Supabase yet' }); }
+    if (body.action === 'ttconnect') return json(await ttConnect(uid, str(body.code, 2000), str(body.redirect, 500)));
+    if (body.action === 'ttsync') return json(await ttSync(uid));
 
     if (body.action === 'recipes') {
       const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['recipes', 'ingredients', 'wplans', 'rreviews']);
