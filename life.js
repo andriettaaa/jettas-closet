@@ -447,7 +447,7 @@ const KINDS = {
       F('freq', 'How often', 'select', { options: Object.keys(FREQ) }), F('last', 'Last done', 'date', { half: 1 }), F('notes', 'Notes', 'long')],
     sorts: [['due', 'Due first'], ['name', 'A to Z']],
     sub: r => [r.space, r.freq].filter(Boolean).join(' · '),
-    side: r => { const d = choreDue(r); return d <= today() ? (d < today() ? 'overdue' : 'due today') : 'due ' + relDay(d); },
+    side: r => { const d = choreDue(r); return d <= today() ? (choreLate(r) ? 'carried over' : 'due today') : 'due ' + relDay(d); },
     quick: r => ({ on: r.last === today(), label: 'Done', act: () => save(r, { last: r.last === today() ? (r.prevLast || '') : today(), prevLast: r.last === today() ? '' : (r.last || '') }) })
   },
   plants: {
@@ -469,11 +469,12 @@ const KINDS = {
       F('status', 'Status', 'select', { options: ['Wishlist', 'Ordered', 'Have', 'Returned', 'Gone'] }),
       F('priority', 'Priority', 'select', { options: PRIO }),
       F('price', 'Price', 'money', { half: 1 }), F('bought', 'Bought on', 'date', { half: 1 }),
+      F('warranty', 'Warranty until', 'date', { half: 1 }), F('receipt', 'Receipt', 'photo'),
       F('rating', 'Rating', 'rating'), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['prio', 'Priority'], ['name', 'A to Z'], ['-bought', 'Newest'], ['-price', 'Priciest']],
     filters: [['want', 'To buy'], ['have', 'Have'], ['all', 'All']],
     filter: (r, f) => f === 'have' ? (r.status || 'Have') === 'Have' : f === 'want' ? ['Wishlist', 'Ordered'].includes(r.status) : true,
-    sub: r => [r.room, r.category, r.qty && r.qty !== '1' ? r.qty + '×' : '', r.status === 'Ordered' ? 'ordered' : ''].filter(Boolean).join(' · '),
+    sub: r => [r.room, r.category, r.qty && r.qty !== '1' ? r.qty + '×' : '', r.status === 'Ordered' ? 'ordered' : '', r.warranty ? (r.warranty < today() ? 'warranty over' : 'warranty until ' + shortDate(r.warranty)) : '', r.receipt ? 'receipt' : ''].filter(Boolean).join(' · '),
     side: r => [r.priority && ['Wishlist', 'Ordered'].includes(r.status) ? r.priority : '', eur(r.price)].filter(Boolean).join(' · '),
     quick: r => ['Wishlist', 'Ordered'].includes(r.status) ? { on: false, label: 'Bought', act: () => recs('faccounts').length ? buyWish('inventory', r.id) : save(r, { status: 'Have', bought: r.bought || today() }) } : null
   },
@@ -517,8 +518,8 @@ const KINDS = {
   },
   faccounts: {
     one: 'account', many: 'Accounts', facet: 'type',
-    fields: [F('name', 'Name'), F('type', 'Type', 'select', { options: ['Spending', 'Savings', 'Card'], half: 1 }),
-      F('safe', 'Counts toward safe to spend', 'check', { half: 1 }), F('archived', 'Archived', 'check', { half: 1 }), F('iban', 'IBAN (for bank imports)'), F('notes', 'Notes', 'long')],
+    fields: [F('name', 'Name'), F('type', 'Type', 'select', { options: ['Spending', 'Savings', 'Pot', 'Card'], half: 1 }),
+      F('safe', 'Counts toward safe to spend', 'check', { half: 1 }), F('potGoal', 'Pot goal (optional)', 'money', { half: 1 }), F('archived', 'Archived', 'check', { half: 1 }), F('iban', 'IBAN (for bank imports)'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z']], hide: r => r.archived, hideLabel: 'Show archived',
     sub: r => [r.type, r.safe ? 'in safe to spend' : ''].filter(Boolean).join(' · '),
     side: r => { const b = fBalance(r); return b == null ? 'not checked' : eur(b); }
@@ -550,7 +551,7 @@ const KINDS = {
       F('cadence', 'How often', 'select', { options: ['Monthly', 'Every N months', 'Yearly', 'Weekly'], half: 1 }), F('every', 'Every how many', 'num', { half: 1 }),
       F('anchor', 'First due', 'date', { half: 1 }), F('ends', 'Ends', 'date', { half: 1 }),
       F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 }), F('category', 'Category', 'rel', { to: 'fcats', half: 1 }),
-      F('debt', 'Pays off debt', 'rel', { to: 'fdebts', half: 1 }), F('active', 'Active', 'check', { half: 1 }), F('url', 'Link', 'url'), F('notes', 'Notes', 'long')],
+      F('debt', 'Pays off debt', 'rel', { to: 'fdebts', half: 1 }), F('pot', 'Saved up in pot', 'rel', { to: 'faccounts', half: 1 }), F('trialEnds', 'Free trial ends', 'date', { half: 1 }), F('active', 'Active', 'check', { half: 1 }), F('url', 'Link', 'url'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['-amount', 'Biggest']], hide: r => r.active === false, hideLabel: 'Show stopped',
     sub: r => { const n = fNext(r); return [r.type, fCadence(r), n ? 'next ' + niceDate(n) : 'no next date'].filter(Boolean).join(' · '); },
     side: r => eur(num(r.amount))
@@ -950,7 +951,7 @@ const PAGES = {
   'money/networth': { title: 'Net worth', segs: [{ key: 'nw', label: 'Net worth', kind: 'faccounts', fill: fNetFill, tools: false }, { kind: 'faccounts' }, { kind: 'fchecks' }, { kind: 'fset', label: 'Payday and buffer' }] },
   'money/reviews': { render: moneyReviews, adds: ['ftx', 'fincome'] },
   'home/today': { render: homeToday, adds: ['chores', 'plants', 'inventory', 'repairs'] },
-  'home/chores': { title: 'Chores', segs: [{ kind: 'chores' }] },
+  'home/chores': { title: 'Chores', segs: [{ key: 'plan', label: 'Schedule', kind: 'chores', fill: choreFill, tools: false }, { kind: 'chores', label: 'All chores' }] },
   'home/plants': { title: 'Plants', segs: [{ kind: 'plants' }] },
   'home/inventory': { title: 'Inventory', segs: [{ kind: 'inventory' }] },
   'home/repairs': { title: 'Repairs', segs: [{ kind: 'repairs' }] },
@@ -1065,7 +1066,12 @@ function subscribe() {
 }
 
 /* ---------- derived numbers ---------- */
-const choreDue = r => r.last ? addDays(r.last, FREQ[r.freq] || 7) : today();
+const WDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// a free day: one of your weekdays off (Home › Settings), or a day you are on a trip
+const choreFree = d => { const c = C?.prefs?.().chores || {}; if ((c.free || []).includes(WDAYS[(fromISO(d).getDay() + 6) % 7])) return true; return c.trips !== false && tripList().some(t => d >= t.start && d <= tripEnd(t)); };
+const choreDue = r => { let d = r.last ? addDays(r.last, FREQ[r.freq] || 7) : today(); if (d < today()) d = today(); for (let i = 0; i < 21 && choreFree(d); i++) d = addDays(d, 1); return d; };
+const choreLate = r => r.last ? addDays(r.last, FREQ[r.freq] || 7) < today() : false;
+const choreGroup = r => { const n = FREQ[r.freq] || 7; return n <= 2 ? 'Daily' : n <= 14 ? 'Weekly' : 'Monthly and longer'; };
 const plantDue = r => r.every ? (r.last ? addDays(r.last, Number(r.every)) : today()) : '';
 function prOf(exId) {
   let best = null;
@@ -1666,7 +1672,7 @@ function fState() {
   const accs = fAccs(), bal = new Map(accs.map(a => [a.id, fBalance(a)]));
   const safeAccs = accs.filter(a => a.safe && a.type !== 'Card'), safeIds = new Set(safeAccs.map(a => a.id));
   const inAcc = safeAccs.reduce((n, a) => n + (bal.get(a.id) || 0), 0);
-  const counts = o => !o.paid && !o.skipped && (!o.bill.account || safeIds.has(o.bill.account));
+  const counts = o => !o.paid && !o.skipped && !potCovers(o) && (!o.bill.account || safeIds.has(o.bill.account));
   const occs = pay ? fOccs(start, addDays(pay, -1)) : fOccs(start, addDays(t, 30));
   const due = occs.filter(counts), overdue = due.filter(o => o.date < t);
   const billsBefore = fSum(due), until = inAcc - billsBefore - buf, days = pay ? Math.max(1, diffDays(t, pay)) : 30;
@@ -1961,6 +1967,39 @@ function moneyReviews(host) {
   }
 }
 
+
+/* ---------- pots: money put aside per bill ----------
+   A pot is an account of type Pot. Repeats that are "saved up in" a pot don't take from safe to spend: you fill
+   the pot bit by bit, and just before the bill goes out you move that amount to the account it is paid from.
+   Money you put into a pot is a move to your own savings (category "Not spending"), money from a pot is a transfer. */
+const potOf = b => b.pot && L.byId[b.pot]?.kind === 'faccounts' ? L.byId[b.pot] : null;
+// a bill covered by its pot, as long as the pot holds enough (or you never checked its balance)
+const potCovers = o => { const p = potOf(o.bill); if (!p) return false; const bal = fBalance(p); return bal == null || bal >= (num(o.amount ?? o.bill.amount) || 0); };
+const perMonth = b => { const a = num(b.amount) || 0; return b.cadence === 'Yearly' ? a / 12 : b.cadence === 'Every N months' ? a / (num(b.every) || 1) : b.cadence === 'Weekly' ? a * 52 / 12 / (num(b.every) || 1) : a; };
+// every subscription with what it costs a year, and a heads-up before a free trial turns into a payment
+function subsPanel() {
+  const t = today(), subs = recs('fbills').filter(b => b.type === 'Subscription' && b.active !== false).map(b => ({ b, y: perMonth(b) * 12 })).sort((a, c) => c.y - a.y);
+  if (!subs.length) return '';
+  const trials = subs.filter(x => x.b.trialEnds && x.b.trialEnds >= t && x.b.trialEnds <= addDays(t, 7));
+  return MP('Subscriptions', `${trials.map(x => `<p class="mlookline"><b>Free trial of ${esc(x.b.name)} ends ${esc(relDay(x.b.trialEnds))}.</b> Cancel before then if you don’t want to pay ${eur(num(x.b.amount))}.</p>`).join('')}
+    <p class="lbig">${eur(subs.reduce((n, x) => n + x.y, 0))} a year</p><p class="lnone">${plural(subs.length, 'subscription')} · ${eur(subs.reduce((n, x) => n + x.y, 0) / 12)} a month</p>
+    <div class="lrows">${subs.map(x => `<button class="lrow lmain" data-act="open" data-id="${x.b.id}"><b>${esc(x.b.name)}</b><span>${eur(num(x.b.amount))} ${esc(fCadence(x.b))} · ${eur(x.y)} a year${x.b.trialEnds && x.b.trialEnds >= t ? ' · trial until ' + esc(shortDate(x.b.trialEnds)) : ''}</span></button>`).join('')}</div>`, mLink('Repeats', 'money/repeats'), 'subs');
+}
+function potsPanel() {
+  const pots = recs('faccounts').filter(a => a.type === 'Pot' && !a.archived); if (!pots.length && !recs('fbills').some(b => b.pot)) return '';
+  const t = today(), body = pots.map(p => {
+    const bills = recs('fbills').filter(b => b.pot === p.id && b.active !== false), bal = fBalance(p), need = bills.reduce((n, b) => n + perMonth(b), 0);
+    const next = bills.map(b => ({ b, d: fNext(b) })).filter(x => x.d).sort((a, c) => a.d.localeCompare(c.d))[0];
+    const amt = next ? num(next.b.amount) || 0 : 0, short = bal != null && next ? Math.max(0, amt - bal) : 0, goal = num(p.potGoal);
+    const moveOn = next ? (addDays(next.d, -1) < t ? t : addDays(next.d, -1)) : '';
+    return `<div class="mpot"><div class="mpoth"><b>${esc(p.name)}</b><span>${bal == null ? 'balance not checked' : eur(bal)}</span></div>
+      ${goal ? `<span class="tbar"><i style="width:${Math.min(100, 100 * (bal || 0) / goal)}%"></i></span><span class="lnone">${eur(bal || 0)} of ${eur(goal)}</span>` : ''}
+      ${bills.length ? `<p class="lnone">For ${esc(bills.map(b => b.name).join(', '))} · put about <b>${eur(need)}</b> in a month</p>` : '<p class="lnone">No repeats linked yet. Open a repeat and pick this pot under "Saved up in pot".</p>'}
+      ${next ? `<p class="dline"><span>Next: ${esc(next.b.name)}, ${esc(relDay(next.d))}</span><b class="${short ? 'mneg' : ''}">${eur(amt)}${short ? ` · ${eur(short)} short` : ''}</b></p>
+        <button class="btn small" data-act="potmove" data-id="${p.id}" data-v="${esc(next.b.id)}">Move ${eur(amt)} out on ${esc(shortDate(moveOn))}</button>` : ''}</div>`;
+  }).join('');
+  return MP('Pots', body + '<p class="lnone">Repeats saved up in a pot don’t take from safe to spend. Put money into a pot with a category that is “Not spending”; moving it back out is a transfer, not income.</p>', mLink('Repeats', 'money/repeats'), 'pots');
+}
 function moneyToday(host) {
   if (!recs('faccounts').length) { host.innerHTML = `${head('Money')}<div class="panels">${panel('Start here', `${quiet('Import your Budget Planner backup, or add your accounts and check your balances.')}<button class="btn small" data-act="new" data-v="faccounts">Add an account</button>`)}</div>`; return; }
   const st = fState(), t = st.t, s = fset(), hr = new Date().getHours();
@@ -2049,7 +2088,7 @@ function moneyToday(host) {
   const recent = every.filter(x => x.date <= t).sort((a, b) => (b.date + fSeq(b)).localeCompare(a.date + fSeq(a))).slice(0, 2);
   const chipRow = `<div class="mchips">${recent.map(x => `<button class="chip mrecent" data-act="frepeat" data-id="${x.id}">${esc(x.name || 'Again')} ${eur(num(x.amount))}</button>`).join('')}${chips.map(c => `<button class="chip" data-act="fchip" data-id="${c.id}">${esc(titleOf(c))} ${eur(num(c.amount))}</button>`).join('')}</div>`;
   const pts = fProject(st, 30).pts, low = pts.reduce((m, p) => p.v < m.v ? p : m, pts[0]);
-  const jump = [['m-safe', 'Safe to spend'], ['m-look', 'Worth a look'], ['m-wins', 'Small wins'], ['m-next', 'Next 30 days'], ['m-pay', 'Payments coming'], ['m-days', 'Every day this month'], ['m-went', 'Where the money went'], ['m-net', 'Goals, debt, net worth'], ['m-cats', 'Per category'], ['m-months', 'Month by month'], ['m-big', 'Biggest spending'], ...(allWishes().length || wishBudget() ? [['m-wish', 'Wishlists']] : [])];
+  const jump = [['m-safe', 'Safe to spend'], ['m-look', 'Worth a look'], ['m-wins', 'Small wins'], ['m-next', 'Next 30 days'], ['m-pay', 'Payments coming'], ['m-days', 'Every day this month'], ['m-went', 'Where the money went'], ['m-net', 'Goals, debt, net worth'], ['m-cats', 'Per category'], ['m-months', 'Month by month'], ['m-big', 'Biggest spending'], ...(allWishes().length || wishBudget() ? [['m-wish', 'Wishlists']] : []), ...(recs('faccounts').some(x => x.type === 'Pot') ? [['m-pots', 'Pots']] : []), ...(recs('fbills').some(b => b.type === 'Subscription' && b.active !== false) ? [['m-subs', 'Subscriptions']] : [])];
   host.innerHTML = `<div class="viewhead dviewhead"><h1>${hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'}</h1><span class="sub">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span><div class="spacer"></div><button class="btn small" data-act="fcheck">Check my money</button><button class="btn small primary" data-act="new" data-v="ftx">+ Add spending</button></div>
   <nav class="mjump" aria-label="On this page">${jump.map(([id, l]) => `<button class="chip" data-jump="${id}">${l}</button>`).join('')}</nav>
   <div class="mtop">${safe}${MP('Small wins', `${wins.join('')}<p class="lnone">${nWin ? `${nWin} down. That counts.` : 'Start with one.'}</p>`, `<span class="lnone">${nWin} of 3</span>`, 'wins')}</div>
@@ -2062,6 +2101,8 @@ function moneyToday(host) {
   ${tiles}
   ${MP('Spending per category', bars + chipRow, mLink('Open spending', 'money/spending'), 'cats')}
   ${MP('Month by month', monthly, `<span class="lnone">money in and out, own transfers left out</span>`, 'months')}
+  ${potsPanel()}
+  ${subsPanel()}
   ${wishMoneyPanel()}
   ${MP('Biggest spending', biggest, `<span class="lnone">this pay · ${esc(shortDate(st.start))} – ${esc(shortDate(t))}</span>`, 'big')}
   `;
@@ -2680,6 +2721,18 @@ function habitWeek() {
   const days = weekDays(), t = today();
   return `<section class="panel lpanel hweek"><div class="lph3"><h3>This week</h3></div><div class="hgrid"><span></span>${days.map(d => `<span class="hd ${d === t ? 'now' : ''}">${dayName(d).slice(0, 2)}</span>`).join('')}${hs.map(h => { const s = daysSet(h); return `<button class="hname" data-act="open" data-id="${h.id}">${esc(h.name)}</button>` + days.map(d => `<button class="hcell ${s.has(d) ? 'on' : ''}" data-act="hday" data-id="${h.id}" data-d="${d}" aria-pressed="${s.has(d)}" aria-label="${esc(h.name)}, ${dayName(d)}" ${d > t ? 'disabled' : ''}>${s.has(d) ? svg(P.check) : ''}</button>`).join(''); }).join('')}</div></section>`;
 }
+
+// the cleaning schedule: what is due today in three lists, what comes next, and whether today is a free day
+function choreFill(fill) {
+  const t = today(), all = recs('chores'), free = choreFree(t), groups = ['Daily', 'Weekly', 'Monthly and longer'];
+  const due = all.filter(c => choreDue(c) <= t), soon = all.filter(c => choreDue(c) > t && choreDue(c) <= addDays(t, 7)).sort((a, b) => choreDue(a).localeCompare(choreDue(b)));
+  const done = all.filter(c => c.last === t);
+  fill.innerHTML = (free ? `<p class="lnone">Today is a free day. Everything moves on to the next day you clean.</p>` : '')
+    + (all.length ? groups.map(g => { const l = due.filter(c => choreGroup(c) === g); return `<section class="panel lpanel"><div class="lph3"><h3>${g}</h3><span class="lnone">${l.length ? plural(l.length, 'to do') : 'done'}</span></div>${l.length ? `<div class="lrows">${l.map(row).join('')}</div>` : quiet(free ? 'Free day.' : 'Nothing due.')}</section>`; }).join('') : quiet('Add your chores with how often they need doing. Daily ones land in Daily, weekly in Weekly, the rest in Monthly.'))
+    + (done.length ? `<section class="panel lpanel"><div class="lph3"><h3>Done today</h3></div><div class="lrows">${done.map(row).join('')}</div></section>` : '')
+    + (soon.length ? `<section class="panel lpanel"><div class="lph3"><h3>Coming up this week</h3></div><div class="lrows">${soon.map(row).join('')}</div></section>` : '')
+    + `<p class="lnone">Missed one? It stays on the list as carried over until you do it. Pick your free days in Home › Settings.</p>`;
+}
 function homeToday(host) {
   const t = today();
   const chores = recs('chores').filter(c => choreDue(c) <= t).sort((a, b) => choreDue(a).localeCompare(choreDue(b)));
@@ -2691,8 +2744,10 @@ function homeToday(host) {
   const wish = recs('inventory').filter(i => ['Wishlist', 'Ordered'].includes(i.status));
   const must = sortList(wish.filter(i => i.priority === 'Must-have'), KINDS.inventory, 'room');
   const wishCost = wish.reduce((s, i) => s + (num(i.price) || 0), 0);
+  const wty = recs('inventory').filter(i => i.warranty && i.warranty >= t && i.warranty <= addDays(t, 90)).sort((a, b) => a.warranty.localeCompare(b.warranty));
   host.innerHTML = `${head('Home')}
   <div class="panels">
+    ${wty.length ? panel('Warranty ending', `<div class="lrows">${wty.map(i => `<div class="lrow"><button class="lmain" data-act="open" data-id="${i.id}"><b>${esc(i.name)}</b><span>warranty until ${esc(niceDate(i.warranty))} · ${esc(relDay(i.warranty))}${i.receipt ? ' · receipt saved' : ' · no receipt yet'}</span></button></div>`).join('')}</div><p class="lnone">Something broken? Claim it before the date.</p>`, ['home/inventory', 'Inventory']) : ''}
     ${panel('Chores due', chores.length ? `<div class="lrows">${chores.slice(0, 10).map(row).join('')}</div>` : quiet(recs('chores').length ? 'All caught up.' : 'Add your chores with how often they need doing; they come back here when they’re due.'), ['home/chores', 'All chores'])}
     ${doneToday.length ? panel('Done today', `<div class="lrows">${doneToday.map(row).join('')}</div>`) : ''}
     ${panel('Plants to water', plants.length ? `<div class="lrows">${plants.map(row).join('')}</div>` : quiet(recs('plants').length ? 'Every plant has had water.' : 'Add your plants and how often they need water.'), ['home/plants', 'All plants'])}
@@ -2820,7 +2875,7 @@ function fieldInner(kind, f, D) {
       return span + `<div class="lwrap">${optsFor(kind, f, v).map(o => `<button type="button" class="chip" data-opt="${f.k}" data-v="${esc(o)}" aria-pressed="${sel.includes(o)}">${esc(o)}</button>`).join('')}<input class="laddopt" data-addopt="${f.k}" placeholder="+ Add" aria-label="Add your own ${esc(f.label.toLowerCase())}" enterkeyhint="done"></div>`;
     }
     case 'photo': {
-      const src = D._preview || (v ? C.photoURL(v) : '');
+      const src = D._previews?.[f.k] || (v ? C.photoURL(v) : '');
       return span + `<div class="lphoto">${src ? `<img referrerpolicy="no-referrer" src="${esc(src)}" alt="">` : ''}<div class="lphb"><label class="btn small">Choose photo<input type="file" accept="image/*" class="vh" data-photo="${f.k}"></label>${src ? `<button type="button" class="btn small ghost" data-photox="${f.k}">Remove</button>` : ''}</div><input type="url" inputmode="url" data-k="${f.k}" data-photourl value="${esc(/^https?:/.test(v || '') ? v : '')}" placeholder="or paste an image link (https://…)" aria-label="Image link"><p class="lphnote">Found it online? Right-click or long-press the product photo, choose Copy image address and paste it here.</p></div>`;
     }
     case 'rel': {
@@ -2834,12 +2889,13 @@ function fieldInner(kind, f, D) {
 function openEditor(kind, id, preset = {}) {
   const K = KINDS[kind], r = id ? L.byId[id] : null;
   const D = r ? JSON.parse(JSON.stringify(dataOf(r))) : { created: Date.now(), ...preset };
+  D._blobs = {}; D._previews = {}; // one picked photo per photo field (a product photo and a receipt, say)
   if (!r) for (const f of K.fields) if (f.type === 'date' && D[f.k] === undefined && ['date', 'start'].includes(f.k)) D[f.k] = today();
   const sh = C.sheet({
     title: r ? titleOf(r) : 'New ' + K.one,
     body: `${r && WISHY[kind] ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}">${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
     foot: `${r ? '<button class="btn danger" data-del>Delete</button>' : ''}<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save</button>`,
-    onClose: () => { if (D._preview) URL.revokeObjectURL(D._preview); }
+    onClose: () => { Object.values(D._previews).forEach(u => URL.revokeObjectURL(u)); }
   });
   const fdef = k => K.fields.find(f => f.k === k);
   const redraw = k => { const el = sh.querySelector(`[data-f="${k}"]`); if (el) el.innerHTML = fieldInner(kind, fdef(k), D); };
@@ -2853,10 +2909,10 @@ function openEditor(kind, id, preset = {}) {
   };
   // a pasted image link shows straight away, so you see whether it works before saving
   const photoPreview = t => {
-    const box = t.closest('.lphoto'), v = t.value.trim();
+    const box = t.closest('.lphoto'), v = t.value.trim(), k = t.dataset.k;
     let img = box.querySelector(':scope > img');
-    if (!/^https?:\/\/\S+$/.test(v)) { if (!D._preview) img?.remove(); return; }
-    if (D._preview) { URL.revokeObjectURL(D._preview); D._preview = ''; }
+    if (!/^https?:\/\/\S+$/.test(v)) { if (!D._previews[k]) img?.remove(); return; }
+    if (D._previews[k]) { URL.revokeObjectURL(D._previews[k]); delete D._previews[k]; delete D._blobs[k]; }
     if (!img) { img = document.createElement('img'); img.referrerPolicy = 'no-referrer'; img.alt = ''; box.prepend(img); }
     img.onerror = () => { const n = box.querySelector('.lphnote'); if (n) n.textContent = 'That link doesn’t show a picture. Use the image address itself (right-click the photo, Copy image address).'; };
     img.onload = () => { const n = box.querySelector('.lphnote'); if (n) n.textContent = 'Shown from the web. Save to keep it.'; };
@@ -2865,7 +2921,7 @@ function openEditor(kind, id, preset = {}) {
   const pickRel = (k, rid) => { const f = fdef(k); D[k] = f.multi ? [...new Set([...[].concat(D[k] || []), rid])] : rid; redraw(k); if (f.multi) sh.querySelector(`[data-relq="${k}"]`)?.focus(); };
   sh.addEventListener('input', e => {
     const t = e.target;
-    if (t.dataset.k) { D[t.dataset.k] = t.dataset.num !== undefined ? num(t.value) : t.value; if (t.dataset.photourl !== undefined) { D._blob = null; photoPreview(t); } }
+    if (t.dataset.k) { D[t.dataset.k] = t.dataset.num !== undefined ? num(t.value) : t.value; if (t.dataset.photourl !== undefined) { delete D._blobs[t.dataset.k]; photoPreview(t); } }
     if (t.dataset.relq) relOpts(t.dataset.relq, t.value);
   });
   sh.addEventListener('keydown', e => {
@@ -2880,7 +2936,8 @@ function openEditor(kind, id, preset = {}) {
   sh.addEventListener('change', async e => {
     const t = e.target; if (!t.dataset.photo) return;
     const file = t.files?.[0]; if (!file) return;
-    try { D._blob = await C.photoToJpeg(file); if (D._preview) URL.revokeObjectURL(D._preview); D._preview = URL.createObjectURL(D._blob); redraw(t.dataset.photo); }
+    const k = t.dataset.photo;
+    try { D._blobs[k] = await C.photoToJpeg(file); if (D._previews[k]) URL.revokeObjectURL(D._previews[k]); D._previews[k] = URL.createObjectURL(D._blobs[k]); redraw(k); }
     catch { C.toast('That photo could not be read. Try another one.'); }
   });
   sh.addEventListener('click', async e => {
@@ -2892,7 +2949,7 @@ function openEditor(kind, id, preset = {}) {
     else if (d.relx) { const f = fdef(d.relx); D[d.relx] = f.multi ? [].concat(D[d.relx] || []).filter(x => x !== d.id) : ''; redraw(d.relx); }
     else if (d.relpick) pickRel(d.relpick, d.id);
     else if (d.relnew) { const f = fdef(d.relnew); try { const nid = await create(f.to, { name: d.v }); pickRel(d.relnew, nid); } catch {} }
-    else if (d.photox) { D[d.photox] = ''; D._blob = null; if (D._preview) URL.revokeObjectURL(D._preview); D._preview = ''; redraw(d.photox); }
+    else if (d.photox) { const k = d.photox; D[k] = ''; delete D._blobs[k]; if (D._previews[k]) URL.revokeObjectURL(D._previews[k]); delete D._previews[k]; redraw(k); }
     else if (b.hasAttribute('data-del')) {
       if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = 'Tap again to delete'; return; }
       try { await del(r.id); C.closeSheet(); C.toast('Deleted'); } catch {}
@@ -2903,9 +2960,10 @@ function openEditor(kind, id, preset = {}) {
       if (['text'].includes(first.type) && !String(D[first.k] || '').trim() && !K.title) { msg.textContent = `Give it a ${first.label.toLowerCase()} first.`; sh.querySelector(`[data-k="${first.k}"]`)?.focus(); return; }
       b.disabled = true;
       try {
-        const pf = K.fields.find(f => f.type === 'photo');
-        if (pf && D._blob) { msg.textContent = 'Uploading photo…'; const old = r?.[pf.k]; D[pf.k] = await C.uploadPhoto(D._blob); if (old && old !== D[pf.k]) C.deletePhoto(old); }
-        else if (pf && r?.[pf.k] && r[pf.k] !== D[pf.k] && !/^https?:/.test(r[pf.k])) C.deletePhoto(r[pf.k]);
+        for (const pf of K.fields.filter(f => f.type === 'photo')) {
+          if (D._blobs[pf.k]) { msg.textContent = 'Uploading photo…'; const old = r?.[pf.k]; D[pf.k] = await C.uploadPhoto(D._blobs[pf.k]); if (old && old !== D[pf.k]) C.deletePhoto(old); }
+          else if (r?.[pf.k] && r[pf.k] !== D[pf.k] && !/^https?:/.test(r[pf.k])) C.deletePhoto(r[pf.k]);
+        }
         const out = {}; for (const [k, v] of Object.entries(D)) if (!k.startsWith('_') && v !== '' && v != null && !(Array.isArray(v) && !v.length)) out[k] = v;
         if (out.name) out.name = String(out.name).trim();
         await put(kind, r ? r.id : C.uuid(), out);
@@ -3089,6 +3147,8 @@ document.addEventListener('click', async e => {
     case 'wmovewait': moveWaitList(); break;
     case 'dkeep': case 'dplan': case 'dgroc': dealsAct(d.act, d.k, Number(d.i)); break;
     case 'quitadd': quitAdd(); break;
+    case 'chfree': { const c = C.prefs().chores || {}, f = new Set(c.free || []); f.has(d.v) ? f.delete(d.v) : f.add(d.v); C.savePrefs({ chores: { ...c, free: WDAYS.filter(x => f.has(x)) } }).catch(() => C.toast('Could not save. Try again.')); break; }
+    case 'potmove': { const b = L.byId[d.v], n = b && fNext(b); if (!b) break; const to = b.account || fMainAcc()?.id; moveMoney({ from: d.id, to, amt: num(b.amount) || '', date: n ? (addDays(n, -1) < today() ? today() : addDays(n, -1)) : today() }); break; }
     case 'tripopen': case 'tripnew': case 'tripedit': case 'trippack': case 'tripck': case 'tripckdel': case 'tripcksug': case 'tripidea': case 'tripideadel': case 'tripideaday': case 'tripagdel': case 'tripbudget': case 'tripcost': case 'tripdet': tripAct(d.act, d.v); break;
     case 'mmonth': L.mealMonth = (L.mealMonth || 0) + Number(d.v); C.render(); break;
     case 'mday': mealDay(d.v); break;
@@ -3415,10 +3475,10 @@ function accHistory(id) {
     .sort((p, q) => ((q.x.date || q.x.at || '') + String(fSeq(q.x)).padStart(15, '0')).localeCompare((p.x.date || p.x.at || '') + String(fSeq(p.x)).padStart(15, '0'))).slice(0, 80);
   C.sheet({ title: a.name || 'Account', body: `<p class="lnone">${fBalance(a) == null ? 'No balance yet' : 'About ' + fSigned(fBalance(a)) + ' now'}</p><div class="lrows">${rows.map(({ x, s }) => `<div class="lrow"><button class="lmain" data-act="open" data-id="${x.id}"><b>${esc(s ? x.name || 'Line' : 'Balance check')}</b><span>${esc(niceDate(x.date || x.at))}${x.transfer ? ' · transfer' : ''}</span></button><span class="lside ${s > 0 ? 'mgood' : ''}">${s ? (s < 0 ? '−' : '+') + eur(num(x.amount)) : '= ' + eur(num(x.amount))}</span></div>`).join('') || quiet('Nothing on this account yet.')}</div>` });
 }
-function moveMoney() {
-  const accs = fAccs().filter(a => a.type !== 'Card'), opt = sel => accs.map((a, i) => `<option value="${a.id}" ${i === sel ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
+function moveMoney(pre = {}) {
+  const accs = fAccs().filter(a => a.type !== 'Card'), fi = id => Math.max(0, accs.findIndex(a => a.id === id)), opt = sel => accs.map((a, i) => `<option value="${a.id}" ${i === sel ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
   if (accs.length < 2) { C.toast('Add at least two accounts first.'); return; }
-  const sh = C.sheet({ title: 'Move money', body: `<div class="field"><label>From</label><select class="pill" data-mv="from">${opt(0)}</select></div><div class="field"><label>To</label><select class="pill" data-mv="to">${opt(1)}</select></div><div class="field"><label>Amount</label><input type="number" inputmode="decimal" step="0.01" data-mv="amt"></div><div class="field"><label>Date</label><input type="date" data-mv="date" value="${today()}"></div><p class="lnone">Moves money between your own accounts. It never counts as spending.</p>`, foot: '<div class="spacer"></div><button class="btn primary" data-mvgo>Move</button>' });
+  const sh = C.sheet({ title: 'Move money', body: `<div class="field"><label>From</label><select class="pill" data-mv="from">${opt(pre.from ? fi(pre.from) : 0)}</select></div><div class="field"><label>To</label><select class="pill" data-mv="to">${opt(pre.to ? fi(pre.to) : 1)}</select></div><div class="field"><label>Amount</label><input type="number" inputmode="decimal" step="0.01" data-mv="amt" value="${pre.amt ?? ''}"></div><div class="field"><label>Date</label><input type="date" data-mv="date" value="${pre.date || today()}"></div><p class="lnone">Moves money between your own accounts. It never counts as spending.</p>`, foot: '<div class="spacer"></div><button class="btn primary" data-mvgo>Move</button>' });
   sh.querySelector('[data-mvgo]').onclick = async () => {
     const v = k => sh.querySelector(`[data-mv="${k}"]`).value, amt = num(v('amt')), from = v('from'), to = v('to');
     if (!amt || amt <= 0 || from === to) { C.toast('Pick two different accounts and an amount.'); return; }
@@ -3811,6 +3871,12 @@ function secOwn(sec) {
   }
   if (sec === 'wish') { const old = recs('fwait').filter(WISHY.fwait).length; return wrap(`<section class="panel setpanel"><h3>Wishlists and money</h3>${recs('faccounts').length ? wishBudgetField() : '<p class="lnone">Set up Finance to give your wishlists a budget.</p>'}
     ${old ? `<div class="fset"><div><b>Wait list</b><span>${plural(old, 'item')} still on the old 48-hour wait list in Finance.</span></div><button class="btn small" data-act="wmovewait">Move wait list into Wishlists</button></div>` : ''}</section>`); }
+  if (sec === 'home') {
+    const c = C.prefs().chores || {};
+    return wrap(`<section class="panel setpanel"><h3>Cleaning</h3><p class="muted">Chores never fall on a free day; they move to the next day you clean.</p>
+      <div class="fset fsetcol"><div><b>Free days</b><span>Days without chores.</span></div><div class="lwrap">${WDAYS.map(d => `<button class="chip" data-act="chfree" data-v="${d}" aria-pressed="${(c.free || []).includes(d)}">${d}</button>`).join('')}</div></div>
+      <label class="settog"><input type="checkbox" data-chtrips ${c.trips === false ? '' : 'checked'}> No chores while I'm on a trip</label></section>`);
+  }
   if (sec === 'care') {
     const goal = Number(C.prefs().waterGoal) || 8, wk = recs('bsched')[0];
     return wrap(`<section class="panel setpanel"><h3>Life</h3>
@@ -3839,6 +3905,7 @@ document.addEventListener('change', async e => {
   const { kind, wplan: id } = t.dataset; await planWish(kind, id, t.value);
   if (kind !== 'closet' && t.closest('.sheet')) { C.closeSheet(); openRecord(id); }
 });
+document.addEventListener('change', e => { const t = e.target; if (!C || !t.matches?.('[data-chtrips]')) return; C.savePrefs({ chores: { ...(C.prefs().chores || {}), trips: t.checked } }).catch(() => C.toast('Could not save. Try again.')); });
 document.addEventListener('change', e => { const t = e.target; if (!C || !t.matches?.('[data-food]')) return; C.savePrefs({ food: { ...(C.prefs().food || {}), [t.dataset.food]: t.value.trim() } }).then(() => C.toast('Saved')).catch(() => C.toast('Could not save. Try again.')); });
 document.addEventListener('change', e => { if (e.target.matches?.('[data-watergoal]')) { const n = Math.round(Number(e.target.value)); if (n > 0 && n < 40) C.savePrefs({ waterGoal: n }).catch(() => C.toast('Could not save. Try again.')); } });
 

@@ -634,3 +634,10 @@ html.cooking, html.cooking body { overflow: hidden; }
 .tbar i { display: block; height: 100%; background: var(--accent); border-radius: 8px; }
 .tripdays { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 14px; }
 .tripag input[type="time"] { flex: 0 0 104px; min-width: 0; }
+/* pots */
+.mpot { display: grid; gap: 6px; padding: 12px 0; border-top: 1px solid var(--line); }
+.mpot:first-of-type { border-top: 0; padding-top: 0; }
+.mpoth { display: flex; justify-content: space-between; gap: 10px; }
+.mpoth span { font-variant-numeric: tabular-nums; }
+.mpot .btn { justify-self: start; }
+.mlookline { margin: 0 0 8px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
