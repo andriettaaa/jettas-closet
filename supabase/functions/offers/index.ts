@@ -59,7 +59,7 @@ async function keepPhoto(uid: string, url: string) {
 }
 
 // a quick look at a shared page: picture, title, site, and what JSON-LD says it is (a recipe, a product)
-type Peek = { photo?: string; title?: string; desc?: string; site?: string; social?: boolean; recipe?: any; product?: any; type?: string; crumbs?: string };
+type Peek = { photo?: string; title?: string; desc?: string; site?: string; social?: boolean; recipe?: any; product?: any; lodging?: any; type?: string; crumbs?: string };
 async function peek(url: string): Promise<Peek> {
   const get = async (u: string, ms = 7000) => { const c = new AbortController(), t = setTimeout(() => c.abort(), ms); try { return await fetch(u, { signal: c.signal, redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1', 'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.8' } }); } finally { clearTimeout(t); } };
   const unent = (x: string) => x.replace(/&amp;/g, '&').replace(/&#39;|&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&nbsp;/g, ' ').trim();
@@ -77,6 +77,7 @@ async function peek(url: string): Promise<Peek> {
     for (const m of html.matchAll(/<script[^>]*application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)) { try { walk(JSON.parse(m[1].trim())); } catch { /* broken JSON-LD */ } }
     const isT = (n: any, t: string) => [].concat(n['@type'] || []).some((x: string) => String(x).toLowerCase() === t);
     const recipe = nodes.find(n => isT(n, 'recipe')), product = nodes.find(n => isT(n, 'product') || isT(n, 'productgroup'));
+    const lodging = nodes.find(n => ['hotel', 'lodgingbusiness', 'vacationrental', 'accommodation', 'apartment', 'house', 'resort', 'hostel', 'bedandbreakfast', 'motel', 'campground'].some(t => isT(n, t)));
     const crumbs = nodes.filter(n => isT(n, 'breadcrumblist')).flatMap(n => [].concat(n.itemListElement || []).map((x: any) => x?.name || x?.item?.name || '')).join(' / ');
     const img = (v: any): string => !v ? '' : typeof v === 'string' ? v : Array.isArray(v) ? img(v[0]) : v.url || v.contentUrl || '';
     const tik = (k: string) => { const m = html.match(new RegExp(`"?${k}"?:?"(https:[^"]+)"`)); try { return m ? JSON.parse(`"${m[1]}"`) : ''; } catch { return ''; } };
@@ -85,7 +86,8 @@ async function peek(url: string): Promise<Peek> {
     if (photo && photo.startsWith('//')) photo = 'https:' + photo;
     if (photo && !/^https?:/.test(photo)) photo = new URL(photo, r.url).href;
     const title = meta('og:title') || unent(html.match(/<title[^>]*>([^<]{1,200})<\/title>/i)?.[1] || '');
-    return { photo, title, desc: meta('og:description') || meta('description'), site: meta('og:site_name') || host, social, recipe, product, type: meta('og:type'), crumbs };
+    if (!photo && lodging) photo = img(lodging.image) || img(lodging.photo);
+    return { photo, title, desc: meta('og:description') || meta('description'), site: meta('og:site_name') || host, social, recipe, product, lodging, type: meta('og:type'), crumbs };
   } catch { return {}; }
 }
 // instant sorting with plain rules: what the page says it is, the shop it comes from, and words in the name
@@ -109,6 +111,32 @@ const RECIPEWORDS = /recept|recipe|ingredi|ingrédient|tbsp|tsp|eetlepel|theelep
 const isoMin = (v: any) => { const m = String(v || '').match(/P(?:\d+D)?T?(?:(\d+)H)?(?:(\d+)M)?/i); return m && (m[1] || m[2]) ? (Number(m[1] || 0) * 60 + Number(m[2] || 0)) : undefined; };
 const textOf = (v: any): string => !v ? '' : typeof v === 'string' ? v : Array.isArray(v) ? v.map(textOf).filter(Boolean).join('\n') : v.text || v.name || (v.itemListElement ? textOf(v.itemListElement) : '');
 const CATS: Record<string, string[]> = { Outerwear: ['jas', 'coat', 'jack', 'blazer', 'parka', 'trench'], Knitwear: ['trui', 'sweater', 'cardigan', 'knit', 'gebreid'], Dresses: ['jurk', 'dress', 'jumpsuit'], Bottoms: ['broek', 'jeans', 'pants', 'trouser', 'rok', 'skirt', 'short', 'legging'], Shoes: ['schoen', 'shoe', 'sneaker', 'laars', 'boot', 'sandaal', 'sandal', 'pump', 'loafer', 'ballerina', 'heel'], Bags: ['tas', 'bag', 'clutch', 'shopper'], Accessories: ['riem', 'belt', 'sjaal', 'scarf', 'muts', 'hat', 'pet', 'ketting', 'oorbel', 'armband', 'ring', 'horloge', 'watch', 'zonnebril', 'sunglasses', 'sieraad', 'jewel'], 'Swim & lounge': ['bikini', 'badpak', 'swim', 'pyjama', 'lounge'], Tops: ['shirt', 'top', 'blouse', 'hoodie', 'tee', 'polo'] };
+// hotels and holiday rentals: which site, and where it is (city and country), for Life › Trips › Saved stays
+const STAYS = /(^|\.)(booking\.com|airbnb\.[a-z.]+|hotels\.com|expedia\.[a-z.]+|agoda\.com|vrbo\.com|hostelworld\.com|tripadvisor\.[a-z.]+|trivago\.[a-z.]+|marriott\.com|hilton\.com|accor\.com|all\.accor\.com|ihg\.com|hyatt\.com|nh-hotels\.[a-z]+|citizenm\.com|kayak\.[a-z.]+)$/;
+const regionName = (v: string) => { try { return /^[A-Z]{2}$/.test(v) ? new Intl.DisplayNames(['en'], { type: 'region' }).of(v) || v : v; } catch { return v; } };
+async function placeOf(url: string, p: Peek, host: string) {
+  const a = p.lodging?.address, addr = typeof a === 'string' ? { streetAddress: a } : a || {};
+  let city = String(addr.addressLocality || '').trim(), country = String(typeof addr.addressCountry === 'object' ? addr.addressCountry?.name || '' : addr.addressCountry || '').trim();
+  const title = String(p.title || '').replace(/\s+[–|-]\s+(Updated|Prijzen|Bijgewerkte|Book|Boek).*$/i, '').replace(/^[★☆\s]+/, '').trim();
+  let name = String(p.lodging?.name || '').trim();
+  if (/airbnb\./.test(host)) {
+    // "Rental unit in Lisbon · ★4.88 · 1 bedroom" (the real name is in the description)
+    city ||= (title.match(/\b(?:in|te)\s+([^·|]+?)\s*(?:[·|]|$)/i)?.[1] || '').trim();
+    name ||= String(p.desc || '').split(/[.·\n]/)[0].trim().slice(0, 80) || title.split('·')[0].trim();
+  } else {
+    // "Hotel Name, Lisbon, Portugal" as Booking and most hotel sites write it
+    const parts = title.split(/\s*,\s*/);
+    name ||= parts[0];
+    if (!city && parts.length >= 2) city = parts[parts.length >= 3 ? parts.length - 2 : 1];
+    if (!country && parts.length >= 3) country = parts[parts.length - 1];
+  }
+  country = regionName(country);
+  if (city && !country) {
+    try { const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`); const g = (await r.json()).results?.[0]; if (g) country = g.country || regionName(g.country_code || ''); } catch { /* no country then */ }
+  }
+  const kind = /airbnb|vrbo/.test(host) ? 'Airbnb' : /hostel/i.test(`${host} ${title}`) ? 'Hostel' : /apartment|appartement|rental unit|loft|studio/i.test(title) ? 'Apartment' : /b&b|bed and breakfast/i.test(title) ? 'B&B' : /resort/i.test(title) ? 'Resort' : 'Hotel';
+  return { name: name || title || host, city, country, type: kind };
+}
 function quickSort(url: string, p: Peek, text: string, note: string): { target: string; draft: Record<string, unknown>; why: string } {
   const host = (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } })();
   const hay = `${url} ${p.title || ''} ${p.crumbs || ''} ${p.product?.name || ''} ${p.product?.category || ''} ${note} ${text}`.toLowerCase();
@@ -417,7 +445,7 @@ Deno.serve(async req => {
       return json({ recipes, pantry, recent, food: pr?.data?.food || {}, learned });
     }
 
-    const TARGETS = ['recipes', 'wishes', 'closet', 'beauty', 'supplements', 'gear', 'fitgear', 'inventory', 'ideas', 'cideas', 'gifts', 'keep'];
+    const TARGETS = ['recipes', 'wishes', 'closet', 'beauty', 'supplements', 'gear', 'fitgear', 'inventory', 'ideas', 'cideas', 'gifts', 'keep', 'stays', 'trip'];
     const cleanDraft = (d: any) => { const o: Record<string, unknown> = {}; if (d && typeof d === 'object') for (const [k, v] of Object.entries(d).slice(0, 40)) { if (!/^[a-zA-Z]{1,24}$/.test(k)) continue; o[k] = typeof v === 'string' ? v.slice(0, 12000) : Array.isArray(v) ? v.slice(0, 60).map(x => typeof x === 'string' ? x.slice(0, 200) : x) : typeof v === 'number' || typeof v === 'boolean' ? v : undefined; } return clean(o); };
     if (body.action === 'share') {
       const text = str(body.text, 4000), url = str(body.url, 1000) || (text.match(/https?:\/\/\S+/) || [''])[0].replace(/[),.]+$/, '');
@@ -427,8 +455,15 @@ Deno.serve(async req => {
       let seen: Peek = {};
       if (url && !target) {
         seen = await peek(url);
-        const q = quickSort(url, seen, text, str(body.note, 1000));
-        target = q.target; draft = cleanDraft(q.draft); why = q.why; quick = true;
+        const host = (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } })();
+        if (STAYS.test(host) || seen.lodging) {
+          const pl = await placeOf(url, seen, host);
+          target = 'stays'; draft = cleanDraft({ ...pl, photo: seen.photo, site: String(seen.site || host), notes: str(body.note, 1000) });
+          why = `Een verblijf${pl.city ? ' in ' + pl.city : ''}${pl.country ? ', ' + pl.country : ''}.`; quick = true;
+        } else {
+          const q = quickSort(url, seen, text, str(body.note, 1000));
+          target = q.target; draft = cleanDraft(q.draft); why = q.why; quick = true;
+        }
       }
       if (draft.photo) draft.photo = await keepPhoto(uid, String(draft.photo));
       else if (body.photo) seen.photo = await keepPhoto(uid, str(body.photo, 500));
@@ -438,7 +473,7 @@ Deno.serve(async req => {
       if (data.extId) { const { data: same } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'inbox').filter('data->>extId', 'eq', data.extId); if (same?.[0]) { if (['Done', 'Skipped'].includes(same[0].data.status)) return json({ ok: true, id: same[0].id, already: true }); id = same[0].id; } }
       const { error } = await sb.from('records').upsert({ user_id: uid, id, kind: 'inbox', data, updated_at: new Date().toISOString() });
       if (error) throw error;
-      const label: Record<string, string> = { recipes: 'recept', closet: 'kast-wishlist', beauty: 'beauty', supplements: 'supplementen', gear: 'keukenspullen', fitgear: 'fitness', inventory: 'wonen', wishes: 'wishlist', ideas: 'idee', cideas: 'contentidee', gifts: 'cadeau', keep: 'bewaarde link' };
+      const label: Record<string, string> = { stays: 'verblijf', recipes: 'recept', closet: 'kast-wishlist', beauty: 'beauty', supplements: 'supplementen', gear: 'keukenspullen', fitgear: 'fitness', inventory: 'wonen', wishes: 'wishlist', ideas: 'idee', cideas: 'contentidee', gifts: 'cadeau', keep: 'bewaarde link' };
       return json({ ok: true, id, target, message: target ? `In je inbox, als ${label[target] || target}` : 'In je inbox' });
     }
     if (body.action === 'inbox') {
