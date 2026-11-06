@@ -1099,7 +1099,7 @@ const photoOf = r => hasPhotos(KINDS[r.kind]) ? r.photo : '';
 const PRODUCTS = new Set(['offers', 'gear', 'beauty', 'supplements', 'inventory', 'fitgear', 'wishes', 'ingredients', 'fwait']);
 const viewMode = K => { try { const v = localStorage.getItem('lview2:' + K.kind); if (v === 'rows' || v === 'cards') return v; } catch {} return 'cards'; };  // every list opens as tiles; the switch remembers a list per kind
 const setViewMode = (K, v) => { try { localStorage.setItem('lview2:' + K.kind, v); } catch {} };
-const viewSwitch = K => `<div class="seg lviews" role="group" aria-label="Show as">${[['rows', 'List', P.list], ['cards', 'Cards', P.grid]].map(([v, l, ic]) => `<button data-act="lview" data-v="${v}" aria-pressed="${viewMode(K) === v}" aria-label="${l}" title="${l}">${svg(ic)}</button>`).join('')}</div>`;
+const viewSwitch = K => `<div class="seg lviews" role="group" aria-label="Show as">${[['cards', 'Tiles', P.grid], ['rows', 'List', P.list]].map(([v, l, ic]) => `<button data-act="lview" data-v="${v}" aria-pressed="${viewMode(K) === v}" aria-label="${l}" title="${l}">${svg(ic)}</button>`).join('')}</div>`;
 const tick = (label, on, attrs) => `<button class="lquick ${on ? 'on' : ''}" ${attrs} aria-pressed="${on}">${on ? svg(P.check) : ''}${esc(label)}</button>`;
 function row(r) {
   const K = KINDS[r.kind], q = K.quick?.(r), side = K.side?.(r);
