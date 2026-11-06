@@ -46,9 +46,12 @@ button.lrow.lmain, .lrow > .lmain:only-child { padding-left: 12px; }
 .lph3 h3 { margin: 0; }
 .lnone { color: var(--muted); font-size: 13.5px; margin: 0; }
 .lbig { font-family: var(--display); font-weight: 700; font-size: 22px; margin: 0; letter-spacing: -0.01em; }
-.lwrap { display: flex; flex-wrap: wrap; gap: 6px; }
+.lwrap { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.lwrap > * { max-width: 100%; min-width: 0; }
+.lwrap .chip, .lwrap .lquick { white-space: normal; text-align: left; overflow-wrap: anywhere; flex: 0 1 auto; }
 .lslots { display: grid; gap: 8px; }
-.lslot { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.lslot { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+.lslot > .chip, .lslot > .lquick { max-width: 100%; min-width: 0; white-space: normal; text-align: left; overflow-wrap: anywhere; }
 .lslot .rowlbl { width: 74px; }
 .lpanel .lslot .rowlbl { width: 56px; }
 .lbar { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -570,3 +573,14 @@ header.top .brand { flex: none; white-space: nowrap; }
 .ibmini .chip { justify-self: start; padding: 3px 9px; font-size: 12px; }
 .ibmeta .ibxto { width: 100%; max-width: 100%; box-sizing: border-box; padding: 6px 10px; text-overflow: ellipsis; }
 .ibxall { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+/* a big tap target for "What shall I eat?" */
+.bigact { display: flex; width: 100%; max-width: 100%; white-space: normal; align-items: center; gap: 14px; padding: 16px 18px; border-radius: 16px; text-align: left; margin: 0 0 16px; }
+.bigact svg { width: 28px; height: 28px; flex: none; }
+.bigact span { display: grid; gap: 2px; min-width: 0; white-space: normal; }
+.bigact b { font-size: 17px; }
+.bigact small { font-size: 13px; font-weight: 500; opacity: .85; }
+/* overviews on a wide screen (iPad landscape, Mac): blocks stack in two columns without empty gaps under short ones */
+@media (min-width: 861px) {
+  .panels:has(> .lpanel):not(:has(> .wide)) { display: block; columns: 2; column-gap: 16px; }
+  .panels:has(> .lpanel):not(:has(> .wide)) > * { break-inside: avoid; margin: 0 0 16px; width: 100%; }
+}
