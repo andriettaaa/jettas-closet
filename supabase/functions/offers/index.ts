@@ -155,8 +155,8 @@ async function send(uid: string, msg: { title: string; body: string; url?: strin
 }
 
 /* ---------- Instagram ----------
-   Your professional Instagram account through the Instagram API with Instagram Login. The first token comes from the
-   secret IG_TOKEN; the function renews it every few weeks and keeps the newest in a private record (kind igauth).
+   Your professional Instagram account, with a token from Instagram login (IGAA…) or Facebook login (EAA…; then the
+   optional secrets IG_APP_ID and IG_APP_SECRET let it renew). The first token comes from the secret IG_TOKEN; the function renews it every few weeks and keeps the newest in a private record (kind igauth).
    Posts become posts in Social (stage Posted, with likes and comments); their pictures are copied into your storage. */
 const IG = 'https://graph.instagram.com';
 async function igSync(uid: string) {
@@ -166,25 +166,39 @@ async function igSync(uid: string) {
   const fresh = !auth?.data?.src || auth.data.src !== envTok.slice(-12);
   let tok = (fresh ? envTok : auth.data.token) || envTok, at = fresh ? 0 : auth.data.at || 0;
   if (!tok) return { error: 'IG_TOKEN is not set in Supabase yet' };
-  if (/^EAA/.test(tok)) return { error: 'IG_TOKEN is a Facebook token; use the Instagram one (it starts with IG)' };
   // what the token looks like, without showing it: helps tell an app secret or app ID from a real token
   const shape = `${fresh ? 'from IG_TOKEN' : 'saved earlier'}, ${tok.length} characters, starts with ${tok.slice(0, 4)}`;
   if (/^\d+$/.test(tok)) return { error: `IG_TOKEN holds a number (${shape}): that is the app ID, not the access token` };
   if (/^[0-9a-f]{32}$/i.test(tok)) return { error: `IG_TOKEN looks like the app secret (${shape}), not the access token` };
   const get = async (u: string) => { const r = await fetch(u); const j = await r.json(); if (!r.ok || j.error) throw new Error(j.error?.message || 'Instagram said no (' + r.status + ')'); return j; };
-  // a long-lived token lasts 60 days; renew it once it is older than 3 weeks, and keep only one that worked
+  const keep = async (t: string) => { await sb.from('records').upsert({ user_id: uid, id: auth?.id || crypto.randomUUID(), kind: 'igauth', data: { token: t, at: Date.now(), src: envTok.slice(-12) }, updated_at: new Date().toISOString() }); };
+  // two kinds of token: Instagram login (IGAA…) talks to graph.instagram.com about "me"; Facebook login (EAA…)
+  // talks to graph.facebook.com and finds your Instagram account through the Facebook page it is linked to
+  const fb = /^EAA/.test(tok), FBG = 'https://graph.facebook.com/v21.0';
+  // a long-lived token lasts about 60 days; renew it once it is older than 3 weeks, and keep only one that worked
   if (!at || Date.now() - at > 21 * 864e5) {
     try {
-      const j = await get(`${IG}/refresh_access_token?grant_type=ig_refresh_token&access_token=${encodeURIComponent(tok)}`);
-      tok = j.access_token;
-      await sb.from('records').upsert({ user_id: uid, id: auth?.id || crypto.randomUUID(), kind: 'igauth', data: { token: tok, at: Date.now(), src: envTok.slice(-12) }, updated_at: new Date().toISOString() });
+      if (fb) {
+        const id = Deno.env.get('IG_APP_ID'), sec = Deno.env.get('IG_APP_SECRET');
+        if (id && sec) { const j = await get(`${FBG}/oauth/access_token?grant_type=fb_exchange_token&client_id=${id}&client_secret=${sec}&fb_exchange_token=${encodeURIComponent(tok)}`); tok = j.access_token; await keep(tok); }
+      } else { const j = await get(`${IG}/refresh_access_token?grant_type=ig_refresh_token&access_token=${encodeURIComponent(tok)}`); tok = j.access_token; await keep(tok); }
     } catch (e) { console.error('refresh', e); }
   }
-  let me: any;
-  try { me = await get(`${IG}/v21.0/me?fields=user_id,username,name,profile_picture_url,followers_count,follows_count,media_count,biography&access_token=${encodeURIComponent(tok)}`); }
-  catch (e: any) { return { error: `${e.message} (${shape})` }; }
+  const PF = 'username,name,profile_picture_url,followers_count,follows_count,media_count,biography', MF = 'id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count';
+  let me: any, next = '';
+  try {
+    if (fb) {
+      const pages = await get(`${FBG}/me/accounts?fields=name,instagram_business_account{id}&limit=50&access_token=${encodeURIComponent(tok)}`);
+      const ig = (pages.data || []).map((p: any) => p.instagram_business_account?.id).find(Boolean);
+      if (!ig) return { error: `No Instagram account found through Facebook (${shape}). Link your Instagram to a Facebook page, or use the Instagram login token` };
+      me = await get(`${FBG}/${ig}?fields=${PF}&access_token=${encodeURIComponent(tok)}`);
+      next = `${FBG}/${ig}/media?fields=${MF}&limit=50&access_token=${encodeURIComponent(tok)}`;
+    } else {
+      me = await get(`${IG}/v21.0/me?fields=user_id,${PF}&access_token=${encodeURIComponent(tok)}`);
+      next = `${IG}/v21.0/me/media?fields=${MF}&limit=50&access_token=${encodeURIComponent(tok)}`;
+    }
+  } catch (e: any) { return { error: `${e.message} (${shape})` }; }
   const media: any[] = [];
-  let next = `${IG}/v21.0/me/media?fields=id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&limit=50&access_token=${encodeURIComponent(tok)}`;
   for (let i = 0; next && i < 6; i++) { const j = await get(next); media.push(...(j.data || [])); next = j.paging?.next || ''; }
   const { data: have, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['posts', 'accounts']);
   if (error) throw error;
