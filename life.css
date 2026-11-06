@@ -643,3 +643,6 @@ html.cooking, html.cooking body { overflow: hidden; }
 .mlookline { margin: 0 0 8px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
 .igtile { position: relative; }
 .iglk { position: absolute; left: 4px; bottom: 4px; z-index: 2; background: rgba(0,0,0,.55); color: #fff; font-size: 11px; font-weight: 600; border-radius: 6px; padding: 1px 5px; pointer-events: none; }
+.lpick { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+.lpick select { flex: 1 1 200px; min-width: 0; max-width: 100%; }
+.lpick .laddopt { flex: 1 1 120px; }

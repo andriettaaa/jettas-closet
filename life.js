@@ -2894,6 +2894,11 @@ function optionLists() {
     return { group: sec.label, key: sec.key, items };
   }).filter(g => g.items.length);
 }
+// choices are buttons up to this many, a dropdown above it
+const CHIP_MAX = 12;
+// lists with a natural order keep it; everything else is A to Z (your own order from Settings always wins)
+const ORDERED = new Set(['priority', 'prio', 'stage', 'status', 'cadence', 'freq', 'level', 'slot', 'funnel', 'effort', 'size', 'season', 'seasons', 'time', 'intake', 'when', 'day', 'days', 'nights', 'reheat', 'again', 'portion', 'mood', 'energy', 'quality']);
+const sortOpts = (kind, f, opts) => optCfg(kind, f.k).list || ORDERED.has(f.k) ? opts : [...opts].sort((a, b) => norm(a).localeCompare(norm(b)));
 function fieldInner(kind, f, D) {
   const v = D[f.k], id = 'lf-' + f.k;
   const lab = `<label for="${id}">${esc(f.label)}${f.unit ? ` <span class="muted">(${esc(f.unit)})</span>` : ''}</label>`;
@@ -2907,17 +2912,25 @@ function fieldInner(kind, f, D) {
     case 'check': return `<button type="button" class="chip lcheck" data-chk="${f.k}" aria-pressed="${!!v}">${v ? svg(P.check) : ''}${esc(f.label)}</button>`;
     case 'rating': return span + `<div class="lrating">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-rate="${f.k}" data-v="${n}" aria-label="${n} of 5" aria-pressed="${(v || 0) >= n}">${svg(P.star)}</button>`).join('')}</div>`;
     case 'select': case 'multi': {
-      const sel = [].concat(v || []);
-      return span + `<div class="lwrap">${optsFor(kind, f, v).map(o => `<button type="button" class="chip" data-opt="${f.k}" data-v="${esc(o)}" aria-pressed="${sel.includes(o)}">${esc(o)}</button>`).join('')}<input class="laddopt" data-addopt="${f.k}" placeholder="+ Add" aria-label="Add your own ${esc(f.label.toLowerCase())}" enterkeyhint="done"></div>`;
+      const sel = [].concat(v || []), opts = sortOpts(kind, f, optsFor(kind, f, v));
+      const add = `<input class="laddopt" data-addopt="${f.k}" placeholder="+ Add" aria-label="Add your own ${esc(f.label.toLowerCase())}" enterkeyhint="done">`;
+      // many options: a dropdown, with what you picked shown as chips you can tap away
+      if (opts.length > CHIP_MAX) return span + `<div class="lwrap">${f.type === 'multi' ? sel.map(o => `<button type="button" class="chip on" data-opt="${f.k}" data-v="${esc(o)}" aria-pressed="true">${esc(o)} ×</button>`).join('') : ''}</div>
+        <div class="lpick"><select class="pill" data-optsel="${f.k}" aria-label="${esc(f.label)}"><option value="">${f.type === 'multi' ? 'Add…' : 'Choose…'}</option>${opts.map(o => `<option value="${esc(o)}" ${f.type !== 'multi' && sel.includes(o) ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>${add}</div>`;
+      return span + `<div class="lwrap">${opts.map(o => `<button type="button" class="chip" data-opt="${f.k}" data-v="${esc(o)}" aria-pressed="${sel.includes(o)}">${esc(o)}</button>`).join('')}${add}</div>`;
     }
     case 'photo': {
       const src = D._previews?.[f.k] || (v ? C.photoURL(v) : '');
       return span + `<div class="lphoto">${src ? `<img referrerpolicy="no-referrer" src="${esc(src)}" alt="">` : ''}<div class="lphb"><label class="btn small">Choose photo<input type="file" accept="image/*" class="vh" data-photo="${f.k}"></label>${src ? `<button type="button" class="btn small ghost" data-photox="${f.k}">Remove</button>` : ''}</div><input type="url" inputmode="url" data-k="${f.k}" data-photourl value="${esc(/^https?:/.test(v || '') ? v : '')}" placeholder="or paste an image link (https://…)" aria-label="Image link"><p class="lphnote">Found it online? Right-click or long-press the product photo, choose Copy image address and paste it here.</p></div>`;
     }
     case 'rel': {
-      const ids = [].concat(v || []).filter(x => L.byId[x]);
+      // tap one of your own records; a dropdown when there are many; the search still adds a new one
+      const ids = [].concat(v || []).filter(x => L.byId[x]), T = KINDS[f.to];
+      const all = recs(f.to).filter(x => ids.includes(x.id) || !(T.hide?.(x))).sort((a, b) => norm(titleOf(a)).localeCompare(norm(titleOf(b))));
+      const find = `<input type="search" data-relq="${f.k}" placeholder="Find or add ${esc(T.one)}" aria-label="Find or add ${esc(T.one)}" autocomplete="off"><div class="lwrap" data-relopts="${f.k}"></div>`;
+      if (all.length && all.length <= CHIP_MAX) return span + `<div class="lwrap">${all.map(x => { const on = ids.includes(x.id); return `<button type="button" class="chip ${on ? 'on' : ''}" ${on ? `data-relx="${f.k}"` : `data-relpick="${f.k}"`} data-id="${x.id}" aria-pressed="${on}">${esc(titleOf(x))}</button>`; }).join('')}</div>${find}`;
       return span + `<div class="lwrap">${ids.map(x => `<button type="button" class="chip on" data-relx="${f.k}" data-id="${x}" aria-label="Remove ${esc(relName(x))}">${esc(relName(x))} ×</button>`).join('')}</div>
-        <input type="search" data-relq="${f.k}" placeholder="${ids.length && !f.multi ? 'Change' : 'Find or add'} ${esc(KINDS[f.to].one)}" aria-label="Find ${esc(KINDS[f.to].one)}" autocomplete="off"><div class="lwrap" data-relopts="${f.k}"></div>`;
+        ${all.length ? `<div class="lpick"><select class="pill" data-relsel="${f.k}" aria-label="${esc(f.label)}"><option value="">${f.multi ? 'Add…' : ids.length ? 'Change…' : 'Choose…'}</option>${all.filter(x => !ids.includes(x.id)).map(x => `<option value="${x.id}">${esc(titleOf(x))}</option>`).join('')}</select></div>` : ''}${find}`;
     }
     default: return lab + `<input id="${id}" type="text" data-k="${f.k}" value="${esc(v || '')}">`;
   }
@@ -2954,7 +2967,7 @@ function openEditor(kind, id, preset = {}) {
     img.onload = () => { const n = box.querySelector('.lphnote'); if (n) n.textContent = 'Shown from the web. Save to keep it.'; };
     img.src = v;
   };
-  const pickRel = (k, rid) => { const f = fdef(k); D[k] = f.multi ? [...new Set([...[].concat(D[k] || []), rid])] : rid; redraw(k); if (f.multi) sh.querySelector(`[data-relq="${k}"]`)?.focus(); };
+  const pickRel = (k, rid) => { const f = fdef(k); D[k] = f.multi ? [...new Set([...[].concat(D[k] || []), rid])] : rid; redraw(k); };
   sh.addEventListener('input', e => {
     const t = e.target;
     if (t.dataset.k) { D[t.dataset.k] = t.dataset.num !== undefined ? num(t.value) : t.value; if (t.dataset.photourl !== undefined) { delete D._blobs[t.dataset.k]; photoPreview(t); } }
@@ -2969,6 +2982,11 @@ function openEditor(kind, id, preset = {}) {
     } else if (t.dataset.relq) { e.preventDefault(); sh.querySelector(`[data-relopts="${t.dataset.relq}"] button`)?.click(); }
   });
   sh.addEventListener('focusout', e => { const t = e.target; if (t.dataset?.addopt && t.value.trim()) { const k = t.dataset.addopt, f = fdef(k), v = t.value.trim(); D[k] = f.type === 'multi' ? [...new Set([...[].concat(D[k] || []), v])] : v; setTimeout(() => redraw(k), 0); } });
+  sh.addEventListener('change', e => {
+    const t = e.target;
+    if (t.dataset.relsel && t.value) pickRel(t.dataset.relsel, t.value);
+    if (t.dataset.optsel !== undefined) { const k = t.dataset.optsel, f = fdef(k); if (f.type === 'multi') { if (t.value) D[k] = [...new Set([...[].concat(D[k] || []), t.value])]; } else D[k] = t.value; redraw(k); }
+  });
   sh.addEventListener('change', async e => {
     const t = e.target; if (!t.dataset.photo) return;
     const file = t.files?.[0]; if (!file) return;
