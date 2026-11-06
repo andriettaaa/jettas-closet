@@ -2382,7 +2382,7 @@ function feedList() {
 async function igSync(quiet) {
   if (L.igBusy) return; L.igBusy = true; if (!quiet) C.toast('Syncing Instagram…');
   try { const j = await C.callFn('offers', { action: 'igsync' }); await load(); C.toast(`Instagram synced: ${plural(j.posts, 'post')}${j.added ? `, ${j.added} new` : ''}`); }
-  catch (e) { if (!quiet) C.toast(/IG_TOKEN/.test(e.message) ? 'Add IG_TOKEN in Supabase first.' : 'Instagram sync did not work: ' + e.message); }
+  catch (e) { if (!quiet) C.toast(/not set/.test(e.message) ? 'Add IG_TOKEN in Supabase first.' : 'Instagram sync did not work: ' + e.message); }
   finally { L.igBusy = false; }
 }
 function socialFeed(host) {
