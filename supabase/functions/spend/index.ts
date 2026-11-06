@@ -1,5 +1,6 @@
 // Apple Pay → A’s Life. An iPhone Shortcuts automation ("When I tap a Wallet card") posts each payment here:
-// { "token": "...", "amount": "€ 12,50", "merchant": "Albert Heijn", "card": "ING" }.
+// { "token": "...", "amount": "€ 12,50", "merchant": "Albert Heijn", "card": "ING", "account": "Creditcard" }.
+// "account" is optional: the name of the account in the app; give each Wallet card its own automation with it.
 // It saves the purchase in Money › Spending with the category (and account) you gave that shop last time,
 // then sends a notification with what is left in that category, and warns at 80% and 100% of a budget.
 // Secrets: SPEND_TOKEN, SPEND_USER_ID, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY. Turn off "Verify JWT" for this function.
@@ -46,7 +47,7 @@ Deno.serve(async req => {
     const token = body.token || req.headers.get('x-spend-token');
     if (!token || token !== Deno.env.get('SPEND_TOKEN')) return json({ error: 'forbidden' }, 403);
     const uid = Deno.env.get('SPEND_USER_ID')!;
-    const amount = parseAmount(body.amount), merchant = String(body.merchant || body.name || 'Apple Pay').trim().slice(0, 120), card = String(body.card || '').trim().slice(0, 80);
+    const amount = parseAmount(body.amount), merchant = String(body.merchant || body.name || 'Apple Pay').trim().slice(0, 120), card = String(body.card || '').trim().slice(0, 80), wantAcc = String(body.account || '').trim().slice(0, 80);
     if (!amount) return json({ error: 'no amount' }, 400);
 
     const { data: p } = await sb.from('prefs').select('data').eq('user_id', uid).maybeSingle();
@@ -61,7 +62,12 @@ Deno.serve(async req => {
     const rule = recs.filter(r => r.kind === 'frules' && r.contains).find(r => norm(merchant).includes(norm(r.contains)));
     const same = tx.filter(x => norm(x.name) === norm(merchant) || (rule?.rename && norm(x.name) === norm(rule.rename)));
     const category = rule?.category || same.find(x => x.category)?.category || '';
-    const account = same.find(x => x.account)?.account || (card && tx.find(x => x.card && norm(x.card) === norm(card) && x.account)?.account) || '';
+    // which account paid: the account the shortcut names, then the account that lists this Wallet card,
+    // then the account this card paid from before, and only then the account used at this shop last time
+    const accs = recs.filter(r => r.kind === 'faccounts' && !r.archived);
+    const byName = wantAcc ? (accs.find(a => norm(a.name) === norm(wantAcc)) || accs.find(a => norm(a.name).includes(norm(wantAcc)) || norm(wantAcc).includes(norm(a.name)))) : null;
+    const byCard = card ? accs.find(a => String(a.cards || '').split(/[,;\n]+/).map(norm).filter(Boolean).some(c => c === norm(card) || norm(card).includes(c))) : null;
+    const account = byName?.id || byCard?.id || (card && tx.find(x => x.card && norm(x.card) === norm(card) && x.account)?.account) || same.find(x => x.account)?.account || '';
     const id = crypto.randomUUID();
     const data = { name: rule?.rename || merchant, amount, date: day, category, account, card, source: 'Apple Pay', created: Date.now() };
     const { error: e2 } = await sb.from('records').insert({ user_id: uid, id, kind: 'ftx', data });

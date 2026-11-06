@@ -519,7 +519,7 @@ const KINDS = {
   faccounts: {
     one: 'account', many: 'Accounts', facet: 'type',
     fields: [F('name', 'Name'), F('type', 'Type', 'select', { options: ['Spending', 'Savings', 'Pot', 'Card'], half: 1 }),
-      F('safe', 'Counts toward safe to spend', 'check', { half: 1 }), F('potGoal', 'Pot goal (optional)', 'money', { half: 1 }), F('archived', 'Archived', 'check', { half: 1 }), F('iban', 'IBAN (for bank imports)'), F('notes', 'Notes', 'long')],
+      F('safe', 'Counts toward safe to spend', 'check', { half: 1 }), F('potGoal', 'Pot goal (optional)', 'money', { half: 1 }), F('cards', 'Apple Wallet cards (names, comma separated)', 'text'), F('archived', 'Archived', 'check', { half: 1 }), F('iban', 'IBAN (for bank imports)'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z']], hide: r => r.archived, hideLabel: 'Show archived',
     sub: r => [r.type, r.safe ? 'in safe to spend' : ''].filter(Boolean).join(' · '),
     side: r => { const b = fBalance(r); return b == null ? 'not checked' : eur(b); }
