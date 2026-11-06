@@ -779,6 +779,16 @@ const KINDS = {
     hide: r => r.status === 'Given', hideLabel: 'Show given',
     sub: r => [r.for && 'for ' + r.for, r.occasion, r.status, eur(r.price)].filter(Boolean).join(' · ')
   },
+  stays: {
+    one: 'stay', many: 'Saved stays', facet: 'country', photo: 'photo', display: 'cards',
+    fields: [F('name', 'Name'), F('photo', 'Photo', 'photo'), F('type', 'Type', 'select', { options: ['Hotel', 'Airbnb', 'Apartment', 'B&B', 'Hostel', 'Resort', 'Other'], half: 1 }),
+      F('status', 'Status', 'select', { options: ['Saved', 'Shortlist', 'Booked', 'Stayed'], half: 1 }),
+      F('city', 'City', 'text', { half: 1 }), F('country', 'Country', 'text', { half: 1 }),
+      F('price', 'Price per night', 'money', { half: 1 }), F('rating', 'Rating', 'rating'),
+      F('url', 'Link', 'url'), F('site', 'Site', 'text', { half: 1 }), F('notes', 'Notes', 'long')],
+    sorts: [['country', 'Country'], ['name', 'A to Z'], ['-created', 'Newest']],
+    sub: r => [r.type, [r.city, r.country].filter(Boolean).join(', '), r.status && r.status !== 'Saved' ? r.status.toLowerCase() : ''].filter(Boolean).join(' · ')
+  },
   documents: {
     one: 'document', many: 'Documents', facet: 'category',
     fields: [F('name', 'Document'), F('category', 'Category', 'select', { options: ['Personal', 'Health', 'Household', 'Financial', 'Work', 'Business'], half: 1 }),
@@ -926,7 +936,7 @@ const PAGES = {
   'care/mindful': { title: 'Mindfulness', segs: [{ kind: 'mindful', top: mindTop }, { kind: 'meditation', label: 'Sessions' }] },
   'care/growth': { title: 'Growth', segs: [{ kind: 'lgoals', top: growthTop }, { kind: 'courses' }, { kind: 'hobbies' }] },
   'care/docs': { title: 'Documents', segs: [{ kind: 'documents' }] },
-  'care/trips': { render: tripsPage, adds: [] },
+  'care/trips': { render: tripsPage, adds: ['stays'] },
   'social/tasks': { title: 'Tasks', segs: [{ kind: 'tasks' }] },
   'social/projects': { title: 'Projects', segs: [{ kind: 'projects' }] },
   'social/today': { render: socialToday, adds: ['tasks', 'projects', 'posts', 'cideas', 'deals', 'sgoals'] },
@@ -1231,8 +1241,8 @@ function emptyList(K, any) {
    times a day, works out what it is (recipe, wish, closet piece, beauty, supplement, gear, home, idea, content,
    gift) and fills in a card. You accept it, send it somewhere else, keep it as a saved link, or skip it. */
 const INBOX_TO = { recipes: ['Recipe', 'kitchen/recipes'], wishes: ['Wish', 'wish/master'], closet: ['Closet wishlist', 'wishlist'], beauty: ['Beauty', 'care/beauty'], supplements: ['Supplement', 'care/supplements'],
-  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], gifts: ['Gift idea', 'care/gifts'], trip: ['Trip idea', 'care/trips'], keep: ['Saved link', 'care/saved'] };
-const INBOX_EXTRA = { wishes: () => ({ status: 'Wish', since: today() }), beauty: () => ({ wish: true }), supplements: () => ({ wish: true }), gear: () => ({ own: false }), fitgear: () => ({ own: false }), inventory: () => ({ status: 'Wishlist' }), cideas: () => ({ status: 'Idea', source: 'Inbox' }), gifts: () => ({ status: 'Idea' }) };
+  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], gifts: ['Gift idea', 'care/gifts'], trip: ['Trip idea', 'care/trips'], stays: ['Saved stay', 'care/trips'], keep: ['Saved link', 'care/saved'] };
+const INBOX_EXTRA = { stays: () => ({ status: 'Saved' }), wishes: () => ({ status: 'Wish', since: today() }), beauty: () => ({ wish: true }), supplements: () => ({ wish: true }), gear: () => ({ own: false }), fitgear: () => ({ own: false }), inventory: () => ({ status: 'Wishlist' }), cideas: () => ({ status: 'Idea', source: 'Inbox' }), gifts: () => ({ status: 'Idea' }) };
 const inboxOpen = () => recs('inbox').filter(r => ['New', 'Ready'].includes(r.status));
 const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
 // a short preview of inbox cards, with Accept where a card is ready
@@ -3270,6 +3280,7 @@ document.addEventListener('click', async e => {
     case 'wmovewait': moveWaitList(); break;
     case 'dkeep': case 'dplan': case 'dgroc': dealsAct(d.act, d.k, Number(d.i)); break;
     case 'quitadd': quitAdd(); break;
+    case 'triptab': L.tripTab = d.v; C.render(); break;
     case 'igpost': igPostNow(d.id); break;
     case 'ttpost': ttPostNow(d.id); break;
     case 'quitset': quitSet(); break;
@@ -3905,13 +3916,15 @@ async function tripSave(t, patch, label, show = false) {
 const tripOf = id => tripList().find(t => t.id === id);
 function tripsPage(host) {
   const all = tripList(), t = tripOf(L.tripId);
+  const tabs = `<div class="seg" role="group" aria-label="Trips or stays" style="margin-bottom:16px">${[['trips', 'Trips'], ['stays', `Saved stays · ${recs('stays').length}`]].map(([k, l]) => `<button data-act="triptab" data-v="${k}" aria-pressed="${(L.tripTab || 'trips') === k}">${l}</button>`).join('')}</div>`;
+  if (!t && L.tripTab === 'stays') { host.innerHTML = `${head('Trips')}${tabs}${staysHTML()}`; return; }
   if (!t) {
     const up = all.filter(x => tripEnd(x) >= today()), past = all.filter(x => tripEnd(x) < today()).reverse();
     const card = x => { const b = num(x.budget), sp = tripSpent(x), ck = x.check || [], pg = C.tripProgress?.(x) || { done: 0, total: 0 };
       return `<button class="panel tripcard" data-act="tripopen" data-v="${esc(x.id)}"><span class="ckkick">${esc(tripWhen(x))}</span><b>${esc(tripName(x))}</b><span class="muted">${esc(shortDate(x.start))} to ${esc(shortDate(tripEnd(x)))} · ${plural(x.days | 0 || 1, 'day')}</span>
         ${b ? `<span class="tbar"><i style="width:${Math.min(100, 100 * sp / b)}%"></i></span><span class="muted">${eur(sp)} of ${eur(b)} budget</span>` : ''}
         <span class="muted">${[ck.length ? `checklist ${ck.filter(c => c.done).length}/${ck.length}` : '', pg.total ? `packed ${pg.done}/${pg.total}` : ''].filter(Boolean).join(' · ')}</span></button>`; };
-    host.innerHTML = `${head('Trips')}<div class="dbtns" style="margin-bottom:16px"><button class="btn primary" data-act="tripnew">${svg(P.plus)} New trip</button></div>
+    host.innerHTML = `${head('Trips')}${tabs}<div class="dbtns" style="margin-bottom:16px"><button class="btn primary" data-act="tripnew">${svg(P.plus)} New trip</button></div>
       ${up.length ? `<div class="tripcards">${up.map(card).join('')}</div>` : quiet('No trips coming up. Add one and plan it here; outfits and packing live in Closet › Trips.')}
       ${past.length ? `<h2 class="triph2">Past trips</h2><div class="tripcards">${past.map(card).join('')}</div>` : ''}`;
     return;
@@ -3930,6 +3943,7 @@ function tripsPage(host) {
       ${panel('Budget', `${b ? `<p class="lbig">${eur(Math.max(0, b - sp))} left</p><span class="tbar"><i style="width:${Math.min(100, 100 * sp / b)}%"></i></span><p class="dline"><span>Spent</span><b>${eur(sp)} of ${eur(b)}</b></p>` : `<p class="dline"><span>Spent</span><b>${eur(sp)}</b></p>`}
         <div class="dbtns"><button class="btn small" data-act="tripbudget">${b ? 'Change budget' : 'Set a budget'}</button><button class="btn small" data-act="tripcost">Add a cost</button></div>
         ${txs.length ? `<div class="lrows">${txs.slice(0, 8).map(row).join('')}</div>${txs.length > 8 ? `<p class="lnone">+${txs.length - 8} more</p>` : ''}` : '<p class="lnone">Bookings you add here count, and so does everything you spend during the trip.</p>'}`)}
+      ${(() => { const here = staysFor(t); return here.length ? panel(`Saved stays in ${t.dest?.name || 'this place'}`, `<div class="lgrid small">${here.map(card).join('')}</div>`) : ''; })()}
       ${panel('Packing', `<p class="dline"><span>Packed</span><b>${pg.total ? `${pg.done} of ${pg.total}` : 'nothing on the list yet'}</b></p><button class="btn small" data-act="trippack">Open in Closet</button>`)}
       ${panel('Ideas', `<div class="lrows">${ideas.map(x => `<div class="lrow"><span class="lmain">${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener"><b>${esc(x.t)}</b></a>` : `<b>${esc(x.t)}</b>`}${x.note ? `<span>${esc(x.note)}</span>` : ''}</span>${tick(x.done ? 'Been' : 'Want to', !!x.done, `data-act="tripidea" data-v="${esc(x.id)}"`)}<button class="iconbtn small" data-act="tripideadel" data-v="${esc(x.id)}" aria-label="Remove ${esc(x.t)}">${svg(P.x)}</button></div>`).join('') || '<p class="lnone">Places to see, eat or do. Links you share to the inbox can land here too.</p>'}</div>
         <form class="lqadd" data-tripadd="idea"><input placeholder="A place, a restaurant, a link" aria-label="Add an idea"><button class="btn small" type="submit">Add</button></form>`)}
@@ -3941,6 +3955,19 @@ function tripsPage(host) {
         <form class="lqadd tripag" data-tripadd="day" data-day="${i}"><input type="time" aria-label="Time (optional)"><input placeholder="What and where" aria-label="Add to day ${i + 1}"><button class="btn small" type="submit">Add</button></form>
         ${ideas.filter(x => !x.done).length ? `<div class="lwrap">${ideas.filter(x => !x.done).slice(0, 6).map(x => `<button class="chip" data-act="tripideaday" data-v="${i}:${esc(x.id)}">+ ${esc(x.t)}</button>`).join('')}</div>` : ''}</section>`; }).join('')}</div>`;
 }
+
+// saved hotels and rentals, by country and then city (A to Z); share a Booking or Airbnb link and it lands here
+const placeKey = s => norm(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
+function staysHTML() {
+  const all = recs('stays'), by = new Map();
+  for (const r of all) { const c = r.country || 'Somewhere else', k = r.city || 'Unknown city'; if (!by.has(c)) by.set(c, new Map()); const m = by.get(c); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }
+  const countries = [...by.keys()].sort((a, b) => (a === 'Somewhere else') - (b === 'Somewhere else') || a.localeCompare(b));
+  return `<div class="dbtns" style="margin-bottom:16px"><button class="btn primary" data-act="new" data-v="stays">${svg(P.plus)} Stay</button></div>
+    ${all.length ? countries.map(c => { const m = by.get(c), n = [...m.values()].reduce((a, l) => a + l.length, 0);
+      return `<section class="stayc"><h2 class="triph2">${esc(c)} <span class="lnone">${n}</span></h2>${[...m.keys()].sort((a, b) => a.localeCompare(b)).map(k => `<p class="dsub">${esc(k)} · ${m.get(k).length}</p><div class="lgrid">${m.get(k).sort((a, b) => ['Booked', 'Shortlist', 'Saved', 'Stayed'].indexOf(a.status || 'Saved') - ['Booked', 'Shortlist', 'Saved', 'Stayed'].indexOf(b.status || 'Saved') || norm(a.name).localeCompare(norm(b.name))).map(card).join('')}</div>`).join('')}</section>`; }).join('')
+    : quiet('Share a link from Booking, Airbnb, Hotels.com or a hotel site with the A’s Life shortcut. It lands in your inbox already sorted by country and city.')}`;
+}
+const staysFor = t => { const city = placeKey(t.dest?.name), country = placeKey(t.dest?.country); return recs('stays').filter(r => (city && placeKey(r.city) === city) || (!city && country && placeKey(r.country) === country)); };
 const tid = () => C.uuid().slice(0, 8);
 async function tripAct(act, v) {
   const t = tripOf(L.tripId);
