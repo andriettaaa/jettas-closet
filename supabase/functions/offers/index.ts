@@ -167,6 +167,10 @@ async function igSync(uid: string) {
   let tok = (fresh ? envTok : auth.data.token) || envTok, at = fresh ? 0 : auth.data.at || 0;
   if (!tok) return { error: 'IG_TOKEN is not set in Supabase yet' };
   if (/^EAA/.test(tok)) return { error: 'IG_TOKEN is a Facebook token; use the Instagram one (it starts with IG)' };
+  // what the token looks like, without showing it: helps tell an app secret or app ID from a real token
+  const shape = `${fresh ? 'from IG_TOKEN' : 'saved earlier'}, ${tok.length} characters, starts with ${tok.slice(0, 4)}`;
+  if (/^\d+$/.test(tok)) return { error: `IG_TOKEN holds a number (${shape}): that is the app ID, not the access token` };
+  if (/^[0-9a-f]{32}$/i.test(tok)) return { error: `IG_TOKEN looks like the app secret (${shape}), not the access token` };
   const get = async (u: string) => { const r = await fetch(u); const j = await r.json(); if (!r.ok || j.error) throw new Error(j.error?.message || 'Instagram said no (' + r.status + ')'); return j; };
   // a long-lived token lasts 60 days; renew it once it is older than 3 weeks, and keep only one that worked
   if (!at || Date.now() - at > 21 * 864e5) {
@@ -176,7 +180,9 @@ async function igSync(uid: string) {
       await sb.from('records').upsert({ user_id: uid, id: auth?.id || crypto.randomUUID(), kind: 'igauth', data: { token: tok, at: Date.now(), src: envTok.slice(-12) }, updated_at: new Date().toISOString() });
     } catch (e) { console.error('refresh', e); }
   }
-  const me = await get(`${IG}/v21.0/me?fields=user_id,username,name,profile_picture_url,followers_count,follows_count,media_count,biography&access_token=${encodeURIComponent(tok)}`);
+  let me: any;
+  try { me = await get(`${IG}/v21.0/me?fields=user_id,username,name,profile_picture_url,followers_count,follows_count,media_count,biography&access_token=${encodeURIComponent(tok)}`); }
+  catch (e: any) { return { error: `${e.message} (${shape})` }; }
   const media: any[] = [];
   let next = `${IG}/v21.0/me/media?fields=id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&limit=50&access_token=${encodeURIComponent(tok)}`;
   for (let i = 0; next && i < 6; i++) { const j = await get(next); media.push(...(j.data || [])); next = j.paging?.next || ''; }
