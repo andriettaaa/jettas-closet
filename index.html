@@ -1942,7 +1942,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v77';
+const APP_VERSION = 'hangtag-v78';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2134,7 +2134,8 @@ function spendPanel() {
   return `<section class="panel setpanel" id="set-spend"><h3>Apple Pay to Spending</h3><p class="muted">Every Apple Pay payment lands in Money › Spending by itself. The category follows what you chose for that shop last time, so fix it once and it learns.</p>
     <ol class="setsteps"><li>On your iPhone open <b>Shortcuts</b> › Automation › <b>New automation</b> › <b>Transaction</b>. Pick your cards, choose <b>Run immediately</b>.</li>
     <li>Add the action <b>Get contents of URL</b> with this address: <button class="chip link mono" data-copy="${esc(url)}">${esc(url)}</button></li>
-    <li>Method <b>POST</b>, request body <b>JSON</b>, with four fields: <span class="mono">token</span> (your private spend token from the setup file), <span class="mono">amount</span> = Shortcut Input › Amount, <span class="mono">merchant</span> = Merchant, <span class="mono">card</span> = Card or Pass.</li>
+    <li>Method <b>POST</b>, request body <b>JSON</b>, with these fields: <span class="mono">token</span> (your private spend token from the setup file), <span class="mono">amount</span> = Shortcut Input › Amount, <span class="mono">merchant</span> = Merchant, <span class="mono">card</span> = Card or Pass, and <span class="mono">account</span> = the name of the account in the app (typed, like Creditcard).</li>
+    <li>One automation per card: make one for each Wallet card, each with its own account name. Or fill in the card names at the account in Finance; then one automation is enough.</li>
     <li>Pay once with Apple Pay. The purchase shows up here and you get a notification.</li></ol></section>`;
 }
 
