@@ -358,7 +358,7 @@ const KINDS = {
       F('format', 'Format', 'select', { options: SOCIAL_FORMATS, half: 1 }), F('pillar', 'Pillar', 'rel', { to: 'pillars', half: 1 }),
       F('style', 'Style', 'select', { options: SOCIAL_STYLES, half: 1 }), F('funnel', 'Funnel stage', 'select', { options: SOCIAL_FUNNEL, half: 1 }),
       F('desc', 'What it is', 'long'), F('caption', 'Caption', 'long'), F('hashtags', 'Hashtags', 'text'),
-      F('link', 'Post link', 'url'), F('top', 'Top performer', 'check', { half: 1 }), F('repurpose', 'Repurpose this', 'check', { half: 1 }),
+      F('link', 'Post link', 'url'), F('likes', 'Likes', 'num', { half: 1 }), F('comments', 'Comments', 'num', { half: 1 }), F('top', 'Top performer', 'check', { half: 1 }), F('repurpose', 'Repurpose this', 'check', { half: 1 }),
       F('photo', 'Cover', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['date', 'Soonest'], ['-date', 'Newest'], ['name', 'A to Z']],
     hide: r => r.stage === 'Posted', hideLabel: 'Show posted',
@@ -2378,12 +2378,20 @@ function feedList() {
   const key = p => p.feedPos != null ? 1e15 + num(p.feedPos) : (p.date ? fromISO(p.date).getTime() : 9e14) + (p.created || 0) / 1e13;
   return ps.sort((a, b) => key(b) - key(a));
 }
+// pull your real posts, profile and counts from Instagram (the offers function does the work)
+async function igSync(quiet) {
+  if (L.igBusy) return; L.igBusy = true; if (!quiet) C.toast('Syncing Instagram…');
+  try { const j = await C.callFn('offers', { action: 'igsync' }); await load(); C.toast(`Instagram synced: ${plural(j.posts, 'post')}${j.added ? `, ${j.added} new` : ''}`); }
+  catch (e) { if (!quiet) C.toast(/IG_TOKEN/.test(e.message) ? 'Add IG_TOKEN in Supabase first.' : 'Instagram sync did not work: ' + e.message); }
+  finally { L.igBusy = false; }
+}
 function socialFeed(host) {
   const acc = recs('accounts').find(a => a.platform === 'Instagram') || null, tab = L.feedTab || 'grid';
+  if (acc?.igSync && Date.now() - acc.igSync > 6 * 36e5 && !L.igTried) { L.igTried = true; igSync(true); }
   const all = feedList(), list = tab === 'reels' ? all.filter(isReel) : all, hl = sortList(recs('highlights'), KINDS.highlights, 'order');
   const ph = (path, cls) => path ? `<img class="${cls}" referrerpolicy="no-referrer" src="${esc(C.photoURL(path))}" alt="" loading="lazy" draggable="false" onerror="this.remove()">` : '';
   const stat = (n, l) => `<div class="igstat"><b>${n == null || n === '' ? '–' : (num(n) || 0).toLocaleString('en-GB')}</b><span>${l}</span></div>`;
-  host.innerHTML = `<div class="viewhead"><h1>Feed</h1><span class="sub">Drag tiles to plan how your profile looks</span><div class="spacer"></div><button class="btn small" data-act="new" data-v="highlights">+ Highlight</button><button class="btn small primary" data-act="feednew">+ Post</button></div>
+  host.innerHTML = `<div class="viewhead"><h1>Feed</h1><span class="sub">Drag tiles to plan how your profile looks${acc?.igSync ? ` · synced ${esc(relDay(iso(new Date(acc.igSync))))}` : ''}</span><div class="spacer"></div><button class="btn small" data-act="igsync">Sync Instagram</button><button class="btn small" data-act="new" data-v="highlights">+ Highlight</button><button class="btn small primary" data-act="feednew">+ Post</button></div>
   <section class="igphone">
     <div class="ighead"><button class="igav" data-act="${acc ? 'open' : 'feedacc'}" ${acc ? `data-id="${acc.id}"` : ''} aria-label="Edit profile">${ph(acc?.avatar, '') || `<span>${esc((acc?.handle || 'A').replace('@', '').slice(0, 1).toUpperCase())}</span>`}</button>
       <div class="igstats">${stat(all.length, 'posts')}${stat(acc?.followers, 'followers')}${stat(acc?.following, 'following')}</div></div>
@@ -2391,7 +2399,7 @@ function socialFeed(host) {
     <button class="btn small igedit" data-act="${acc ? 'open' : 'feedacc'}" ${acc ? `data-id="${acc.id}"` : ''}>Edit profile</button>
     <div class="ighl">${hl.map(h => `<button class="ighli" data-act="open" data-id="${h.id}"><span>${ph(h.photo, '')}</span><small>${esc(h.name || '')}</small></button>`).join('')}<button class="ighli new" data-act="new" data-v="highlights"><span>${svg(P.plus)}</span><small>New</small></button></div>
     <div class="igtabs" role="group"><button data-act="feedtab" data-v="grid" aria-pressed="${tab === 'grid'}" aria-label="All posts">${svg(P.grid)}</button><button data-act="feedtab" data-v="reels" aria-pressed="${tab === 'reels'}" aria-label="Reels">${svg('<rect x="4" y="4" width="16" height="16" rx="4"/><path d="m10.5 9 4 3-4 3Z"/>')}</button></div>
-    ${list.length ? `<div class="iggrid" data-feedgrid>${list.map(p => `<div class="igtile ${p.stage === 'Posted' ? 'posted' : ''}" data-feedid="${p.id}" role="button" tabindex="0" aria-label="${esc(titleOf(p))}">${ph(p.photo, '') || `<span class="igph">${esc(titleOf(p))}</span>`}${p.stage !== 'Posted' ? `<i class="igdate">${p.date ? esc(shortDate(p.date)) : 'no date'}</i>` : ''}${isReel(p) ? `<i class="igreel">${svg('<path d="m9 7 8 5-8 5Z"/>')}</i>` : ''}</div>`).join('')}</div>`
+    ${list.length ? `<div class="iggrid" data-feedgrid>${list.map(p => `<div class="igtile ${p.stage === 'Posted' ? 'posted' : ''}" data-feedid="${p.id}" role="button" tabindex="0" aria-label="${esc(titleOf(p))}${p.likes != null ? `, ${p.likes} likes` : ''}">${p.likes != null ? `<span class="iglk">♥ ${(num(p.likes) || 0).toLocaleString('en-GB')}${p.comments ? ` · 💬 ${p.comments}` : ''}</span>` : ''}${ph(p.photo, '') || `<span class="igph">${esc(titleOf(p))}</span>`}${p.stage !== 'Posted' ? `<i class="igdate">${p.date ? esc(shortDate(p.date)) : 'no date'}</i>` : ''}${isReel(p) ? `<i class="igreel">${svg('<path d="m9 7 8 5-8 5Z"/>')}</i>` : ''}</div>`).join('')}</div>`
       : `<div class="empty lempty"><h2>${tab === 'reels' ? 'No reels yet' : 'Plan your first post'}</h2><p>Every Instagram post with a cover shows up here, planned ones on top.</p><button class="btn primary" data-act="feednew">+ Post</button></div>`}
   </section>`;
   feedDrag(host);
@@ -3170,6 +3178,7 @@ document.addEventListener('click', async e => {
     case 'wmovewait': moveWaitList(); break;
     case 'dkeep': case 'dplan': case 'dgroc': dealsAct(d.act, d.k, Number(d.i)); break;
     case 'quitadd': quitAdd(); break;
+    case 'igsync': igSync(false); break;
     case 'quitset': quitSet(); break;
     case 'chfree': { const c = C.prefs().chores || {}, f = new Set(c.free || []); f.has(d.v) ? f.delete(d.v) : f.add(d.v); C.savePrefs({ chores: { ...c, free: WDAYS.filter(x => f.has(x)) } }).catch(() => C.toast('Could not save. Try again.')); break; }
     case 'potmove': { const b = L.byId[d.v], n = b && fNext(b); if (!b) break; const to = b.account || fMainAcc()?.id; moveMoney({ from: d.id, to, amt: num(b.amount) || '', date: n ? (addDays(n, -1) < today() ? today() : addDays(n, -1)) : today() }); break; }

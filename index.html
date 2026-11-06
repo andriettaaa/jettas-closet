@@ -1941,7 +1941,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v66';
+const APP_VERSION = 'hangtag-v67';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -3374,6 +3374,8 @@ async function start(session) {
   // what life.js needs from the closet: the signed-in Supabase client, photos, sheets and settings
   const lifeLoad = window.LIFE?.start({ sb, uid: () => UID, view: () => S.view, go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url, shop: it.shop, planBuy: it.planBuy || '' })),
     undoQuiet, sbWrite, sbWriteMany, obFlush,
+    // call one of your Supabase functions as you (signed in)
+    callFn: async (name, body) => { const { data } = await sb.auth.getSession(); const res = await fetch(FN(name), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session?.access_token, apikey: CFG.key }, body: JSON.stringify(body) }); const j = await res.json().catch(() => ({})); if (!res.ok || j.error) throw new Error(j.error || String(res.status)); return j; },
     // trips are shared with Life › Trips: one trip, planned there and packed here
     trips: () => trips(), saveTrip: t => saveTrip(t), tripDates: t => tripDates(t), tripProgress: t => tripProgress(t),
     tripEdit: id => openTripEditor(id || null, true), tripPack: id => { S.tripUI = { ...(S.tripUI || {}), id, tab: 'pack', home: false }; go('trips'); },

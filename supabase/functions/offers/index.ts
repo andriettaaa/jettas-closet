@@ -26,7 +26,9 @@ const sb = createClient(URL_, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth
 const vapid = Deno.env.get('VAPID_PUBLIC_KEY') && Deno.env.get('VAPID_PRIVATE_KEY');
 if (vapid) webpush.setVapidDetails(Deno.env.get('VAPID_SUBJECT') || URL_, Deno.env.get('VAPID_PUBLIC_KEY')!, Deno.env.get('VAPID_PRIVATE_KEY')!);
 
-const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json' } });
+// the app calls igsync from the browser, so answers carry CORS headers
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-offers-token', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
+const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 const str = (v: unknown, n = 200) => String(v ?? '').trim().slice(0, n);
 const num = (v: unknown) => (v === '' || v == null || isNaN(Number(v))) ? null : Math.round(Number(v) * 100) / 100;
 const day = (v: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? String(v) : '';
@@ -152,13 +154,64 @@ async function send(uid: string, msg: { title: string; body: string; url?: strin
   }
 }
 
+/* ---------- Instagram ----------
+   Your professional Instagram account through the Instagram API with Instagram Login. The first token comes from the
+   secret IG_TOKEN; the function renews it every few weeks and keeps the newest in a private record (kind igauth).
+   Posts become posts in Social (stage Posted, with likes and comments); their pictures are copied into your storage. */
+const IG = 'https://graph.instagram.com';
+async function igSync(uid: string) {
+  const { data: auth } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'igauth').maybeSingle();
+  let tok = auth?.data?.token || Deno.env.get('IG_TOKEN') || '', at = auth?.data?.at || 0;
+  if (!tok) return { error: 'IG_TOKEN is not set in Supabase yet' };
+  const get = async (u: string) => { const r = await fetch(u); const j = await r.json(); if (!r.ok || j.error) throw new Error(j.error?.message || 'Instagram said no (' + r.status + ')'); return j; };
+  // a long-lived token lasts 60 days; renew it once it is older than 3 weeks
+  if (!at || Date.now() - at > 21 * 864e5) {
+    try { const j = await get(`${IG}/refresh_access_token?grant_type=ig_refresh_token&access_token=${encodeURIComponent(tok)}`); tok = j.access_token; at = Date.now(); } catch (e) { console.error('refresh', e); }
+    await sb.from('records').upsert({ user_id: uid, id: auth?.id || crypto.randomUUID(), kind: 'igauth', data: { token: tok, at: at || Date.now() }, updated_at: new Date().toISOString() });
+  }
+  const me = await get(`${IG}/v21.0/me?fields=user_id,username,name,profile_picture_url,followers_count,follows_count,media_count,biography&access_token=${encodeURIComponent(tok)}`);
+  const media: any[] = [];
+  let next = `${IG}/v21.0/me/media?fields=id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&limit=50&access_token=${encodeURIComponent(tok)}`;
+  for (let i = 0; next && i < 6; i++) { const j = await get(next); media.push(...(j.data || [])); next = j.paging?.next || ''; }
+  const { data: have, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['posts', 'accounts']);
+  if (error) throw error;
+  const now = new Date().toISOString(), rows: any[] = [];
+  const acc = have.find((r: any) => r.kind === 'accounts' && r.data.platform === 'Instagram');
+  const accData = { ...(acc?.data || { platform: 'Instagram', active: true, created: Date.now() }), handle: '@' + me.username, display: me.name || acc?.data?.display || '', bio: me.biography ?? acc?.data?.bio ?? '', followers: me.followers_count, following: me.follows_count, url: 'https://www.instagram.com/' + me.username, igSync: Date.now() };
+  if (me.profile_picture_url && (!acc?.data?.avatar || /^https?:/.test(acc.data.avatar) || !acc?.data?.igAvatarDay || acc.data.igAvatarDay !== now.slice(0, 7))) { accData.avatar = await keepPhoto(uid, me.profile_picture_url); accData.igAvatarDay = now.slice(0, 7); }
+  rows.push({ user_id: uid, id: acc?.id || crypto.randomUUID(), kind: 'accounts', data: clean(accData), updated_at: now });
+  const byIg = new Map(have.filter((r: any) => r.kind === 'posts' && r.data.igId).map((r: any) => [r.data.igId, r]));
+  let added = 0;
+  for (const m of media) {
+    const old: any = byIg.get(m.id), ts = new Date(m.timestamp), date = m.timestamp.slice(0, 10), time = m.timestamp.slice(11, 16);
+    const fmt = m.media_product_type === 'REELS' || m.media_type === 'VIDEO' ? 'Short Video' : m.media_type === 'CAROUSEL_ALBUM' ? 'Carousel' : m.media_product_type === 'STORY' ? 'Story' : 'Image Post';
+    const cap = String(m.caption || ''), first = cap.split('\n')[0].replace(/#\S+/g, '').trim();
+    const d: any = old ? { ...old.data } : { name: first.slice(0, 70) || 'Instagram post', created: ts.getTime(), stage: 'Posted', platforms: ['Instagram'], format: fmt, date, time };
+    Object.assign(d, { igId: m.id, link: m.permalink, caption: cap, likes: m.like_count ?? d.likes, comments: m.comments_count ?? d.comments, stage: 'Posted' });
+    if (!d.photo || /^https?:/.test(d.photo)) { const pic = m.thumbnail_url || m.media_url; if (pic) d.photo = await keepPhoto(uid, pic); }
+    if (!old) added++;
+    rows.push({ user_id: uid, id: old?.id || crypto.randomUUID(), kind: 'posts', data: clean(d), updated_at: now });
+  }
+  for (let i = 0; i < rows.length; i += 200) { const { error: e } = await sb.from('records').upsert(rows.slice(i, i + 200)); if (e) throw e; }
+  return { ok: true, handle: me.username, posts: media.length, added, followers: me.followers_count };
+}
+
 Deno.serve(async req => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
   try {
     const body = await req.json().catch(() => ({}));
     const token = body.token || req.headers.get('x-offers-token');
-    if (!token || !Deno.env.get('OFFERS_TOKEN') || token !== Deno.env.get('OFFERS_TOKEN')) return json({ error: 'forbidden' }, 403);
     const uid = Deno.env.get('SPEND_USER_ID')!;
+    // the app itself may ask for an Instagram sync, signed in as you
+    let viaApp = false;
+    if ((!token || token !== Deno.env.get('OFFERS_TOKEN')) && body.action === 'igsync') {
+      const jwt = req.headers.get('authorization')?.replace(/^Bearer /, '') || '';
+      const { data: u } = await sb.auth.getUser(jwt); viaApp = !!u?.user && u.user.id === uid;
+    }
+    if (!viaApp && (!token || !Deno.env.get('OFFERS_TOKEN') || token !== Deno.env.get('OFFERS_TOKEN'))) return json({ error: 'forbidden' }, 403);
+
+    if (body.action === 'igsync') return json(await igSync(uid));
 
     if (body.action === 'recipes') {
       const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['recipes', 'ingredients', 'wplans', 'rreviews']);
