@@ -800,7 +800,7 @@ const tileBody = (bits) => bits.filter(Boolean).join('');
 // the parts of each card you can switch off in Arrange (prefs.dash.parts); water starts off
 const TILE_PARTS = {
   kitchen: [['meals', 'Meals today'], ['groc', 'Grocery list']],
-  care: [['trip', 'Next trip'], ['water', 'Water'], ['sups', 'Supplements'], ['cycle', 'Cycle'], ['appt', 'Next appointment'], ['skin', 'Skincare'], ['routine', 'Routine'], ['sleep', 'Sleep'], ['journal', 'Journal']],
+  care: [['trip', 'Next trip'], ['quit', 'Smoke-free'], ['water', 'Water'], ['sups', 'Supplements'], ['cycle', 'Cycle'], ['appt', 'Next appointment'], ['skin', 'Skincare'], ['routine', 'Routine'], ['sleep', 'Sleep'], ['journal', 'Journal']],
   money: [['safe', 'Safe to spend'], ['payday', 'Until payday'], ['bill', 'Next bill']],
   home: [['chores', 'Chores'], ['plants', 'Plants']],
   wish: [['count', 'Number of wishes'], ['total', 'Total price'], ['inbox', 'Inbox']],
@@ -841,6 +841,7 @@ function careTile() {
   return tileBody([
     part('care', 'water', `<div class="lwater small"><button class="iconbtn small" data-act="water" data-v="-1" aria-label="One glass less" ${glasses ? '' : 'disabled'}>${svg(P.minus)}</button><div class="lwv"><b>${glasses}</b><span>of ${goal} glasses</span></div><button class="iconbtn small lplus" data-act="water" data-v="1" aria-label="One more glass">${svg(P.plus)}</button></div>`),
     part('care', 'trip', (() => { const nt = nextTrip(); return nt ? `<p class="dline"><span>${esc(tripName(nt))}</span><b><button class="chip link" data-act="go" data-v="care/trips">${esc(tripWhen(nt))}</button></b></p>` : ''; })()),
+    part('care', 'quit', (() => { const st = quitStats(); return st ? `<p class="dline"><span>Smoke-free</span><b><button class="chip link" data-act="go" data-v="kitchen/quit">${plural(st.days, 'day')} · ${fEur0(st.saved)} kept</button></b></p>` : ''; })()),
     part('care', 'sups', doses ? `<p class="dline"><span>Supplements</span><b>${Math.min(taken, doses)} of ${doses} taken</b></p>` : ''),
     partsOff('care').includes('cycle') ? '' : cy.last ? `<p class="dline"><span>Cycle</span><b>${cy.open ? 'period, day ' + cy.day : 'day ' + cy.day + ', next ' + relDay(cy.next)}</b></p>` : '',
     partsOff('care').includes('appt') ? '' : appt ? `<p class="dline"><span>Next appointment</span><b>${esc(titleOf(appt))}, ${esc(relDay(appt.date))}${appt.time ? ' ' + esc(appt.time) : ''}</b></p>` : '',
@@ -1021,15 +1022,15 @@ async function put(kind, id, data) {
   const before = L.byId[id] ? { ...L.byId[id] } : null;
   if (!L.batch) C.undoPush?.(`${before ? 'Changed' : 'Added'} ${undoName(kind, data)}`, () => before ? put(kind, id, dataOf(before)) : del(id));
   apply(id, kind, data);
-  const { error } = await C.sb.from('records').upsert({ user_id: C.uid(), id, kind, data, updated_at: new Date().toISOString() });
-  if (error) { before ? apply(id, kind, dataOf(before)) : apply(id, kind, null); failed(error); throw error; }
+  try { await C.sbWrite('records', 'up', { user_id: C.uid(), id, kind, data, updated_at: new Date().toISOString() }); }
+  catch (error) { before ? apply(id, kind, dataOf(before)) : apply(id, kind, null); failed(error); throw error; }
 }
 async function del(id) {
   const before = L.byId[id]; if (!before) return;
   if (!L.batch) C.undoPush?.(`Deleted ${undoName(before.kind, before)}`, () => put(before.kind, id, dataOf(before)), true);
   apply(id, before.kind, null);
-  const { error } = await C.sb.from('records').delete().eq('id', id);
-  if (error) { apply(id, before.kind, dataOf(before)); failed(error); throw error; }
+  try { await C.sbWrite('records', 'del', { id }); }
+  catch (error) { apply(id, before.kind, dataOf(before)); failed(error); throw error; }
 }
 async function putMany(rows, progress, label) {
   const now = new Date().toISOString();
@@ -1042,8 +1043,7 @@ async function putMany(rows, progress, label) {
   }, label !== 'restore');
   for (let i = 0; i < rows.length; i += 400) {
     const part = rows.slice(i, i + 400);
-    const { error } = await C.sb.from('records').upsert(part.map(r => ({ user_id: C.uid(), id: r.id, kind: r.kind, data: r.data, updated_at: now })));
-    if (error) throw error;
+    await C.sbWriteMany('records', part.map(r => ({ user_id: C.uid(), id: r.id, kind: r.kind, data: r.data, updated_at: now })));
     progress?.(Math.min(rows.length, i + 400), rows.length);
   }
   for (const r of rows) { const i = L.all.findIndex(x => x.id === r.id); const v = { ...r.data, id: r.id, kind: r.kind }; i >= 0 ? (L.all[i] = v) : L.all.push(v); }
@@ -1496,12 +1496,35 @@ const QUIT_TIPS = [
   ['Fruit and vegetables', 'Many people find a cigarette tastes worse after fruit or vegetables, and smoking uses up vitamin C: paprika, kiwi, citrus and broccoli have plenty.'],
   ['Get help', 'Support makes quitting much more likely. The Stoplijn (0800 1995, free) and ikstopnu.nl help, and your GP can advise on nicotine replacement.']
 ];
+// the smoke-free counter: from your quit date and what you used to smoke (prefs.quit)
+const QUIT_MS = [[1, '1 day'], [3, '3 days'], [7, '1 week'], [14, '2 weeks'], [30, '1 month'], [60, '2 months'], [90, '3 months'], [182, '6 months'], [365, '1 year']];
+function quitStats() {
+  const q = C.prefs().quit; if (!q?.date) return null;
+  const days = Math.max(0, diffDays(q.date, today())), cigs = days * (num(q.perDay) || 0), saved = cigs / (num(q.perPack) || 20) * (num(q.packPrice) || 0);
+  const next = QUIT_MS.find(([n]) => n > days);
+  return { q, days, cigs, saved, next, last: [...QUIT_MS].reverse().find(([n]) => n <= days) };
+}
+function quitCounter() {
+  const st = quitStats();
+  if (!st) return panel('Smoke-free counter', `<p class="lnone">Fill in when you stopped and what you used to smoke. The app counts the days and the money you keep, and celebrates each milestone.</p><button class="btn small primary" data-act="quitset">Start the counter</button>`);
+  return panel('Smoke-free counter', `<div class="tiles lt3">${fTile('Smoke-free', plural(st.days, 'day'), st.last ? st.last[1] + ' reached' : 'every day counts')}${fTile('Money kept', fEur0(st.saved), st.q.packPrice ? 'not spent on packs' : 'add a pack price')}${fTile('Not smoked', String(Math.round(st.cigs)), 'cigarettes')}</div>
+    ${st.next ? `<p class="dline"><span>Next milestone</span><b>${st.next[1]}, ${esc(relDay(addDays(st.q.date, st.next[0])))}</b></p><span class="tbar"><i style="width:${Math.min(100, 100 * st.days / st.next[0])}%"></i></span>` : '<p class="lnone">A whole year. Amazing.</p>'}
+    <div class="dbtns"><button class="btn small" data-act="quitset">Change</button></div>`);
+}
+function quitSet() {
+  const q = C.prefs().quit || {}, f = (k, l, type, v, ph = '') => `<div class="field"><label for="q-${k}">${l}</label><input id="q-${k}" type="${type}" ${type === 'number' ? 'inputmode="decimal" step="0.01"' : ''} value="${esc(v ?? '')}" placeholder="${esc(ph)}"></div>`;
+  const sh = C.sheet({ title: 'Smoke-free counter', body: `<div class="form">${f('date', 'I stopped on', 'date', q.date || today())}${f('perDay', 'Cigarettes a day', 'number', q.perDay, 'e.g. 12')}${f('packPrice', 'Price of a pack', 'number', q.packPrice, 'e.g. 9.80')}${f('perPack', 'Cigarettes in a pack', 'number', q.perPack || 20)}</div>`,
+    foot: `${q.date ? '<button class="btn danger" data-qoff>Stop counting</button>' : ''}<div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-qok>Save</button>` });
+  const keep = async next => { const before = C.prefs().quit || null; try { await C.savePrefs({ quit: next }); C.undoPush?.('Changed the smoke-free counter', () => C.savePrefs({ quit: before }), true); C.closeSheet(); C.render(); } catch { C.toast('Could not save. Try again.'); } };
+  sh.querySelector('[data-qok]').onclick = () => { const v = k => sh.querySelector('#q-' + k).value; keep({ date: v('date') || today(), perDay: num(v('perDay')), packPrice: num(String(v('packPrice')).replace(',', '.')), perPack: num(v('perPack')) || 20 }); };
+  const off = sh.querySelector('[data-qoff]'); if (off) off.onclick = () => keep(null);
+}
 function quitPage(host) {
   const rs = recs('recipes').filter(helpsQuit), ings = recs('ingredients').filter(helpsQuit), plan = curPlan(), offers = liveOffers();
   const words = [...new Set([...ings.map(i => i.name), ...QUIT_FOODS])];
   const deals = offers.filter(o => words.some(w => dealsFor(w, [o]).length)).slice(0, 24);
   const missing = QUIT_FOODS.filter(n => !recs('ingredients').some(i => deUml(i.name) === deUml(n) && helpsQuit(i)));
-  host.innerHTML = `${head('Stop smoking')}<div class="ldeals">
+  host.innerHTML = `${head('Stop smoking')}<div class="panels" style="margin-bottom:16px">${quitCounter()}</div><div class="ldeals">
   <div class="tiles lt3">${fTile('Recipes', String(rs.length), 'tagged Stop smoking')}${fTile('In your pantry', String(ings.length), 'things that help')}${fTile('On offer', String(deals.length), 'this week, that fit')}</div>
   <div class="panels">${panel('What helps', `<div class="lrows qtips">${QUIT_TIPS.map(([t, d]) => `<div class="lrow"><span class="lmain"><b>${esc(t)}</b><span>${esc(d)}</span></span></div>`).join('')}</div>`)}
     ${panel('Keep these at home', `${ings.length ? `<div class="lwrap">${ings.map(i => `<button class="chip ${i.stock ? 'on' : ''}" data-act="open" data-id="${i.id}">${esc(i.name)}${i.stock ? '' : ' · out'}</button>`).join('')}</div>` : quiet('Nothing tagged yet.')}
@@ -3147,6 +3170,7 @@ document.addEventListener('click', async e => {
     case 'wmovewait': moveWaitList(); break;
     case 'dkeep': case 'dplan': case 'dgroc': dealsAct(d.act, d.k, Number(d.i)); break;
     case 'quitadd': quitAdd(); break;
+    case 'quitset': quitSet(); break;
     case 'chfree': { const c = C.prefs().chores || {}, f = new Set(c.free || []); f.has(d.v) ? f.delete(d.v) : f.add(d.v); C.savePrefs({ chores: { ...c, free: WDAYS.filter(x => f.has(x)) } }).catch(() => C.toast('Could not save. Try again.')); break; }
     case 'potmove': { const b = L.byId[d.v], n = b && fNext(b); if (!b) break; const to = b.account || fMainAcc()?.id; moveMoney({ from: d.id, to, amt: num(b.amount) || '', date: n ? (addDays(n, -1) < today() ? today() : addDays(n, -1)) : today() }); break; }
     case 'tripopen': case 'tripnew': case 'tripedit': case 'trippack': case 'tripck': case 'tripckdel': case 'tripcksug': case 'tripidea': case 'tripideadel': case 'tripideaday': case 'tripagdel': case 'tripbudget': case 'tripcost': case 'tripdet': tripAct(d.act, d.v); break;
@@ -3922,6 +3946,7 @@ return {
   chooser: () => openChooser(),
   inboxCount: () => inboxOpen().length,
   // every photo path the lists use, once they loaded fresh from Supabase (null until then)
+  records: () => L.all.map(r => ({ id: r.id, kind: r.kind, data: dataOf(r) })),
   photoRefs: () => L.fresh || L.missing ? JSON.stringify(L.all) : null,
   // one small card for the overview page; '' while the lists are still loading or missing
   tileParts: key => TILE_PARTS[key] || [],

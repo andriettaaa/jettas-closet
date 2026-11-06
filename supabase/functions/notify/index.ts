@@ -13,7 +13,8 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
 // the same defaults the Settings page shows
 const DEF: Record<string, { on: boolean; time?: string }> = {
   morning: { on: true, time: '07:30' }, evening: { on: true, time: '21:30' }, bills: { on: true, time: '18:00' },
-  payday: { on: true, time: '09:00' }, weekly: { on: true, time: '19:00' }, budget: { on: true }, applepay: { on: true }
+  payday: { on: true, time: '09:00' }, weekly: { on: true, time: '19:00' }, weekahead: { on: true, time: '19:30' }, reminders: { on: true, time: '10:00' },
+  budget: { on: true }, applepay: { on: true }
 };
 type Rec = Record<string, any> & { id: string; kind: string };
 
@@ -102,6 +103,35 @@ function weekly(recs: Rec[], today: string) {
   return { title: `This week: ${eur(tx.reduce((n, x) => n + (num(x.amount) || 0), 0))} spent`, body: top.join('\n'), url: './#money/reviews', tag: 'weekly' };
 }
 
+// Sundays: the week ahead, from meals and appointments to bills and a trip coming up
+function weekahead(recs: Rec[], prefs: any, today: string) {
+  const from = addDays(today, 1), to = addDays(today, 7), lines: string[] = [];
+  const meals = recs.filter(r => r.kind === 'meals' && r.date >= from && r.date <= to);
+  const dinners = meals.filter(m => m.slot === 'Dinner' && !m.away).length, away = meals.filter(m => m.away).length;
+  if (dinners || away) lines.push([dinners ? `${dinners} dinner${dinners === 1 ? '' : 's'} planned` : 'No dinners planned yet', away ? `${away} meal${away === 1 ? '' : 's'} out` : ''].filter(Boolean).join(', '));
+  else lines.push('No meals planned yet');
+  const appts = recs.filter(r => r.kind === 'appts' && !r.done && r.date >= from && r.date <= to).sort((a, b) => a.date.localeCompare(b.date));
+  if (appts.length) lines.push('Appointments: ' + appts.slice(0, 3).map(a => a.name || a.what || 'appointment').join(', ') + (appts.length > 3 ? ` +${appts.length - 3}` : ''));
+  const paid = new Set(recs.filter(r => r.kind === 'fpaid').map(p => p.bill + '@' + p.date));
+  const out = recs.filter(r => r.kind === 'fbills' && r.active !== false).flatMap(b => billDates(b, from, to).filter(d => !paid.has(b.id + '@' + d)).map(() => num(b.amount) || 0));
+  if (out.length) lines.push(`${out.length} bill${out.length === 1 ? '' : 's'} going out, ${eur(out.reduce((a, b) => a + b, 0))}`);
+  const trip = (prefs?.trips || []).filter((t: any) => t.start && t.start > today && t.start <= addDays(today, 21)).sort((a: any, b: any) => a.start.localeCompare(b.start))[0];
+  if (trip) { const n = Math.round((fromISO(trip.start).getTime() - fromISO(today).getTime()) / 864e5); lines.push(`${trip.name || trip.dest?.name || 'Your trip'} in ${n} days`); }
+  return { title: 'Your week ahead', body: lines.join('\n'), url: './#overview', tag: 'weekahead' };
+}
+// every morning, only when there is one: a smoke-free milestone, a free trial about to end, a warranty running out
+function reminders(recs: Rec[], prefs: any, today: string) {
+  const lines: string[] = [], q = prefs?.quit;
+  if (q?.date) {
+    const d = Math.round((fromISO(today).getTime() - fromISO(q.date).getTime()) / 864e5);
+    const ms: Record<number, string> = { 1: '1 day', 3: '3 days', 7: '1 week', 14: '2 weeks', 30: '1 month', 60: '2 months', 90: '3 months', 182: '6 months', 365: '1 year' };
+    if (ms[d]) { const saved = d * (num(q.perDay) || 0) / (num(q.perPack) || 20) * (num(q.packPrice) || 0); lines.push(`${ms[d]} smoke-free!${saved ? ` You saved ${eur(saved)}.` : ''}`); }
+  }
+  for (const b of recs.filter(r => r.kind === 'fbills' && r.trialEnds === addDays(today, 2))) lines.push(`Free trial of ${b.name} ends in 2 days`);
+  for (const i of recs.filter(r => r.kind === 'inventory' && r.warranty === addDays(today, 14))) lines.push(`Warranty of ${i.name} ends in 2 weeks`);
+  return lines.length ? { title: lines.length === 1 ? 'Reminder' : `${lines.length} reminders`, body: lines.join('\n'), url: './#overview', tag: 'reminders' } : null;
+}
+
 /* ---------- sending ---------- */
 async function send(uid: string, msg: { title: string; body: string; url?: string; tag?: string }) {
   const { data: subs } = await sb.from('push_subs').select('endpoint,p256dh,auth').eq('user_id', uid);
@@ -139,13 +169,14 @@ async function runUser(uid: string, prefs: any, force = false) {
     const c = { ...DEF[k], ...(cfg[k] || {}) }; if (!c.on || !c.time) return false;
     const t = toMins(c.time); return force || (now.mins >= t && now.mins < t + 60);
   };
-  const slots = ['morning', 'evening', 'bills', 'payday', 'weekly'].filter(k => due(k) && (k !== 'weekly' || now.wd === 'sun' || force));
+  const slots = ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders'].filter(k => due(k) && (!['weekly', 'weekahead'].includes(k) || now.wd === 'sun' || force));
   if (!slots.length) return 0;
   const recs = await loadAll(uid);
   let sent = 0;
   for (const k of slots) {
     const msg = k === 'morning' ? morning(recs, now.day, await outfitToday(uid, now.day)) : k === 'evening' ? evening(recs, now.wd)
-      : k === 'bills' ? bills(recs, now.day) : k === 'payday' ? payday(recs, now.day) : weekly(recs, now.day);
+      : k === 'bills' ? bills(recs, now.day) : k === 'payday' ? payday(recs, now.day) : k === 'weekahead' ? weekahead(recs, prefs, now.day)
+      : k === 'reminders' ? reminders(recs, prefs, now.day) : weekly(recs, now.day);
     if (!msg) continue;
     if (!force && !(await claim(uid, k, now.day))) continue;
     if (await send(uid, msg)) sent++;

@@ -740,21 +740,59 @@ function applyLocal(table, id, data) {
   cacheSave(); derive(); render();
 }
 const noId = ({ id, ...d }) => d;
+/* ---------- offline: writes wait in an outbox ----------
+   Without a connection a change is kept on this device (it already shows) and sent as soon as you are online
+   again. Only the newest change per record waits, so ticking something on and off offline sends one write. */
+const OBK = () => 'hangtag:outbox:' + UID;
+const obLoad = () => { try { return JSON.parse(localStorage.getItem(OBK()) || '[]'); } catch { return []; } };
+const obSave = l => { try { localStorage.setItem(OBK(), JSON.stringify(l)); } catch {} document.documentElement.dataset.outbox = l.length ? 'waiting' : ''; };
+const isNet = e => !navigator.onLine || /failed to fetch|networkerror|load failed|network request failed|internet connection/i.test(String(e?.message || e || ''));
+const obKey = (t, p) => t + ':' + (t === 'prefs' ? 'me' : t === 'days' ? (p.day || p.id) : p.id);
+let obTold = 0;
+function obPush(t, op, p) {
+  const k = obKey(t, p), l = obLoad().filter(x => x.k !== k); l.push({ k, t, op, p }); obSave(l);
+  if (Date.now() - obTold > 60e3) { obTold = Date.now(); toast('Saved on this device. It syncs when you are online again.'); }
+}
+async function obRun(t, op, p) { const { error } = op === 'del' ? await sb.from(t).delete().eq(t === 'days' ? 'day' : 'id', p.id) : await sb.from(t).upsert(p); if (error) throw error; }
+// a write that waits for the connection instead of failing
+async function sbWrite(t, op, p) {
+  if (!navigator.onLine) { obPush(t, op, p); return 'queued'; }
+  try { await obRun(t, op, p); return 'ok'; } catch (e) { if (isNet(e)) { obPush(t, op, p); return 'queued'; } throw e; }
+}
+async function sbWriteMany(t, rows) {
+  if (!rows.length) return;
+  if (!navigator.onLine) { rows.forEach(r => obPush(t, 'up', r)); return 'queued'; }
+  for (let i = 0; i < rows.length; i += 400) {
+    const part = rows.slice(i, i + 400);
+    const { error } = await sb.from(t).upsert(part);
+    if (error) { if (isNet(error)) { rows.slice(i).forEach(r => obPush(t, 'up', r)); return 'queued'; } throw error; }
+  }
+  return 'ok';
+}
+let obBusy = false;
+async function obFlush() {
+  if (obBusy || !UID || !navigator.onLine) return; const l = obLoad(); if (!l.length) return;
+  obBusy = true; let left = [...l];
+  try { for (const x of l) { try { await obRun(x.t, x.op, x.p); left = left.filter(y => y !== x); } catch (e) { if (isNet(e)) break; console.error(e); left = left.filter(y => y !== x); } } }
+  finally {
+    // keep what is still waiting, plus anything changed while this ran
+    const sent = new Set(l.filter(x => !left.includes(x)).map(x => JSON.stringify(x)));
+    obSave(obLoad().filter(x => !sent.has(JSON.stringify(x)))); obBusy = false; if (l.length !== left.length) toast(left.length ? 'Some offline changes are still waiting' : 'Your offline changes are saved'); }
+}
+window.addEventListener('online', () => obFlush());
 const DB = {
   async putMany(table, rows) {
     if (!rows.length) return;
     const befores = rows.map(r => [r.id, S[table].find(x => x.id === r.id)]);
     undoPush(`Imported ${rows.length} ${table === 'items' ? 'pieces' : table}`, async () => { for (const [id, b] of befores) b ? await DB.put(table, id, noId(b)) : await DB.del(table, id); }, true);
     const now = new Date().toISOString();
-    const { error } = await sb.from(table).upsert(rows.map(r => ({ user_id: UID, id: r.id, data: r.data, updated_at: now })));
-    if (error) throw error;
+    await sbWriteMany(table, rows.map(r => ({ user_id: UID, id: r.id, data: r.data, updated_at: now })));
     for (const r of rows) { const arr = S[table], i = arr.findIndex(x => x.id === r.id); const v = { ...r.data, id: r.id }; i >= 0 ? (arr[i] = v) : arr.push(v); }
     cacheSave(); derive(); render();
   },
   async savePrefs(patch) {
     const data = { ...S.prefs, ...patch };
-    const { error } = await sb.from('prefs').upsert({ user_id: UID, data, updated_at: new Date().toISOString() });
-    if (error) throw error;
+    await sbWrite('prefs', 'up', { user_id: UID, data, updated_at: new Date().toISOString() });
     S.prefs = data;
     if (data.categories) S.cats = data.categories;
     cacheSave(); derive(); render(); // trips in prefs can change wear counts
@@ -763,15 +801,13 @@ const DB = {
     const before = table === 'days' ? S.days[id] : S[table]?.find(x => x.id === id);
     undoPush(`${before ? 'Changed' : 'Added'} ${table === 'days' ? 'a day' : data.name || (table === 'items' ? 'a piece' : 'an outfit')}`, () => before ? DB.put(table, id, table === 'days' ? before : noId(before)) : DB.del(table, id));
     const row = table === 'days' ? { user_id: UID, day: id, data, updated_at: new Date().toISOString() } : { user_id: UID, id, data, updated_at: new Date().toISOString() };
-    const { error } = await sb.from(table).upsert(row);
-    if (error) throw error;
+    await sbWrite(table, 'up', row);
     applyLocal(table, id, data);
   },
   async del(table, id) {
     const before = table === 'days' ? S.days[id] : S[table]?.find(x => x.id === id);
     if (before) undoPush(`Deleted ${table === 'days' ? 'a day' : before.name || (table === 'items' ? 'a piece' : 'an outfit')}`, () => DB.put(table, id, table === 'days' ? before : noId(before)), true);
-    const { error } = await sb.from(table).delete().eq(table === 'days' ? 'day' : 'id', id);
-    if (error) throw error;
+    await sbWrite(table, 'del', { id });
     applyLocal(table, id, null);
   }
 };
@@ -1905,7 +1941,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v65';
+const APP_VERSION = 'hangtag-v66';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -1959,9 +1995,9 @@ function renderSettings(host) {
     if (items.length && !items.some(i => i.id === SET.list)) SET.list = items[0].id;
     const L = items.length ? fullList(SET.list) : { list: [], hidden: [] }, lh = new Set(L.hidden.map(norm));
     const own = sec === 'closet' ? `<section class="panel setpanel"><h3>Closet</h3><p class="muted">Your categories and a backup of your wardrobe.</p>
-        <div class="setbtns"><button class="btn small" data-editcats>Edit categories</button><button class="btn small" data-cexport>Download backup (.json)</button><button class="btn small" data-cimport>Import from file</button><input type="file" class="vh" data-cimportfile accept=".json,application/json"></div><p class="busy" data-cimportmsg></p></section>`
+        <div class="setbtns"><button class="btn small" data-editcats>Edit categories</button><button class="btn small" data-cexport>Download backup (.json)</button><button class="btn small" data-fullbackup>Everything with photos (.zip)</button><button class="btn small" data-cimport>Import from file</button><input type="file" class="vh" data-cimportfile accept=".json,application/json"></div><p class="busy" data-cimportmsg></p></section>`
       : (window.LIFE?.settingsPanels?.(sec) || '') + (sec === 'money' ? spendPanel() : '');
-    const io = sec === 'closet' ? '' : `<section class="panel setpanel"><h3>Import and backup</h3><p class="muted">Bring lists over from Notion or keep a copy of everything.</p><div class="setbtns"><button class="btn small" data-act="import">Import from Notion</button><button class="btn small" data-act="export">Back up all lists</button></div></section>`;
+    const io = sec === 'closet' ? '' : `<section class="panel setpanel"><h3>Import and backup</h3><p class="muted">Bring lists over from Notion or keep a copy of everything.</p><div class="setbtns"><button class="btn small" data-act="import">Import from Notion</button><button class="btn small" data-act="export">Back up all lists</button><button class="btn small" data-fullbackup>Everything with photos (.zip)</button></div><p class="busy" data-fullmsg></p></section>`;
     host.innerHTML = `<div class="viewhead"><h1>${esc(secObj?.label || '')} settings</h1><span class="sub">Only for ${esc(secObj?.label || 'this section')}</span></div>
   <div class="panels setpanels">
     ${own}
@@ -1991,6 +2027,7 @@ function renderSettings(host) {
     if (t.closest('[data-signout]')) return sb.auth.signOut();
     if (t.closest('[data-reload]')) { navigator.serviceWorker?.getRegistration().then(r => r?.update()).finally(() => location.reload()); return; }
     if (t.closest('[data-cexport]')) return exportBackup();
+    if (t.closest('[data-fullbackup]')) return fullBackup(t.closest('[data-fullbackup]'));
     if (t.closest('[data-cimport]')) return $('[data-cimportfile]', host)?.click();
     const pa = t.closest('[data-push]'); if (pa) return pushAction(pa.dataset.push, pa, host);
     const cp = t.closest('[data-copy]'); if (cp) { navigator.clipboard?.writeText(cp.dataset.copy).then(() => toast('Copied'), () => toast('Select it and copy it by hand')); return; }
@@ -2035,6 +2072,8 @@ const NOTI = [
   ['bills', 'Bills tomorrow', 'Repeats that go out the next day', '18:00'],
   ['payday', 'Payday', 'What comes in and what bills are still coming', '09:00'],
   ['weekly', 'Week in money', 'Sundays: what you spent that week', '19:00'],
+  ['weekahead', 'Week ahead', 'Sundays: meals, appointments, bills and trips for the coming week', '19:30'],
+  ['reminders', 'Reminders', 'Smoke-free milestones, free trials and warranties about to end', '10:00'],
   ['budget', 'Budget almost gone', 'When a category passes 80% and 100% of its budget', ''],
   ['applepay', 'After each Apple Pay payment', 'Saved, with what is left in that category', '']
 ];
@@ -2346,6 +2385,29 @@ function exportBackup() {
   if (navigator.canShare?.({ files: [file] })) { navigator.share({ files: [file] }).catch(() => {}); return; }
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+// one zip with everything: closet, all lists, settings, and every photo they use (photos/ keeps the storage paths)
+async function fullBackup(btn) {
+  const say = m => { document.querySelectorAll('[data-fullmsg], [data-cimportmsg]').forEach(el => el.textContent = m); };
+  btn.disabled = true;
+  try {
+    say('Getting ready…');
+    if (!window.JSZip) await new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'; sc.onload = ok; sc.onerror = no; document.head.appendChild(sc); });
+    const data = { app: 'A’s Life', exported: new Date().toISOString(), items: S.items, outfits: S.outfits, days: S.days, prefs: S.prefs, records: window.LIFE?.records?.() || [] };
+    const json = JSON.stringify(data, null, 1), zip = new JSZip();
+    zip.file('backup.json', json);
+    const paths = [...new Set(json.match(/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(?:jpe?g|png|webp)/gi) || [])];
+    let done = 0, failed = 0;
+    const one = async p => { try { const r = await fetch(photoURL(p)); if (!r.ok) throw 0; zip.file('photos/' + p, await r.blob(), { binary: true, compression: 'STORE' }); } catch { failed++; } done++; if (done % 10 === 0 || done === paths.length) say(`Photos ${done} of ${paths.length}…`); };
+    for (let i = 0; i < paths.length; i += 6) await Promise.all(paths.slice(i, i + 6).map(one));
+    say('Packing the zip…');
+    const blob = await zip.generateAsync({ type: 'blob' }), name = `as-life-backup-${today()}.zip`, file = new File([blob], name, { type: 'application/zip' });
+    say(`Ready: ${paths.length - failed} photos${failed ? `, ${failed} could not be fetched` : ''}, ${Math.round(blob.size / 1e6)} MB.`);
+    if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file] }).catch(() => {}); return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  } catch (err) { console.error(err); say('The backup did not work. Check your connection and try again.'); }
+  finally { btn.disabled = false; }
 }
 
 /* ---------- sheets ---------- */
@@ -3307,10 +3369,11 @@ async function start(session) {
   UID = session.user.id; EMAIL = session.user.email || '';
   S.status = cacheLoad() ? 'ok' : 'connecting';
   derive(); $('#main').innerHTML = ''; render();
+  await obFlush(); // send changes made offline before loading fresh data over them
   subscribeLive(); wxRefresh();
   // what life.js needs from the closet: the signed-in Supabase client, photos, sheets and settings
   const lifeLoad = window.LIFE?.start({ sb, uid: () => UID, view: () => S.view, go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url, shop: it.shop, planBuy: it.planBuy || '' })),
-    undoQuiet,
+    undoQuiet, sbWrite, sbWriteMany, obFlush,
     // trips are shared with Life › Trips: one trip, planned there and packed here
     trips: () => trips(), saveTrip: t => saveTrip(t), tripDates: t => tripDates(t), tripProgress: t => tripProgress(t),
     tripEdit: id => openTripEditor(id || null, true), tripPack: id => { S.tripUI = { ...(S.tripUI || {}), id, tab: 'pack', home: false }; go('trips'); },
