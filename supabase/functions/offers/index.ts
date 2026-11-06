@@ -570,7 +570,7 @@ Deno.serve(async req => {
         const now = Date.now();
         const data = clean({
           name, cat: str(w?.cat, 40) || 'Tops', sub: str(w?.sub, 80), brand: str(w?.brand, 80), size: str(w?.size, 30), articleNo: str(w?.articleNo, 60),
-          price: num(w?.price), origPrice: num(w?.origPrice), bought: day(w?.bought), material: str(w?.material, 200), shop: str(w?.shop, 80), link: str(w?.link, 500),
+          price: num(w?.price), origPrice: num(w?.origPrice), bought: day(w?.bought), pastWears: Math.max(0, Math.round(Number(w?.pastWears) || 0)) || undefined, material: str(w?.material, 200), shop: str(w?.shop, 80), link: str(w?.link, 500),
           colors: list(w?.colors), materials: list(w?.materials), fits: list(w?.fits), seasons: list(w?.seasons, 4), occasions: list(w?.occasions),
           tags: [...new Set([...list(w?.tags), 'From video'])], condition: str(w?.condition, 40), acquired: str(w?.acquired, 40),
           notes: str(w?.notes, 4000), careNotes: str(w?.careNotes, 1000), photo, status: 'closet', source: 'video', batch, importKey: key,
