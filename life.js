@@ -88,6 +88,12 @@ const HELPS = ['Stop smoking'];
 const FEELS = ['Comfort', 'Light', 'Fresh', 'Hearty', 'Quick', 'Savoury', 'Sweet', 'Spicy'];
 const TEXTURES = ['Crispy', 'Creamy', 'Crunchy', 'Soft', 'Chewy', 'Saucy', 'Dry', 'Mushy'];
 const QUIT = 'Stop smoking', helpsQuit = r => [].concat(r.helps || []).includes(QUIT);
+// pantry and kitchen gear speak Dutch; older English categories are translated by Kitchen › Settings › Tidy up
+const CAT_NL = {
+  ingredients: { 'Fruits & Veg': 'Groente & fruit', 'Fish & Meat': 'Vlees & vis', 'Eggs & Dairy': 'Zuivel & eieren', 'Grains & Legumes': 'Granen & peulvruchten', 'Bread & Bakery': 'Brood & bakkerij', 'Nuts & Seeds': 'Noten & zaden', 'Herbs & Spices': 'Kruiden & specerijen', 'Sauces & Oils': 'Sauzen & olie', 'Tins & Jars': 'Blik & pot', 'Frozen': 'Diepvries', 'Drinks': 'Dranken', 'Snack': 'Snacks', 'Confections': 'Zoetigheid', 'Supplements': 'Supplementen', 'Other': 'Overig' },
+  gear: { 'Kitchen Appliances': 'Keukenapparaten', 'Cookware & Bakeware': 'Pannen & bakvormen', 'Prep Tools & Essentials': 'Voorbereiden', 'Cooking Tools & Utensils': 'Kookgerei', 'Organizing Essentials': 'Opbergen', 'Cleaning Supplies': 'Schoonmaken' }
+};
+const catNL = (kind, v) => (CAT_NL[kind] || {})[v] || v;
 const ROOMS = ['Entree', 'Woonkamer', 'Keuken', 'Slaapkamer', 'Badkamer', 'Toilet', 'Wasruimte', 'Balkon', 'Schoonmaak', 'Overig'];
 const PRIO = ['Must-have', 'Binnen 3 maanden', 'Handig', 'Kan later'];
 const FREQ = { 'Daily': 1, 'Every 2 days': 2, 'Twice a week': 3, 'Weekly': 7, 'Every 2 weeks': 14, 'Monthly': 30, 'Every 3 months': 91, 'Every 6 months': 182, 'Yearly': 365 };
@@ -177,7 +183,7 @@ const KINDS = {
   },
   ingredients: {
     one: 'ingredient', many: 'Pantry', facet: 'category',
-    fields: [F('name', 'Name'), F('category', 'Category', 'select', { options: ['Fruits & Veg', 'Fish & Meat', 'Eggs & Dairy', 'Grains & Legumes', 'Bread & Bakery', 'Nuts & Seeds', 'Herbs & Spices', 'Sauces & Oils', 'Tins & Jars', 'Frozen', 'Drinks', 'Snack', 'Confections', 'Supplements', 'Other'] }),
+    fields: [F('name', 'Name'), F('category', 'Category', 'select', { options: Object.values(CAT_NL.ingredients) }),
       F('location', 'Kept in', 'select', { options: ['Koelkast', 'Vriezer', 'Voorraadkast', 'Keukenkast', 'Fruitmand', 'Broodtrommel', 'Kelder / Berging', 'Overig'] }),
       F('stock', 'In stock', 'check', { half: 1 }), F('list', 'On grocery list', 'check', { half: 1 }), F('helps', 'Helps with', 'multi', { options: HELPS }),
       F('qty', 'Amount', 'text', { half: 1 }), F('notes', 'Notes', 'long')],
@@ -239,7 +245,7 @@ const KINDS = {
   },
   gear: {
     one: 'item', many: 'Kitchen gear', facet: 'category',
-    fields: [F('name', 'Name'), F('category', 'Category', 'select', { options: ['Kitchen Appliances', 'Cookware & Bakeware', 'Prep Tools & Essentials', 'Cooking Tools & Utensils', 'Organizing Essentials', 'Cleaning Supplies'] }),
+    fields: [F('name', 'Name'), F('category', 'Category', 'select', { options: Object.values(CAT_NL.gear) }),
       F('own', 'I have this', 'check'), F('price', 'Price', 'money', { half: 1 }), F('bought', 'Bought on', 'date', { half: 1 }),
       F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['category', 'Category']],
@@ -887,10 +893,10 @@ function fitTile() {
 /* ---------- sections and their pages ---------- */
 const SECTIONS = [
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile, views: [['today', 'Overview', P.grid], ['deals', 'Deals', P.tag], ['quit', 'Stop smoking', P.leaf], ['recipes', 'Recipes', P.book], ['meals', 'Meal plan', P.calendar], ['groceries', 'Groceries', P.cart], ['pantry', 'Pantry', P.jar], ['gear', 'Gear', P.spoon]] },
-  { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Habits', P.repeat], ['growth', 'Growth', P.target], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['mindful', 'Mindfulness', P.moon], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['docs', 'Documents', P.doc]] },
+  { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Habits', P.repeat], ['growth', 'Growth', P.target], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['mindful', 'Mindfulness', P.moon], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['docs', 'Documents', P.doc], ['saved', 'Saved links', P.link]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
-  { key: 'wish', label: 'Wishlists', icon: P.heart, tile: wishTile, views: [['today', 'Overview', P.grid], ['inbox', 'Inbox', P.inbox], ['master', 'Master', P.heart], ['saved', 'Saved links', P.link]] },
+  { key: 'wish', label: 'Wishlists', icon: P.heart, tile: wishTile, views: [['today', 'Overview', P.grid], ['inbox', 'Inbox', P.inbox], ['master', 'Master', P.heart]] },
   { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['feed', 'Feed', P.grid], ['posts', 'Posts', P.phone], ['ideas', 'Ideas', P.star], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
   { key: 'fit', label: 'Fitness', icon: P.dumbbell, tile: fitTile, views: [['today', 'Overview', P.grid], ['workouts', 'Workouts', P.run], ['library', 'Videos', P.star], ['fgoals', 'Goals', P.target], ['plans', 'Plans', P.list], ['exercises', 'Exercises', P.dumbbell], ['body', 'Body', P.scale], ['gear', 'Gear', P.box]] }
 ];
@@ -918,9 +924,9 @@ const PAGES = {
   'social/projects': { title: 'Projects', segs: [{ kind: 'projects' }] },
   'social/today': { render: socialToday, adds: ['tasks', 'projects', 'posts', 'cideas', 'deals', 'sgoals'] },
   'wish/today': { render: wishToday, adds: ['wishes', 'winbox'] },
-  'wish/master': { title: 'Master wishlist', segs: [{ kind: 'wishes' }] },
+  'wish/master': { title: 'Master wishlist', segs: [{ key: 'all', label: 'Everything', kind: 'wishes', fill: masterFill, tools: false }, { kind: 'wishes', label: 'Other wishes' }] },
   'wish/inbox': { render: inboxPage, adds: ['winbox'] },
-  'wish/saved': { title: 'Saved links', segs: [{ kind: 'inbox', fill: savedFill, tools: false }] },
+  'care/saved': { title: 'Saved links', segs: [{ kind: 'inbox', fill: savedFill, tools: false }] },
   'wish/oldinbox': { title: 'Old wishlist inbox', segs: [{ kind: 'winbox' }] },
   'social/posts': { title: 'Posts', segs: [{ kind: 'posts' }] },
   'social/feed': { render: socialFeed, adds: ['posts', 'highlights', 'accounts'] },
@@ -1211,7 +1217,7 @@ function emptyList(K, any) {
    times a day, works out what it is (recipe, wish, closet piece, beauty, supplement, gear, home, idea, content,
    gift) and fills in a card. You accept it, send it somewhere else, keep it as a saved link, or skip it. */
 const INBOX_TO = { recipes: ['Recipe', 'kitchen/recipes'], wishes: ['Wish', 'wish/master'], closet: ['Closet wishlist', 'wishlist'], beauty: ['Beauty', 'care/beauty'], supplements: ['Supplement', 'care/supplements'],
-  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], gifts: ['Gift idea', 'care/gifts'], keep: ['Saved link', 'wish/saved'] };
+  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], gifts: ['Gift idea', 'care/gifts'], keep: ['Saved link', 'care/saved'] };
 const INBOX_EXTRA = { wishes: () => ({ status: 'Wish', since: today() }), beauty: () => ({ wish: true }), supplements: () => ({ wish: true }), gear: () => ({ own: false }), fitgear: () => ({ own: false }), inventory: () => ({ status: 'Wishlist' }), cideas: () => ({ status: 'Idea', source: 'Inbox' }), gifts: () => ({ status: 'Idea' }) };
 const inboxOpen = () => recs('inbox').filter(r => ['New', 'Ready'].includes(r.status));
 const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
@@ -1245,6 +1251,15 @@ function inboxPage(host) {
   ${(() => { const old = recs('winbox').filter(r => r.status !== 'Done'); return old.length ? panel('Older links', `<p class="lnone">From the old wishlist inbox. Tap “Make a wish” on one, or open the old list.</p><div class="lrows">${old.slice(0, 8).map(row).join('')}</div>`, ['wish/oldinbox', `All ${old.length}`]) : ''; })()}
   ${done.length ? panel('Recently sorted', `<div class="lrows">${done.map(r => `<div class="lrow"><button class="lmain" ${r.made && L.byId[r.made] ? `data-act="open" data-id="${r.made}"` : ''}><b>${esc(r.title || hostOf(r.url) || 'Link')}</b><span>${esc(INBOX_TO[r.target]?.[0] || '')}</span></button></div>`).join('')}</div>`) : ''}</div>`;
 }
+// every wish in the app on one page: the closet wishlist, beauty, kitchen, home, fitness and the rest, by where it lives
+function masterFill(fill) {
+  const pr = w => { const i = WISH_PRIO.indexOf(w.prio); return i < 0 ? 99 : i; };
+  const all = allWishes(), u = uiOf('wish/master'), groups = [...new Set(all.map(w => w.source))], src = groups.includes(u.allSrc) ? u.allSrc : '';
+  const list = all.filter(w => !src || w.source === src).sort((a, b) => pr(a) - pr(b) || (a.since || '').localeCompare(b.since || ''));
+  const cardOf = w => w.closet ? prodCard(w, 'openitem') : L.byId[w.id] ? prodCard(L.byId[w.id]) : '';
+  fill.innerHTML = `<div class="lwrap mfilter">${['', ...groups].map(g => `<button class="chip" data-act="mallsrc" data-v="${esc(g)}" aria-pressed="${g === src}">${esc(g || 'All')} · ${all.filter(w => !g || w.source === g).length}</button>`).join('')}</div>`
+    + (list.length ? (src ? [src] : groups).map(g => { const l = list.filter(w => w.source === g); return l.length ? `<div class="mgroup"><p class="dsub">${esc(g)} · ${l.length}</p><div class="lgrid">${l.map(cardOf).join('')}</div></div>` : ''; }).join('') : quiet('No wishes yet. Add one, or share a link to your inbox.'));
+}
 function savedFill(fill) {
   const l = recs('inbox').filter(r => r.status === 'Kept').sort((a, b) => (b.created || 0) - (a.created || 0));
   fill.innerHTML = l.length ? `<div class="lrows">${l.map(r => `<div class="lrow"><a class="lmain" href="${esc(r.url || '#')}" target="_blank" rel="noopener"><b>${esc(r.title || hostOf(r.url) || r.text || 'Link')}</b><span>${esc([hostOf(r.url), r.why || r.note].filter(Boolean).join(' · '))}</span></a><button class="lquick" data-act="open" data-id="${r.id}">Edit</button></div>`).join('')}</div>` : quiet('Links you keep without a place go here.');
@@ -1267,7 +1282,7 @@ async function inboxAccept(id, target) {
   const rows = inboxRows(r, target, now); if (!rows) return;
   try { await putMany(rows, null, `Added ${name} to ${INBOX_TO[target][0].toLowerCase()}`); C.toast(`${name} is in ${INBOX_TO[target][0].toLowerCase()} now`); } catch { C.toast('Could not save. Try again.'); }
 }
-// the records one inbox card becomes; "made" keeps ingredients made earlier in the same batch, so none is made twice
+// the records one inbox card becomes
 function inboxRows(r, target, now, made = new Map()) {
   const K = KINDS[target]; if (!K) return null;
   const d = { ...(r.draft || {}) }, name = d.name || r.title || hostOf(r.url) || 'Link';
@@ -1282,9 +1297,11 @@ function inboxRows(r, target, now, made = new Map()) {
     const lines = d.lines || [], steps = d.steps || d.instructions || '';
     if (!data.instructions && (lines.length || steps)) data.instructions = [lines.length ? 'Ingrediënten:\n' + lines.map(l => '- ' + l).join('\n') : '', steps ? (lines.length ? 'Bereiding:\n' : '') + steps : ''].filter(Boolean).join('\n\n');
     const seen = new Set();
-    for (const n of [].concat(d.ingredients || [])) { const k = deUml(n); let ir = made.get(k); if (!ir) { ir = ingRow(n); if (!L.byId[ir.id]) { made.set(k, ir); rows.push(ir); } } if (seen.has(ir.id)) continue; seen.add(ir.id); }
+    // link the pantry items you already have; never add new ones (you fill your pantry yourself)
+    for (const n of [].concat(d.ingredients || [])) { const hit = recs('ingredients').find(i => deUml(i.name) === deUml(n)); if (hit) seen.add(hit.id); }
     if (seen.size) data.ingredients = [...seen];
   }
+  if (CAT_NL[target] && data.category) data.category = catNL(target, data.category);
   for (const k of Object.keys(data)) if (data[k] === '' || data[k] == null) delete data[k];
   rows.push({ id: rid, kind: target, data }, { id: r.id, kind: 'inbox', data: { ...dataOf(r), status: 'Done', target, made: rid, doneAt: now } });
   return rows;
@@ -2934,10 +2951,12 @@ document.addEventListener('click', async e => {
     case 'feednew': openEditor('posts', null, { platforms: ['Instagram'], stage: 'Planned' }); break;
     case 'feedacc': openEditor('accounts', null, { platform: 'Instagram', active: true }); break;
     case 'wishf': { const b2 = document.querySelector(`.wtable [data-src="${CSS.escape(d.v)}"]`); b2?.closest('.wtable')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); break; }
-    case 'wishgo': if (d.v === 'wish/master') uiOf('wish/master').facet = d.src; if (d.v === 'money/plan') uiOf('money/plan').seg = 'wait'; C.go(d.v); break;
+    case 'wishgo': if (d.v === 'wish/master') { const u = uiOf('wish/master'); u.seg = 'all'; u.allSrc = d.src; } if (d.v === 'money/plan') uiOf('money/plan').seg = 'wait'; C.go(d.v); break;
     case 'wmovewait': moveWaitList(); break;
     case 'dkeep': case 'dplan': case 'dgroc': dealsAct(d.act, d.k, Number(d.i)); break;
     case 'quitadd': quitAdd(); break;
+    case 'mallsrc': uiOf('wish/master').allSrc = d.v; C.render(); break;
+    case 'tidy': tidyRun(); break;
     case 'dealsall': L.dealsAll = !L.dealsAll; C.render(); break;
     case 'ibxok': inboxAccept(d.id); break;
     case 'ibxall': inboxAcceptAll(d.v); break;
@@ -3488,6 +3507,63 @@ document.addEventListener('click', e => {
   if (b.dataset.ovreset) ovSave(b.dataset.ovreset, null).then(() => C.toast('Back to the standard overview'));
 });
 
+/* ---------- tidy up the pantry and kitchen gear ----------
+   Pantry items that an accepted inbox recipe made by itself (lower-case name, nothing filled in) go away, items with
+   the same name are merged into one, English categories become Dutch, and Dutch names proposed by Claude (a "tidy"
+   record the offers function saves) are used. Everything is one step to undo. */
+const autoIng = r => /^[a-zà-ÿ]/.test(r.name || '') && !r.category && !r.stock && !r.list && !r.location && !(r.helps || []).length && !r.notes;
+function tidyPlan() {
+  const prop = recs('tidy').sort((a, b) => (b.created || 0) - (a.created || 0))[0], names = prop?.names || {};
+  const ing = recs('ingredients'), gear = recs('gear'), drop = new Set(ing.filter(autoIng).map(r => r.id)), nameOf = r => names[r.id] || r.name;
+  const groups = new Map(), into = new Map();
+  for (const r of ing) if (!drop.has(r.id)) { const k = deUml(nameOf(r)); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
+  const score = r => (r.stock ? 8 : 0) + (r.list ? 4 : 0) + (r.category ? 2 : 0) + Object.keys(r).length / 100;
+  for (const g of groups.values()) if (g.length > 1) { g.sort((a, b) => score(b) - score(a)); for (const r of g.slice(1)) into.set(r.id, g[0].id); }
+  const gone = new Set([...drop, ...into.keys()]), changes = new Map();
+  const fix = (r, kind) => { const d = dataOf(r), n = { ...d }; if (names[r.id]) n.name = names[r.id]; if (n.category) n.category = catNL(kind, n.category); if (JSON.stringify(n) !== JSON.stringify(d)) changes.set(r.id, { id: r.id, kind, data: n }); };
+  for (const r of ing) if (!gone.has(r.id)) fix(r, 'ingredients');
+  for (const [from, to] of into) { const a = L.byId[from], c = changes.get(to) || { id: to, kind: 'ingredients', data: dataOf(L.byId[to]) }; if (a.stock) c.data.stock = true; if (a.list) c.data.list = true; if (!c.data.category && a.category) c.data.category = catNL('ingredients', a.category); changes.set(to, c); }
+  for (const r of gear) fix(r, 'gear');
+  // recipes, meals and the rest that point at a removed pantry item point at the kept one, or lose the link
+  for (const r of L.all) {
+    if (gone.has(r.id) || r.kind === 'ingredients' || r.kind === 'gear') continue;
+    const d = dataOf(r); let hit = false;
+    for (const [k, v] of Object.entries(d)) if (Array.isArray(v) && v.some(x => gone.has(x))) { hit = true; d[k] = [...new Set(v.filter(x => !drop.has(x)).map(x => into.get(x) || x))]; }
+    if (hit) changes.set(r.id, { id: r.id, kind: r.kind, data: d });
+  }
+  const live = r => !gone.has(r.id);
+  return { auto: drop.size, merged: into.size, gone: [...gone], changes: [...changes.values()], proposed: !!prop,
+    renamed: [...ing, ...gear].filter(r => live(r) && names[r.id] && names[r.id] !== r.name).length,
+    cats: [...ing, ...gear].filter(r => live(r) && r.category && catNL(r.kind, r.category) !== r.category).length,
+  };
+}
+async function tidyRun() {
+  const t = tidyPlan(); if (!t.changes.length && !t.gone.length) { C.toast('Nothing to tidy'); return; }
+  if (!confirm(`Remove ${plural(t.gone.length, 'pantry item')} and update ${plural(t.changes.length, 'other record')}? You can undo it right after.`)) return;
+  const removed = t.gone.map(id => L.byId[id]).filter(Boolean).map(r => ({ id: r.id, kind: r.kind, data: dataOf(r) }));
+  const befores = t.changes.map(c => ({ id: c.id, kind: c.kind, data: dataOf(L.byId[c.id]) }));
+  C.toast('Tidying up…');
+  try {
+    await C.undoQuiet(async () => {
+      if (t.changes.length) await putMany(t.changes, null, 'restore');
+      for (let i = 0; i < t.gone.length; i += 200) { const { error } = await C.sb.from('records').delete().in('id', t.gone.slice(i, i + 200)); if (error) throw error; }
+      const g = new Set(t.gone); L.all = L.all.filter(r => !g.has(r.id)); index(); cacheSave();
+    });
+  } catch { C.toast('Could not tidy everything. Try again.'); C.render(); return; }
+  // the category lists you edited in Settings follow too
+  const ol = { ...(C.prefs().optLists || {}) }; let olc = false;
+  for (const kind of ['ingredients', 'gear']) { const c = ol[kind + '.category']; if (c?.list) { ol[kind + '.category'] = { ...c, list: c.list.map(v => catNL(kind, v)), hidden: (c.hidden || []).map(v => catNL(kind, v)) }; olc = true; } }
+  if (olc) C.savePrefs({ optLists: ol }).catch(() => {});
+  C.undoPush('Tidied the pantry and kitchen gear', () => putMany([...befores, ...removed], null, 'restore'), true);
+  C.render();
+}
+function tidyPanel() {
+  const t = tidyPlan(), any = t.gone.length || t.changes.length;
+  return `<section class="panel setpanel"><h3>Tidy up the pantry</h3><p class="muted">Pantry items that accepted recipes added by themselves, doubles, and English names and categories.</p>
+    <div class="lrows">${[[t.auto, 'made by accepted recipes, removed'], [t.merged, 'doubles, merged into one'], [t.renamed, 'get a Dutch name'], [t.cats, 'get a Dutch category']].map(([n, l]) => `<p class="dline"><span>${esc(l)}</span><b>${n}</b></p>`).join('')}</div>
+    ${t.proposed ? '' : '<p class="muted">Dutch names follow once Claude has suggested them.</p>'}
+    <div class="setbtns"><button class="btn small ${any ? 'primary' : ''}" data-act="tidy" ${any ? '' : 'disabled'}>${any ? 'Tidy up now' : 'All tidy'}</button></div></section>`;
+}
 /* ---------- settings that only one section has ---------- */
 const wishBudgetField = () => `<div class="fset"><div><b>Wishlist budget</b><span>What you allow yourself from your wishlists per ${fMode() === 'month' ? 'month' : 'paycheck'} (follows how you plan everyday spending). Purchases with the tag wishlist count against it.</span></div><input class="finp" type="number" inputmode="decimal" step="1" data-fset="wishBudget" value="${fset().wishBudget ?? ''}" placeholder="No budget"></div>`;
 function settingsPanels(sec) { if (!C) return ''; return secOwn(sec) + ovPanel(sec); }
@@ -3496,7 +3572,7 @@ function secOwn(sec) {
   if (sec === 'money') return wrap(fSettings());
   if (sec === 'kitchen') {
     const f = C.prefs().food || {}, ta = (k, label, help, ph) => `<div class="fset fsetcol"><div><b>${label}</b><span>${help}</span></div><textarea class="finp" rows="2" data-food="${k}" placeholder="${ph}">${esc(f[k] || '')}</textarea></div>`;
-    return wrap(`<section class="panel setpanel"><h3>Taste</h3><p class="muted">The weekly deals plan follows this. Separate things with commas.</p>
+    return wrap(tidyPanel() + `<section class="panel setpanel"><h3>Taste</h3><p class="muted">The weekly deals plan follows this. Separate things with commas.</p>
       ${ta('no', 'I don’t eat', 'Never in a suggestion.', 'e.g. nuts, avocado')}
       ${ta('hidden', 'Only if you can’t taste it', 'Fine when it is fully worked into the dish.', 'e.g. coconut milk in a curry')}
       ${ta('love', 'I love', 'Gets picked more often.', 'e.g. aged cheese, savoury snacks')}

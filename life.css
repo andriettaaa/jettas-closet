@@ -584,3 +584,5 @@ header.top .brand { flex: none; white-space: nowrap; }
   .panels:has(> .lpanel):not(:has(> .wide)) { display: block; columns: 2; column-gap: 16px; }
   .panels:has(> .lpanel):not(:has(> .wide)) > * { break-inside: avoid; margin: 0 0 16px; width: 100%; }
 }
+.mfilter { margin-bottom: 4px; }
+.mgroup { display: grid; gap: 8px; margin-top: 18px; }
