@@ -244,7 +244,7 @@ Deno.serve(async req => {
     if (body.action === 'tidy') {
       const names: Record<string, string> = {};
       for (const [id, n] of Object.entries(body.names || {})) { const v = str(n, 120); if (v && /^[\w-]{1,60}$/.test(id)) names[id] = v; }
-      const { error } = await sb.from('records').upsert({ user_id: uid, id: 'tidy-' + Date.now(), kind: 'tidy', data: { names, created: Date.now() }, updated_at: new Date().toISOString() });
+      const { error } = await sb.from('records').upsert({ user_id: uid, id: crypto.randomUUID(), kind: 'tidy', data: { names, created: Date.now() }, updated_at: new Date().toISOString() });
       if (error) throw error;
       return json({ ok: true, names: Object.keys(names).length });
     }

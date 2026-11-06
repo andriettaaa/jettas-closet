@@ -3510,11 +3510,11 @@ document.addEventListener('click', e => {
 /* ---------- tidy up the pantry and kitchen gear ----------
    Pantry items that an accepted inbox recipe made by itself (lower-case name, nothing filled in) go away, items with
    the same name are merged into one, English categories become Dutch, and Dutch names proposed by Claude (a "tidy"
-   record the offers function saves) are used. Everything is one step to undo. */
+   record the offers function saves; "-" there means remove it) are used. Everything is one step to undo. */
 const autoIng = r => /^[a-zà-ÿ]/.test(r.name || '') && !r.category && !r.stock && !r.list && !r.location && !(r.helps || []).length && !r.notes;
 function tidyPlan() {
   const prop = recs('tidy').sort((a, b) => (b.created || 0) - (a.created || 0))[0], names = prop?.names || {};
-  const ing = recs('ingredients'), gear = recs('gear'), drop = new Set(ing.filter(autoIng).map(r => r.id)), nameOf = r => names[r.id] || r.name;
+  const ing = recs('ingredients'), gear = recs('gear'), drop = new Set(ing.filter(r => autoIng(r) || names[r.id] === '-').map(r => r.id)), nameOf = r => names[r.id] || r.name;
   const groups = new Map(), into = new Map();
   for (const r of ing) if (!drop.has(r.id)) { const k = deUml(nameOf(r)); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
   const score = r => (r.stock ? 8 : 0) + (r.list ? 4 : 0) + (r.category ? 2 : 0) + Object.keys(r).length / 100;
