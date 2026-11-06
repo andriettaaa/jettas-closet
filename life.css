@@ -625,3 +625,12 @@ html.cooking, html.cooking body { overflow: hidden; }
 .mealcal .mday em.aw { color: var(--accent); font-weight: 600; }
 .dpick { cursor: pointer; }
 .dpick input { width: 20px; height: 20px; flex: none; margin: 0 4px 0 0; }
+/* trips */
+.tripcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; }
+.tripcard { display: grid; gap: 6px; text-align: left; font: inherit; color: var(--ink); cursor: pointer; }
+.tripcard > b { font-size: 20px; }
+.triph2 { font-size: 18px; margin: 24px 0 12px; }
+.tbar { display: block; height: 8px; border-radius: 8px; background: var(--line); overflow: hidden; }
+.tbar i { display: block; height: 100%; background: var(--accent); border-radius: 8px; }
+.tripdays { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 14px; }
+.tripag input[type="time"] { flex: 0 0 104px; min-width: 0; }

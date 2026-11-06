@@ -1618,7 +1618,7 @@ function shareTrip(t) {
   else navigator.clipboard.writeText(text).then(() => toast('Packing list copied'), () => toast("Couldn't copy the list"));
 }
 
-function openTripEditor(id) {
+function openTripEditor(id, stay) {
   const base = id ? tripById(id) : null;
   const T = base ? JSON.parse(JSON.stringify(base)) : { id: uuid(), start: iso(new Date(Date.now() + 7 * 864e5)), days: 4, types: [], bags: ['Carry-on', 'Checked'], countWears: true, pack: [], extras: [], buy: [], plan: {}, laundry: [] };
   let results = [], timer = null;
@@ -1667,7 +1667,7 @@ function openTripEditor(id) {
     if (!id) for (let i = 0; i < T.days; i++) T.plan[i] = { slots: [{ label: i === 0 || i === T.days - 1 ? 'Travel' : 'Daytime', pieces: [] }] };
     T.laundry = (T.laundry || []).filter(i => +i < T.days);
     $('#tSave', sh).disabled = true; st.textContent = 'Saving…';
-    if (await saveTrip(T)) { closeSheet(); toast(id ? 'Trip saved' : 'Trip created'); S.tripUI = { ...(S.tripUI || {}), id: T.id, tab: S.tripUI?.tab || 'plan', home: false }; if (S.view !== 'trips') go('trips'); else render(); }
+    if (await saveTrip(T)) { closeSheet(); toast(id ? 'Trip saved' : 'Trip created'); S.tripUI = { ...(S.tripUI || {}), id: T.id, tab: S.tripUI?.tab || 'plan', home: false }; if (stay) render(); else if (S.view !== 'trips') go('trips'); else render(); }
     else { $('#tSave', sh).disabled = false; st.textContent = ''; }
   });
   if (!id) setTimeout(() => destIn.focus(), 50);
@@ -1905,7 +1905,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v63';
+const APP_VERSION = 'hangtag-v64';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -3311,6 +3311,9 @@ async function start(session) {
   // what life.js needs from the closet: the signed-in Supabase client, photos, sheets and settings
   const lifeLoad = window.LIFE?.start({ sb, uid: () => UID, view: () => S.view, go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url, shop: it.shop, planBuy: it.planBuy || '' })),
     undoQuiet,
+    // trips are shared with Life › Trips: one trip, planned there and packed here
+    trips: () => trips(), saveTrip: t => saveTrip(t), tripDates: t => tripDates(t), tripProgress: t => tripProgress(t),
+    tripEdit: id => openTripEditor(id || null, true), tripPack: id => { S.tripUI = { ...(S.tripUI || {}), id, tab: 'pack', home: false }; go('trips'); },
     // a closet wish bought through Finance: into the closet at the price paid; hands back what it was, for undo
     closetBuy: async (id, { price, bought, tx }) => { const before = noId(S.byId[id]), { planBuy, ...rest } = before; await DB.put('items', id, { ...rest, status: 'closet', price, bought, tx, updated: Date.now() }); return before; },
     closetRestore: (id, data) => data ? DB.put('items', id, data) : DB.del('items', id),
