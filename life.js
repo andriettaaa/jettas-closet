@@ -68,6 +68,7 @@ const P = {
   right: '<path d="m10 6 6 6-6 6"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  plane: '<path d="M10.5 4.5c0-1 .7-2 1.5-2s1.5 1 1.5 2V9l7 4v2l-7-2v4.5l2 1.5v1.5L12 20l-3.5.5V19l2-1.5V13l-7 2v-2l7-4Z"/>',
   clock: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9.5 2.5h5"/>',
   search: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',
   phone: '<rect x="6.5" y="3" width="11" height="18" rx="2.5"/><path d="M10.5 18h3"/>',
@@ -798,7 +799,7 @@ const tileBody = (bits) => bits.filter(Boolean).join('');
 // the parts of each card you can switch off in Arrange (prefs.dash.parts); water starts off
 const TILE_PARTS = {
   kitchen: [['meals', 'Meals today'], ['groc', 'Grocery list']],
-  care: [['water', 'Water'], ['sups', 'Supplements'], ['cycle', 'Cycle'], ['appt', 'Next appointment'], ['skin', 'Skincare'], ['routine', 'Routine'], ['sleep', 'Sleep'], ['journal', 'Journal']],
+  care: [['trip', 'Next trip'], ['water', 'Water'], ['sups', 'Supplements'], ['cycle', 'Cycle'], ['appt', 'Next appointment'], ['skin', 'Skincare'], ['routine', 'Routine'], ['sleep', 'Sleep'], ['journal', 'Journal']],
   money: [['safe', 'Safe to spend'], ['payday', 'Until payday'], ['bill', 'Next bill']],
   home: [['chores', 'Chores'], ['plants', 'Plants']],
   wish: [['count', 'Number of wishes'], ['total', 'Total price'], ['inbox', 'Inbox']],
@@ -838,6 +839,7 @@ function careTile() {
   const sl = recs('sleep').find(x => x.date === t), j = recs('journal').find(x => x.date === t);
   return tileBody([
     part('care', 'water', `<div class="lwater small"><button class="iconbtn small" data-act="water" data-v="-1" aria-label="One glass less" ${glasses ? '' : 'disabled'}>${svg(P.minus)}</button><div class="lwv"><b>${glasses}</b><span>of ${goal} glasses</span></div><button class="iconbtn small lplus" data-act="water" data-v="1" aria-label="One more glass">${svg(P.plus)}</button></div>`),
+    part('care', 'trip', (() => { const nt = nextTrip(); return nt ? `<p class="dline"><span>${esc(tripName(nt))}</span><b><button class="chip link" data-act="go" data-v="care/trips">${esc(tripWhen(nt))}</button></b></p>` : ''; })()),
     part('care', 'sups', doses ? `<p class="dline"><span>Supplements</span><b>${Math.min(taken, doses)} of ${doses} taken</b></p>` : ''),
     partsOff('care').includes('cycle') ? '' : cy.last ? `<p class="dline"><span>Cycle</span><b>${cy.open ? 'period, day ' + cy.day : 'day ' + cy.day + ', next ' + relDay(cy.next)}</b></p>` : '',
     partsOff('care').includes('appt') ? '' : appt ? `<p class="dline"><span>Next appointment</span><b>${esc(titleOf(appt))}, ${esc(relDay(appt.date))}${appt.time ? ' ' + esc(appt.time) : ''}</b></p>` : '',
@@ -895,7 +897,7 @@ function fitTile() {
 /* ---------- sections and their pages ---------- */
 const SECTIONS = [
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile, views: [['today', 'Overview', P.grid], ['deals', 'Deals', P.tag], ['quit', 'Stop smoking', P.leaf], ['recipes', 'Recipes', P.book], ['meals', 'Meal plan', P.calendar], ['groceries', 'Groceries', P.cart], ['pantry', 'Pantry', P.jar], ['gear', 'Gear', P.spoon]] },
-  { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Habits', P.repeat], ['growth', 'Growth', P.target], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['mindful', 'Mindfulness', P.moon], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['docs', 'Documents', P.doc], ['saved', 'Saved links', P.link]] },
+  { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Habits', P.repeat], ['growth', 'Growth', P.target], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['mindful', 'Mindfulness', P.moon], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['trips', 'Trips', P.plane], ['docs', 'Documents', P.doc], ['saved', 'Saved links', P.link]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
   { key: 'wish', label: 'Wishlists', icon: P.heart, tile: wishTile, views: [['today', 'Overview', P.grid], ['inbox', 'Inbox', P.inbox], ['master', 'Master', P.heart]] },
@@ -922,6 +924,7 @@ const PAGES = {
   'care/mindful': { title: 'Mindfulness', segs: [{ kind: 'mindful', top: mindTop }, { kind: 'meditation', label: 'Sessions' }] },
   'care/growth': { title: 'Growth', segs: [{ kind: 'lgoals', top: growthTop }, { kind: 'courses' }, { kind: 'hobbies' }] },
   'care/docs': { title: 'Documents', segs: [{ kind: 'documents' }] },
+  'care/trips': { render: tripsPage, adds: [] },
   'social/tasks': { title: 'Tasks', segs: [{ kind: 'tasks' }] },
   'social/projects': { title: 'Projects', segs: [{ kind: 'projects' }] },
   'social/today': { render: socialToday, adds: ['tasks', 'projects', 'posts', 'cideas', 'deals', 'sgoals'] },
@@ -1222,7 +1225,7 @@ function emptyList(K, any) {
    times a day, works out what it is (recipe, wish, closet piece, beauty, supplement, gear, home, idea, content,
    gift) and fills in a card. You accept it, send it somewhere else, keep it as a saved link, or skip it. */
 const INBOX_TO = { recipes: ['Recipe', 'kitchen/recipes'], wishes: ['Wish', 'wish/master'], closet: ['Closet wishlist', 'wishlist'], beauty: ['Beauty', 'care/beauty'], supplements: ['Supplement', 'care/supplements'],
-  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], gifts: ['Gift idea', 'care/gifts'], keep: ['Saved link', 'care/saved'] };
+  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], gifts: ['Gift idea', 'care/gifts'], trip: ['Trip idea', 'care/trips'], keep: ['Saved link', 'care/saved'] };
 const INBOX_EXTRA = { wishes: () => ({ status: 'Wish', since: today() }), beauty: () => ({ wish: true }), supplements: () => ({ wish: true }), gear: () => ({ own: false }), fitgear: () => ({ own: false }), inventory: () => ({ status: 'Wishlist' }), cideas: () => ({ status: 'Idea', source: 'Inbox' }), gifts: () => ({ status: 'Idea' }) };
 const inboxOpen = () => recs('inbox').filter(r => ['New', 'Ready'].includes(r.status));
 const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
@@ -1273,6 +1276,16 @@ function savedFill(fill) {
 async function inboxAccept(id, target) {
   const r = L.byId[id]; if (!r) return;
   target = target || r.target; const d = { ...(r.draft || {}) }, now = Date.now();
+  if (target === 'trip') {
+    const t = nextTrip(); if (!t) { C.toast('Add a trip first in Life › Trips'); return; }
+    const before = JSON.parse(JSON.stringify(t)), idea = { id: C.uuid().slice(0, 8), t: d.name || r.title || hostOf(r.url) || 'Idea', url: r.url || '', note: r.note || d.notes || '' };
+    const was = dataOf(r);
+    L.batch = true;
+    try { await C.undoQuiet(async () => { await C.saveTrip({ ...before, ideas: [...(before.ideas || []), idea] }); await put('inbox', r.id, { ...was, status: 'Done', target, doneAt: now }); }); }
+    catch { C.toast('Could not save. Try again.'); return; } finally { L.batch = false; }
+    C.undoPush(`Added ${idea.t} to ${tripName(t)}`, async () => { await C.saveTrip(before); await put('inbox', r.id, was); }, true);
+    C.toast(`In your ideas for ${tripName(t)}`); return;
+  }
   if (target === 'keep') { await save(r, { status: 'Kept', target, doneAt: now }); C.toast('Kept under Saved links'); return; }
   const name = d.name || r.title || hostOf(r.url) || 'Link';
   if (target === 'closet') {
@@ -1317,11 +1330,11 @@ async function inboxAcceptAll(only) {
   if (!list.length) return;
   if (list.length > 20 && !confirm(`Accept ${list.length} cards and put each where it was sorted?`)) return;
   const now = Date.now(), made = new Map(), rows = [], later = [];
-  for (const r of list) { if (r.target === 'closet') { later.push(r); continue; } if (r.target === 'keep') { rows.push({ id: r.id, kind: 'inbox', data: { ...dataOf(r), status: 'Kept', doneAt: now } }); continue; } const rr = inboxRows(r, r.target, now, made); if (rr) rows.push(...rr); }
+  for (const r of list) { if (r.target === 'closet' || r.target === 'trip') { later.push(r); continue; } if (r.target === 'keep') { rows.push({ id: r.id, kind: 'inbox', data: { ...dataOf(r), status: 'Kept', doneAt: now } }); continue; } const rr = inboxRows(r, r.target, now, made); if (rr) rows.push(...rr); }
   C.toast(`Accepting ${plural(list.length, 'card')}…`);
   try {
     if (rows.length) await putMany(rows, null, `Accepted ${plural(list.length - later.length, 'inbox card')}`);
-    for (const r of later) await inboxAccept(r.id, 'closet');
+    for (const r of later) await inboxAccept(r.id, r.target);
     C.toast(`${plural(list.length, 'card')} accepted`);
   } catch { C.toast('Could not save them all. Try again.'); }
 }
@@ -3076,6 +3089,7 @@ document.addEventListener('click', async e => {
     case 'wmovewait': moveWaitList(); break;
     case 'dkeep': case 'dplan': case 'dgroc': dealsAct(d.act, d.k, Number(d.i)); break;
     case 'quitadd': quitAdd(); break;
+    case 'tripopen': case 'tripnew': case 'tripedit': case 'trippack': case 'tripck': case 'tripckdel': case 'tripcksug': case 'tripidea': case 'tripideadel': case 'tripideaday': case 'tripagdel': case 'tripbudget': case 'tripcost': case 'tripdet': tripAct(d.act, d.v); break;
     case 'mmonth': L.mealMonth = (L.mealMonth || 0) + Number(d.v); C.render(); break;
     case 'mday': mealDay(d.v); break;
     case 'mallsrc': uiOf('wish/master').allSrc = d.v; C.render(); break;
@@ -3687,6 +3701,99 @@ function tidyPanel() {
     ${t.proposed ? '' : '<p class="muted">Dutch names follow once Claude has suggested them.</p>'}
     <div class="setbtns"><button class="btn small ${any ? 'primary' : ''}" data-act="tidy" ${any ? '' : 'disabled'}>${any ? 'Tidy up now' : 'All tidy'}</button></div></section>`;
 }
+
+/* ---------- trips ----------
+   One trip, two places: Closet › Trips plans outfits and packing, Life › Trips the rest (travel and stay, a plan per
+   day, budget, ideas and a checklist before you leave). Trips live in prefs.trips; every change here can be undone. */
+const TRIP_CHECK = ['Check in online', 'Tickets and boarding passes on your phone', 'Travel insurance', 'Someone to water the plants', 'Take out the bins', 'Charge the power bank', 'Download maps and music offline', 'Lock windows and doors'];
+const tripList = () => (C?.trips?.() || []).filter(t => t.start).sort((a, b) => a.start.localeCompare(b.start));
+const tripEnd = t => addDays(t.start, Math.max(1, t.days | 0) - 1);
+const nextTrip = () => tripList().find(t => tripEnd(t) >= today());
+const tripName = t => t.name || t.dest?.name || 'Trip';
+const tripWhen = t => { const d = diffDays(today(), t.start); return d > 1 ? `in ${d} days` : d === 1 ? 'tomorrow' : d === 0 ? 'starts today' : tripEnd(t) >= today() ? 'on your trip now' : 'done'; };
+const tripSpent = t => { const end = tripEnd(t); return fSum(recs('ftx').filter(x => x.trip === t.id || (!x.trip && fEveryday(x) && x.date >= t.start && x.date <= end))); };
+async function tripSave(t, patch, label, show = false) {
+  const before = JSON.parse(JSON.stringify(t)), next = { ...before, ...patch };
+  if (await C.saveTrip(next)) C.undoPush?.(label || `Changed ${tripName(t)}`, () => C.saveTrip(before), show);
+}
+const tripOf = id => tripList().find(t => t.id === id);
+function tripsPage(host) {
+  const all = tripList(), t = tripOf(L.tripId);
+  if (!t) {
+    const up = all.filter(x => tripEnd(x) >= today()), past = all.filter(x => tripEnd(x) < today()).reverse();
+    const card = x => { const b = num(x.budget), sp = tripSpent(x), ck = x.check || [], pg = C.tripProgress?.(x) || { done: 0, total: 0 };
+      return `<button class="panel tripcard" data-act="tripopen" data-v="${esc(x.id)}"><span class="ckkick">${esc(tripWhen(x))}</span><b>${esc(tripName(x))}</b><span class="muted">${esc(shortDate(x.start))} to ${esc(shortDate(tripEnd(x)))} · ${plural(x.days | 0 || 1, 'day')}</span>
+        ${b ? `<span class="tbar"><i style="width:${Math.min(100, 100 * sp / b)}%"></i></span><span class="muted">${eur(sp)} of ${eur(b)} budget</span>` : ''}
+        <span class="muted">${[ck.length ? `checklist ${ck.filter(c => c.done).length}/${ck.length}` : '', pg.total ? `packed ${pg.done}/${pg.total}` : ''].filter(Boolean).join(' · ')}</span></button>`; };
+    host.innerHTML = `${head('Trips')}<div class="dbtns" style="margin-bottom:16px"><button class="btn primary" data-act="tripnew">${svg(P.plus)} New trip</button></div>
+      ${up.length ? `<div class="tripcards">${up.map(card).join('')}</div>` : quiet('No trips coming up. Add one and plan it here; outfits and packing live in Closet › Trips.')}
+      ${past.length ? `<h2 class="triph2">Past trips</h2><div class="tripcards">${past.map(card).join('')}</div>` : ''}`;
+    return;
+  }
+  const dates = C.tripDates(t), tr = t.travel || {}, agenda = t.agenda || {}, ck = t.check || [], ideas = t.ideas || [], b = num(t.budget), sp = tripSpent(t), pg = C.tripProgress(t);
+  const txs = recs('ftx').filter(x => x.trip === t.id || (!x.trip && fEveryday(x) && x.date >= t.start && x.date <= tripEnd(t))).sort((a, c) => (c.date || '').localeCompare(a.date || ''));
+  const det = [['Travel', [tr.transport, tr.out && 'out ' + tr.out, tr.back && 'back ' + tr.back].filter(Boolean).join(' · ')], ['Stay', [tr.stay, tr.address].filter(Boolean).join(', ')], ['Bookings', tr.refs], ['With', tr.who]].filter(x => x[1]);
+  host.innerHTML = `<div style="margin-bottom:8px"><button class="btn small ghost" data-act="tripopen" data-v="">${svg(P.left)} All trips</button></div>
+    <div class="viewhead"><h1>${esc(tripName(t))}</h1><span class="sub">${esc(shortDate(t.start))} to ${esc(shortDate(tripEnd(t)))} · ${esc(tripWhen(t))}</span></div>
+    <div class="dbtns" style="margin-bottom:16px"><button class="btn small" data-act="tripedit">Dates and place</button><button class="btn small" data-act="tripdet">Travel and stay</button><button class="btn small" data-act="trippack">Outfits and packing</button></div>
+    <div class="panels">
+      ${panel('Travel and stay', det.length ? det.map(([k, v]) => `<p class="dline"><span>${k}</span><b>${esc(v)}</b></p>`).join('') : quiet('Add how you travel, where you stay and your booking numbers.'))}
+      ${panel(`Before you leave · ${ck.filter(c => c.done).length}/${ck.length}`, `<div class="lrows">${ck.map(c => `<div class="lrow"><span class="lmain"><b>${esc(c.t)}</b></span>${tick(c.done ? 'Done' : 'To do', !!c.done, `data-act="tripck" data-v="${esc(c.id)}"`)}<button class="iconbtn small" data-act="tripckdel" data-v="${esc(c.id)}" aria-label="Remove ${esc(c.t)}">${svg(P.x)}</button></div>`).join('')}</div>
+        <form class="lqadd" data-tripadd="check"><input placeholder="Add a task" aria-label="Add a task before you leave"><button class="btn small" type="submit">Add</button></form>
+        ${TRIP_CHECK.filter(x => !ck.some(c => norm(c.t) === norm(x))).length ? `<div class="lwrap">${TRIP_CHECK.filter(x => !ck.some(c => norm(c.t) === norm(x))).map(x => `<button class="chip" data-act="tripcksug" data-v="${esc(x)}">+ ${esc(x)}</button>`).join('')}</div>` : ''}`)}
+      ${panel('Budget', `${b ? `<p class="lbig">${eur(Math.max(0, b - sp))} left</p><span class="tbar"><i style="width:${Math.min(100, 100 * sp / b)}%"></i></span><p class="dline"><span>Spent</span><b>${eur(sp)} of ${eur(b)}</b></p>` : `<p class="dline"><span>Spent</span><b>${eur(sp)}</b></p>`}
+        <div class="dbtns"><button class="btn small" data-act="tripbudget">${b ? 'Change budget' : 'Set a budget'}</button><button class="btn small" data-act="tripcost">Add a cost</button></div>
+        ${txs.length ? `<div class="lrows">${txs.slice(0, 8).map(row).join('')}</div>${txs.length > 8 ? `<p class="lnone">+${txs.length - 8} more</p>` : ''}` : '<p class="lnone">Bookings you add here count, and so does everything you spend during the trip.</p>'}`)}
+      ${panel('Packing', `<p class="dline"><span>Packed</span><b>${pg.total ? `${pg.done} of ${pg.total}` : 'nothing on the list yet'}</b></p><button class="btn small" data-act="trippack">Open in Closet</button>`)}
+      ${panel('Ideas', `<div class="lrows">${ideas.map(x => `<div class="lrow"><span class="lmain">${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener"><b>${esc(x.t)}</b></a>` : `<b>${esc(x.t)}</b>`}${x.note ? `<span>${esc(x.note)}</span>` : ''}</span>${tick(x.done ? 'Been' : 'Want to', !!x.done, `data-act="tripidea" data-v="${esc(x.id)}"`)}<button class="iconbtn small" data-act="tripideadel" data-v="${esc(x.id)}" aria-label="Remove ${esc(x.t)}">${svg(P.x)}</button></div>`).join('') || '<p class="lnone">Places to see, eat or do. Links you share to the inbox can land here too.</p>'}</div>
+        <form class="lqadd" data-tripadd="idea"><input placeholder="A place, a restaurant, a link" aria-label="Add an idea"><button class="btn small" type="submit">Add</button></form>`)}
+    </div>
+    <h2 class="triph2">Day by day</h2>
+    <div class="tripdays">${dates.map((d, i) => { const items = (agenda[i] || []).slice().sort((a, c) => (a.time || '99').localeCompare(c.time || '99'));
+      return `<section class="panel lpanel"><div class="lph3"><h3>Day ${i + 1} · ${esc(dayName(d))} ${esc(shortDate(d))}</h3></div>
+        <div class="lrows">${items.map(x => `<div class="lrow"><span class="lmain"><b>${x.time ? esc(x.time) + ' · ' : ''}${esc(x.t)}</b>${x.where ? `<span>${esc(x.where)}</span>` : ''}</span><button class="iconbtn small" data-act="tripagdel" data-v="${i}:${esc(x.id)}" aria-label="Remove ${esc(x.t)}">${svg(P.x)}</button></div>`).join('')}</div>
+        <form class="lqadd tripag" data-tripadd="day" data-day="${i}"><input type="time" aria-label="Time (optional)"><input placeholder="What and where" aria-label="Add to day ${i + 1}"><button class="btn small" type="submit">Add</button></form>
+        ${ideas.filter(x => !x.done).length ? `<div class="lwrap">${ideas.filter(x => !x.done).slice(0, 6).map(x => `<button class="chip" data-act="tripideaday" data-v="${i}:${esc(x.id)}">+ ${esc(x.t)}</button>`).join('')}</div>` : ''}</section>`; }).join('')}</div>`;
+}
+const tid = () => C.uuid().slice(0, 8);
+async function tripAct(act, v) {
+  const t = tripOf(L.tripId);
+  if (act === 'tripopen') { L.tripId = v || null; C.render(); window.scrollTo(0, 0); return; }
+  if (act === 'tripnew') { C.tripEdit(); return; }
+  if (!t) return;
+  const list = k => (t[k] || []).map(x => ({ ...x }));
+  if (act === 'tripedit') return C.tripEdit(t.id);
+  if (act === 'trippack') return C.tripPack(t.id);
+  if (act === 'tripck') return tripSave(t, { check: list('check').map(c => c.id === v ? { ...c, done: !c.done } : c) }, 'Ticked a trip task');
+  if (act === 'tripckdel') return tripSave(t, { check: list('check').filter(c => c.id !== v) }, 'Removed a trip task', true);
+  if (act === 'tripcksug') return tripSave(t, { check: [...list('check'), { id: tid(), t: v }] }, 'Added a trip task');
+  if (act === 'tripidea') return tripSave(t, { ideas: list('ideas').map(c => c.id === v ? { ...c, done: !c.done } : c) }, 'Ticked a trip idea');
+  if (act === 'tripideadel') return tripSave(t, { ideas: list('ideas').filter(c => c.id !== v) }, 'Removed a trip idea', true);
+  if (act === 'tripideaday' || act === 'tripagdel') {
+    const [i, id] = v.split(':'), ag = JSON.parse(JSON.stringify(t.agenda || {})), day = ag[i] || [];
+    if (act === 'tripagdel') ag[i] = day.filter(x => x.id !== id);
+    else { const idea = (t.ideas || []).find(x => x.id === id); if (!idea) return; ag[i] = [...day, { id: tid(), t: idea.t, where: idea.note || '' }]; }
+    return tripSave(t, { agenda: ag }, act === 'tripagdel' ? 'Removed from the day plan' : 'Planned an idea', act === 'tripagdel');
+  }
+  if (act === 'tripbudget') { const n = prompt('Budget for this trip (euro)', t.budget || ''); if (n == null) return; const val = num(String(n).replace(',', '.')); return tripSave(t, { budget: val > 0 ? val : null }, 'Changed the trip budget'); }
+  if (act === 'tripcost') return openEditor('ftx', null, { trip: t.id, date: today(), name: '' });
+  if (act === 'tripdet') {
+    const tr = t.travel || {}, f = (k, l, ph) => `<div class="field full"><label for="tr-${k}">${l}</label><input id="tr-${k}" value="${esc(tr[k] || '')}" placeholder="${esc(ph)}"></div>`;
+    const sh = C.sheet({ title: 'Travel and stay', body: `<div class="form">${f('transport', 'How you travel', 'e.g. flight KL1691, train, car')}${f('out', 'Going', 'e.g. Fri 08:40 from Schiphol')}${f('back', 'Coming back', 'e.g. Mon 19:10')}${f('stay', 'Where you stay', 'e.g. Hotel Lisboa Plaza')}${f('address', 'Address', '')}${f('refs', 'Booking numbers', 'e.g. KLM 6XQ2PL, Booking 4021')}${f('who', 'Travelling with', 'e.g. Sam and Noor')}</div>`,
+      foot: `<div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-trsave>Save</button>` });
+    sh.querySelector('[data-trsave]').onclick = async () => { const n = {}; for (const k of ['transport', 'out', 'back', 'stay', 'address', 'refs', 'who']) { const x = sh.querySelector('#tr-' + k).value.trim(); if (x) n[k] = x; } C.closeSheet(); await tripSave(t, { travel: n }, 'Changed travel and stay'); };
+  }
+}
+document.addEventListener('submit', e => {
+  const f = e.target.closest?.('[data-tripadd]'); if (!f || !C) return; e.preventDefault();
+  const t = tripOf(L.tripId); if (!t) return;
+  const ins = f.querySelectorAll('input'), txt = ins[ins.length - 1].value.trim(); if (!txt) return;
+  const kind = f.dataset.tripadd;
+  if (kind === 'check') tripSave(t, { check: [...(t.check || []), { id: tid(), t: txt }] }, 'Added a trip task');
+  if (kind === 'idea') { const url = (txt.match(/https?:\/\/\S+/) || [''])[0]; tripSave(t, { ideas: [...(t.ideas || []), { id: tid(), t: url && url === txt ? hostOf(url) : txt.replace(url, '').trim() || hostOf(url), url }] }, 'Added a trip idea'); }
+  if (kind === 'day') { const i = f.dataset.day, ag = JSON.parse(JSON.stringify(t.agenda || {})), [w, ...rest] = txt.split(/\s+(?:at|in|bij|@)\s+/i); ag[i] = [...(ag[i] || []), { id: tid(), t: w, where: rest.join(' '), time: ins.length > 1 ? ins[0].value : '' }]; tripSave(t, { agenda: ag }, 'Added to the day plan'); }
+  f.reset();
+});
 /* ---------- settings that only one section has ---------- */
 const wishBudgetField = () => `<div class="fset"><div><b>Wishlist budget</b><span>What you allow yourself from your wishlists per ${fMode() === 'month' ? 'month' : 'paycheck'} (follows how you plan everyday spending). Purchases with the tag wishlist count against it.</span></div><input class="finp" type="number" inputmode="decimal" step="1" data-fset="wishBudget" value="${fset().wishBudget ?? ''}" placeholder="No budget"></div>`;
 function settingsPanels(sec) { if (!C) return ''; return secOwn(sec) + ovPanel(sec); }
