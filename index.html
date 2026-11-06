@@ -83,7 +83,10 @@
 .lookopts .fs { font-size: 18px; line-height: 1.1; }
 .lookopts small { color: var(--muted); font-size: 12px; }
 .setgroup { display: grid; gap: 6px; margin: 10px 0; }
-.quickacts { display: flex; gap: 8px; flex-wrap: wrap; margin: -4px 0 14px; }
+.quickacts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: -4px 0 14px; }
+.quickacts .chip { justify-content: center; padding: 11px 12px; border-radius: 14px; font-size: 14px; white-space: normal; text-align: center; }
+.dparts { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 4px 4px 10px 12px; }
+.dashfoot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
 .wxpick { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; margin-top: 4px; }
 .wxpick .dpieces img { background: var(--stage); }
 * { box-sizing: border-box; }
@@ -1831,17 +1834,17 @@ function closetTile() {
   const ids = dayItems(rec).filter(id => S.byId[id]);
   const look = rec?.photos?.[0];
   const withPhoto = ids.filter(id => S.byId[id].photo);
-  const inbox = inboxItems().length;
-  const pic = look ? `<div class="dlook">${pimg(look, 'Your look today')}</div>`
+  const off = S.prefs.dash?.parts?.closet || [], inbox = off.includes('inbox') ? 0 : inboxItems().length;
+  const pic = off.includes('outfit') ? '' : look ? `<div class="dlook">${pimg(look, 'Your look today')}</div>`
     : o ? `<div class="dlook">${boardHTML(o.pieces)}</div>`
     : withPhoto.length ? `<div class="dpieces">${withPhoto.slice(0, 6).map(id => pimg(S.byId[id].photo, S.byId[id].name || '', 'loading="lazy"')).join('')}</div>` : '';
-  const wp = !rec ? weatherPick() : null;
+  const wp = !rec && !off.includes('weather') ? weatherPick() : null;
   const wpick = wp ? `<div class="wxpick"><p class="dline"><span>For today’s weather · ${esc(wp.why)}</span><b>${esc(wp.name)}</b></p>
       ${wp.outfit ? `<div class="dlook">${boardHTML(S.outById[wp.outfit].pieces)}</div>` : `<div class="dpieces">${wp.ids.map(id => S.byId[id]?.photo ? pimg(S.byId[id].photo, S.byId[id].name || '', 'loading="lazy"') : '').join('')}</div>`}
       <div class="dbtns"><button class="btn small primary" data-wxwear>Wear this today</button>${wp.count > 1 ? '<button class="btn small" data-wxnext>Another</button>' : ''}</div></div>` : '';
   return `${pic ? `<button class="dpic" data-overday="${t}" aria-label="Open today's outfit">${pic}</button>` : ''}
-    <p class="dline"><span>Today’s outfit</span><b>${o ? esc(o.name || 'Saved outfit') : ids.length ? `${ids.length} piece${ids.length === 1 ? '' : 's'}` : 'Nothing planned yet'}</b></p>
-    <div class="dbtns"><button class="btn small" data-overday="${t}">${rec ? 'Change outfit' : 'Pick today’s outfit'}</button>${inbox ? `<button class="chip link" data-overgo="closet">${inbox} new in your inbox</button>` : ''}</div>${wpick}`;
+    ${off.includes('outfit') ? '' : `<p class="dline"><span>Today’s outfit</span><b>${o ? esc(o.name || 'Saved outfit') : ids.length ? `${ids.length} piece${ids.length === 1 ? '' : 's'}` : 'Nothing planned yet'}</b></p>`}
+    <div class="dbtns">${off.includes('outfit') ? '' : `<button class="btn small" data-overday="${t}">${rec ? 'Change outfit' : 'Pick today’s outfit'}</button>`}${inbox ? `<button class="chip link" data-overgo="closet">${inbox} new in your inbox</button>` : ''}</div>${wpick}`;
 }
 // your order and hidden cards live in prefs.dash, so they're the same on every device; new areas join at the end
 function dashCards() {
@@ -1850,21 +1853,27 @@ function dashCards() {
   return all.sort((a, b) => pos(a) - pos(b));
 }
 const dashHidden = () => new Set(S.prefs.dash?.hidden || []);
+const CLOSET_PARTS = [['outfit', 'Today’s outfit'], ['weather', 'Weather pick'], ['inbox', 'New in your inbox']];
+const tileParts = k => k === 'closet' ? CLOSET_PARTS : window.LIFE?.tileParts?.(k) || [];
 function arrangeDash() {
-  let list = dashCards().map(s => s.key), hidden = dashHidden();
+  let list = dashCards().map(s => s.key), hidden = dashHidden(), open = null;
+  const parts = {}; for (const k of list) parts[k] = new Set(S.prefs.dash?.parts?.[k] || (k === 'closet' ? [] : window.LIFE?.tileOff?.(k) || []));
   const label = k => SECTIONS.find(s => s.key === k)?.label || k;
-  const sh = sheet({ title: 'Arrange Today', body: '<p class="muted" style="margin:0 0 12px">Move the cards into the order you like and hide the ones you don’t use.</p><div class="lrows" id="dashList"></div>', foot: '<div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" id="dashSave">Save</button>' });
+  const sh = sheet({ title: 'Arrange Today', body: '<p class="muted" style="margin:0 0 12px">Move the cards into the order you like, hide the ones you don’t use, and pick what each card shows.</p><div class="lrows" id="dashList"></div>', foot: '<div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" id="dashSave">Save</button>' });
   const draw = () => { $('#dashList', sh).innerHTML = list.map((k, i) => `<div class="lrow"><span class="lmain"><b>${esc(label(k))}</b></span>
+    ${tileParts(k).length ? `<button class="chip link" data-dparts="${k}" aria-expanded="${open === k}" aria-label="Choose what ${esc(label(k))} shows">Edit</button>` : ''}
     <button class="chip" data-dhide="${k}" aria-pressed="${!hidden.has(k)}">${hidden.has(k) ? 'Hidden' : 'Shown'}</button>
     <button class="iconbtn small" data-dmove="${i}" data-d="-1" aria-label="Move ${esc(label(k))} up" ${i ? '' : 'disabled'}>${icon('<path d="m6 15 6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>')}</button>
-    <button class="iconbtn small" data-dmove="${i}" data-d="1" aria-label="Move ${esc(label(k))} down" ${i < list.length - 1 ? '' : 'disabled'}>${icon('<path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>')}</button></div>`).join(''); };
+    <button class="iconbtn small" data-dmove="${i}" data-d="1" aria-label="Move ${esc(label(k))} down" ${i < list.length - 1 ? '' : 'disabled'}>${icon('<path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>')}</button></div>${open === k ? `<div class="dparts">${tileParts(k).map(([p, l]) => `<label class="settog"><input type="checkbox" data-dpart="${k}" value="${p}" ${parts[k].has(p) ? '' : 'checked'}> ${esc(l)}</label>`).join('')}</div>` : ''}`).join(''); };
   draw();
+  sh.addEventListener('change', e => { const c = e.target.closest('[data-dpart]'); if (!c) return; const set = parts[c.dataset.dpart]; c.checked ? set.delete(c.value) : set.add(c.value); });
   sh.addEventListener('click', async e => {
     const m = e.target.closest('[data-dmove]'), h = e.target.closest('[data-dhide]');
     if (m) { const i = Number(m.dataset.dmove), j = i + Number(m.dataset.d); [list[i], list[j]] = [list[j], list[i]]; draw(); }
     if (h) { const k = h.dataset.dhide; hidden.has(k) ? hidden.delete(k) : hidden.add(k); draw(); }
+    const pp = e.target.closest('[data-dparts]'); if (pp) { open = open === pp.dataset.dparts ? null : pp.dataset.dparts; draw(); }
     if (e.target.closest('#dashSave')) {
-      try { await DB.savePrefs({ dash: { order: list, hidden: [...hidden] } }); closeSheet(); render(); }
+      try { await DB.savePrefs({ dash: { order: list, hidden: [...hidden], parts: Object.fromEntries(Object.entries(parts).map(([k, v]) => [k, [...v]])) } }); closeSheet(); render(); }
       catch (err) { saveErr(err, 'Could not save. Try again.'); }
     }
   });
@@ -1896,7 +1905,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v59';
+const APP_VERSION = 'hangtag-v60';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2103,16 +2112,16 @@ function renderOverview(host) {
   const t = new Date(), hr = t.getHours();
   const hello = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
   const hidden = dashHidden(), cards = dashCards().filter(s => !hidden.has(s.key));
-  host.innerHTML = `<div class="viewhead dviewhead"><h1>${hello}</h1><span class="sub">${t.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span><div class="spacer"></div><button class="btn small" data-dasharrange>Arrange</button></div>
+  host.innerHTML = `<div class="viewhead dviewhead"><h1>${hello}</h1><span class="sub">${t.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span></div>
     <button class="findbar" data-find>${I.search}<span>Search recipes, notes, pages, settings…</span></button>
     <div class="quickacts">${QUICK.filter(q => q[2]()).map(([k, l]) => `<button class="chip" data-quick="${k}">${esc(l)}</button>`).join('')}</div>
     ${wxStrip()}
-    ${cards.length ? '' : '<p class="muted">Every card is hidden. Tap Arrange to bring some back.</p>'}
+    ${cards.length ? '' : '<p class="muted">Every card is hidden. Tap Arrange Today at the bottom to bring some back.</p>'}
     <div class="dash">${cards.map(s => {
       const body = s.key === 'closet' ? closetTile() : window.LIFE?.tile(s.key) || `<p class="muted">Open ${esc(s.label)} to see what's there.</p>`;
       return `<section class="panel dtile"><div class="dhead"><button class="dtitle" data-gosec="${s.key}">${icon(s.icon)}<h2>${esc(s.label)}</h2></button><button class="chip link" data-gosec="${s.key}">Open</button></div>${body}</section>`;
     }).join('')}</div>
-    ${window.LIFE ? '<div class="ltools"><button class="chip link" data-act="import">Import from Notion</button><button class="chip link" data-act="export">Back up all your lists</button></div>' : ''}`;
+    <div class="ltools dashfoot"><button class="btn small" data-dasharrange>Arrange Today</button>${window.LIFE ? '<button class="chip link" data-act="import">Import from Notion</button><button class="chip link" data-act="export">Back up all your lists</button>' : ''}</div>`;
   if (!host.dataset.wired) {
     host.dataset.wired = '1';
     host.addEventListener('click', e => {

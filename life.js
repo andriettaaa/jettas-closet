@@ -787,12 +787,25 @@ const titleOf = r => { const K = KINDS[r.kind]; return (K?.title ? K.title(r) : 
    Each area gives the overview page one small card: what matters today, with the quick ticks that work
    everywhere (data-act). A new area only needs a `tile` in SECTIONS below to show up there too. */
 const tileBody = (bits) => bits.filter(Boolean).join('');
+// the parts of each card you can switch off in Arrange (prefs.dash.parts); water starts off
+const TILE_PARTS = {
+  kitchen: [['meals', 'Meals today'], ['groc', 'Grocery list']],
+  care: [['water', 'Water'], ['sups', 'Supplements'], ['cycle', 'Cycle'], ['appt', 'Next appointment'], ['skin', 'Skincare'], ['routine', 'Routine'], ['sleep', 'Sleep'], ['journal', 'Journal']],
+  money: [['safe', 'Safe to spend'], ['payday', 'Until payday'], ['bill', 'Next bill']],
+  home: [['chores', 'Chores'], ['plants', 'Plants']],
+  wish: [['count', 'Number of wishes'], ['total', 'Total price'], ['inbox', 'Inbox']],
+  social: [['tasks', 'Tasks'], ['posts', 'Posting today'], ['next', 'Next deadline']],
+  fit: [['video', 'Today’s video'], ['workouts', 'Workouts'], ['week', 'This week']]
+};
+const TILE_OFF = { care: ['water'] };
+const partsOff = sec => C.prefs().dash?.parts?.[sec] || TILE_OFF[sec] || [];
+const part = (sec, k, html) => partsOff(sec).includes(k) ? '' : html;
 const tileList = (list, n = 3) => list.length ? `<div class="lrows">${list.slice(0, n).map(row).join('')}</div>${list.length > n ? `<p class="lnone">+${list.length - n} more</p>` : ''}` : '';
 function kitchenTile() {
   const t = today(), meals = recs('meals').filter(m => m.date === t), groc = recs('ingredients').filter(i => i.list).length;
   return tileBody([
-    `<div class="lslots">${MEALS.filter(s => s !== 'Snack' || meals.some(m => m.slot === s)).map(s => { const m = meals.filter(x => x.slot === s); return `<div class="lslot"><span class="rowlbl">${s}</span>${m.map(x => `<button class="chip" data-act="open" data-id="${x.id}">${esc(titleOf(x))}</button>`).join('')}<button class="chip ghost" data-act="slot" data-date="${t}" data-slot="${s}" aria-label="Plan ${s.toLowerCase()}">+</button></div>`; }).join('')}</div>`,
-    `<button class="chip link" data-act="go" data-v="kitchen/groceries">${groc ? plural(groc, 'thing') + ' on your grocery list' : 'Grocery list is empty'}</button>`
+    part('kitchen', 'meals', `<div class="lslots">${MEALS.filter(s => s !== 'Snack' || meals.some(m => m.slot === s)).map(s => { const m = meals.filter(x => x.slot === s); return `<div class="lslot"><span class="rowlbl">${s}</span>${m.map(x => `<button class="chip" data-act="open" data-id="${x.id}">${esc(titleOf(x))}</button>`).join('')}<button class="chip ghost" data-act="slot" data-date="${t}" data-slot="${s}" aria-label="Plan ${s.toLowerCase()}">+</button></div>`; }).join('')}</div>`),
+    part('kitchen', 'groc', `<button class="chip link" data-act="go" data-v="kitchen/groceries">${groc ? plural(groc, 'thing') + ' on your grocery list' : 'Grocery list is empty'}</button>`)
   ]);
 }
 // evening skincare follows the week schedule: products tagged for tonight's kind of evening (or for every evening),
@@ -816,15 +829,15 @@ function careTile() {
   const eve = new Date().getHours() >= 15, rt = routineFor(eve), prods = rt.ps;
   const sl = recs('sleep').find(x => x.date === t), j = recs('journal').find(x => x.date === t);
   return tileBody([
-    `<div class="lwater small"><button class="iconbtn small" data-act="water" data-v="-1" aria-label="One glass less" ${glasses ? '' : 'disabled'}>${svg(P.minus)}</button><div class="lwv"><b>${glasses}</b><span>of ${goal} glasses</span></div><button class="iconbtn small lplus" data-act="water" data-v="1" aria-label="One more glass">${svg(P.plus)}</button></div>`,
-    doses ? `<p class="dline"><span>Supplements</span><b>${Math.min(taken, doses)} of ${doses} taken</b></p>` : '',
-    cy.last ? `<p class="dline"><span>Cycle</span><b>${cy.open ? 'period, day ' + cy.day : 'day ' + cy.day + ', next ' + relDay(cy.next)}</b></p>` : '',
-    appt ? `<p class="dline"><span>Next appointment</span><b>${esc(titleOf(appt))}, ${esc(relDay(appt.date))}${appt.time ? ' ' + esc(appt.time) : ''}</b></p>` : '',
-    prods.length || rt.pick.length ? `<p class="dsub">${eve ? esc(rt.type || 'Evening') : 'Morning'} skincare</p><div class="lwrap">${prodChips(prods)}</div>${rt.pick.length ? `<p class="lnone">Choose one acid:</p><div class="lwrap">${prodChips(rt.pick)}</div>` : ''}` : '',
-    routineTile(),
-    sl ? `<p class="dline"><span>Sleep</span><b>${esc([sl.hours ? sl.hours + ' h' : 'logged', sl.quality?.toLowerCase()].filter(Boolean).join(', '))}</b></p>` : '',
-    j ? `<p class="dline"><span>Journal</span><b><button class="chip link" data-act="open" data-id="${j.id}">${esc(titleOf(j))}</button></b></p>` : '',
-    sl && j ? '' : `<div class="dbtns">${sl ? '' : '<button class="btn small" data-act="new" data-v="sleep">Log last night</button>'}${j ? '' : '<button class="btn small" data-act="new" data-v="journal">Write today’s entry</button>'}</div>`
+    part('care', 'water', `<div class="lwater small"><button class="iconbtn small" data-act="water" data-v="-1" aria-label="One glass less" ${glasses ? '' : 'disabled'}>${svg(P.minus)}</button><div class="lwv"><b>${glasses}</b><span>of ${goal} glasses</span></div><button class="iconbtn small lplus" data-act="water" data-v="1" aria-label="One more glass">${svg(P.plus)}</button></div>`),
+    part('care', 'sups', doses ? `<p class="dline"><span>Supplements</span><b>${Math.min(taken, doses)} of ${doses} taken</b></p>` : ''),
+    partsOff('care').includes('cycle') ? '' : cy.last ? `<p class="dline"><span>Cycle</span><b>${cy.open ? 'period, day ' + cy.day : 'day ' + cy.day + ', next ' + relDay(cy.next)}</b></p>` : '',
+    partsOff('care').includes('appt') ? '' : appt ? `<p class="dline"><span>Next appointment</span><b>${esc(titleOf(appt))}, ${esc(relDay(appt.date))}${appt.time ? ' ' + esc(appt.time) : ''}</b></p>` : '',
+    partsOff('care').includes('skin') ? '' : prods.length || rt.pick.length ? `<p class="dsub">${eve ? esc(rt.type || 'Evening') : 'Morning'} skincare</p><div class="lwrap">${prodChips(prods)}</div>${rt.pick.length ? `<p class="lnone">Choose one acid:</p><div class="lwrap">${prodChips(rt.pick)}</div>` : ''}` : '',
+    part('care', 'routine', routineTile()),
+    partsOff('care').includes('sleep') ? '' : sl ? `<p class="dline"><span>Sleep</span><b>${esc([sl.hours ? sl.hours + ' h' : 'logged', sl.quality?.toLowerCase()].filter(Boolean).join(', '))}</b></p>` : '',
+    partsOff('care').includes('journal') ? '' : j ? `<p class="dline"><span>Journal</span><b><button class="chip link" data-act="open" data-id="${j.id}">${esc(titleOf(j))}</button></b></p>` : '',
+    (sl || partsOff('care').includes('sleep')) && (j || partsOff('care').includes('journal')) ? '' : `<div class="dbtns">${sl || partsOff('care').includes('sleep') ? '' : '<button class="btn small" data-act="new" data-v="sleep">Log last night</button>'}${j || partsOff('care').includes('journal') ? '' : '<button class="btn small" data-act="new" data-v="journal">Write today’s entry</button>'}</div>`
   ]);
 }
 // the routine that fits the time of day, ticked off right on the card
@@ -839,8 +852,8 @@ function homeTile() {
   const chores = recs('chores').filter(c => choreDue(c) <= t).sort((a, b) => choreDue(a).localeCompare(choreDue(b)));
   const plants = recs('plants').filter(p => plantDue(p) && plantDue(p) <= t);
   return tileBody([
-    chores.length ? `<p class="dsub">Chores due</p>${tileList(chores)}` : `<p class="lnone">${recs('chores').length ? 'All chores done.' : 'No chores yet.'}</p>`,
-    plants.length ? `<p class="dsub">Plants to water</p>${tileList(plants, 2)}` : ''
+    part('home', 'chores', chores.length ? `<p class="dsub">Chores due</p>${tileList(chores)}` : `<p class="lnone">${recs('chores').length ? 'All chores done.' : 'No chores yet.'}</p>`),
+    part('home', 'plants', plants.length ? `<p class="dsub">Plants to water</p>${tileList(plants, 2)}` : '')
   ]);
 }
 function socialTile() {
@@ -851,9 +864,9 @@ function socialTile() {
   const dl = [next && { what: titleOf(next), date: next.date }, deal && { what: deal.name + ' (collab)', date: deal.due }].filter(Boolean).sort((a, b) => a.date.localeCompare(b.date))[0];
   const due = tasksDue();
   return tileBody([
-    due.length ? `<p class="dsub">Tasks today${due.some(x => x.date < t) ? ' and overdue' : ''}</p>${tileList(due, 4)}` : recs('tasks').length ? '<p class="lnone">No tasks due today.</p>' : '',
-    now.length ? `<p class="dsub">Posting today</p>${tileList(now)}` : `<p class="lnone">${posts.length ? 'Nothing to post today.' : 'No posts planned yet.'}</p>`,
-    dl ? `<p class="dline"><span>Next</span><b>${esc(dl.what)}, ${esc(relDay(dl.date))}</b></p>` : ''
+    partsOff('social').includes('tasks') ? '' : due.length ? `<p class="dsub">Tasks today${due.some(x => x.date < t) ? ' and overdue' : ''}</p>${tileList(due, 4)}` : recs('tasks').length ? '<p class="lnone">No tasks due today.</p>' : '',
+    part('social', 'posts', now.length ? `<p class="dsub">Posting today</p>${tileList(now)}` : `<p class="lnone">${posts.length ? 'Nothing to post today.' : 'No posts planned yet.'}</p>`),
+    partsOff('social').includes('next') ? '' : dl ? `<p class="dline"><span>Next</span><b>${esc(dl.what)}, ${esc(relDay(dl.date))}</b></p>` : ''
   ]);
 }
 function fitTile() {
@@ -863,11 +876,11 @@ function fitTile() {
   const wk = weekStart(0), week = ws.filter(w => w.done && w.date >= wk && w.date <= addDays(wk, 6)).length;
   const vw = todayVW(), vwDone = vw && ws.some(w => w.video === vw.id && w.date === t && w.done);
   return tileBody([
-    vw ? `<p class="dsub">Today's video</p><div class="lrow"><button class="lmain" data-act="open" data-id="${vw.id}"><b>${esc(vw.name)}</b><span>${esc(KINDS.vworkouts.sub(vw))}</span></button>${tick(vwDone ? 'Done' : 'Do it now', vwDone, `data-act="${vwDone ? 'open' : 'quick'}" data-id="${vw.id}"`)}</div>` : '',
-    now.length ? tileList(now) : vw ? '' : '<p class="lnone">No workout today.</p>',
-    next && !now.length ? `<p class="dline"><span>Next</span><b>${esc(titleOf(next))}, ${esc(relDay(next.date))}</b></p>` : '',
-    `<p class="dline"><span>This week</span><b>${plural(week, 'workout')} done</b></p>`,
-    now.length ? '' : '<button class="btn small" data-act="new" data-v="workouts">Plan a workout</button>'
+    partsOff('fit').includes('video') ? '' : vw ? `<p class="dsub">Today's video</p><div class="lrow"><button class="lmain" data-act="open" data-id="${vw.id}"><b>${esc(vw.name)}</b><span>${esc(KINDS.vworkouts.sub(vw))}</span></button>${tick(vwDone ? 'Done' : 'Do it now', vwDone, `data-act="${vwDone ? 'open' : 'quick'}" data-id="${vw.id}"`)}</div>` : '',
+    partsOff('fit').includes('workouts') ? '' : now.length ? tileList(now) : vw ? '' : '<p class="lnone">No workout today.</p>',
+    partsOff('fit').includes('workouts') ? '' : next && !now.length ? `<p class="dline"><span>Next</span><b>${esc(titleOf(next))}, ${esc(relDay(next.date))}</b></p>` : '',
+    part('fit', 'week', `<p class="dline"><span>This week</span><b>${plural(week, 'workout')} done</b></p>`),
+    now.length || partsOff('fit').includes('workouts') ? '' : '<button class="btn small" data-act="new" data-v="workouts">Plan a workout</button>'
   ]);
 }
 
@@ -1064,9 +1077,9 @@ const hasPhotos = K => K.fields.some(f => f.type === 'photo');
 const photoOf = r => hasPhotos(KINDS[r.kind]) ? r.photo : '';
 // products and things you own or want always show as tiles, like the closet
 const PRODUCTS = new Set(['offers', 'gear', 'beauty', 'supplements', 'inventory', 'fitgear', 'wishes', 'ingredients', 'fwait']);
-const viewMode = K => { if (PRODUCTS.has(K.kind)) return 'cards'; try { const v = localStorage.getItem('lview:' + K.kind); if (v === 'rows' || v === 'cards') return v; } catch {} return K.display === 'cards' || (hasPhotos(K) && recs(K.kind).some(r => r.photo)) ? 'cards' : 'rows'; };  // lists with photos open as a grid
-const setViewMode = (K, v) => { try { localStorage.setItem('lview:' + K.kind, v); } catch {} };
-const viewSwitch = K => PRODUCTS.has(K.kind) ? '' : `<div class="seg lviews" role="group" aria-label="Show as">${[['rows', 'List', P.list], ['cards', 'Cards', P.grid]].map(([v, l, ic]) => `<button data-act="lview" data-v="${v}" aria-pressed="${viewMode(K) === v}" aria-label="${l}" title="${l}">${svg(ic)}</button>`).join('')}</div>`;
+const viewMode = K => { try { const v = localStorage.getItem('lview2:' + K.kind); if (v === 'rows' || v === 'cards') return v; } catch {} return 'cards'; };  // every list opens as tiles; the switch remembers a list per kind
+const setViewMode = (K, v) => { try { localStorage.setItem('lview2:' + K.kind, v); } catch {} };
+const viewSwitch = K => `<div class="seg lviews" role="group" aria-label="Show as">${[['rows', 'List', P.list], ['cards', 'Cards', P.grid]].map(([v, l, ic]) => `<button data-act="lview" data-v="${v}" aria-pressed="${viewMode(K) === v}" aria-label="${l}" title="${l}">${svg(ic)}</button>`).join('')}</div>`;
 const tick = (label, on, attrs) => `<button class="lquick ${on ? 'on' : ''}" ${attrs} aria-pressed="${on}">${on ? svg(P.check) : ''}${esc(label)}</button>`;
 function row(r) {
   const K = KINDS[r.kind], q = K.quick?.(r), side = K.side?.(r);
@@ -1508,7 +1521,7 @@ function dealsPage(host) {
   <div class="mrow2 dmrow">${plan?.shared?.length ? panel('Used in several recipes', `<div class="lrows">${plan.shared.map(x => `<div class="lrow"><span class="lmain"><b>${esc(x.name)}</b><span>${esc([x.store, x.deal, num(x.price) ? eur(num(x.price)) : '', (x.in || []).length ? 'in ' + x.in.join(', ') : ''].filter(Boolean).join(' · '))}</span></span></div>`).join('')}</div>`) : ''}
     ${shopping.length ? panel('Shopping list', `${shopBy.map(([s, l]) => `<p class="dsub">${esc(s)}</p><div class="lrows">${l.map(x => `<div class="lrow ${x.have ? 'gone' : ''}"><span class="lmain"><b>${esc(x.name)}</b><span>${esc([x.qty, x.deal, num(x.price) ? eur(num(x.price)) : '', x.have ? 'you have this' : ''].filter(Boolean).join(' · '))}</span></span></div>`).join('')}</div>`).join('')}<button class="btn small primary" data-act="dgroc">Put on my grocery list</button>`) : ''}</div>
   ${mine.length ? panel('Your recipes with deals', `<div class="lrows">${mine.map(({ r, hits }) => `<div class="lrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(hits.slice(0, 4).map(o => `${o.name} (${o.store})`).join(', '))}${hits.length > 4 ? ` and ${hits.length - 4} more` : ''}</span></button><span class="lside">${plural(hits.length, 'deal')}</span></div>`).join('')}</div>`) : ''}
-  ${byStore.length ? panel('All deals', `${byStore.map(([s, l]) => `<p class="dsub">${esc(s)} · ${l.length}</p><div class="lgrid dgrid">${l.sort((a, b) => norm(a.category || 'zz').localeCompare(norm(b.category || 'zz')) || norm(a.name).localeCompare(norm(b.name))).map(o => prodCard(o)).join('')}</div>`).join('')}${saved ? `<p class="mmuted">Together about ${fEur0(saved)} off the normal prices.</p>` : ''}`) : ''}</div>`;
+  ${byStore.length ? panel('All deals', `${byStore.map(([s, l]) => `<p class="dsub">${esc(s)} · ${l.length}</p><div class="lgrid dgrid">${l.sort((a, b) => norm(a.category || 'zz').localeCompare(norm(b.category || 'zz')) || norm(a.name).localeCompare(norm(b.name))).slice(0, L.dealsAll ? 400 : 6).map(o => prodCard(o)).join('')}</div>`).join('')}${byStore.some(([, l]) => l.length > 6) ? `<button class="btn small" data-act="dealsall">${L.dealsAll ? 'Show fewer deals' : `See all ${offers.length} deals`}</button>` : ''}${saved ? `<p class="mmuted">Together about ${fEur0(saved)} off the normal prices.</p>` : ''}`) : ''}</div>`;
 }
 // find an ingredient in your pantry by name, or make it
 function ingRow(name, extra = {}) {
@@ -1557,7 +1570,7 @@ function kitchenToday(host) {
   const dp = curPlan(), dn = liveOffers().length;
   const toReview = recs('meals').filter(m => m.recipe && L.byId[m.recipe] && m.date < t && m.date >= addDays(t, -7) && !recs('rreviews').some(v => v.recipe === m.recipe && v.date >= m.date)).sort((a, b) => b.date.localeCompare(a.date)).filter((m, i, a) => a.findIndex(x => x.recipe === m.recipe) === i).slice(0, 4);
   host.innerHTML = `${head('Kitchen')}
-  <div class="quickacts"><button class="btn small primary" data-chooser>What shall I eat?</button></div>
+  <button class="btn primary bigact" data-chooser>${svg(P.pot)}<span><b>What shall I eat?</b><small>A few questions, then three ideas from your own recipes</small></span></button>
   <div class="panels">
     ${toReview.length ? panel('How was it?', `<p class="lnone">A few taps after eating teach the app what you like.</p><div class="lrows">${toReview.map(m => `<div class="lrow"><span class="lmain"><b>${esc(relName(m.recipe))}</b><span>${esc(niceDate(m.date))}${m.slot ? ' · ' + esc(m.slot.toLowerCase()) : ''}</span></span><button class="btn small" data-rvw="${m.recipe}" data-date="${m.date}">Review</button></div>`).join('')}</div>`) : ''}
     ${dp || dn ? panel('Deals this week', `<p class="lbig">${plural(dn, 'deal')} at Dirk, Aldi and AH</p>${(dp?.dinners || []).length ? `<div class="lwrap">${dp.dinners.slice(0, 5).map(m => `<span class="chip">${esc(m.recipe && L.byId[m.recipe] ? titleOf(L.byId[m.recipe]) : m.name || 'Recipe')}</span>`).join('')}</div>` : ''}`, ['kitchen/deals', 'See the plan']) : ''}
@@ -1658,9 +1671,9 @@ function moneyTile() {
   const st = fState(); if (!recs('faccounts').length) return '<p class="lnone">No money set up yet.</p>';
   const next = st.due.find(o => o.date >= st.t);
   return tileBody([
-    `<p class="dline"><span>Safe to spend today</span><b>${fSigned(st.perDay)}</b></p>`,
-    st.pay ? `<p class="dline"><span>Until payday</span><b>${fSigned(st.until)} · ${plural(st.days, 'day')}</b></p>` : '',
-    st.overdue.length ? `<p class="dline"><span>Overdue</span><b>${esc(st.overdue[0].bill.name)} ${eur(st.overdue[0].amount)}</b></p>` : next ? `<p class="dline"><span>Next bill</span><b>${esc(next.bill.name)}, ${esc(relDay(next.date))}</b></p>` : ''
+    part('money', 'safe', `<p class="dline"><span>Safe to spend today</span><b>${fSigned(st.perDay)}</b></p>`),
+    partsOff('money').includes('payday') ? '' : st.pay ? `<p class="dline"><span>Until payday</span><b>${fSigned(st.until)} · ${plural(st.days, 'day')}</b></p>` : '',
+    partsOff('money').includes('bill') ? '' : st.overdue.length ? `<p class="dline"><span>Overdue</span><b>${esc(st.overdue[0].bill.name)} ${eur(st.overdue[0].amount)}</b></p>` : next ? `<p class="dline"><span>Next bill</span><b>${esc(next.bill.name)}, ${esc(relDay(next.date))}</b></p>` : ''
   ]);
 }
 
@@ -1766,7 +1779,7 @@ function fPlanTop() {
 }
 function fAllFill(fill) {
   const t = today(), rows = [...recs('ftx').map(x => ({ x, out: true })), ...recs('fincome').map(x => ({ x, out: false }))].sort((a, b) => (b.x.date + fSeq(b.x)).localeCompare(a.x.date + fSeq(a.x)));
-  const lim = L.fall || 120, groups = new Map();
+  const lim = L.fall || 50, groups = new Map();
   for (const r of rows.slice(0, lim)) { const k = r.x.date; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
   fill.innerHTML = [...groups.entries()].map(([d, rs]) => { const net = rs.reduce((n, r) => n + (r.out ? -1 : 1) * (num(r.x.amount) || 0), 0); return `<div class="mdayhead"><b>${esc(dayName(d))} ${esc(niceDate(d))}${d > t ? ' · planned' : ''}</b><span class="${net >= 0 ? 'mgood' : ''}">${net >= 0 ? '+' : '−'}${eur(Math.abs(net))}</span></div><div class="lrows">${rs.map(r => row(r.x)).join('')}</div>`; }).join('') + (rows.length > lim ? `<button class="btn small mmore" data-act="fall">Show more</button>` : '') || quiet('Nothing logged yet.');
 }
@@ -2284,8 +2297,9 @@ function allWishes() {
 function wishTile() {
   const all = allWishes(), inbox = recs('winbox').filter(r => r.status !== 'Done').length;
   const l = inboxOpen().sort((a, b) => (a.status === 'Ready' ? 0 : 1) - (b.status === 'Ready' ? 0 : 1) || (b.created || 0) - (a.created || 0)), ready = l.filter(r => r.status === 'Ready').length;
-  return tileBody([`<p class="dline"><span>On your wishlists</span><b>${plural(all.length, 'wish', 'wishes')}</b></p>`, `<p class="dline"><span>All together</span><b>${eur(all.reduce((n, w) => n + w.price, 0))}</b></p>`,
-    l.length ? `<p class="dline"><span>Inbox</span><b>${plural(ready, 'card')} to check${l.length - ready ? ` · ${l.length - ready} being sorted` : ''}</b></p>` : inbox ? `<p class="dline"><span>Old inbox</span><b>${plural(inbox, 'link')} to sort</b></p>` : '',
+  if (partsOff('wish').includes('inbox')) l.length = 0;
+  return tileBody([part('wish', 'count', `<p class="dline"><span>On your wishlists</span><b>${plural(all.length, 'wish', 'wishes')}</b></p>`), part('wish', 'total', `<p class="dline"><span>All together</span><b>${eur(all.reduce((n, w) => n + w.price, 0))}</b></p>`),
+    partsOff('wish').includes('inbox') ? '' : l.length ? `<p class="dline"><span>Inbox</span><b>${plural(ready, 'card')} to check${l.length - ready ? ` · ${l.length - ready} being sorted` : ''}</b></p>` : inbox ? `<p class="dline"><span>Old inbox</span><b>${plural(inbox, 'link')} to sort</b></p>` : '',
     inboxMini(l.slice(0, 3)), l.length ? `<button class="chip link" data-act="go" data-v="wish/inbox">Open the inbox</button>` : '']);
 }
 // every wish that left a list: bought or let go, with its price and date (older ones without a date only count in totals)
@@ -2903,7 +2917,7 @@ document.addEventListener('click', async e => {
     case 'envstep': { const c = L.byId[d.id]; if (c) save(c, { budget: Math.max(0, (num(c.budget) || 0) + Number(d.v)) }); break; }
     case 'everymode': L.everyMode = d.v; C.render(); break;
     case 'everytag': L.everyQ = norm(L.everyQ) === d.v ? '' : d.v; C.render(); break;
-    case 'everymore': L.everyLim = (L.everyLim || 60) + 100; C.render(); break;
+    case 'everymore': L.everyLim = (L.everyLim || 50) + 50; C.render(); break;
     case 'calmove': L.calOff = d.v === '0' ? 0 : (L.calOff || 0) + Number(d.v); C.render(); break;
     case 'newbill': openEditor('fbills', null, { type: d.v, cadence: 'Monthly', active: true }); break;
     case 'splitsug': saveFset({ split: null }); break;
@@ -2924,6 +2938,7 @@ document.addEventListener('click', async e => {
     case 'wmovewait': moveWaitList(); break;
     case 'dkeep': case 'dplan': case 'dgroc': dealsAct(d.act, d.k, Number(d.i)); break;
     case 'quitadd': quitAdd(); break;
+    case 'dealsall': L.dealsAll = !L.dealsAll; C.render(); break;
     case 'ibxok': inboxAccept(d.id); break;
     case 'ibxall': inboxAcceptAll(d.v); break;
     case 'ibxmore': L.ibxMore = (L.ibxMore || 60) + 60; C.render(); break;
@@ -2936,7 +2951,7 @@ document.addEventListener('click', async e => {
     case 'periodend': { const r = L.byId[d.id]; if (r) save(r, { end: today() }); break; }
     case 'fcheck': fCheckSheet(); break;
     case 'fsink': { const b = L.byId[d.id]; if (b) save(b, { sink: !b.sink }); break; }
-    case 'fall': L.fall = (L.fall || 120) + 200; C.render(); break;
+    case 'fall': L.fall = (L.fall || 50) + 50; C.render(); break;
     case 'fafford': fAfford(fState()); break;
     case 'fchip': case 'frepeat': { const x = L.byId[d.id]; if (x) fQuick(x); break; }
     case 'fnothing': { const r = recs('fset')[0]; (r ? save(r, { nothingOn: today() }) : create('fset', { nothingOn: today() }).catch(() => {})); C.toast('Nothing spent today. Noted.'); break; }
@@ -3014,10 +3029,10 @@ function fEveryList() {
   const mode = L.everyMode || 'out', q = norm(L.everyQ || ''), words = q.split(/\s+/).filter(Boolean);
   const rows = [...(mode !== 'in' ? recs('ftx').map(x => ({ x, out: true })) : []), ...(mode !== 'out' ? recs('fincome').map(x => ({ x, out: false })) : [])]
     .filter(({ x }) => !words.length || words.every(w => norm([x.name, x.notes, relName(x.category), relName(x.account), num(x.amount)?.toFixed(2), String(num(x.amount) || '').replace('.', ',')].join(' ')).includes(w)))
-    .sort((a, b) => (b.x.date + String(fSeq(b.x)).padStart(15, '0')).localeCompare(a.x.date + String(fSeq(a.x)).padStart(15, '0'))).slice(0, L.everyLim || 60);
+    .sort((a, b) => (b.x.date + String(fSeq(b.x)).padStart(15, '0')).localeCompare(a.x.date + String(fSeq(a.x)).padStart(15, '0'))).slice(0, L.everyLim || 50);
   const groups = new Map(); for (const r of rows) { if (!groups.has(r.x.date)) groups.set(r.x.date, []); groups.get(r.x.date).push(r); }
   return [...groups].map(([d, rs]) => `<div class="mdayhead"><b>${esc(fromISO(d).toLocaleDateString('en-GB', { weekday: 'long', month: 'long', day: 'numeric' }))}</b></div><div class="lrows">${rs.map(r => row(r.x)).join('')}</div>`).join('')
-    + (rows.length >= (L.everyLim || 60) ? '<button class="btn small mmore" data-act="everymore">Show more</button>' : '') || quiet(q ? 'Nothing matches.' : 'Nothing logged yet.');
+    + (rows.length >= (L.everyLim || 50) ? '<button class="btn small mmore" data-act="everymore">Show more</button>' : '') || quiet(q ? 'Nothing matches.' : 'Nothing logged yet.');
 }
 function fEnvFill(fill) {
   const mode = fMode(), w = fWindow(mode), cats = recs('fcats').sort((a, b) => (a.nospend ? 1 : 0) - (b.nospend ? 1 : 0) || (num(b.budget) || 0) - (num(a.budget) || 0) || norm(a.name).localeCompare(norm(b.name)));
@@ -3536,6 +3551,8 @@ return {
   // every photo path the lists use, once they loaded fresh from Supabase (null until then)
   photoRefs: () => L.fresh || L.missing ? JSON.stringify(L.all) : null,
   // one small card for the overview page; '' while the lists are still loading or missing
+  tileParts: key => TILE_PARTS[key] || [],
+  tileOff: key => TILE_OFF[key] || [],
   tile(key) {
     const s = SECTIONS.find(x => x.key === key);
     if (!s?.tile || !C) return '';
