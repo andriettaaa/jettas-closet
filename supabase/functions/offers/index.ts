@@ -161,13 +161,20 @@ async function send(uid: string, msg: { title: string; body: string; url?: strin
 const IG = 'https://graph.instagram.com';
 async function igSync(uid: string) {
   const { data: auth } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'igauth').maybeSingle();
-  let tok = auth?.data?.token || Deno.env.get('IG_TOKEN') || '', at = auth?.data?.at || 0;
+  // the secret wins when you put in a new one; spaces, line breaks and quotes from copying are dropped
+  const envTok = (Deno.env.get('IG_TOKEN') || '').replace(/[\s"'`]/g, '');
+  const fresh = !auth?.data?.src || auth.data.src !== envTok.slice(-12);
+  let tok = (fresh ? envTok : auth.data.token) || envTok, at = fresh ? 0 : auth.data.at || 0;
   if (!tok) return { error: 'IG_TOKEN is not set in Supabase yet' };
+  if (/^EAA/.test(tok)) return { error: 'IG_TOKEN is a Facebook token; use the Instagram one (it starts with IG)' };
   const get = async (u: string) => { const r = await fetch(u); const j = await r.json(); if (!r.ok || j.error) throw new Error(j.error?.message || 'Instagram said no (' + r.status + ')'); return j; };
-  // a long-lived token lasts 60 days; renew it once it is older than 3 weeks
+  // a long-lived token lasts 60 days; renew it once it is older than 3 weeks, and keep only one that worked
   if (!at || Date.now() - at > 21 * 864e5) {
-    try { const j = await get(`${IG}/refresh_access_token?grant_type=ig_refresh_token&access_token=${encodeURIComponent(tok)}`); tok = j.access_token; at = Date.now(); } catch (e) { console.error('refresh', e); }
-    await sb.from('records').upsert({ user_id: uid, id: auth?.id || crypto.randomUUID(), kind: 'igauth', data: { token: tok, at: at || Date.now() }, updated_at: new Date().toISOString() });
+    try {
+      const j = await get(`${IG}/refresh_access_token?grant_type=ig_refresh_token&access_token=${encodeURIComponent(tok)}`);
+      tok = j.access_token;
+      await sb.from('records').upsert({ user_id: uid, id: auth?.id || crypto.randomUUID(), kind: 'igauth', data: { token: tok, at: Date.now(), src: envTok.slice(-12) }, updated_at: new Date().toISOString() });
+    } catch (e) { console.error('refresh', e); }
   }
   const me = await get(`${IG}/v21.0/me?fields=user_id,username,name,profile_picture_url,followers_count,follows_count,media_count,biography&access_token=${encodeURIComponent(tok)}`);
   const media: any[] = [];
