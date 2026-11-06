@@ -651,3 +651,4 @@ html.cooking, html.cooking body { overflow: hidden; }
 .igvid { position: absolute; right: 5px; top: 5px; z-index: 2; width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; font-size: 11px; display: grid; place-items: center; pointer-events: none; }
 .stayc { margin-bottom: 8px; }
 .stayc .dsub { margin: 14px 0 8px; }
+.stayan { margin-bottom: 18px; }

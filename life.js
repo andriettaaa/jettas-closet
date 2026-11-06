@@ -91,6 +91,9 @@ const FEELS = ['Comfort', 'Light', 'Fresh', 'Hearty', 'Quick', 'Savoury', 'Sweet
 const TEXTURES = ['Crispy', 'Creamy', 'Crunchy', 'Soft', 'Chewy', 'Saucy', 'Dry', 'Mushy'];
 const QUIT = 'Stop smoking', helpsQuit = r => [].concat(r.helps || []).includes(QUIT);
 // pantry and kitchen gear speak Dutch; older English categories are translated by Kitchen › Settings › Tidy up
+// the parts of a hotel review, each 1 to 5 stars; the card shows their average
+const STAY_SCORES = [['clean', 'Cleanliness'], ['location', 'Location'], ['comfort', 'Comfort and bed'], ['facilities', 'Facilities'], ['staff', 'Staff and service'], ['value', 'Value for money'], ['breakfast', 'Breakfast'], ['wifi', 'Wifi'], ['quiet', 'Quiet']];
+const stayScore = r => { const v = STAY_SCORES.map(([k]) => Number(r[k]) || 0).filter(Boolean); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : Number(r.rating) || 0; };
 const CAT_NL = {
   ingredients: { 'Fruits & Veg': 'Groente & fruit', 'Fish & Meat': 'Vlees & vis', 'Eggs & Dairy': 'Zuivel & eieren', 'Grains & Legumes': 'Granen & peulvruchten', 'Bread & Bakery': 'Brood & bakkerij', 'Nuts & Seeds': 'Noten & zaden', 'Herbs & Spices': 'Kruiden & specerijen', 'Sauces & Oils': 'Sauzen & olie', 'Tins & Jars': 'Blik & pot', 'Frozen': 'Diepvries', 'Drinks': 'Dranken', 'Snack': 'Snacks', 'Confections': 'Zoetigheid', 'Supplements': 'Supplementen', 'Other': 'Overig' },
   gear: { 'Kitchen Appliances': 'Keukenapparaten', 'Cookware & Bakeware': 'Pannen & bakvormen', 'Prep Tools & Essentials': 'Voorbereiden', 'Cooking Tools & Utensils': 'Kookgerei', 'Organizing Essentials': 'Opbergen', 'Cleaning Supplies': 'Schoonmaken' }
@@ -784,10 +787,12 @@ const KINDS = {
     fields: [F('name', 'Name'), F('photo', 'Photo', 'photo'), F('type', 'Type', 'select', { options: ['Hotel', 'Airbnb', 'Apartment', 'B&B', 'Hostel', 'Resort', 'Other'], half: 1 }),
       F('status', 'Status', 'select', { options: ['Saved', 'Shortlist', 'Booked', 'Stayed'], half: 1 }),
       F('city', 'City', 'text', { half: 1 }), F('country', 'Country', 'text', { half: 1 }),
-      F('price', 'Price per night', 'money', { half: 1 }), F('rating', 'Rating', 'rating'),
-      F('url', 'Link', 'url'), F('site', 'Site', 'text', { half: 1 }), F('notes', 'Notes', 'long')],
-    sorts: [['country', 'Country'], ['name', 'A to Z'], ['-created', 'Newest']],
-    sub: r => [r.type, [r.city, r.country].filter(Boolean).join(', '), r.status && r.status !== 'Saved' ? r.status.toLowerCase() : ''].filter(Boolean).join(' · ')
+      F('price', 'Price per night', 'money', { half: 1 }), F('from', 'Stayed from', 'date', { half: 1 }), F('to', 'Stayed until', 'date', { half: 1 }),
+      F('url', 'Link', 'url'), F('site', 'Site', 'text', { half: 1 }),
+      F('rating', 'Overall', 'rating'), ...STAY_SCORES.map(([k, l]) => F(k, l, 'rating')),
+      F('again', 'Would stay again', 'check', { half: 1 }), F('pros', 'What was good', 'long', { rows: 3 }), F('cons', 'What could be better', 'long', { rows: 3 }), F('notes', 'Notes', 'long')],
+    sorts: [['country', 'Country'], ['name', 'A to Z'], ['-created', 'Newest'], ['-score', 'Best reviewed']],
+    sub: r => [r.type, [r.city, r.country].filter(Boolean).join(', '), r.from ? 'stayed ' + fromISO(r.from).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : r.status && r.status !== 'Saved' ? r.status.toLowerCase() : '', stayScore(r) ? '★ ' + stayScore(r).toFixed(1) : ''].filter(Boolean).join(' · ')
   },
   documents: {
     one: 'document', many: 'Documents', facet: 'category',
@@ -1008,6 +1013,7 @@ const ruleFor = name => { const n = norm(name); return n ? recs('frules').find(r
 // running low puts it on the grocery list; back in stock clears running low
 const useSoon = r => !!r.stock && !!r.expires && r.expires <= addDays(today(), 3);
 function applyRule(kind, id, data) {
+  if (kind === 'stays' && data.to && data.to < today() && (!data.status || ['Saved', 'Shortlist', 'Booked'].includes(data.status))) data = { ...data, status: 'Stayed' };
   if (kind === 'ingredients') { const was = L.byId[id] || {}; if (data.low && !was.low) data = { ...data, list: true }; if (data.stock && !was.stock && was.low) data = { ...data, low: false }; return data; }
   if (kind !== 'ftx' || L.byId[id] || data.category) return data;
   const r = ruleFor(data.name); if (!r) return data;
@@ -1134,7 +1140,7 @@ const quiet = t => `<p class="lnone">${esc(t)}</p>`;
 /* ---------- list pages ---------- */
 function sortList(list, K, key) {
   const desc = key.startsWith('-'), k = desc ? key.slice(1) : key;
-  const val = r => k === 'routine' ? (ROUTINES.includes(r.routine) ? ROUTINES.indexOf(r.routine) : 9) : k === 'prio' ? (PRIO.includes(r.priority) ? PRIO.indexOf(r.priority) : 9) : k === 'time' ? (totalTime(r) || 1e9) : k === 'due' && ['chores', 'plants'].includes(r.kind) ? (r.kind === 'plants' ? (plantDue(r) || '9999') : choreDue(r)) : k === 'name' ? norm(titleOf(r)) : r[k];
+  const val = r => k === 'score' ? (stayScore(r) || '') : k === 'routine' ? (ROUTINES.includes(r.routine) ? ROUTINES.indexOf(r.routine) : 9) : k === 'prio' ? (PRIO.includes(r.priority) ? PRIO.indexOf(r.priority) : 9) : k === 'time' ? (totalTime(r) || 1e9) : k === 'due' && ['chores', 'plants'].includes(r.kind) ? (r.kind === 'plants' ? (plantDue(r) || '9999') : choreDue(r)) : k === 'name' ? norm(titleOf(r)) : r[k];
   return list.sort((a, b) => {
     let x = val(a), y = val(b);
     const ex = x == null || x === '', ey = y == null || y === '';
@@ -3962,10 +3968,31 @@ function staysHTML() {
   const all = recs('stays'), by = new Map();
   for (const r of all) { const c = r.country || 'Somewhere else', k = r.city || 'Unknown city'; if (!by.has(c)) by.set(c, new Map()); const m = by.get(c); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }
   const countries = [...by.keys()].sort((a, b) => (a === 'Somewhere else') - (b === 'Somewhere else') || a.localeCompare(b));
-  return `<div class="dbtns" style="margin-bottom:16px"><button class="btn primary" data-act="new" data-v="stays">${svg(P.plus)} Stay</button></div>
+  return `<div class="dbtns" style="margin-bottom:16px"><button class="btn primary" data-act="new" data-v="stays">${svg(P.plus)} Stay</button></div>${stayAnalysis(all)}
     ${all.length ? countries.map(c => { const m = by.get(c), n = [...m.values()].reduce((a, l) => a + l.length, 0);
       return `<section class="stayc"><h2 class="triph2">${esc(c)} <span class="lnone">${n}</span></h2>${[...m.keys()].sort((a, b) => a.localeCompare(b)).map(k => `<p class="dsub">${esc(k)} · ${m.get(k).length}</p><div class="lgrid">${m.get(k).sort((a, b) => ['Booked', 'Shortlist', 'Saved', 'Stayed'].indexOf(a.status || 'Saved') - ['Booked', 'Shortlist', 'Saved', 'Stayed'].indexOf(b.status || 'Saved') || norm(a.name).localeCompare(norm(b.name))).map(card).join('')}</div>`).join('')}</section>`; }).join('')
     : quiet('Share a link from Booking, Airbnb, Hotels.com or a hotel site with the A’s Life shortcut. It lands in your inbox already sorted by country and city.')}`;
+}
+
+// what your reviews say: how many places, where, the average per part of a review (one hue, longest is best),
+// the best places, and how often you would go back
+function stayAnalysis(all) {
+  const been = all.filter(r => r.status === 'Stayed' || r.from), rated = all.filter(r => stayScore(r));
+  if (!been.length && !rated.length) return '';
+  const avg = l => l.length ? l.reduce((a, b) => a + b, 0) / l.length : 0;
+  const parts = STAY_SCORES.map(([k, l]) => { const v = all.map(r => Number(r[k]) || 0).filter(Boolean); return { label: l, v: avg(v), sub: plural(v.length, 'review') }; }).filter(x => x.v);
+  const asked = all.filter(r => r.again != null && (r.status === 'Stayed' || r.from)), again = asked.filter(r => r.again).length;
+  const prices = all.map(r => num(r.price)).filter(n => n > 0), countries = new Set(been.map(r => r.country).filter(Boolean));
+  const best = [...rated].sort((a, b) => stayScore(b) - stayScore(a)).slice(0, 3);
+  const perCountry = [...been.reduce((m, r) => m.set(r.country || 'Somewhere else', (m.get(r.country || 'Somewhere else') || 0) + 1), new Map())].sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const star = n => n.toFixed(1) + ' ★';
+  return `<div class="panels stayan">
+    ${panel('Your stays', `<div class="tiles lt3">${fTile('Places stayed', String(been.length), plural(countries.size, 'country', 'countries'))}${fTile('Average review', rated.length ? star(avg(rated.map(stayScore))) : '–', plural(rated.length, 'review'))}${fTile('Would go back', asked.length ? Math.round(100 * again / asked.length) + '%' : '–', asked.length ? `${again} of ${asked.length}` : 'tick it in a review')}</div>
+      ${prices.length ? `<p class="dline"><span>Average price per night</span><b>${eur(avg(prices))}</b></p>` : ''}
+      ${best.length ? `<p class="dsub">Best reviewed</p><div class="lrows">${best.map(r => `<button class="lrow lmain" data-act="open" data-id="${r.id}"><b>${esc(r.name)}</b><span>${esc([r.city, r.country].filter(Boolean).join(', '))} · ${star(stayScore(r))}</span></button>`).join('')}</div>` : ''}`)}
+    ${parts.length ? panel('Average per part', vHBars(parts.sort((a, b) => b.v - a.v), { fmt: star, color: 'var(--c1)', max: 5 }) + '<p class="lnone">Out of 5 stars, across all your reviews. The lowest bar is what you notice most when it goes wrong.</p>') : ''}
+    ${perCountry.length > 1 ? panel('Where you stayed', vHBars(perCountry.map(([c, n]) => ({ label: c, v: n })), { fmt: n => plural(n, 'stay'), color: 'var(--c2)' })) : ''}
+  </div>`;
 }
 const staysFor = t => { const city = placeKey(t.dest?.name), country = placeKey(t.dest?.country); return recs('stays').filter(r => (city && placeKey(r.city) === city) || (!city && country && placeKey(r.country) === country)); };
 const tid = () => C.uuid().slice(0, 8);
