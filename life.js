@@ -2381,7 +2381,12 @@ function feedList() {
 // pull your real posts, profile and counts from Instagram (the offers function does the work)
 async function igSync(quiet) {
   if (L.igBusy) return; L.igBusy = true; if (!quiet) C.toast('Syncing Instagram…');
-  try { const j = await C.callFn('offers', { action: 'igsync' }); await load(); C.toast(`Instagram synced: ${plural(j.posts, 'post')}${j.added ? `, ${j.added} new` : ''}`); }
+  try {
+    let j = await C.callFn('offers', { action: 'igsync' }), added = j.added || 0;
+    // pictures come over 25 at a time; keep going until they are all in your storage
+    for (let n = 0; j.photosWaiting && n < 14; n++) { if (!quiet) C.toast(`Copying photos… ${j.photosWaiting} to go`); j = await C.callFn('offers', { action: 'igsync' }); added += j.added || 0; }
+    await load(); C.toast(`Instagram synced: ${plural(j.posts, 'post')}${added ? `, ${added} new` : ''}`);
+  }
   catch (e) { if (!quiet) C.toast(/not set/.test(e.message) ? 'Add IG_TOKEN in Supabase first.' : 'Instagram sync did not work: ' + e.message); }
   finally { L.igBusy = false; }
 }

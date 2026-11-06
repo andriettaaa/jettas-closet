@@ -205,7 +205,7 @@ async function igSync(uid: string) {
     }
   } catch (e: any) { return { error: `${e.message} (${shape})` }; }
   const media: any[] = [];
-  for (let i = 0; next && i < 6; i++) { const j = await get(next); media.push(...(j.data || [])); next = j.paging?.next || ''; }
+  for (let i = 0; next && i < 4; i++) { const j = await get(next); media.push(...(j.data || [])); next = j.paging?.next || ''; }
   const { data: have, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['posts', 'accounts']);
   if (error) throw error;
   const now = new Date().toISOString(), rows: any[] = [];
@@ -214,19 +214,25 @@ async function igSync(uid: string) {
   if (me.profile_picture_url && (!acc?.data?.avatar || /^https?:/.test(acc.data.avatar) || !acc?.data?.igAvatarDay || acc.data.igAvatarDay !== now.slice(0, 7))) { accData.avatar = await keepPhoto(uid, me.profile_picture_url); accData.igAvatarDay = now.slice(0, 7); }
   rows.push({ user_id: uid, id: acc?.id || crypto.randomUUID(), kind: 'accounts', data: clean(accData), updated_at: now });
   const byIg = new Map(have.filter((r: any) => r.kind === 'posts' && r.data.igId).map((r: any) => [r.data.igId, r]));
-  let added = 0;
+  // copying pictures is the heavy part: at most 25 per run, newest first; the rest follow on the next syncs
+  let added = 0, copies = 0, waiting = 0;
+  const flush = async () => { while (rows.length) { const { error: e } = await sb.from('records').upsert(rows.splice(0, 25)); if (e) throw e; } };
   for (const m of media) {
     const old: any = byIg.get(m.id), ts = new Date(m.timestamp), date = m.timestamp.slice(0, 10), time = m.timestamp.slice(11, 16);
     const fmt = m.media_product_type === 'REELS' || m.media_type === 'VIDEO' ? 'Short Video' : m.media_type === 'CAROUSEL_ALBUM' ? 'Carousel' : m.media_product_type === 'STORY' ? 'Story' : 'Image Post';
     const cap = String(m.caption || ''), first = cap.split('\n')[0].replace(/#\S+/g, '').trim();
     const d: any = old ? { ...old.data } : { name: first.slice(0, 70) || 'Instagram post', created: ts.getTime(), stage: 'Posted', platforms: ['Instagram'], format: fmt, date, time };
     Object.assign(d, { igId: m.id, link: m.permalink, caption: cap, likes: m.like_count ?? d.likes, comments: m.comments_count ?? d.comments, stage: 'Posted' });
-    if (!d.photo || /^https?:/.test(d.photo)) { const pic = m.thumbnail_url || m.media_url; if (pic) d.photo = await keepPhoto(uid, pic); }
+    if (!d.photo || /^https?:/.test(d.photo)) {
+      const pic = m.thumbnail_url || m.media_url;
+      if (pic && copies < 25) { copies++; d.photo = await keepPhoto(uid, pic); } else if (pic) { d.photo = pic; waiting++; }
+    }
     if (!old) added++;
     rows.push({ user_id: uid, id: old?.id || crypto.randomUUID(), kind: 'posts', data: clean(d), updated_at: now });
+    if (rows.length >= 25) await flush();
   }
-  for (let i = 0; i < rows.length; i += 200) { const { error: e } = await sb.from('records').upsert(rows.slice(i, i + 200)); if (e) throw e; }
-  return { ok: true, handle: me.username, posts: media.length, added, followers: me.followers_count };
+  await flush();
+  return { ok: true, handle: me.username, posts: media.length, added, followers: me.followers_count, photosWaiting: waiting };
 }
 
 Deno.serve(async req => {
