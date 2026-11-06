@@ -189,8 +189,14 @@ async function igSync(uid: string) {
   try {
     if (fb) {
       const pages = await get(`${FBG}/me/accounts?fields=name,instagram_business_account{id}&limit=50&access_token=${encodeURIComponent(tok)}`);
-      const ig = (pages.data || []).map((p: any) => p.instagram_business_account?.id).find(Boolean);
-      if (!ig) return { error: `No Instagram account found through Facebook (${shape}). Link your Instagram to a Facebook page, or use the Instagram login token` };
+      let ig = (pages.data || []).map((p: any) => p.instagram_business_account?.id).find(Boolean);
+      // a Unified login token can stand for the Instagram account itself; then "me" is that account
+      if (!ig) { try { const m = await get(`${FBG}/me?fields=id,username&access_token=${encodeURIComponent(tok)}`); if (m.username) ig = m.id; } catch { /* not an Instagram user token */ } }
+      if (!ig) {
+        let perms = '';
+        try { const p = await get(`${FBG}/me/permissions?access_token=${encodeURIComponent(tok)}`); perms = (p.data || []).filter((x: any) => x.status === 'granted').map((x: any) => x.permission).join(', '); } catch { perms = 'unknown'; }
+        return { error: `No Instagram account found through Facebook (${shape}). Pages seen: ${(pages.data || []).length}. Permissions: ${perms || 'none'}` };
+      }
       me = await get(`${FBG}/${ig}?fields=${PF}&access_token=${encodeURIComponent(tok)}`);
       next = `${FBG}/${ig}/media?fields=${MF}&limit=50&access_token=${encodeURIComponent(tok)}`;
     } else {
