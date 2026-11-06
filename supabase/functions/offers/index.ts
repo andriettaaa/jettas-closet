@@ -17,6 +17,7 @@
 // "save" replaces last week's deals, keeps one plan per week, and sends a notification.
 // Photos from recipe sites are copied into your own photo storage, so they stay when the site changes. All of this is
 // for your own private use in your own app.
+// Closet pieces from a video: closetlist, closetadd and closetundo (see where they are handled below).
 // Secrets: OFFERS_TOKEN, SPEND_USER_ID (your user id), VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY. Turn off "Verify JWT" for this function.
 import { createClient } from 'npm:@supabase/supabase-js@2.50.0';
 import webpush from 'npm:web-push@3.6.7';
@@ -531,6 +532,65 @@ Deno.serve(async req => {
         if (e) throw e; filled++;
       }
       return json({ ok: true, filled });
+    }
+
+    // Closet pieces from a video (a try-on, a haul, a screen recording of another closet app). Three actions:
+    //   { "token": "...", "action": "closetlist" }  → what is in your closet now (to skip pieces you already have)
+    //   { "token": "...", "action": "closetadd", "batch": "video-1", "items": [{ "name": "...", "cat": "Tops", "brand": "...",
+    //     "photo": "https://..." or "photoData": "<base64 jpeg/png/webp>", "notes": "...", ... }] }
+    //     → new pieces with status "closet", source "video" and the tag "From video"; the same importKey twice updates
+    //   { "token": "...", "action": "closetundo", "batch": "video-1" }  → removes every piece of that batch again
+    // In the app each piece can also be changed or deleted on its own (with Undo).
+    if (body.action === 'closetlist') {
+      const { data, error } = await sb.from('items').select('id,data').eq('user_id', uid).limit(5000);
+      if (error) throw error;
+      return json({ items: data.map((r: any) => clean({ id: r.id, name: r.data.name, cat: r.data.cat, sub: r.data.sub, brand: r.data.brand, colors: r.data.colors, status: r.data.status, source: r.data.source, batch: r.data.batch, importKey: r.data.importKey })) });
+    }
+    if (body.action === 'closetadd') {
+      const batch = str(body.batch, 60); if (!batch) return json({ error: 'batch is needed, e.g. "video-1"' }, 400);
+      const want = (Array.isArray(body.items) ? body.items : []).slice(0, 100);
+      const list = (v: unknown, n = 20) => (Array.isArray(v) ? v : []).map(x => str(x, 60)).filter(Boolean).slice(0, n);
+      const { data: have, error: e0 } = await sb.from('items').select('id,data').eq('user_id', uid).limit(5000);
+      if (e0) throw e0;
+      const byKey = new Map(have.filter((r: any) => r.data.importKey).map((r: any) => [r.data.importKey, r]));
+      let added = 0, updated = 0; const ids: string[] = [];
+      for (const w of want) {
+        const name = str(w?.name, 160); if (!name) continue;
+        const key = str(w?.importKey, 120), same: any = key ? byKey.get(key) : null;
+        if (same && same.data.source !== 'video') continue; // never overwrite a piece you made yourself
+        let photo = same?.data.photo || '';
+        const raw = str(w?.photoData, 8e6).replace(/^data:image\/[a-z]+;base64,/, '');
+        if (raw) {
+          try {
+            const buf = Uint8Array.from(atob(raw), c => c.charCodeAt(0));
+            const type = buf[0] === 0x89 ? 'image/png' : buf[0] === 0x52 ? 'image/webp' : 'image/jpeg';
+            if (buf.length <= 6e6) { const path = `${uid}/${crypto.randomUUID()}.${type.split('/')[1].replace('jpeg', 'jpg')}`; const { error } = await sb.storage.from('photos').upload(path, buf, { contentType: type, cacheControl: '31536000', upsert: false }); if (!error) photo = path; }
+          } catch { /* a broken picture: the piece still saves */ }
+        } else if (w?.photo) photo = await keepPhoto(uid, str(w.photo, 2000));
+        const now = Date.now();
+        const data = clean({
+          name, cat: str(w?.cat, 40) || 'Tops', sub: str(w?.sub, 80), brand: str(w?.brand, 80), size: str(w?.size, 30), articleNo: str(w?.articleNo, 60),
+          price: num(w?.price), origPrice: num(w?.origPrice), bought: day(w?.bought), material: str(w?.material, 200), shop: str(w?.shop, 80), link: str(w?.link, 500),
+          colors: list(w?.colors), materials: list(w?.materials), fits: list(w?.fits), seasons: list(w?.seasons, 4), occasions: list(w?.occasions),
+          tags: [...new Set([...list(w?.tags), 'From video'])], condition: str(w?.condition, 40), acquired: str(w?.acquired, 40),
+          notes: str(w?.notes, 4000), careNotes: str(w?.careNotes, 1000), photo, status: 'closet', source: 'video', batch, importKey: key,
+          created: same?.data.created || now, updated: now
+        });
+        const id = same?.id || crypto.randomUUID();
+        const { error } = await sb.from('items').upsert({ user_id: uid, id, data: same ? { ...same.data, ...data } : data, updated_at: new Date().toISOString() });
+        if (error) throw error;
+        same ? updated++ : added++; ids.push(id);
+      }
+      return json({ ok: true, added, updated, ids });
+    }
+    if (body.action === 'closetundo') {
+      const batch = str(body.batch, 60); if (!batch) return json({ error: 'batch is needed' }, 400);
+      const { data, error } = await sb.from('items').select('id,data').eq('user_id', uid).filter('data->>source', 'eq', 'video').filter('data->>batch', 'eq', batch);
+      if (error) throw error;
+      const ids = data.map((r: any) => r.id), paths = data.map((r: any) => r.data.photo).filter((p: string) => p && !/^https?:/.test(p));
+      for (let i = 0; i < ids.length; i += 200) { const { error: e } = await sb.from('items').delete().eq('user_id', uid).in('id', ids.slice(i, i + 200)); if (e) throw e; }
+      if (paths.length) await sb.storage.from('photos').remove(paths);
+      return json({ ok: true, removed: ids.length });
     }
 
     if (body.action === 'save') {
