@@ -294,6 +294,78 @@ async function ttSync(uid: string) {
   return { ok: true, handle: me.username || me.display_name, posts: vids.length, added, followers: me.follower_count, photosWaiting: waiting };
 }
 
+/* ---------- posting from the app ----------
+   Instagram: a planned post with a video becomes a Reel, one with only a photo (JPEG) a photo post; Instagram has no
+   drafts here, so it goes live at once (the app asks first). Video takes a while: the app asks again with the
+   container until Instagram is done. TikTok: the video lands as a draft in your TikTok inbox (scope video.upload);
+   you finish and post it in TikTok. */
+const pub = (path: string) => /^https?:/.test(path) ? path : `${Deno.env.get('SUPABASE_URL')}/storage/v1/object/public/photos/${path}`;
+async function postRec(uid: string, id: string) {
+  const { data } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'posts').eq('id', id).maybeSingle();
+  return data;
+}
+async function igCtx(uid: string) {
+  const { data: auth } = await sb.from('records').select('data').eq('user_id', uid).eq('kind', 'igauth').maybeSingle();
+  const envTok = (Deno.env.get('IG_TOKEN') || '').replace(/[\s"'`]/g, '');
+  const tok = (auth?.data?.src && auth.data.src === envTok.slice(-12) ? auth.data.token : envTok) || envTok;
+  if (!tok) throw new Error('IG_TOKEN is not set in Supabase yet');
+  const fb = /^EAA/.test(tok), base = fb ? 'https://graph.facebook.com/v21.0' : `${IG}/v21.0`;
+  const get = async (u: string, init?: RequestInit) => { const r = await fetch(u, init); const j = await r.json(); if (!r.ok || j.error) throw new Error(j.error?.error_user_msg || j.error?.message || 'Instagram said no (' + r.status + ')'); return j; };
+  let ig = '';
+  if (fb) { const pages = await get(`${base}/me/accounts?fields=instagram_business_account{id}&access_token=${encodeURIComponent(tok)}`); ig = (pages.data || []).map((p: any) => p.instagram_business_account?.id).find(Boolean) || ''; }
+  else ig = (await get(`${base}/me?fields=user_id&access_token=${encodeURIComponent(tok)}`)).user_id;
+  if (!ig) throw new Error('No Instagram account found');
+  return { tok, base, ig, get };
+}
+async function igPost(uid: string, id: string, container: string) {
+  const rec = await postRec(uid, id); if (!rec) return { error: 'Post not found' };
+  const d = rec.data, caption = [d.caption, d.hashtags].filter(Boolean).join('\n\n');
+  try {
+    const { tok, base, ig, get } = await igCtx(uid), q = (o: Record<string, string>) => new URLSearchParams({ ...o, access_token: tok });
+    if (!container) {
+      if (!d.video && !d.photo) return { error: 'Add a video or a photo to the post first' };
+      const body = d.video ? q({ media_type: 'REELS', video_url: pub(d.video), caption, share_to_feed: 'true', ...(d.photo ? { cover_url: pub(d.photo) } : {}) }) : q({ image_url: pub(d.photo), caption });
+      container = (await get(`${base}/${ig}/media`, { method: 'POST', body })).id;
+    }
+    for (let i = 0; i < 8; i++) {
+      const st = await get(`${base}/${container}?fields=status_code,status&access_token=${encodeURIComponent(tok)}`);
+      if (st.status_code === 'ERROR' || st.status_code === 'EXPIRED') return { error: 'Instagram could not process it: ' + (st.status || st.status_code) };
+      if (st.status_code === 'FINISHED' || !st.status_code) {
+        const m = await get(`${base}/${ig}/media_publish`, { method: 'POST', body: q({ creation_id: container }) });
+        let link = ''; try { link = (await get(`${base}/${m.id}?fields=permalink&access_token=${encodeURIComponent(tok)}`)).permalink; } catch { /* the link follows with the next sync */ }
+        const now = new Date();
+        await sb.from('records').upsert({ user_id: uid, id, kind: 'posts', data: clean({ ...d, stage: 'Posted', igId: m.id, link: link || d.link, date: now.toISOString().slice(0, 10), time: now.toISOString().slice(11, 16), platforms: [...new Set([...(d.platforms || []), 'Instagram'])] }), updated_at: now.toISOString() });
+        return { ok: true, posted: true, link };
+      }
+      await new Promise(r => setTimeout(r, 5000));
+    }
+    return { ok: true, pending: true, container };
+  } catch (e: any) { return { error: e.message }; }
+}
+async function ttAccess(uid: string) {
+  const { data: auth } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'ttauth').maybeSingle();
+  if (!auth?.data?.refresh) throw new Error('TikTok is not connected yet');
+  let a = auth.data;
+  if (!a.access || Date.now() > a.until) a = await ttSave(uid, auth.id, await ttToken({ grant_type: 'refresh_token', refresh_token: a.refresh }));
+  return a.access as string;
+}
+async function ttPost(uid: string, id: string) {
+  const rec = await postRec(uid, id); if (!rec) return { error: 'Post not found' };
+  const d = rec.data; if (!d.video) return { error: 'Add a video to the post first' };
+  try {
+    const access = await ttAccess(uid);
+    const file = await fetch(pub(d.video)); if (!file.ok) return { error: 'Could not read the video from storage' };
+    const buf = new Uint8Array(await file.arrayBuffer()), size = buf.length, type = file.headers.get('content-type') || 'video/mp4';
+    const init = await fetch(`${TT}/post/publish/inbox/video/init/`, { method: 'POST', headers: { Authorization: 'Bearer ' + access, 'Content-Type': 'application/json; charset=UTF-8' }, body: JSON.stringify({ source_info: { source: 'FILE_UPLOAD', video_size: size, chunk_size: size, total_chunk_count: 1 } }) });
+    const ij = await init.json();
+    if (!init.ok || (ij.error?.code && ij.error.code !== 'ok')) return { error: /scope/i.test(ij.error?.code || ij.error?.message || '') ? 'Connect TikTok again so the app may upload videos' : (ij.error?.message || 'TikTok said no (' + init.status + ')') };
+    const up = await fetch(ij.data.upload_url, { method: 'PUT', headers: { 'Content-Type': type, 'Content-Length': String(size), 'Content-Range': `bytes 0-${size - 1}/${size}` }, body: buf });
+    if (!up.ok) return { error: 'TikTok did not take the upload (' + up.status + ')' };
+    await sb.from('records').upsert({ user_id: uid, id, kind: 'posts', data: clean({ ...d, ttPublishId: ij.data.publish_id, ttSent: new Date().toISOString().slice(0, 10), platforms: [...new Set([...(d.platforms || []), 'TikTok'])] }), updated_at: new Date().toISOString() });
+    return { ok: true, sent: true };
+  } catch (e: any) { return { error: e.message }; }
+}
+
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
@@ -303,7 +375,7 @@ Deno.serve(async req => {
     const uid = Deno.env.get('SPEND_USER_ID')!;
     // the app itself may ask for an Instagram sync, signed in as you
     let viaApp = false;
-    if ((!token || token !== Deno.env.get('OFFERS_TOKEN')) && ['igsync', 'ttstart', 'ttconnect', 'ttsync'].includes(body.action)) {
+    if ((!token || token !== Deno.env.get('OFFERS_TOKEN')) && ['igsync', 'ttstart', 'ttconnect', 'ttsync', 'igpost', 'ttpost'].includes(body.action)) {
       const jwt = req.headers.get('authorization')?.replace(/^Bearer /, '') || '';
       const { data: u } = await sb.auth.getUser(jwt); viaApp = !!u?.user && u.user.id === uid;
     }
@@ -313,6 +385,8 @@ Deno.serve(async req => {
     if (body.action === 'ttstart') { const k = Deno.env.get('TIKTOK_CLIENT_KEY'); return json(k ? { clientKey: k } : { error: 'TIKTOK_CLIENT_KEY is not set in Supabase yet' }); }
     if (body.action === 'ttconnect') return json(await ttConnect(uid, str(body.code, 2000), str(body.redirect, 500)));
     if (body.action === 'ttsync') return json(await ttSync(uid));
+    if (body.action === 'igpost') return json(await igPost(uid, str(body.id, 60), str(body.container, 60)));
+    if (body.action === 'ttpost') return json(await ttPost(uid, str(body.id, 60)));
 
     if (body.action === 'recipes') {
       const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['recipes', 'ingredients', 'wplans', 'rreviews']);

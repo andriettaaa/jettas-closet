@@ -359,7 +359,7 @@ const KINDS = {
       F('style', 'Style', 'select', { options: SOCIAL_STYLES, half: 1 }), F('funnel', 'Funnel stage', 'select', { options: SOCIAL_FUNNEL, half: 1 }),
       F('desc', 'What it is', 'long'), F('caption', 'Caption', 'long'), F('hashtags', 'Hashtags', 'text'),
       F('link', 'Post link', 'url'), F('views', 'Views', 'num', { half: 1 }), F('likes', 'Likes', 'num', { half: 1 }), F('comments', 'Comments', 'num', { half: 1 }), F('shares', 'Shares', 'num', { half: 1 }), F('top', 'Top performer', 'check', { half: 1 }), F('repurpose', 'Repurpose this', 'check', { half: 1 }),
-      F('photo', 'Cover', 'photo'), F('notes', 'Notes', 'long')],
+      F('photo', 'Cover', 'photo'), F('video', 'Video', 'video'), F('notes', 'Notes', 'long')],
     sorts: [['date', 'Soonest'], ['-date', 'Newest'], ['name', 'A to Z']],
     hide: r => r.stage === 'Posted', hideLabel: 'Show posted',
     sub: r => [r.date && `${dayName(r.date)} ${niceDate(r.date)}`, r.time, r.stage, [].concat(r.platforms || []).join(' + ')].filter(Boolean).join(' · '),
@@ -533,7 +533,7 @@ const KINDS = {
   ftx: {
     one: 'purchase', many: 'Purchases',
     fields: [F('name', 'What'), F('amount', 'Amount', 'money', { half: 1 }), F('date', 'Date', 'date', { half: 1 }),
-      F('category', 'Category', 'rel', { to: 'fcats', half: 1 }), F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 }), F('tags', 'Tags', 'multi', { options: ['wishlist'] }), F('notes', 'Notes', 'long')],
+      F('category', 'Category', 'rel', { to: 'fcats', half: 1 }), F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 }), F('tags', 'Tags', 'multi', { options: ['wishlist'] }), F('receipt', 'Receipt photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['-date', 'Newest'], ['-amount', 'Biggest'], ['name', 'A to Z']],
     sub: r => [niceDate(r.date), relName(r.category), relName(r.account), r.bill ? 'bill' : r.debt ? 'debt payment' : '', isWishTx(r) ? 'wishlist' : ''].filter(Boolean).join(' · '),
     side: r => eur(num(r.amount))
@@ -2403,7 +2403,7 @@ async function ttConnect() {
     const j = await C.callFn('offers', { action: 'ttstart' }), state = C.uuid().replace(/-/g, '');
     try { sessionStorage.setItem('tt:state', state); } catch {}
     const redirect = ttRedirect();
-    location.href = `https://www.tiktok.com/v2/auth/authorize/?client_key=${encodeURIComponent(j.clientKey)}&scope=user.info.basic,user.info.profile,user.info.stats,video.list&response_type=code&redirect_uri=${encodeURIComponent(redirect)}&state=${state}`;
+    location.href = `https://www.tiktok.com/v2/auth/authorize/?client_key=${encodeURIComponent(j.clientKey)}&scope=user.info.basic,user.info.profile,user.info.stats,video.list,video.upload&response_type=code&redirect_uri=${encodeURIComponent(redirect)}&state=${state}`;
   } catch (e) { C.toast(/not set/.test(e.message) ? 'Add TIKTOK_CLIENT_KEY in Supabase first.' : 'Could not start TikTok: ' + e.message); }
 }
 // back from TikTok: hand the code to the function, then show the TikTok feed
@@ -2418,6 +2418,30 @@ async function ttReturn() {
     for (let n = 0; j.photosWaiting && n < 14; n++) j = await C.callFn('offers', { action: 'ttsync' });
     await load(); C.toast(`TikTok connected: ${plural(j.posts || 0, 'video')}`);
   } catch (e) { C.toast('TikTok did not connect: ' + e.message); }
+}
+
+// a planned post with a video (or a photo) can go out from here: live on Instagram, or as a draft to your TikTok inbox
+function postPanel(r) {
+  if (!r.video && !r.photo) return '';
+  const ig = !r.igId, tt = r.video;
+  return `<div class="lpostpub">${ig ? `<button type="button" class="btn small" data-act="igpost" data-id="${r.id}">Post to Instagram now</button>` : '<span class="lnone">On Instagram</span>'}${tt ? `<button type="button" class="btn small" data-act="ttpost" data-id="${r.id}">${r.ttSent ? 'Send to TikTok again' : 'Send to TikTok as draft'}</button>` : ''}${r.ttSent ? `<span class="lnone">Sent to TikTok ${esc(relDay(r.ttSent))}</span>` : ''}</div>`;
+}
+async function igPostNow(id) {
+  const r = L.byId[id]; if (!r) return;
+  if (!confirm(`Post "${titleOf(r)}" on Instagram now? It goes live on your profile straight away, with the caption and hashtags from this post.`)) return;
+  C.closeSheet(); C.toast(r.video ? 'Sending the video to Instagram… this can take a few minutes' : 'Posting on Instagram…');
+  try {
+    let j = await C.callFn('offers', { action: 'igpost', id });
+    for (let i = 0; j.pending && i < 10; i++) { C.toast('Instagram is still processing the video…'); j = await C.callFn('offers', { action: 'igpost', id, container: j.container }); }
+    if (j.pending) { C.toast('Instagram is taking long. Tap Post to Instagram again in a few minutes.'); return; }
+    await load(); C.toast('Posted on Instagram');
+  } catch (e) { C.toast('Instagram did not take it: ' + e.message); }
+}
+async function ttPostNow(id) {
+  const r = L.byId[id]; if (!r) return;
+  C.closeSheet(); C.toast('Sending the video to TikTok…');
+  try { await C.callFn('offers', { action: 'ttpost', id }); await load(); C.toast('In your TikTok inbox: open TikTok to finish and post it'); }
+  catch (e) { C.toast('TikTok did not take it: ' + e.message); }
 }
 function socialFeed(host) {
   const net = L.feedNet || 'Instagram', tt = net === 'TikTok', acc = recs('accounts').find(a => a.platform === net) || null, tab = L.feedTab || 'grid';
@@ -2434,7 +2458,7 @@ function socialFeed(host) {
     <button class="btn small igedit" data-act="${acc ? 'open' : 'feedacc'}" ${acc ? `data-id="${acc.id}"` : ''}>Edit profile</button>
     ${tt ? '' : `<div class="ighl">${hl.map(h => `<button class="ighli" data-act="open" data-id="${h.id}"><span>${ph(h.photo, '')}</span><small>${esc(h.name || '')}</small></button>`).join('')}<button class="ighli new" data-act="new" data-v="highlights"><span>${svg(P.plus)}</span><small>New</small></button></div>`}
     ${tt ? '' : `<div class="igtabs" role="group"><button data-act="feedtab" data-v="grid" aria-pressed="${tab === 'grid'}" aria-label="All posts">${svg(P.grid)}</button><button data-act="feedtab" data-v="reels" aria-pressed="${tab === 'reels'}" aria-label="Reels">${svg('<rect x="4" y="4" width="16" height="16" rx="4"/><path d="m10.5 9 4 3-4 3Z"/>')}</button></div>`}
-    ${list.length ? `<div class="iggrid" data-feedgrid>${list.map(p => `<div class="igtile ${p.stage === 'Posted' ? 'posted' : ''}" data-feedid="${p.id}" role="button" tabindex="0" aria-label="${esc(titleOf(p))}${p.likes != null ? `, ${p.likes} likes` : ''}">${tt && p.views != null ? `<span class="iglk">▶ ${short(p.views)}</span>` : p.likes != null ? `<span class="iglk">♥ ${short(p.likes)}${p.comments ? ` · 💬 ${short(p.comments)}` : ''}</span>` : ''}${ph(p.photo, '') || `<span class="igph">${esc(titleOf(p))}</span>`}${p.stage !== 'Posted' ? `<i class="igdate">${p.date ? esc(shortDate(p.date)) : 'no date'}</i>` : ''}${isReel(p) ? `<i class="igreel">${svg('<path d="m9 7 8 5-8 5Z"/>')}</i>` : ''}</div>`).join('')}</div>`
+    ${list.length ? `<div class="iggrid" data-feedgrid>${list.map(p => `<div class="igtile ${p.stage === 'Posted' ? 'posted' : ''}" data-feedid="${p.id}" role="button" tabindex="0" aria-label="${esc(titleOf(p))}${p.likes != null ? `, ${p.likes} likes` : ''}">${p.video && p.stage !== 'Posted' ? '<span class="igvid" aria-hidden="true">▶</span>' : ''}${tt && p.views != null ? `<span class="iglk">▶ ${short(p.views)}</span>` : p.likes != null ? `<span class="iglk">♥ ${short(p.likes)}${p.comments ? ` · 💬 ${short(p.comments)}` : ''}</span>` : ''}${ph(p.photo, '') || `<span class="igph">${esc(titleOf(p))}</span>`}${p.stage !== 'Posted' ? `<i class="igdate">${p.date ? esc(shortDate(p.date)) : 'no date'}</i>` : ''}${isReel(p) ? `<i class="igreel">${svg('<path d="m9 7 8 5-8 5Z"/>')}</i>` : ''}</div>`).join('')}</div>`
       : `<div class="empty lempty"><h2>${tab === 'reels' ? 'No reels yet' : 'Plan your first post'}</h2><p>${tt ? (last ? 'Your TikTok videos show up here, planned ones on top.' : 'Connect TikTok to see your videos here, or plan one.') : 'Every Instagram post with a cover shows up here, planned ones on top.'}</p><button class="btn primary" data-act="feednew">+ Post</button></div>`}
   </section>`;
   feedDrag(host);
@@ -2953,6 +2977,10 @@ function fieldInner(kind, f, D) {
       const src = D._previews?.[f.k] || (v ? C.photoURL(v) : '');
       return span + `<div class="lphoto">${src ? `<img referrerpolicy="no-referrer" src="${esc(src)}" alt="">` : ''}<div class="lphb"><label class="btn small">Choose photo<input type="file" accept="image/*" class="vh" data-photo="${f.k}"></label>${src ? `<button type="button" class="btn small ghost" data-photox="${f.k}">Remove</button>` : ''}</div><input type="url" inputmode="url" data-k="${f.k}" data-photourl value="${esc(/^https?:/.test(v || '') ? v : '')}" placeholder="or paste an image link (https://…)" aria-label="Image link"><p class="lphnote">Found it online? Right-click or long-press the product photo, choose Copy image address and paste it here.</p></div>`;
     }
+    case 'video': {
+      const src = D._previews?.[f.k] || (v ? C.photoURL(v) : '');
+      return span + `<div class="lphoto lvideo">${src ? `<video src="${esc(src)}" controls playsinline preload="metadata"></video>` : ''}<div class="lphb"><label class="btn small">Choose video<input type="file" accept="video/*" class="vh" data-video="${f.k}"></label>${src ? `<button type="button" class="btn small ghost" data-photox="${f.k}">Remove</button>` : ''}</div><span class="lphnote muted">Up to 50 MB. A phone video of a minute or two fits.</span></div>`;
+    }
     case 'rel': {
       // tap one of your own records; a dropdown when there are many; the search still adds a new one
       const ids = [].concat(v || []).filter(x => L.byId[x]), T = KINDS[f.to];
@@ -2972,7 +3000,7 @@ function openEditor(kind, id, preset = {}) {
   if (!r) for (const f of K.fields) if (f.type === 'date' && D[f.k] === undefined && ['date', 'start'].includes(f.k)) D[f.k] = today();
   const sh = C.sheet({
     title: r ? titleOf(r) : 'New ' + K.one,
-    body: `${r && WISHY[kind] ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}">${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
+    body: `${r && WISHY[kind] ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}">${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
     foot: `${r ? '<button class="btn danger" data-del>Delete</button>' : ''}<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save</button>`,
     onClose: () => { Object.values(D._previews).forEach(u => URL.revokeObjectURL(u)); }
   });
@@ -3017,6 +3045,12 @@ function openEditor(kind, id, preset = {}) {
     if (t.dataset.relsel && t.value) pickRel(t.dataset.relsel, t.value);
     if (t.dataset.optsel !== undefined) { const k = t.dataset.optsel, f = fdef(k); if (f.type === 'multi') { if (t.value) D[k] = [...new Set([...[].concat(D[k] || []), t.value])]; } else D[k] = t.value; redraw(k); }
   });
+  sh.addEventListener('change', e => {
+    const t = e.target; if (!t.dataset.video) return;
+    const file = t.files?.[0], k = t.dataset.video; if (!file) return;
+    if (file.size > 50e6) { C.toast(`That video is ${Math.round(file.size / 1e6)} MB; the limit is 50 MB. Shorten or compress it first.`); t.value = ''; return; }
+    D._blobs[k] = file; if (D._previews[k]) URL.revokeObjectURL(D._previews[k]); D._previews[k] = URL.createObjectURL(file); redraw(k);
+  });
   sh.addEventListener('change', async e => {
     const t = e.target; if (!t.dataset.photo) return;
     const file = t.files?.[0]; if (!file) return;
@@ -3027,6 +3061,8 @@ function openEditor(kind, id, preset = {}) {
   sh.addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
     const d = b.dataset;
+    if (d.act === 'igpost') return igPostNow(d.id);
+    if (d.act === 'ttpost') return ttPostNow(d.id);
     if (d.opt) { const f = fdef(d.opt); if (f.type === 'multi') { const a = [].concat(D[d.opt] || []); const i = a.indexOf(d.v); i >= 0 ? a.splice(i, 1) : a.push(d.v); D[d.opt] = a; } else D[d.opt] = D[d.opt] === d.v ? '' : d.v; redraw(d.opt); }
     else if (d.chk) { D[d.chk] = !D[d.chk]; redraw(d.chk); }
     else if (d.rate) { const n = Number(d.v); D[d.rate] = D[d.rate] === n ? 0 : n; redraw(d.rate); }
@@ -3044,8 +3080,8 @@ function openEditor(kind, id, preset = {}) {
       if (['text'].includes(first.type) && !String(D[first.k] || '').trim() && !K.title) { msg.textContent = `Give it a ${first.label.toLowerCase()} first.`; sh.querySelector(`[data-k="${first.k}"]`)?.focus(); return; }
       b.disabled = true;
       try {
-        for (const pf of K.fields.filter(f => f.type === 'photo')) {
-          if (D._blobs[pf.k]) { msg.textContent = 'Uploading photo…'; const old = r?.[pf.k]; D[pf.k] = await C.uploadPhoto(D._blobs[pf.k]); if (old && old !== D[pf.k]) C.deletePhoto(old); }
+        for (const pf of K.fields.filter(f => f.type === 'photo' || f.type === 'video')) {
+          if (D._blobs[pf.k]) { msg.textContent = pf.type === 'video' ? 'Uploading video… this can take a minute' : 'Uploading photo…'; const old = r?.[pf.k]; D[pf.k] = pf.type === 'video' ? await C.uploadFile(D._blobs[pf.k]) : await C.uploadPhoto(D._blobs[pf.k]); if (old && old !== D[pf.k]) C.deletePhoto(old); }
           else if (r?.[pf.k] && r[pf.k] !== D[pf.k] && !/^https?:/.test(r[pf.k])) C.deletePhoto(r[pf.k]);
         }
         const out = {}; for (const [k, v] of Object.entries(D)) if (!k.startsWith('_') && v !== '' && v != null && !(Array.isArray(v) && !v.length)) out[k] = v;
@@ -3234,6 +3270,8 @@ document.addEventListener('click', async e => {
     case 'wmovewait': moveWaitList(); break;
     case 'dkeep': case 'dplan': case 'dgroc': dealsAct(d.act, d.k, Number(d.i)); break;
     case 'quitadd': quitAdd(); break;
+    case 'igpost': igPostNow(d.id); break;
+    case 'ttpost': ttPostNow(d.id); break;
     case 'quitset': quitSet(); break;
     case 'chfree': { const c = C.prefs().chores || {}, f = new Set(c.free || []); f.has(d.v) ? f.delete(d.v) : f.add(d.v); C.savePrefs({ chores: { ...c, free: WDAYS.filter(x => f.has(x)) } }).catch(() => C.toast('Could not save. Try again.')); break; }
     case 'potmove': { const b = L.byId[d.v], n = b && fNext(b); if (!b) break; const to = b.account || fMainAcc()?.id; moveMoney({ from: d.id, to, amt: num(b.amount) || '', date: n ? (addDays(n, -1) < today() ? today() : addDays(n, -1)) : today() }); break; }

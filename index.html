@@ -819,6 +819,14 @@ async function uploadPhoto(blob) {
   if (error) throw error;
   return path;
 }
+// any file (a video for a planned post): kept as it is, under your own folder in storage
+async function uploadFile(file) {
+  const ext = (file.name.match(/\.([a-z0-9]{2,5})$/i)?.[1] || (file.type.split('/')[1] || 'bin')).toLowerCase();
+  const path = `${UID}/${uuid()}.${ext}`;
+  const { error } = await sb.storage.from('photos').upload(path, file, { contentType: file.type || 'application/octet-stream', cacheControl: '31536000', upsert: false });
+  if (error) throw error;
+  return path;
+}
 // A deleted photo waits in a trash list on this device until the next start of the app, so Undo can bring
 // back a piece together with its photo. At the next start, photos that nothing uses any more are removed for good.
 const trashKey = () => 'photoTrash:' + UID;
@@ -1942,7 +1950,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v78';
+const APP_VERSION = 'hangtag-v79';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -3375,7 +3383,7 @@ async function start(session) {
   subscribeLive(); wxRefresh();
   // what life.js needs from the closet: the signed-in Supabase client, photos, sheets and settings
   const lifeLoad = window.LIFE?.start({ sb, uid: () => UID, view: () => S.view, go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url, shop: it.shop, planBuy: it.planBuy || '' })),
-    undoQuiet, sbWrite, sbWriteMany, obFlush,
+    undoQuiet, sbWrite, sbWriteMany, obFlush, uploadFile,
     // call one of your Supabase functions as you (signed in)
     callFn: async (name, body) => { const { data } = await sb.auth.getSession(); const res = await fetch(FN(name), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session?.access_token, apikey: CFG.key }, body: JSON.stringify(body) }); const j = await res.json().catch(() => ({})); if (!res.ok || j.error) throw new Error(j.error || String(res.status)); return j; },
     // trips are shared with Life › Trips: one trip, planned there and packed here

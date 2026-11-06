@@ -646,3 +646,6 @@ html.cooking, html.cooking body { overflow: hidden; }
 .lpick { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
 .lpick select { flex: 1 1 200px; min-width: 0; max-width: 100%; }
 .lpick .laddopt { flex: 1 1 120px; }
+.lvideo video { width: 100%; max-height: 360px; border-radius: 12px; background: #000; }
+.lpostpub { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 14px; }
+.igvid { position: absolute; right: 5px; top: 5px; z-index: 2; width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; font-size: 11px; display: grid; place-items: center; pointer-events: none; }
