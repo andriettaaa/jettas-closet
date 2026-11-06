@@ -11,6 +11,7 @@
 //   { "token": "...", "action": "share", "url": "...", "text": "...", "note": "...", "source": "Share" }
 //     → lands in the inbox; with "target" and "draft" it arrives ready for review (used by the Albo task)
 //   { "token": "...", "action": "inbox" }  → the items that still need sorting
+//   { "token": "...", "action": "kitchen" }  → pantry and kitchen gear by id; "tidy" with { names: { id: "Dutch name" } } saves a suggestion
 //   { "token": "...", "action": "sort", "items": [{ "id": "...", "target": "recipes", "title": "...", "photo": "...", "why": "...", "draft": {...} }] }
 //     → the sorting task fills in what each link is; you accept or change it in the app
 // "save" replaces last week's deals, keeps one plan per week, and sends a notification.
@@ -234,6 +235,19 @@ Deno.serve(async req => {
       return json({ ok: true, sorted: n });
     }
 
+    // the pantry and kitchen gear by id, so Claude can suggest Dutch names; the app applies them in Kitchen › Settings
+    if (body.action === 'kitchen') {
+      const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['ingredients', 'gear']);
+      if (error) throw error;
+      return json({ items: data.map((r: any) => clean({ id: r.id, kind: r.kind, name: r.data.name, category: r.data.category, stock: r.data.stock || undefined })) });
+    }
+    if (body.action === 'tidy') {
+      const names: Record<string, string> = {};
+      for (const [id, n] of Object.entries(body.names || {})) { const v = str(n, 120); if (v && /^[\w-]{1,60}$/.test(id)) names[id] = v; }
+      const { error } = await sb.from('records').upsert({ user_id: uid, id: 'tidy-' + Date.now(), kind: 'tidy', data: { names, created: Date.now() }, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      return json({ ok: true, names: Object.keys(names).length });
+    }
     if (body.action === 'fill') {
       const want = (Array.isArray(body.recipes) ? body.recipes : []).slice(0, 60);
       const ids = want.map((x: any) => str(x?.id, 60)).filter(Boolean);

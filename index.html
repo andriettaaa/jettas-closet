@@ -890,14 +890,14 @@ function renderTabs() {
   $('#addBtn .addlabel').textContent = sec === 'closet' ? 'Add piece' : sec === 'overview' ? 'Add' : window.LIFE.addLabel(S.view);
 }
 function go(v) {
-  v = ({ 'inbox/review': 'wish/inbox', 'inbox/saved': 'wish/saved' })[v] || v; // the inbox moved under Wishlists
+  v = ({ 'inbox/review': 'wish/inbox', 'inbox/saved': 'care/saved', 'wish/saved': 'care/saved' })[v] || v; // the inbox moved under Wishlists
   if (!okView(v)) v = 'overview';
   S.view = v; pref.set('view', v); pref.set('view:' + secOf(v), v);
   try { history.replaceState(null, '', '#' + v); } catch {}
   $('#main').innerHTML = ''; render(); window.scrollTo(0, 0);
 }
 // a typed or pasted #page link opens that page without a reload
-window.addEventListener('hashchange', () => { const v = ({ 'inbox/review': 'wish/inbox', 'inbox/saved': 'wish/saved' })[(location.hash || '').slice(1)] || (location.hash || '').slice(1), q = /^do=(\w+)/.exec(v); if (q) { try { history.replaceState(null, '', '#' + S.view); } catch {} quickAction(q[1]); return; } if (v && v !== S.view && okView(v)) go(v); });
+window.addEventListener('hashchange', () => { const v = ({ 'inbox/review': 'wish/inbox', 'inbox/saved': 'care/saved', 'wish/saved': 'care/saved' })[(location.hash || '').slice(1)] || (location.hash || '').slice(1), q = /^do=(\w+)/.exec(v); if (q) { try { history.replaceState(null, '', '#' + S.view); } catch {} quickAction(q[1]); return; } if (v && v !== S.view && okView(v)) go(v); });
 // only the tab buttons: the view container carries data-view too
 document.addEventListener('click', e => { const b = e.target.closest('nav [data-view]'); if (b) go(b.dataset.view); });
 // the ☰ menu: what isn't in the bar you're looking at (hidden sections, or on a phone what's not in the bottom bar), then Settings
@@ -1905,7 +1905,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v60';
+const APP_VERSION = 'hangtag-v61';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -3298,7 +3298,7 @@ function openDay(date, opts = {}) {
 /* ---------- boot ---------- */
 $('#addBtn').addEventListener('click', () => isLife(S.view) ? window.LIFE.add(S.view) : S.view === 'trips' ? openTripEditor(null) : openEditor(null, S.view === 'wishlist' ? { wish: true } : {}));
 S.fv = { closet: newFilter(pref.get('sort:closet', pref.get('sort', 'new'))), wishlist: newFilter(pref.get('sort:wishlist', 'new')) };
-const h0 = (location.hash || '').slice(1), h = ({ 'inbox/review': 'wish/inbox', 'inbox/saved': 'wish/saved' })[h0] || h0;
+const h0 = (location.hash || '').slice(1), h = ({ 'inbox/review': 'wish/inbox', 'inbox/saved': 'care/saved', 'wish/saved': 'care/saved' })[h0] || h0;
 // the app opens on the overview; a link with #page still opens that page
 S.view = okView(h) ? h : 'overview';
 
