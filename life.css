@@ -906,3 +906,9 @@ img.nophoto { background: var(--line); }
 .subbar.sub2 { gap: 8px; border-top: 0; padding: 6px 2px 8px; margin-top: 0; }
 .subbar.sub2 button { border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; font-size: 13px; background: var(--surface); }
 .subbar.sub2 button[aria-current="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+/* closet: other colours of the same model */
+.samemodel .lbl { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
+.samerow { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.sameit { flex: 0 0 72px; display: grid; gap: 4px; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 4px; cursor: pointer; min-width: 0; }
+.sameit img, .sameit > span { width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 8px; background: var(--stage); display: block; }
+.sameit small { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
