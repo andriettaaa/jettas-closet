@@ -127,6 +127,31 @@ const FREEZE_DAYS = 90;
 // your food settings (Kitchen › Deals): shopping day this week and the finance envelope for groceries
 const food = () => (C?.prefs?.() || {}).food || {};
 const MARKET_DAYS = ['Wed', 'Sat'];
+/* your shopping day, week by week: food.shopDates holds the day you picked per week (keyed by its Monday);
+   a week you didn't pick uses your usual day (food.shopDay). On Sunday the question is about the week that starts tomorrow. */
+const SHOP_WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const shopAskWeek = () => weekMon(addDays(today(), new Date().getDay() === 0 ? 1 : 0));
+const shopPicked = wk => (food().shopDates || {})[wk] || null;
+function shopDateIn(wk) { const d = shopPicked(wk); if (d) return d; const i = SHOP_WD.indexOf(food().shopDay); return i >= 0 ? addDays(wk, i) : null; }
+// the weekday you shop this week, for the market list
+const shopDayNow = () => { const d = shopDateIn(weekMon()); return d ? SHOP_WD[(fromISO(d).getDay() + 6) % 7] : ''; };
+// the week to ask about, and on Friday and Saturday also the next one
+const shopPickAll = () => { const wk = shopAskWeek(), late = [5, 6].includes(new Date().getDay()); return shopPickHTML(wk) + (late ? shopPickHTML(addDays(wk, 7)) : ''); };
+function shopPickHTML(wk = shopAskWeek()) {
+  const pick = shopPicked(wk), guess = shopDateIn(wk), t = today(), label = wk > weekMon() ? 'Next week I shop on' : 'This week I shop on';
+  return `<div class="shoppick" data-shopwk="${wk}"><span class="rowlbl">${label}</span><div class="lwrap">${SHOP_WD.map((w, i) => { const d = addDays(wk, i); return `<button type="button" class="chip ${!pick && d === guess ? 'ghost' : ''}" data-act="shopweek" data-wk="${wk}" data-v="${d}" aria-pressed="${pick === d}" ${d < t ? 'disabled' : ''}>${w} ${fromISO(d).getDate()}</button>`; }).join('')}</div><span class="lnone">${pick ? `Shopping on ${esc(niceDate(pick))}.` : guess ? `Not picked yet; your usual day is ${esc(niceDate(guess))}.` : 'Pick a day; the morning of that day you get your list.'}</span></div>`;
+}
+async function setShopWeek(wk, d) {
+  const f = food(), cur = { ...(f.shopDates || {}) }, keep = addDays(weekMon(), -14);
+  for (const k of Object.keys(cur)) if (k < keep) delete cur[k];
+  if (cur[wk] === d) delete cur[wk]; else cur[wk] = d;
+  try { await C.savePrefs({ food: { ...f, shopDates: cur } }); C.toast(cur[wk] ? `Shopping on ${niceDate(d)}` : 'Shopping day cleared'); } catch { C.toast('Could not save. Try again.'); }
+}
+// from the Sunday notification: pick the day for the coming week
+function shopPick() {
+  const sh = C.sheet({ title: 'Shopping day', body: `<div data-shopbody>${shopPickAll()}</div>`, foot: '<div class="spacer"></div><button class="btn primary" data-close>Done</button>' });
+  sh.addEventListener('click', async e => { const b = e.target.closest('[data-act="shopweek"]'); if (!b) return; e.stopPropagation(); await setShopWeek(b.dataset.wk, b.dataset.v); sh.querySelector('[data-shopbody]').innerHTML = shopPickAll(); });
+}
 const isProduce = x => /groente|fruit|vegetable|veg\b|kruiden vers|sla\b|tomaat|komkommer|paprika|ui\b|uien|wortel|appel|banaan|peer|citroen|limoen|gember|knoflook|courgette|broccoli|spinazie|paksoi/i.test(`${x.category || ''} ${x.name || ''}`);
 const groceryEnv = () => { const cats = recs('fcats'), id = food().groceryCat; return (id && cats.find(c => c.id === id)) || cats.find(c => /boodschap|grocer|supermarkt|eten/i.test(c.name || '')) || null; };
 const dealWeekStart = () => { const d = fromISO(today()), back = (d.getDay() + 4) % 7; return addDays(today(), -back); }; // the deals week runs Wednesday to Tuesday
@@ -2546,13 +2571,13 @@ function dealsPage(host) {
       <button class="btn small primary" data-act="dplan" data-k="${k}" data-i="${i}">Put in meal plan</button></div></div></div>`;
   };
   const block = (k, title, sub) => { const l = plan?.[k] || []; return l.length ? panel(title, `<p class="lnone">${esc(sub)}</p><div class="dmeals">${l.map((m, i) => mealCard(m, i, k)).join('')}</div>`) : ''; };
-  const shopping = plan?.shopping || [], sday = food().shopDay || '', mkt = MARKET_DAYS.includes(sday), mktName = recs('shops').find(r => r.type === 'Market')?.name || 'Market', storeOf = x => mkt && (x.market || isProduce(x)) ? mktName : x.store,
+  const shopping = plan?.shopping || [], sday = shopDayNow(), mkt = MARKET_DAYS.includes(sday), mktName = recs('shops').find(r => r.type === 'Market')?.name || 'Market', storeOf = x => mkt && (x.market || isProduce(x)) ? mktName : x.store,
     shopStores = [...new Set([...(mkt ? [mktName] : []), ...allStores, ...shopping.map(x => x.store).filter(Boolean)])], shopBy = [...shopStores, 'Other'].map(s => [s, shopping.filter(x => (shopStores.includes(storeOf(x)) ? storeOf(x) : 'Other') === s)]).filter(([, l]) => l.length);
   const cost = fSum(shopping.filter(x => !x.have), 'price'), bud = groceryBudget();
   const saved = fSum(offers.filter(o => num(o.was) > num(o.price)).map(o => ({ amount: num(o.was) - num(o.price) })));
   host.innerHTML = `${head('Deals of the week')}<div class="ldeals">
   <div class="tiles">${fTile('Deals', String(offers.length), byStore.map(([s, l]) => `${s} ${l.length}`).join(' · ') || 'none yet')}${fTile('Dinners', String((plan?.dinners || []).length), plan ? `each for 2 days · ${esc(shortDate(plan.start))} to ${esc(shortDate(plan.end))}` : 'no plan yet')}${fTile('Shared', String((plan?.shared || []).length), 'deal ingredients used in more than one recipe')}${bud ? fTile('Budget this week', fEur0(bud.week), `${eur(bud.spentWeek)} spent since Wednesday${cost ? ` · plan about ${eur(cost)}` : ''}`) : fTile('Plan costs', cost ? eur(cost) : '–', saved ? `${eur(saved)} saved with deals` : 'from the shopping list')}</div>
-  <div class="dday"><span class="rowlbl">I shop on</span><div class="seg fseg" role="group">${[['Wed', 'Wednesday'], ['Fri', 'Friday'], ['Sat', 'Saturday']].map(([k, l]) => `<button data-act="shopday" data-v="${k}" aria-pressed="${sday === k}">${l}</button>`).join('')}</div><span class="lnone">${mkt ? `Fruit and vegetables go on the ${esc(mktName)} list: buy small amounts.` : sday ? 'No market today: fruit and vegetables stay at the shop.' : 'On Wednesday and Saturday fruit and vegetables move to the market list.'}</span></div>
+  ${shopPickAll()}<div class="dday"><span class="rowlbl">Usually I shop on</span><div class="seg fseg" role="group">${[['Wed', 'Wednesday'], ['Fri', 'Friday'], ['Sat', 'Saturday']].map(([k, l]) => `<button data-act="shopday" data-v="${k}" aria-pressed="${food().shopDay === k}">${l}</button>`).join('')}</div><span class="lnone">${mkt ? `Fruit and vegetables go on the ${esc(mktName)} list: buy small amounts.` : sday ? 'No market today: fruit and vegetables stay at the shop.' : 'On Wednesday and Saturday fruit and vegetables move to the market list.'}</span></div>
   ${awayRow()}
   ${bud ? `<div class="dbudget"><div class="dbar"><i style="width:${Math.min(100, bud.week ? 100 * (bud.spentWeek + (cost || 0)) / bud.week : 0)}%" class="${bud.spentWeek + cost > bud.week ? 'over' : ''}"></i></div><p class="lnone">${esc(bud.cat.name)} in Finance: ${eur(bud.spentPeriod)} of ${eur(bud.period)} this ${fMode() === 'month' ? 'month' : 'pay'}. ${bud.spentWeek + cost > bud.week ? `The plan goes ${eur(bud.spentWeek + cost - bud.week)} over this week's share.` : `${eur(bud.week - bud.spentWeek - cost)} left this week after the plan.`}${saved ? ` Deals save you ${eur(saved)}.` : ''}</p></div>` : (recs('fcats').length ? `<p class="lnone">Pick your groceries envelope under Kitchen › Settings to see your budget here.</p>` : '')}
   ${!plan && !offers.length ? panel('How this works', `<p class="lnone">Every Wednesday a task reads the deals of Dirk, Aldi, Albert Heijn and every shop under Shops that has its deals switched on, looks through your recipes, pantry and freezer, and puts this week's deals here with a plan: 5 dinners that each last 2 days, 3 office lunches that reheat in a microwave, 3 breakfasts and a few snacks. It reuses the same deal ingredients across recipes, so you buy less and waste less.</p><p class="lnone">It needs the Supabase function <b>offers</b> with the secret <b>OFFERS_TOKEN</b>. Then the first plan shows up after the next Wednesday.</p>`) : ''}
@@ -3188,7 +3213,7 @@ function groceryFill(fill) {
     fill.innerHTML = `<form class="lqadd" data-qadd><input type="text" placeholder="Add something to buy" aria-label="Add to grocery list" autocomplete="off" enterkeyhint="done"><button class="btn primary" type="submit">Add</button></form><div class="lsugs" data-sugs></div><div data-glist></div>`;
     fill.querySelector('input').addEventListener('input', e => sugs(fill, e.target.value));
   }
-  const items = recs('ingredients').filter(i => i.list), mkt = MARKET_DAYS.includes(food().shopDay), mktName = recs('shops').find(r => r.type === 'Market')?.name || 'Market';
+  const items = recs('ingredients').filter(i => i.list), mkt = MARKET_DAYS.includes(shopDayNow()), mktName = recs('shops').find(r => r.type === 'Market')?.name || 'Market';
   const shopOf = i => mkt && isProduce(i) ? mktName : i.shop || 'Anywhere';
   const groups = {};
   for (const i of items) (groups[shopOf(i)] ||= []).push(i);
@@ -3200,9 +3225,9 @@ function groceryFill(fill) {
   const buyN = i => (L.buyN ||= {})[i.id] ?? stepOf(i);
   const line = i => `<div class="lrow grow"><button class="lbuy" data-act="buy" data-id="${i.id}" aria-label="Bought ${esc(i.name)}"></button><button class="lmain" data-act="open" data-id="${i.id}"><b>${esc(i.name)}</b>${i.qty || i.category ? `<span>${esc([i.qty, i.category].filter(Boolean).join(' · '))}</span>` : ''}</button><span class="gacts"><span class="stepper buyn" role="group" aria-label="How many you buy"><button type="button" data-act="buyn" data-id="${i.id}" data-v="-1" aria-label="Fewer">−</button><b>${esc(unitShort(buyN(i), unitOf(i)))}</b><button type="button" data-act="buyn" data-id="${i.id}" data-v="1" aria-label="More">+</button></span>${isMeatFish(i) ? `<button class="btn small" data-act="buyfreeze" data-id="${i.id}" title="Bought, straight into the freezer">Freeze</button>` : ''}<button class="iconbtn lx" data-act="unlist" data-id="${i.id}" aria-label="Take ${esc(i.name)} off the list">${svg(P.x)}</button></span></div>`;
   const gv = ingViewOf('grocView', 'shop');
-  g.innerHTML = items.length ? ingViewSeg('grocView', gv, [['shop', 'Per winkel'], ['type', 'Per soort']]) + (gv === 'type' ? ingTypeView(items, line, 'grocery') : order.map(c => `<div class="lgh gshop"><h3>${esc(c)} · ${groups[c].length}</h3>${env && c !== 'Anywhere' ? `<button class="chip link" data-act="paid" data-v="${esc(c)}">Paid</button>` : ''}</div><div class="lrows">${groups[c].sort((a, b) => norm(a.category || 'zz').localeCompare(norm(b.category || 'zz')) || norm(a.name).localeCompare(norm(b.name))).map(line).join('')}</div>`).join(''))
+  g.innerHTML = shopPickAll() + (items.length ? ingViewSeg('grocView', gv, [['shop', 'Per winkel'], ['type', 'Per soort']]) + (gv === 'type' ? ingTypeView(items, line, 'grocery') : order.map(c => `<div class="lgh gshop"><h3>${esc(c)} · ${groups[c].length}</h3>${env && c !== 'Anywhere' ? `<button class="chip link" data-act="paid" data-v="${esc(c)}">Paid</button>` : ''}</div><div class="lrows">${groups[c].sort((a, b) => norm(a.category || 'zz').localeCompare(norm(b.category || 'zz')) || norm(a.name).localeCompare(norm(b.name))).map(line).join('')}</div>`).join(''))
     + `<p class="lnone">Tick something off and it moves into your pantry. ${env ? `Tap Paid when you pay at a shop, and it goes into ${esc(env.name)} in Finance.` : ''}</p>`
-    : quiet('Your list is empty. Add things above, or use “Add missing to list” on a recipe.');
+    : quiet('Your list is empty. Add things above, or use “Add missing to list” on a recipe.'));
   sugs(fill, fill.querySelector('.lqadd input').value);
 }
 function sugs(fill, text) {
@@ -4975,6 +5000,7 @@ document.addEventListener('click', async e => {
     case 'away': toggleAway(d.v); break;
     case 'hadbf': hadBreakfast(); break;
     case 'office': { const o = new Set(food().office || ['Mon', 'Tue', 'Thu']); o.has(d.v) ? o.delete(d.v) : o.add(d.v); C.savePrefs({ food: { ...food(), office: WEEKDAYS.filter(x => o.has(x)) } }).catch(() => C.toast('Could not save. Try again.')); break; }
+    case 'shopweek': setShopWeek(d.wk, d.v).then(() => C.render()); break;
     case 'shopday': C.savePrefs({ food: { ...food(), shopDay: food().shopDay === d.v ? '' : d.v } }).catch(() => C.toast('Could not save. Try again.')); break;
     case 'leftover': leftover(d.id, d.v); break;
     case 'buyfreeze': { const r = L.byId[d.id]; const n = r && ((L.buyN ||= {})[r.id] ?? 1); if (r) save(r, { list: false, stock: true, location: 'Vriezer', frozen: today(), unit: r.unit || 'portie', amount: Math.round(((cntOf(r) || 0) + n) * 100) / 100 }).then(() => C.toast(`${r.name} is in the freezer`)); break; }
@@ -6657,6 +6683,7 @@ function planWeek(host) {
   <div class="panels">
     ${panel('Terugblik', `<div class="ylines"><p class="dline"><span>Uitgegeven</span><b>${eur(spent)}</b></p><p class="dline"><span>Posts geplaatst</span><b>${posted} van 3</b></p><p class="dline"><span>Gekocht voor de verhuizing</span><b>${bought}</b></p>${cs.start && !cs.before ? `<p class="dline"><span>Rookgeld deze week</span><b>${eur(cs.weekSaved)}</b></p>` : ''}</div>
       ${cs.start && !cs.before && cs.weekSaved ? `<button class="btn small primary" data-act="cleanmove">${eur(cs.weekSaved)} naar Verhuizen</button>` : ''}`)}
+    ${panel('Boodschappen', shopPickAll(), ['kitchen/groceries', 'Groceries'])}
     ${panel('Focus voor volgende week', `<input class="finp" data-intent value="${esc(it.text || '')}" placeholder="Bijv. elke dag ontbijten" aria-label="Focus voor de week"><p class="lnone">Je focus staat de hele week bovenaan Today.</p>`)}
     ${panel('Zondag reset', `<div class="lrows">${RESET.map(([k, l, go]) => `<label class="lrow dpick ${done.has(k) ? 'gone' : ''}"><input type="checkbox" data-reset="${key}:${k}" ${done.has(k) ? 'checked' : ''}><span class="lmain"><b>${esc(l)}</b></span>${go ? `<button class="chip link" data-act="go" data-v="${go}">Open</button>` : ''}</label>`).join('')}</div>`)}
   </div>`;
@@ -6715,6 +6742,7 @@ return {
   canBuyWish: () => fAccs().length > 0,
   newRecord: kind => KINDS[kind] && openEditor(kind, null),
   chooser: () => openChooser(),
+  shopPick: () => shopPick(),
   inboxCount: () => inboxOpen().length,
   // every photo path the lists use, once they loaded fresh from Supabase (null until then)
   records: () => L.all.map(r => ({ id: r.id, kind: r.kind, data: dataOf(r) })),
