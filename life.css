@@ -823,3 +823,16 @@ img.nophoto { background: var(--line); }
 .itile b { color: var(--ink); font-size: 13.5px; }
 .iroom .lmain .dbar { margin: 6px 0 0; }
 .iroom .lmain > span { white-space: normal; }
+.optlink { display: flex; gap: 8px; margin-bottom: 10px; }
+.optlink input { flex: 1; min-width: 0; }
+.icmp { margin-top: 12px; }
+.icmp summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.icmpwrap { overflow-x: auto; margin-top: 8px; max-width: 100%; }
+.icmp table { border-collapse: collapse; font-size: 13px; min-width: 100%; }
+.icmp th, .icmp td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; min-width: 110px; }
+.icmp tbody th { color: var(--muted); font-weight: 600; min-width: 84px; position: sticky; left: 0; background: var(--surface); }
+.icmp thead th { font-weight: 600; }
+.icmp thead img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; display: block; margin-bottom: 4px; }
+.ltipsteps, .icmp { min-width: 0; max-width: 100%; }
+.icmp { display: block; }
+.icmpwrap { width: 100%; }

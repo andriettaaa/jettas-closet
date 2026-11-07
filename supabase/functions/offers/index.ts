@@ -424,6 +424,16 @@ Deno.serve(async req => {
     if (body.action === 'ttpost') return json(await ttPost(uid, str(body.id, 60)));
     // a photo from the web for the closet editor: the browser may not read other sites' images, so this fetches it
     // and hands it back (nothing is stored). A page link instead of an image link gets the page's main picture.
+    // a product link pasted in the move list: name, price, shop and photo, read from the page
+    if (body.action === 'linkinfo') {
+      const url = str(body.url, 2000);
+      if (!/^https?:\/\//.test(url)) return json({ error: 'Plak een link die begint met https://' }, 400);
+      const pk = await peek(url), pr = pk.product || {}, off = [].concat(pr.offers || [])[0] as any || {};
+      const price = num(off.price ?? off.lowPrice ?? (pr.offers as any)?.lowPrice), cur = String(off.priceCurrency || 'EUR');
+      const brand = typeof pr.brand === 'string' ? pr.brand : pr.brand?.name;
+      const photo = pk.photo ? await keepPhoto(uid, pk.photo) : '';
+      return json(clean({ name: str(pr.name || pk.title, 160), price: cur === 'EUR' ? price : undefined, priceNote: cur !== 'EUR' && price != null ? `${price} ${cur}` : undefined, brand: str(brand, 80), shop: str(pk.site, 60), photo, color: str(pr.color, 60), material: str(pr.material, 60) }));
+    }
     if (body.action === 'photourl') {
       const ua = { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36', 'Accept': 'image/avif,image/webp,image/png,image/jpeg,text/html;q=0.8,*/*;q=0.5' };
       let url = str(body.url, 2000), page = '';

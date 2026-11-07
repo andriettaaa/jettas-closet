@@ -632,10 +632,12 @@ const KINDS = {
   invopts: {
     one: 'optie', ones: 'opties', many: 'Opties', facet: 'shop', photo: 'photo', display: 'cards',
     fields: [F('name', 'Naam'), F('item', 'Voor product', 'rel', { to: 'inventory' }), F('shop', 'Winkel', 'text', { half: 1 }), F('price', 'Prijs', 'money', { half: 1 }),
+      F('shipping', 'Bezorgkosten', 'money', { half: 1 }), F('delivery', 'Levertijd', 'text', { half: 1 }), F('dims', 'Afmetingen (b × d × h)', 'text', { half: 1 }),
+      F('color', 'Kleur', 'text', { half: 1 }), F('material', 'Materiaal', 'text', { half: 1 }), F('score', 'Hoe mooi vind ik het', 'rating', { half: 1 }), F('used', 'Tweedehands', 'check', { half: 1 }),
       F('url', 'Link', 'url'), F('photo', 'Foto', 'photo'), F('fav', 'Favoriet', 'check', { half: 1 }), F('archived', 'Gearchiveerd', 'check', { half: 1 }), F('notes', 'Notities', 'long')],
     sorts: [['price', 'Goedkoopste'], ['name', 'A tot Z']],
     hide: r => !!r.archived, hideLabel: 'Toon gearchiveerd',
-    sub: r => [relName(r.item), r.shop, num(r.price) ? eur(num(r.price)) : '', r.fav ? 'favoriet' : '', r.chosenFor ? 'gekozen' : ''].filter(Boolean).join(' · ')
+    sub: r => [relName(r.item), r.shop, num(r.price) ? eur(num(r.price)) : '', r.used ? 'tweedehands' : '', r.score ? '★'.repeat(r.score) : '', r.chosenFor ? 'gekozen' : ''].filter(Boolean).join(' · ')
   },
   movecosts: {
     one: 'kostenpost', ones: 'kostenposten', many: 'Verhuiskosten', facet: 'type',
@@ -3566,10 +3568,16 @@ async function invBuy(id, optId) {
 }
 function invOptionsPanel(r) {
   const list = invOpts(r.id), arch = invOpts(r.id, true).filter(o => o.archived && !o.chosenFor), bought = invStatus(r) === 'Gekocht';
-  const card = o => `<div class="iopt ${o.chosenFor ? 'on' : ''}"><span class="iph">${o.photo ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(o.photo))}" alt="" loading="lazy" onerror="this.remove()">` : ''}</span><div><b>${esc(o.name || 'Optie')}</b><span>${esc([o.shop, num(o.price) ? eur(num(o.price)) : '', num(r.budget) && num(o.price) ? (num(o.price) > num(r.budget) ? eur(num(o.price) - num(r.budget)) + ' boven budget' : 'binnen budget') : '', o.chosenFor ? 'gekozen' : ''].filter(Boolean).join(' · '))}</span>
+  const card = o => `<div class="iopt ${o.chosenFor ? 'on' : ''}"><span class="iph">${o.photo ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(o.photo))}" alt="" loading="lazy" onerror="this.remove()">` : ''}</span><div><b>${esc(o.name || 'Optie')}</b><span>${esc([o.shop, num(o.price) ? eur(num(o.price)) : '', o.dims, o.used ? 'tweedehands' : '', o.score ? '★'.repeat(o.score) : '', num(r.budget) && num(o.price) ? (num(o.price) > num(r.budget) ? eur(num(o.price) - num(r.budget)) + ' boven budget' : 'binnen budget') : '', o.chosenFor ? 'gekozen' : ''].filter(Boolean).join(' · '))}</span>
     <div class="dbtns ioptb">${o.url ? `<a class="btn small" href="${esc(o.url)}" target="_blank" rel="noopener">Bekijk</a>` : ''}<button type="button" class="btn small" data-act="optopen" data-id="${o.id}">Bewerk</button>${!bought ? `<button type="button" class="btn small primary" data-act="optbuy" data-id="${r.id}" data-v="${o.id}">Deze gekocht</button>` : ''}</div></div></div>`;
-  return `<section class="ltipsteps"><div class="lph3"><h3>Opties${list.length ? ' · ' + list.length : ''}</h3><button type="button" class="chip" data-act="optadd" data-id="${r.id}">+ Optie</button></div>
-    ${list.length ? `<div class="iopts">${list.map(card).join('')}</div>` : '<p class="lnone">Zet hier de producten die je mooi vindt, met link, foto en prijs. Bij het kopen kies je er één.</p>'}
+  const tot = o => (num(o.price) || 0) + (num(o.shipping) || 0);
+  const cheapest = list.filter(o => num(o.price) != null).sort((a, b) => tot(a) - tot(b))[0];
+  const cmp = list.length > 1 ? `<details class="icmp"><summary>Vergelijk ${list.length} opties</summary><div class="icmpwrap"><table><thead><tr><th></th>${list.map(o => `<th>${o.photo ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(o.photo))}" alt="" loading="lazy" onerror="this.remove()">` : ''}<b>${esc(o.name || 'Optie')}</b></th>`).join('')}</tr></thead><tbody>
+      ${[['Prijs', o => num(o.price) != null ? eur(num(o.price)) + (o === cheapest ? ' ✓' : '') : ''], ['Bezorgen', o => num(o.shipping) != null ? eur(num(o.shipping)) : ''], ['Totaal', o => num(o.price) != null ? eur(tot(o)) : ''], ['Budget', o => num(r.budget) != null && num(o.price) != null ? (tot(o) > num(r.budget) ? '+' + eur(tot(o) - num(r.budget)) : 'binnen') : ''], ['Winkel', o => o.shop], ['Afmetingen', o => o.dims], ['Kleur', o => o.color], ['Materiaal', o => o.material], ['Levertijd', o => o.delivery], ['Mooi', o => o.score ? '★'.repeat(o.score) : ''], ['Tweedehands', o => o.used ? 'ja' : '']]
+        .filter(([, f]) => list.some(o => f(o))).map(([l, f]) => `<tr><th>${l}</th>${list.map(o => `<td>${esc(f(o) || '–')}</td>`).join('')}</tr>`).join('')}</tbody></table></div></details>` : '';
+  return `<section class="ltipsteps"><div class="lph3"><h3>Opties${list.length ? ' · ' + list.length : ''}</h3><button type="button" class="chip" data-act="optadd" data-id="${r.id}">+ Handmatig</button></div>
+    <div class="optlink"><input type="url" inputmode="url" placeholder="Plak een link naar een product" data-optlink aria-label="Link naar een optie"><button type="button" class="btn small primary" data-act="optlink" data-id="${r.id}">Toevoegen</button></div>
+    ${list.length ? `<div class="iopts">${list.map(card).join('')}</div>${cmp}` : '<p class="lnone">Plak de link van een product dat je mooi vindt. De app haalt de foto, naam en prijs op. Bij het kopen kies je er één.</p>'}
     ${arch.length ? `<p class="lnone">${plural(arch.length, 'optie', 'opties')} gearchiveerd.</p>` : ''}
     ${!bought ? `<div class="dbtns"><button type="button" class="btn small" data-act="optbuy" data-id="${r.id}" data-v="">Gekocht zonder optie</button></div>` : ''}</section>`;
 }
@@ -3584,9 +3592,10 @@ function invGroups(fill, keyOf, order) {
   const l = invLive(), g = {};
   for (const r of l) (g[keyOf(r) || 'Geen'] ||= []).push(r);
   const keys = [...order.filter(k => g[k]), ...Object.keys(g).filter(k => !order.includes(k)).sort()];
-  fill.innerHTML = l.length ? keys.map(k => { const rs = g[k].sort((a, b) => (INV_STATUS.indexOf(invStatus(a)) - INV_STATUS.indexOf(invStatus(b))) || norm(a.name).localeCompare(norm(b.name))), done = rs.filter(r => invStatus(r) === 'Gekocht');
-    return `<div class="lgh gshop"><h3>${esc(k)} · ${done.length}/${rs.length}</h3><span class="lnone">${esc([invSum(rs, 'budget') ? 'budget ' + eur(invSum(rs, 'budget')) : '', invSum(done, 'price') ? 'betaald ' + eur(invSum(done, 'price')) : ''].filter(Boolean).join(' · '))}</span></div><div class="lrows">${rs.map(invLine).join('')}</div>`; }).join('') : invEmpty();
+  fill.innerHTML = invTools() + (l.length ? keys.map(k => { const rs = g[k].sort((a, b) => (INV_STATUS.indexOf(invStatus(a)) - INV_STATUS.indexOf(invStatus(b))) || norm(a.name).localeCompare(norm(b.name))), done = rs.filter(r => invStatus(r) === 'Gekocht');
+    return `<div class="lgh gshop"><h3>${esc(k)} · ${done.length}/${rs.length}</h3><span class="lnone">${esc([invSum(rs, 'budget') ? 'budget ' + eur(invSum(rs, 'budget')) : '', invSum(done, 'price') ? 'betaald ' + eur(invSum(done, 'price')) : ''].filter(Boolean).join(' · '))}</span></div><div class="lrows">${rs.map(invLine).join('')}</div>`; }).join('') : invEmpty());
 }
+const invTools = () => `<div class="ltools"><button class="btn small primary" data-act="new" data-v="inventory">+ Product</button><button class="btn small" data-act="invhave">+ Al gekocht</button></div>`;
 const invEmpty = () => `<div class="banner">${quiet('Je verhuislijst is nog leeg. Begin met een startlijst per kamer, of voeg zelf producten toe.')}<button class="btn small primary" data-act="invstart">Startlijst toevoegen</button></div>`;
 function invRooms(fill) { invGroups(fill, r => r.room, ROOMS); }
 function invByStatus(fill) { invGroups(fill, r => invStatus(r), INV_STATUS); }
@@ -3933,6 +3942,16 @@ function openEditor(kind, id, preset = {}) {
     if (d.act === 'ttpost') return ttPostNow(d.id);
     if (d.act === 'mkpost') return ideaToPost(d.id);
     if (d.act === 'newreview') { C.closeSheet(); return openEditor('breviews', null, { product: d.id, date: today(), after: d.v }); }
+    if (d.act === 'optlink') {
+      const inp = sh.querySelector('[data-optlink]'), url = inp?.value.trim(); if (!url) { inp?.focus(); return; }
+      b.disabled = true; b.textContent = 'Ophalen…';
+      let info = {}; try { info = await C.callFn('offers', { action: 'linkinfo', url }); } catch { info = {}; }
+      if (info.error) C.toast(info.error);
+      const data = { item: d.id, url, name: info.name || (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return 'Optie'; } })(), shop: info.shop, price: info.price, photo: info.photo, color: info.color, material: info.material, notes: info.priceNote ? 'Prijs: ' + info.priceNote : undefined, created: Date.now() };
+      for (const k of Object.keys(data)) if (data[k] == null || data[k] === '') delete data[k];
+      try { await create('invopts', data); C.toast(info.name ? 'Optie toegevoegd' : 'Optie toegevoegd. Vul naam en prijs zelf aan als ze ontbreken.'); C.closeSheet(); openEditor('inventory', d.id); } catch { C.toast('Opslaan lukte niet. Probeer het opnieuw.'); b.disabled = false; b.textContent = 'Toevoegen'; }
+      return;
+    }
     if (d.act === 'optadd') { C.closeSheet(); return openEditor('invopts', null, { item: d.id }); }
     if (d.act === 'optopen') { C.closeSheet(); return openEditor('invopts', d.id); }
     if (d.act === 'optbuy') { C.closeSheet(); return invBuy(d.id, d.v || null); }
@@ -4154,6 +4173,7 @@ document.addEventListener('click', async e => {
     case 'cnt': countStep(d.id, Number(d.v)); break;
     case 'invbuy': invBuy(d.id); break;
     case 'invstart': invStart(); break;
+    case 'invhave': openEditor('inventory', null, { status: 'Gekocht', bought: today(), notes: 'Al gekocht voor de verhuizing' }); break;
     case 'movegoal': moveGoalSync(); break;
     case 'nl': nlToggle(d.v); break;
     case 'nlstep': nlStep(d.v, Number(d.d)); break;
