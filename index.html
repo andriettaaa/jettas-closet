@@ -614,7 +614,7 @@ const GEAR = '<circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" 
 // on a phone the bottom bar holds four sections unless you pick others; the rest sit behind ☰
 const BOTTOM_DEFAULT = 4;
 const BURGER = '<path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>';
-const SECTIONS = [{ key: 'overview', label: 'Today', icon: SUN }, { key: 'closet', label: 'Closet', icon: VIEWS[0][2] }, ...(window.LIFE?.sections || []), { key: 'settings', label: 'Settings', icon: GEAR }];
+const SECTIONS = [{ key: 'overview', label: 'Today', icon: SUN }, { key: 'agenda', label: 'Kalender', icon: (window.LIFE?.sections || []).find(s => s.key === 'plan')?.views.find(v => v[0] === 'plan/week')?.[2] || SUN, to: 'plan/week' }, { key: 'closet', label: 'Closet', icon: VIEWS[0][2] }, ...(window.LIFE?.sections || []), { key: 'settings', label: 'Settings', icon: GEAR }];
 /* the menu follows your Settings: section order, hidden sections, the phone's bottom bar and the tabs inside each section */
 const NAV = () => S.prefs.nav || {};
 const byOrder = (list, order, key = x => x.key) => { const pos = x => { const i = (order || []).indexOf(key(x)); return i < 0 ? 1000 + list.indexOf(x) : i; }; return [...list].sort((a, b) => pos(a) - pos(b)); };
@@ -630,7 +630,7 @@ const secOf = v => { if (v === 'overview' || v === 'settings') return v; v = Str
 const isLife = v => !!window.LIFE?.has(v);
 const okView = v => v === 'overview' || v === 'settings' || VIEWS.some(x => x[0] === v) || isLife(v) || isSecSettings(v);
 const tabsFor = v => ['overview', 'settings'].includes(secOf(v)) ? [] : viewsShown(secOf(v));
-const openSection = k => { if (k === 'overview' || k === 'settings') return go(k); const last = pref.get('view:' + k, k === 'closet' ? 'closet' : k + '/today'), vs = viewsShown(k); go(vs.some(v => v[0] === last) ? last : vs[0][0]); };
+const openSection = k => { if (k === 'overview' || k === 'settings') return go(k); const jump = SECTIONS.find(s => s.key === k)?.to; if (jump) return go(jump); const last = pref.get('view:' + k, k === 'closet' ? 'closet' : k + '/today'), vs = viewsShown(k); go(vs.some(v => v[0] === last) ? last : vs[0][0]); };
 const HANGER = '<svg class="hanger" viewBox="0 0 64 40" aria-hidden="true"><path d="M28 7a4 4 0 1 1 6 3.5c-1.3.8-2 1.6-2 3V15L5 31.5c-2.2 1.4-1.2 4.5 1.4 4.5h51.2c2.6 0 3.6-3.1 1.4-4.5L32 15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const PH = HANGER.replace('class="hanger"', 'class="ph"');
 
@@ -712,7 +712,7 @@ const pref = {
    Lists and settings live in Supabase and match everywhere. A few choices are kept on the device itself (tiles or
    list, hidden amounts, sorting, today's ticks); those are copied into prefs.shared with the time you changed them,
    and every device takes the newest. prefs.devices lists your devices with their last sync. */
-const SYNC_KEYS = [/^hangtag:hidemoney$/, /^hangtag:tol$/, /^hangtag:sort(:|$)/, /^hangtag:todo(Field|Sort)$/, /^lview2:/, /^prepDone$/, /^tl:\d{4}-\d{2}-\d{2}$/, /^top3:\d{4}-\d{2}-\d{2}$/, /^reset:/];
+const SYNC_KEYS = [/^calView$/, /^calOff$/, /^hangtag:hidemoney$/, /^hangtag:tol$/, /^hangtag:sort(:|$)/, /^hangtag:todo(Field|Sort)$/, /^lview2:/, /^prepDone$/, /^tl:\d{4}-\d{2}-\d{2}$/, /^top3:\d{4}-\d{2}-\d{2}$/, /^reset:/];
 const isSyncKey = k => SYNC_KEYS.some(r => r.test(k));
 const SMETA = pref.get('smeta', {});
 let syncQuiet = false, syncTimer = 0;
@@ -1034,7 +1034,8 @@ const outfitPhotos = id => lookPhotos().filter(l => l.outfit === id);
 function renderTabs() {
   const n = inboxItems().length;
   const views = tabsFor(S.view), sec = secOf(S.view);
-  const btn = s => `<button data-sec="${s.key}" ${s.key === sec ? 'aria-current="page"' : ''}>${icon(s.icon)}<span>${s.label}</span>${s.key === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`;
+  const jumpOn = SECTIONS.find(s => s.to === S.view && navSections().includes(s))?.key;
+  const btn = s => `<button data-sec="${s.key}" ${(jumpOn ? s.key === jumpOn : s.key === sec) ? 'aria-current="page"' : ''}>${icon(s.icon)}<span>${s.label}</span>${s.key === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`;
   // the ☰ button sits where Settings used to: it holds the sections that aren't in the bar, and Settings
   const top = navSections().filter(s => s.key !== 'settings'), bottom = NAV().bottom?.length ? top.filter(s => NAV().bottom.includes(s.key)) : top.slice(0, BOTTOM_DEFAULT);
   const menuBtn = list => `<button data-menu aria-label="More" ${sec === 'settings' || !list.some(s => s.key === sec) ? 'aria-current="page"' : ''}>${icon(BURGER)}<span>More</span></button>`;
@@ -2029,7 +2030,7 @@ function closetTile() {
 }
 // your order and hidden cards live in prefs.dash, so they're the same on every device; new areas join at the end
 function dashCards() {
-  const all = navSections().filter(s => s.key !== 'overview' && s.key !== 'settings'), order = S.prefs.dash?.order || [];
+  const all = navSections().filter(s => s.key !== 'overview' && s.key !== 'settings' && !s.to), order = S.prefs.dash?.order || [];
   const pos = s => { const i = order.indexOf(s.key); return i < 0 ? order.length + all.indexOf(s) : i; };
   return all.sort((a, b) => pos(a) - pos(b));
 }
@@ -2086,7 +2087,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v112';
+const APP_VERSION = 'hangtag-v113';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -3695,6 +3696,9 @@ async function start(session) {
   // what life.js needs from the closet: the signed-in Supabase client, photos, sheets and settings
   const lifeLoad = window.LIFE?.start({ sb, uid: () => UID, view: () => S.view, outfits: () => S.outfits.map(o => ({ id: o.id, name: o.name || 'Outfit', board: boardHTML(o.pieces) })), go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url, shop: it.shop, planBuy: it.planBuy || '' })),
     undoQuiet, sbWrite, sbWriteMany, obFlush, uploadFile,
+    // planned outfits for the master calendar, and moving one to another day
+    closetDays: () => Object.entries(S.days).filter(([, r]) => r && (r.outfit || dayItems(r).length || r.photos?.length)).map(([date, r]) => ({ date, name: (r.outfit && S.outById[r.outfit]?.name) || (dayItems(r).length ? plural(dayItems(r).length, 'piece') : 'photo') })),
+    closetMove: async (from, to) => { const r = S.days[from]; if (!r || S.days[to]) { if (S.days[to]) toast('There is already an outfit on that day'); return; } await DB.put('days', to, r); await DB.del('days', from); },
     // call one of your Supabase functions as you (signed in)
     callFn,
     // the affirmation shown on Today, and its manage sheet
