@@ -652,3 +652,37 @@ html.cooking, html.cooking body { overflow: hidden; }
 .stayc { margin-bottom: 8px; }
 .stayc .dsub { margin: 14px 0 8px; }
 .stayan { margin-bottom: 18px; }
+/* social: tips, their steps, and the planning calendar */
+:root { --s-script: #A0621A; --s-film: #94445A; --s-edit: #2C5E86; --s-post: #3F6E3A; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --s-script: #E0A85A; --s-film: #DB9DAE; --s-edit: #93B3D8; --s-post: #9CC48F; } }
+:root[data-theme="dark"] { --s-script: #E0A85A; --s-film: #DB9DAE; --s-edit: #93B3D8; --s-post: #9CC48F; }
+.ltipsteps { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; margin-bottom: 14px; display: grid; gap: 8px; }
+.ltipsteps h3 { margin: 0; }
+.ltipsteps ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.ltipsteps details ol { list-style: decimal; padding-left: 22px; margin-top: 6px; }
+.ltipsteps summary { cursor: pointer; }
+.ltstep { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; background: none; border: 0; padding: 6px 4px; border-radius: 10px; color: var(--ink); font: inherit; }
+.ltstep i { flex: none; width: 24px; height: 24px; border-radius: 999px; border: 1.5px solid var(--line); display: grid; place-items: center; font-style: normal; font-size: 12px; font-family: var(--mono); color: var(--muted); }
+.ltstep i svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.4; }
+.ltstep[aria-pressed="true"] i { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.ltstep[aria-pressed="true"] span { color: var(--muted); text-decoration: line-through; }
+.ltstep:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ltod { display: grid; gap: 4px; text-align: left; }
+.ltod p { margin: 4px 0 0; }
+.ltod ol { margin: 4px 0 0; padding-left: 20px; }
+.llegend { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.llegend .lstep { display: inline-flex; align-items: center; gap: 6px; }
+.llegend .lstep i { width: 10px; height: 10px; border-radius: 3px; background: var(--sc); }
+.lstep.sscript, .mstep.sscript { --sc: var(--s-script); } .lstep.sfilm, .mstep.sfilm { --sc: var(--s-film); }
+.lstep.sedit, .mstep.sedit { --sc: var(--s-edit); } .lstep.spost, .mstep.spost { --sc: var(--s-post); }
+.chip.lstep { border-left: 4px solid var(--sc); border-radius: 10px; max-width: 100%; white-space: normal; text-align: left; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; width: 100%; }
+.lplanhead { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin-bottom: 12px; }
+.lplanhead .llegend { margin: 0; }
+.chip.lstep b { color: var(--sc); }
+.chip.lstep.done { opacity: .6; }
+.chip.lstep svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.4; }
+.mstep { display: flex; align-items: center; gap: 4px; min-width: 0; background: none; border: 0; padding: 0; font: inherit; font-size: 11.5px; color: var(--ink); text-align: left; }
+.mstep i { flex: none; width: 8px; height: 8px; border-radius: 2px; background: var(--sc); }
+.mstep em { font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.mstep.done em { text-decoration: line-through; color: var(--muted); }
+@media (max-width: 520px) { .mstep em { display: none; } .mstep { display: inline-flex; } }

@@ -13,7 +13,7 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
 // the same defaults the Settings page shows
 const DEF: Record<string, { on: boolean; time?: string }> = {
   morning: { on: true, time: '07:30' }, evening: { on: true, time: '21:30' }, bills: { on: true, time: '18:00' },
-  payday: { on: true, time: '09:00' }, weekly: { on: true, time: '19:00' }, weekahead: { on: true, time: '19:30' }, reminders: { on: true, time: '10:00' },
+  payday: { on: true, time: '09:00' }, weekly: { on: true, time: '19:00' }, weekahead: { on: true, time: '19:30' }, reminders: { on: true, time: '10:00' }, content: { on: true, time: '09:00' },
   budget: { on: true }, applepay: { on: true }
 };
 type Rec = Record<string, any> & { id: string; kind: string };
@@ -132,6 +132,18 @@ function reminders(recs: Rec[], prefs: any, today: string) {
   return lines.length ? { title: lines.length === 1 ? 'Reminder' : `${lines.length} reminders`, body: lines.join('\n'), url: './#overview', tag: 'reminders' } : null;
 }
 
+// every morning, only when there is one: the steps of your posts for today (and any still open from before)
+const STAGES = ['Idea', 'Planned', 'Scripting', 'Filming', 'Editing', 'Scheduled', 'Posted'];
+const STEPS: [string, string, string][] = [['scriptOn', 'Write the script', 'Filming'], ['filmOn', 'Film', 'Editing'], ['editOn', 'Edit', 'Scheduled'], ['date', 'Post', 'Posted']];
+function content(recs: Rec[], today: string) {
+  const lines: string[] = [];
+  for (const p of recs.filter(r => r.kind === 'posts' && r.stage !== 'Posted')) for (const [k, label, upto] of STEPS) {
+    const d = p[k]; if (!d || d > today || STAGES.indexOf(p.stage) >= STAGES.indexOf(upto)) continue;
+    lines.push(`${label}: ${p.name || 'a post'}${d < today ? ' (was due ' + d.slice(8, 10) + '/' + d.slice(5, 7) + ')' : ''}`);
+  }
+  return lines.length ? { title: lines.length === 1 ? 'Content today' : `Content today: ${lines.length} steps`, body: lines.slice(0, 6).join('\n') + (lines.length > 6 ? `\nand ${lines.length - 6} more` : ''), url: './#social/plan', tag: 'content' } : null;
+}
+
 /* ---------- sending ---------- */
 async function send(uid: string, msg: { title: string; body: string; url?: string; tag?: string }) {
   const { data: subs } = await sb.from('push_subs').select('endpoint,p256dh,auth').eq('user_id', uid);
@@ -169,14 +181,14 @@ async function runUser(uid: string, prefs: any, force = false) {
     const c = { ...DEF[k], ...(cfg[k] || {}) }; if (!c.on || !c.time) return false;
     const t = toMins(c.time); return force || (now.mins >= t && now.mins < t + 60);
   };
-  const slots = ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders'].filter(k => due(k) && (!['weekly', 'weekahead'].includes(k) || now.wd === 'sun' || force));
+  const slots = ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders', 'content'].filter(k => due(k) && (!['weekly', 'weekahead'].includes(k) || now.wd === 'sun' || force));
   if (!slots.length) return 0;
   const recs = await loadAll(uid);
   let sent = 0;
   for (const k of slots) {
     const msg = k === 'morning' ? morning(recs, now.day, await outfitToday(uid, now.day)) : k === 'evening' ? evening(recs, now.wd)
       : k === 'bills' ? bills(recs, now.day) : k === 'payday' ? payday(recs, now.day) : k === 'weekahead' ? weekahead(recs, prefs, now.day)
-      : k === 'reminders' ? reminders(recs, prefs, now.day) : weekly(recs, now.day);
+      : k === 'reminders' ? reminders(recs, prefs, now.day) : k === 'content' ? content(recs, now.day) : weekly(recs, now.day);
     if (!msg) continue;
     if (!force && !(await claim(uid, k, now.day))) continue;
     if (await send(uid, msg)) sent++;
