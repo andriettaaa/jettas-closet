@@ -1233,7 +1233,7 @@ const SECTIONS = [
       ['wish/today', 'Overview', P.grid, 'wish'], ['wish/inbox', 'Inbox', P.inbox, 'wish'], ['wish/master', 'Master', P.heart, 'wish'], ['wish/orders', 'Orders', P.box, 'wish'], ['wish/stats', 'Analyse', P.trend, 'wish'], ['todo', 'To do', P.check]] },
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile,
     groups: { food: ['Food', P.book], shop: ['Shop', P.cart] },
-    views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['pantry', 'Pantry', P.jar, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['shops', 'Shops', P.house, 'shop'], ['todo', 'To do', P.check]] },
+    views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['pantry', 'Pantry', P.jar, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['shops', 'Shops', P.house, 'shop'], ['stats', 'Analyse', P.trend], ['todo', 'To do', P.check]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile,
     groups: { plan: ['Plan', P.target], look: ['Review', P.trend] },
     views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target, 'plan'], ['debt', 'Debt', P.card, 'plan'], ['insurance', 'Insurance', P.doc, 'plan'], ['forecast', 'Forecast', P.trend, 'plan'], ['year', 'Year', P.calendar, 'look'], ['networth', 'Net worth', P.wallet, 'look'], ['reviews', 'Reviews', P.doc, 'look'], ['todo', 'To do', P.check]] },
@@ -1251,6 +1251,7 @@ const PAGES = {
   'kitchen/deals': { render: dealsPage, adds: ['recipes'] },
   'kitchen/quit': { render: quitPage, adds: ['recipes', 'ingredients'] },
   'kitchen/recipes': { title: 'Recipes', segs: [{ kind: 'recipes' }] },
+  'kitchen/stats': { render: kitchenAnalysis, adds: ['recipes', 'meals'] },
 
   'kitchen/meals': { title: 'Meal plan', segs: [{ key: 'week', label: 'Week', kind: 'meals', fill: weekFill, tools: false }, { key: 'month', label: 'Month', kind: 'meals', fill: monthFill, tools: false }, { kind: 'mealprep' }] },
   'kitchen/groceries': { title: 'Groceries', segs: [{ key: 'list', label: 'Shopping list', kind: 'ingredients', fill: groceryFill, tools: false }] },
@@ -2023,10 +2024,17 @@ const empty = v => v == null || v === '' || (Array.isArray(v) && !v.length);
 const need = (k, label, when) => [k, label, r => (when ? when(r) : true) && empty(r[k])];
 const RTODO = [
   ['photo', 'Photo', r => !r.photo], ['category', 'Category', r => !r.category], ['time', 'Time', r => !num(r.prep) && !num(r.cook)],
-  ['servings', 'Servings', r => !num(r.servings)], ['ingredients', 'Ingredients', r => ![].concat(r.ingredients || []).length],
-  ['instructions', 'Instructions', r => !String(r.instructions || '').trim()], ['protein', 'Protein', r => !String(r.protein || '').trim()],
-  ['feel', 'Feels like', r => ![].concat(r.feel || []).length], ['rating', 'Rating', r => !num(r.rating)]
+  // ingredients count from the list with amounts too (Albo recipes), not only from pantry links
+  ['servings', 'Servings', r => !num(r.servings)], ['ingredients', 'Ingredients', r => ![].concat(r.ingredients || []).length && !parseRecipe(r).lines.length],
+  ['amounts', 'Amounts', r => { const l = [].concat(r.ilines || []).filter(x => x && x.h == null && x.n); return l.length > 0 && !l.some(x => String(x.q ?? '').trim()); }],
+  ['steps', 'Steps', r => !parseRecipe(r).steps.length],
+  // protein is known when you typed it, entered your own value, or the estimate found some
+  ['protein', 'Protein', r => !String(r.protein || '').trim() && num(r.nprot) == null && !(nutriOf(r).per.p > 0)],
+  // how it felt and how good it was only matter once you cooked it
+  ['feel', 'Feels like', r => hasCooked(r) && ![].concat(r.feel || []).length], ['rating', 'Rating', r => hasCooked(r) && !num(r.rating)]
 ];
+// cooked at least once: you tapped "I made this", it was in your meal plan on a day that has passed, or you reviewed it
+const hasCooked = r => num(r.cooks) > 0 || !!r.lastCooked || recs('meals').some(m => m.recipe === r.id && m.date && m.date <= today()) || recs('rreviews').some(x => x.recipe === r.id);
 const TODO = {
   kitchen: {
     recipes: { checks: RTODO },
@@ -2416,7 +2424,7 @@ function foodCheckPanel() {
 // after cooking: tick the meal and the veg in the food check, then count off what is used up
 function cookedPanel(r) {
   const ings = [].concat(r.ingredients || []).map(id => L.byId[id]).filter(Boolean);
-  return `<section class="ltipsteps cooked"><div class="lph3"><h3>Gekookt?</h3><button type="button" class="btn small primary" data-act="cooked" data-id="${r.id}">Ik heb dit gekookt</button></div>
+  return `<section class="ltipsteps cooked"><div class="lph3"><h3>Made it?</h3><button type="button" class="btn small primary" data-act="cooked" data-id="${r.id}">I made this</button></div>
     <div data-cookedbody hidden>${ings.length ? `<p class="lnone">Wat is er op of minder? Tik − bij wat je gebruikte.</p><div class="lrows">${ings.map(i => `<div class="lrow"><span class="lmain"><b>${esc(i.name)}</b></span><span class="stepper" data-istep="${i.id}"><button type="button" data-act="icnt" data-id="${i.id}" data-v="-1">−</button><b>${cntOf(i) == null ? (i.stock ? 'in huis' : 'op') : esc(unitShort(cntOf(i), unitOf(i)))}</b><button type="button" data-act="icnt" data-id="${i.id}" data-v="1">+</button></span><button type="button" class="chip" data-act="iout" data-id="${i.id}">Op</button></div>`).join('')}</div>` : ''}
     <div class="dbtns"><button type="button" class="btn small" data-act="cleft" data-v="Fridge" data-id="${r.id}">Restje in koelkast</button><button type="button" class="btn small" data-act="cleft" data-v="Freezer" data-id="${r.id}">Restje in vriezer</button><button type="button" class="btn small" data-act="creview" data-id="${r.id}">Hoe smaakte het?</button></div></div></section>`;
 }
@@ -2426,6 +2434,8 @@ async function cooked(r) {
   if (['Breakfast', 'Lunch', 'Dinner'].includes(slot)) m.add(slot);
   const patch = { meals: ['Breakfast', 'Lunch', 'Dinner'].filter(x => m.has(x)), ...(num(r.vegG) ? { veg: (num(n.veg) || 0) + num(r.vegG) } : {}), ...(slot === 'Snack' ? { snack: true } : {}) };
   await nlSet(patch);
+  // the recipe remembers how often and when you cooked it (for stats and To do)
+  save(L.byId[r.id] || r, { cooks: (num(r.cooks) || 0) + 1, lastCooked: t });
   C.toast(`In je dagcheck: ${slot.toLowerCase()}${num(r.vegG) ? ` en ${num(r.vegG)} g groente` : ''}`);
 }
 // learning to eat breakfast: today's planned breakfast and a tick that counts as a habit in Routines
@@ -6463,6 +6473,40 @@ function wishAnalysis(host) {
     ${panel('Bestellingen per winkel', perShop.size ? `<div class="lrows">${[...perShop.entries()].sort((a, b) => b[1].n - a[1].n).map(([s, e]) => `<div class="lrow"><span class="lmain"><b>${esc(s)}</b><span>${plural(e.n, 'bestelling', 'bestellingen')}</span></span><b class="lside">${e.r ? e.r + ' retour' : ''}</b></div>`).join('')}</div>` : quiet('Nog geen bestellingen in deze periode.'), ['wish/orders', 'Orders'])}
   </div>`;
 }
+/* Kitchen: what you cook and eat, your recipes and how they add up, and the pantry */
+function kitchenAnalysis(host) {
+  const n = anaDays(), days = dayList(n), from = days[0], t = today(), prev = dayList(n, addDays(from, -1));
+  const rs = recs('recipes'), inP = (d, l = days) => d && d >= l[0] && d <= l[l.length - 1];
+  const meals = recs('meals').filter(m => inP(m.date) && m.date <= t), pmeals = recs('meals').filter(m => inP(m.date, prev));
+  const home = meals.filter(m => !m.away), withR = meals.filter(m => m.recipe && L.byId[m.recipe]), pR = pmeals.filter(m => m.recipe && L.byId[m.recipe]);
+  const cookedN = withR.length + rs.filter(r => inP(r.lastCooked) && !withR.some(m => m.recipe === r.id && m.date === r.lastCooked)).length;
+  const newR = rs.filter(r => r.created && inP(iso(new Date(r.created)))).length;
+  // what a day's planned recipes add up to, per serving
+  const nut = new Map(); const nOf = r => { if (!nut.has(r.id)) nut.set(r.id, nutriOf(r)); return nut.get(r.id); };
+  const dayKcal = d => { const l = withR.filter(m => m.date === d); if (!l.length) return null; const v = l.map(m => nOf(L.byId[m.recipe])).filter(x => x.counted || x.own); return v.length ? v.reduce((a, x) => a + x.per.kcal, 0) : null; };
+  const kcalDays = days.map(dayKcal), kAvg = avgOf(kcalDays);
+  const est = rs.map(r => ({ r, n: nOf(r) })).filter(x => (x.n.counted || x.n.own) && x.n.per.kcal > 20);
+  const most = new Map(); for (const m of withR) most.set(m.recipe, (most.get(m.recipe) || 0) + 1);
+  const top = [...most.entries()].sort((a, b) => b[1] - a[1] || azCmp(titleOf(L.byId[a[0]]), titleOf(L.byId[b[0]]))).slice(0, 8);
+  const count = (list, key) => { const m = new Map(); for (const r of list) { const k = r[key] || 'Geen'; m.set(k, (m.get(k) || 0) + 1); } return [...m.entries()].sort((a, b) => b[1] - a[1]); };
+  const ing = recs('ingredients'), inStock = ing.filter(i => i.stock).length, low = ing.filter(i => i.low).length, soon = ing.filter(useSoon).length, onList = ing.filter(i => i.list).length;
+  const quick = rs.filter(r => totalTime(r) > 0 && totalTime(r) <= 30).length, tried = rs.filter(hasCooked).length, totry = rs.filter(r => r.totry).length;
+  const protein = est.slice().sort((a, b) => b.n.per.p - a.n.per.p).slice(0, 6), light = est.filter(x => x.n.per.kcal >= 150).sort((a, b) => a.n.per.kcal - b.n.per.kcal).slice(0, 6);
+  const rowR = (r, side) => `<div class="lrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(r.category || '')}</span></button><b class="lside">${side}</b></div>`;
+  host.innerHTML = `${anaHead('Kitchen · analyse', `${calDayLabel(from)} tot vandaag`)}
+  <div class="tiles">${aTile('Gekookt', String(cookedN), delta(withR.length, pR.length))}${aTile('Thuis gegeten', String(home.length), `${plural(meals.length - home.length, 'keer', 'keer')} buiten de deur`)}${aTile('Calorieën per dag', kAvg != null ? Math.round(kAvg) + ' kcal' : '–', 'uit je maaltijdplan, geschat')}${aTile('Recepten', String(rs.length), `${newR} nieuw · ${tried} gekookt · ${totry} nog proberen`)}</div>
+  <div class="panels">
+    ${panel('Calorieën per dag', aLine(days, kcalDays, { label: 'Calorieën', unit: ' kcal' }) + '<p class="lnone">Per portie van de recepten in je maaltijdplan. Maaltijden zonder recept tellen niet mee.</p>', ['kitchen/meals', 'Meal plan'])}
+    ${panel('Maaltijden per weekdag', aBars(WD_NL.map((w, i) => [w, meals.filter(m => (fromISO(m.date).getDay() + 6) % 7 === i).length])))}
+    ${panel('Meest gekookt', top.length ? `<div class="lrows">${top.map(([id, c]) => rowR(L.byId[id], plural(c, 'keer', 'keer'))).join('')}</div>` : quiet('Zet recepten in je maaltijdplan of tik op "I made this", dan verschijnen ze hier.'))}
+    ${panel('Recepten per categorie', aBars(count(rs, 'category').slice(0, 10)), ['kitchen/recipes', 'Recipes'])}
+    ${panel('Recepten per keuken', aBars(count(rs.filter(r => r.cuisine), 'cuisine').slice(0, 8)))}
+    ${panel('Voeding van je recepten', est.length ? `<p class="dline"><span>Gemiddeld per portie</span><b>${Math.round(avgOf(est.map(x => x.n.per.kcal)))} kcal</b></p><p class="dline"><span>Eiwit per portie</span><b>${r1(avgOf(est.map(x => x.n.per.p)))} g</b></p><p class="dline"><span>Met een schatting</span><b>${est.length} van ${rs.length}</b></p><p class="dline"><span>Klaar in 30 minuten of minder</span><b>${quick}</b></p>` : quiet('Vul hoeveelheden in bij je ingrediënten, dan rekent de app dit uit.'))}
+    ${panel('Meeste eiwit per portie', protein.length ? `<div class="lrows">${protein.map(x => rowR(x.r, Math.round(x.n.per.p) + ' g')).join('')}</div>` : quiet('Nog geen schattingen.'))}
+    ${panel('Lichtste maaltijden', light.length ? `<div class="lrows">${light.map(x => rowR(x.r, Math.round(x.n.per.kcal) + ' kcal')).join('')}</div>` : quiet('Nog geen schattingen.'))}
+    ${panel('Voorraad', `<p class="dline"><span>Op voorraad</span><b>${inStock} van ${ing.length}</b></p><p class="dline"><span>Bijna op</span><b>${low}</b></p><p class="dline"><span>Snel opmaken</span><b>${soon}</b></p><p class="dline"><span>Op je boodschappenlijst</span><b>${onList}</b></p>`, ['kitchen/pantry', 'Pantry'])}
+  </div>`;
+}
 /* Mind overview */
 function mindOverview(host) {
   const t = today(), nl = nlOn(t) || {}, hs = recs('habits').filter(h => !h.paused && (!(h.onDays || []).length || h.onDays.includes(wdOf(t)))), done = hs.filter(h => daysSet(h).has(t));
@@ -6512,7 +6556,7 @@ function lifeOverview(host) {
   const hs = recs('habits').filter(h => !h.paused), hp = avgOf(hs.map(h => { const due = d30.filter(d => !(h.onDays || []).length || h.onDays.includes(wdOf(d))); return due.length ? due.filter(d => daysSet(h).has(d)).length / due.length * 100 : null; }));
   host.innerHTML = `${head('Life')}
   <div class="tiles lifenums">${aTile('Stemming', mood != null ? r1(mood) + '/4' : '–', '30 dagen')}${aTile('Slaap', sleep != null ? r1(sleep) + ' uur' : '–', 'gemiddeld')}${aTile('Trainingen', String(wo), '30 dagen')}${aTile('Routines', hp != null ? Math.round(hp) + '%' : '–', 'gelukt')}</div>
-  <div class="lanalinks">${[['plan/mindstats', 'Mind'], ['body/stats', 'Body'], ['plan/planstats', 'Plans'], ['wish/stats', 'Wishlists']].map(([v, l]) => `<button class="chip link" data-act="go" data-v="${v}">Analyse ${l}</button>`).join('')}</div>
+  <div class="lanalinks">${[['plan/mindstats', 'Mind'], ['body/stats', 'Body'], ['plan/planstats', 'Plans'], ['wish/stats', 'Wishlists'], ['kitchen/stats', 'Kitchen']].map(([v, l]) => `<button class="chip link" data-act="go" data-v="${v}">Analyse ${l}</button>`).join('')}</div>
   <div class="quickacts lifeacts"><button class="chip" data-act="new" data-v="journal">+ Journal</button><button class="chip" data-act="new" data-v="sleep">+ Slaap</button><button class="chip" data-act="new" data-v="workouts">+ Workout</button><button class="chip" data-act="new" data-v="wishes">+ Wens</button></div>
   <div class="panels">
     ${panel('Mind', planTile(), ['plan/today', 'My year'])}
