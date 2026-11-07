@@ -153,7 +153,7 @@ const QUIT = 'Stop smoking', helpsQuit = r => [].concat(r.helps || []).includes(
 const STAY_SCORES = [['clean', 'Cleanliness'], ['location', 'Location'], ['comfort', 'Comfort and bed'], ['facilities', 'Facilities'], ['staff', 'Staff and service'], ['value', 'Value for money'], ['breakfast', 'Breakfast'], ['wifi', 'Wifi'], ['quiet', 'Quiet']];
 const stayScore = r => { const v = STAY_SCORES.map(([k]) => Number(r[k]) || 0).filter(Boolean); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : Number(r.rating) || 0; };
 const CAT_NL = {
-  ingredients: { 'Fruits & Veg': 'Groente & fruit', 'Fish & Meat': 'Vlees & vis', 'Eggs & Dairy': 'Zuivel & eieren', 'Grains & Legumes': 'Granen & peulvruchten', 'Bread & Bakery': 'Brood & bakkerij', 'Nuts & Seeds': 'Noten & zaden', 'Herbs & Spices': 'Kruiden & specerijen', 'Sauces & Oils': 'Sauzen & olie', 'Tins & Jars': 'Blik & pot', 'Frozen': 'Diepvries', 'Leftovers': 'Restjes', 'Drinks': 'Dranken', 'Snack': 'Snacks', 'Confections': 'Zoetigheid', 'Supplements': 'Supplementen', 'Other': 'Overig' },
+  ingredients: { 'Fruits & Veg': 'Groente & fruit', 'Fish & Meat': 'Vlees & vis', 'Eggs & Dairy': 'Zuivel & eieren', 'Grains & Legumes': 'Granen & peulvruchten', 'Bread & Bakery': 'Brood & bakkerij', 'Nuts & Seeds': 'Noten & zaden', 'Herbs & Spices': 'Kruiden & specerijen', 'Sauces & Oils': 'Sauzen & olie', 'Baking': 'Bakken', 'Spreads': 'Beleg', 'Tins & Jars': 'Blik & pot', 'Frozen': 'Diepvries', 'Leftovers': 'Restjes', 'Drinks': 'Dranken', 'Snack': 'Snacks', 'Confections': 'Zoetigheid', 'Supplements': 'Supplementen', 'Other': 'Overig' },
   gear: { 'Kitchen Appliances': 'Keukenapparaten', 'Cookware & Bakeware': 'Pannen & bakvormen', 'Prep Tools & Essentials': 'Voorbereiden', 'Cooking Tools & Utensils': 'Kookgerei', 'Organizing Essentials': 'Opbergen', 'Cleaning Supplies': 'Schoonmaken' }
 };
 const catNL = (kind, v) => (CAT_NL[kind] || {})[v] || v;
@@ -165,8 +165,10 @@ const ING_TYPES = {
   'Granen & peulvruchten': ['Rijst', 'Pasta', 'Noedels', 'Havermout', 'Meel', 'Couscous & quinoa', 'Bonen', 'Linzen & kikkererwten'],
   'Brood & bakkerij': ['Brood', 'Wraps', 'Crackers', 'Gebak'],
   'Noten & zaden': ['Noten', 'Zaden', 'Notenpasta'],
-  'Kruiden & specerijen': ['Gedroogde kruiden', 'Specerijen', 'Zout & peper', 'Bouillon'],
-  'Sauzen & olie': ['Olie', 'Azijn', 'Sojasaus', 'Pastasaus', 'Sauzen', 'Dressing'],
+  'Kruiden & specerijen': ['Peper', 'Zout', 'Chili', 'Gember', 'Kaneel', 'Kruidnagel', 'Koriander', 'Paprika', 'Kurkuma', 'Nootmuskaat', 'Kardemom', 'Kruidenmix', 'Gedroogde kruiden', 'Specerijen', 'Bouillon & jus'],
+  'Sauzen & olie': ['Olie', 'Azijn', 'Sojasaus', 'Ketjap', 'Vissaus', 'Oestersaus', 'Hoisin', 'Chilisaus', 'Mirin', 'Pastasaus', 'Mosterd', 'Ketchup & mayo', 'Sauzen', 'Dressing'],
+  'Bakken': ['Bloem & meel', 'Maismeel', 'Bakmix', 'Bindmiddel', 'Rijsmiddel', 'Suiker', 'Cacao'],
+  'Beleg': ['Kaas', 'Vleeswaren', 'Kip', 'Vis', 'Smeerbaar', 'Pindakaas', 'Hagelslag', 'Jam', 'Zoet beleg', 'Hartig beleg'],
   'Blik & pot': ['Tomaat in blik', 'Bonen in blik', 'Vis in blik', 'Kokosmelk', 'Soep', 'Groente in pot'],
   'Dranken': ['Koffie', 'Thee', 'Sap', 'Frisdrank', 'Water'],
   'Snacks': ['Chips', 'Koek', 'Repen', 'Noten'],
