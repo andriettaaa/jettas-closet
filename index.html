@@ -1988,7 +1988,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v98';
+const APP_VERSION = 'hangtag-v99';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2182,6 +2182,8 @@ const NOTI = [
   ['reminders', 'Reminders', 'Smoke-free milestones, free trials and warranties about to end', '10:00'],
   ['content', 'Content today', 'The posts you script, film, edit or post today, collab deadlines, and good posts to use again', '09:00'],
   ['skindiary', 'Skin diary', 'Sundays: a nudge to add photos when your last entry is a week old', '10:00'],
+  ['freezer', 'Freezer', 'Sundays: what has been in the freezer for 3 months or more', '17:00'],
+  ['shopday', 'Shopping day', 'On the day you pick under Kitchen › Deals: your grocery list per shop', '10:00'],
   ['socialweek', 'Content next week', 'Sundays: every step of your posts and collabs for the coming week', '18:30'],
   ['budget', 'Budget almost gone', 'When a category passes 80% and 100% of its budget', ''],
   ['applepay', 'After each Apple Pay payment', 'Saved, with what is left in that category', '']

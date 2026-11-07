@@ -34,6 +34,8 @@ const str = (v: unknown, n = 200) => String(v ?? '').trim().slice(0, n);
 const num = (v: unknown) => (v === '' || v == null || isNaN(Number(v))) ? null : Math.round(Number(v) * 100) / 100;
 const day = (v: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? String(v) : '';
 const clean = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== '' && v != null && !(Array.isArray(v) && !v.length)));
+const SHOP_TYPES = ['Supermarket', 'Toko', 'Butcher', 'Fishmonger', 'Greengrocer', 'Market', 'Drugstore', 'Perfumery', 'Brand store', 'Webshop', 'Other'];
+const shopOut = (a: any) => clean({ name: str(a?.name, 80), type: SHOP_TYPES.includes(a?.type) ? a.type : undefined, address: str(a?.address, 160), website: str(a?.website, 300), dealsUrl: str(a?.dealsUrl, 300), readDeals: a?.readDeals === true ? true : undefined, mine: a?.mine === true ? true : undefined, notes: str(a?.notes, 400) });
 
 // one suggested recipe: your own (recipe = its id) or a new one from the web (link)
 const meal = (m: any) => clean({
@@ -42,7 +44,8 @@ const meal = (m: any) => clean({
   ingredients: (Array.isArray(m?.ingredients) ? m.ingredients : []).map((x: unknown) => str(x, 120)).filter(Boolean).slice(0, 40),
   microwave: m?.microwave === true ? true : undefined, cost: num(m?.cost), time: num(m?.time),
   lines: (Array.isArray(m?.lines) ? m.lines : []).map((x: unknown) => str(x, 160)).filter(Boolean).slice(0, 60),
-  steps: str(m?.steps, 12000), quit: m?.quit === true ? true : undefined
+  steps: str(m?.steps, 12000), quit: m?.quit === true ? true : undefined,
+  dates: (Array.isArray(m?.dates) ? m.dates : []).map(day).filter(Boolean).slice(0, 7)
 });
 // copy a picture from the web into your own storage; on any problem keep the web address
 async function keepPhoto(uid: string, url: string) {
@@ -434,8 +437,52 @@ Deno.serve(async req => {
       return json({ data: btoa(bin), type, page });
     }
 
+    // shops in Kitchen › Shops (kind shops) and Beauty › Deals › Beauty shops (kind bshops): list them, or add new ones by name
+    if (body.action === 'shops') {
+      const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['shops', 'bshops']);
+      if (error) throw error;
+      const have = new Set(data.map((r: any) => r.kind + ':' + String(r.data?.name || '').trim().toLowerCase()));
+      const now = new Date().toISOString(), rows: any[] = [];
+      for (const a of (Array.isArray(body.add) ? body.add : []).slice(0, 80)) {
+        const kind = a?.area === 'beauty' ? 'bshops' : 'shops', d = shopOut(a);
+        if (!d.name || have.has(kind + ':' + String(d.name).toLowerCase())) continue;
+        have.add(kind + ':' + String(d.name).toLowerCase());
+        rows.push({ user_id: uid, id: crypto.randomUUID(), kind, data: { ...d, created: Date.now() }, updated_at: now });
+      }
+      if (rows.length) { const { error: e2 } = await sb.from('records').insert(rows); if (e2) throw e2; }
+      const all = [...data, ...rows];
+      return json({ added: rows.length, kitchen: all.filter((r: any) => r.kind === 'shops').map((r: any) => shopOut(r.data)), beauty: all.filter((r: any) => r.kind === 'bshops').map((r: any) => shopOut(r.data)) });
+    }
+    // what the beauty deals task needs: your products, your beauty wishes and your beauty shops
+    if (body.action === 'beautylist') {
+      const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['beauty', 'wishes', 'bshops']);
+      if (error) throw error;
+      const products = data.filter((r: any) => r.kind === 'beauty').map((r: any) => clean({ id: r.id, name: r.data.name, brand: r.data.brand, type: r.data.type, size: r.data.size, price: r.data.price, fav: r.data.fav || undefined, low: r.data.low || undefined, finished: r.data.finished || undefined, wish: r.data.wish || undefined, qty: r.data.qty, opened: r.data.opened, rating: r.data.rating }));
+      const wishes = data.filter((r: any) => r.kind === 'wishes' && /beauty/i.test(String(r.data.category || '')) && !r.data.archived && !['Bought', 'Dropped'].includes(r.data.status)).map((r: any) => clean({ id: r.id, name: r.data.name, brand: r.data.brand, shop: r.data.shop, price: r.data.price, url: r.data.url }));
+      const shops = data.filter((r: any) => r.kind === 'bshops').map((r: any) => shopOut(r.data));
+      return json({ products, wishes, shops });
+    }
+    // this week's beauty deals: replaces last week's
+    if (body.action === 'beautysave') {
+      const MATCH = ['Your product', 'Running low', 'On your wishlist', 'Brand you use'];
+      const deals = (Array.isArray(body.deals) ? body.deals : []).slice(0, 200).map((o: any) => clean({
+        name: str(o?.name, 160), brand: str(o?.brand, 80), store: str(o?.store, 60), deal: str(o?.deal, 120), price: num(o?.price), was: num(o?.was),
+        until: day(o?.until), url: str(o?.url, 500), photo: str(o?.photo, 500), why: str(o?.why, 400),
+        match: MATCH.includes(o?.match) ? o.match : 'Brand you use', product: str(o?.product, 60), wish: str(o?.wish, 60)
+      })).filter((o: any) => o.name && o.store);
+      for (const o of deals as any[]) if (o.photo) o.photo = await keepPhoto(uid, o.photo);
+      const { data: old, error: e1 } = await sb.from('records').select('id').eq('user_id', uid).eq('kind', 'bdeals');
+      if (e1) throw e1;
+      const now = new Date().toISOString(), rows = deals.map((d: any) => ({ user_id: uid, id: crypto.randomUUID(), kind: 'bdeals', data: { ...d, created: Date.now() }, updated_at: now }));
+      for (let i = 0; i < rows.length; i += 200) { const { error } = await sb.from('records').insert(rows.slice(i, i + 200)); if (error) throw error; }
+      const stale = (old || []).map((r: any) => r.id);
+      for (let i = 0; i < stale.length; i += 200) { const { error } = await sb.from('records').delete().eq('user_id', uid).in('id', stale.slice(i, i + 200)); if (error) throw error; }
+      const mine = (deals as any[]).filter(d => d.match !== 'Brand you use').length;
+      if (deals.length) await send(uid, { title: 'Beauty deals are in', body: mine ? `${mine} on your own products or wishes, ${deals.length} in total.` : `${deals.length} deals on brands you use.`, url: './#care/bdeals', tag: 'bdeals' });
+      return json({ ok: true, deals: deals.length });
+    }
     if (body.action === 'recipes') {
-      const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['recipes', 'ingredients', 'wplans', 'rreviews']);
+      const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['recipes', 'ingredients', 'wplans', 'rreviews', 'shops', 'meals']);
       if (error) throw error;
       const ing = new Map(data.filter((r: any) => r.kind === 'ingredients').map((r: any) => [r.id, r.data]));
       // reviews: per recipe how it went, and across all reviews which ingredients you like or not
@@ -454,13 +501,18 @@ Deno.serve(async req => {
         helps: r.data.helps, hasInstructions: !!String(r.data.instructions || '').trim() || undefined, hasPhoto: !!r.data.photo || undefined,
         webPhoto: /^https?:/.test(String(r.data.photo || '')) || undefined
       }));
-      const pantry = [...ing.values()].map((i: any) => clean({ name: i.name, stock: i.stock ? true : undefined, category: i.category }));
+      const pantry = [...ing.values()].map((i: any) => clean({ name: i.name, stock: i.stock ? true : undefined, category: i.category, location: i.location, frozen: i.frozen, expires: i.expires, portions: i.portions, staple: i.staple ? true : undefined, low: i.low ? true : undefined }));
+      // evenings she doesn't cook (meal plan: dinner marked not at home), from today on
+      const todayISO = new Date().toISOString().slice(0, 10);
+      const away = data.filter((r: any) => r.kind === 'meals' && r.data?.away && r.data?.slot === 'Dinner' && String(r.data?.date) >= todayISO).map((r: any) => r.data.date).sort();
+      // the shops she keeps in Kitchen › Shops: read the deals of every shop with readDeals on (plus Dirk, Aldi and AH)
+      const shops = data.filter((r: any) => r.kind === 'shops').map((r: any) => shopOut(r.data));
       // the last plans, so a new week doesn't repeat the same recipes
       const recent = data.filter((r: any) => r.kind === 'wplans').map((r: any) => r.data).sort((a: any, b: any) => String(b.start).localeCompare(String(a.start))).slice(0, 3)
         .map((p: any) => ({ start: p.start, dinners: (p.dinners || []).map((d: any) => d.name) }));
       // what you like and don't like, from Kitchen › Settings
       const { data: pr } = await sb.from('prefs').select('data').eq('user_id', uid).maybeSingle();
-      return json({ recipes, pantry, recent, food: pr?.data?.food || {}, learned });
+      return json({ recipes, away, pantry, freezer: pantry.filter((i: any) => i.location === 'Vriezer' && i.stock), shops, recent, food: pr?.data?.food || {}, learned });
     }
 
     const TARGETS = ['recipes', 'wishes', 'closet', 'beauty', 'supplements', 'gear', 'fitgear', 'inventory', 'ideas', 'cideas', 'stips', 'inspo', 'gifts', 'keep', 'stays', 'trip'];
@@ -614,7 +666,7 @@ Deno.serve(async req => {
       const start = day(body.week?.start), end = day(body.week?.end);
       if (!start || !end) return json({ error: 'week.start and week.end are needed (YYYY-MM-DD)' }, 400);
       const offers = (Array.isArray(body.offers) ? body.offers : []).slice(0, 400).map((o: any) => clean({
-        store: str(o?.store, 40), name: str(o?.name, 160), price: num(o?.price), was: num(o?.was), deal: str(o?.deal, 120), unit: str(o?.unit, 60),
+        store: str(o?.store, 60), name: str(o?.name, 160), price: num(o?.price), was: num(o?.was), deal: str(o?.deal, 120), unit: str(o?.unit, 60),
         category: str(o?.category, 60), from: day(o?.from) || start, until: day(o?.until) || end, url: str(o?.url, 500), photo: str(o?.photo, 500), week: start
       })).filter((o: any) => o.name && o.store);
       const p = body.plan || {};
@@ -624,8 +676,10 @@ Deno.serve(async req => {
         breakfasts: (p.breakfasts || []).slice(0, 6).map(meal), snacks: (p.snacks || []).slice(0, 6).map(meal), drinks: (p.drinks || []).slice(0, 6).map(meal),
         quit: (p.quit || []).slice(0, 6).map(meal), quitTips: str(p.quitTips, 1500),
         shared: (p.shared || []).slice(0, 30).map((s: any) => clean({ name: str(s?.name, 120), store: str(s?.store, 40), price: num(s?.price), deal: str(s?.deal, 120), in: (Array.isArray(s?.in) ? s.in : []).map((x: unknown) => str(x, 140)).slice(0, 12) })),
-        shopping: (p.shopping || []).slice(0, 80).map((s: any) => clean({ name: str(s?.name, 120), store: str(s?.store, 40), price: num(s?.price), deal: str(s?.deal, 120), qty: str(s?.qty, 40), have: s?.have === true ? true : undefined })),
-        tips: str(p.tips, 1200)
+        shopping: (p.shopping || []).slice(0, 80).map((s: any) => clean({ name: str(s?.name, 120), store: str(s?.store, 60), price: num(s?.price), deal: str(s?.deal, 120), qty: str(s?.qty, 40), have: s?.have === true ? true : undefined, market: s?.market === true ? true : undefined, category: str(s?.category, 40), left: str(s?.left, 120) })),
+        tips: str(p.tips, 1200),
+        prep: (Array.isArray(p.prep) ? p.prep : []).slice(0, 15).map((x: any) => clean({ task: str(x?.task ?? x, 200), for: str(x?.for, 120), mins: num(x?.mins) })).filter((x: any) => x.task),
+        prepDay: day(p.prepDay)
       });
       for (const k of ['dinners', 'lunches', 'breakfasts', 'snacks', 'drinks']) for (const m of (plan as any)[k] || []) if (m.photo && !m.recipe) m.photo = await keepPhoto(uid, m.photo);
       // out with last week's deals, in with this week's
@@ -641,9 +695,20 @@ Deno.serve(async req => {
       const planId = same?.[0]?.id || crypto.randomUUID();
       const { error: e3 } = await sb.from('records').upsert({ user_id: uid, id: planId, kind: 'wplans', data: { ...plan, created: Date.now() }, updated_at: now });
       if (e3) throw e3;
+      // put the dinners, lunches and breakfasts straight into the meal plan on their dates; last run's own entries for this week make way
+      const { data: ms } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'meals').gte('data->>date', start).lte('data->>date', end);
+      const autoOld = (ms || []).filter((r: any) => r.data?.auto && r.data?.week === start).map((r: any) => r.id);
+      const busy = new Set((ms || []).filter((r: any) => !(r.data?.auto && r.data?.week === start)).map((r: any) => `${r.data?.date}|${r.data?.away ? 'Dinner' : r.data?.slot}`));
+      const mrows: any[] = [];
+      for (const [k, slot] of [['dinners', 'Dinner'], ['lunches', 'Lunch'], ['breakfasts', 'Breakfast']] as const) for (const m of ((plan as any)[k] || []) as any[]) for (const d of m.dates || []) {
+        if (d < start || d > end || busy.has(`${d}|${slot}`)) continue; busy.add(`${d}|${slot}`);
+        mrows.push({ user_id: uid, id: crypto.randomUUID(), kind: 'meals', data: clean({ date: d, slot, recipe: m.recipe, what: m.recipe ? undefined : m.name, auto: true, week: start, created: Date.now() }), updated_at: now });
+      }
+      if (autoOld.length) { const { error } = await sb.from('records').delete().eq('user_id', uid).in('id', autoOld); if (error) throw error; }
+      if (mrows.length) { const { error } = await sb.from('records').insert(mrows); if (error) throw error; }
       const n = (plan.dinners as unknown[] | undefined)?.length || 0;
-      await send(uid, { title: 'Deals of the week are in', body: `${offers.length} deals at Dirk, Aldi and AH${n ? `, and ${n} dinners that use them` : ''}.`, url: './#kitchen/deals', tag: 'deals' });
-      return json({ ok: true, offers: offers.length, plan: planId });
+      await send(uid, { title: 'Deals of the week are in', body: `${offers.length} deals at ${[...new Set(offers.map((o: any) => o.store))].slice(0, 4).join(', ')}${n ? `, and ${n} dinners that use them` : ''}.`, url: './#kitchen/deals', tag: 'deals' });
+      return json({ ok: true, offers: offers.length, plan: planId, meals: mrows.length });
     }
     return json({ error: 'unknown action' }, 400);
   } catch (e: any) {

@@ -95,6 +95,27 @@ const P = {
 const F = (k, label, type = 'text', o = {}) => ({ k, label, type, ...o });
 const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 const STORES = ['Dirk', 'Aldi', 'Albert Heijn'];
+const SHOP_TYPES = ['Supermarket', 'Toko', 'Butcher', 'Fishmonger', 'Greengrocer', 'Market', 'Drugstore', 'Perfumery', 'Brand store', 'Webshop', 'Other'];
+// the shops you keep in Kitchen › Shops and Beauty › Deals; the weekly tasks read the deals of every shop that has them on
+const shopNames = kind => recs(kind).map(r => r.name).filter(Boolean);
+const kitchenStores = () => { const own = recs('shops').filter(r => r.name && r.type !== 'Butcher' && r.type !== 'Fishmonger').map(r => r.name); return [...new Set([...STORES, ...own])]; };
+const myButcher = () => { const b = recs('shops').filter(r => r.type === 'Butcher'); return b.find(r => r.mine) || b[0] || null; };
+const FREEZE_DAYS = 90;
+// your food settings (Kitchen › Deals): shopping day this week and the finance envelope for groceries
+const food = () => (C?.prefs?.() || {}).food || {};
+const MARKET_DAYS = ['Wed', 'Sat'];
+const isProduce = x => /groente|fruit|vegetable|veg\b|kruiden vers|sla\b|tomaat|komkommer|paprika|ui\b|uien|wortel|appel|banaan|peer|citroen|limoen|gember|knoflook|courgette|broccoli|spinazie|paksoi/i.test(`${x.category || ''} ${x.name || ''}`);
+const groceryEnv = () => { const cats = recs('fcats'), id = food().groceryCat; return (id && cats.find(c => c.id === id)) || cats.find(c => /boodschap|grocer|supermarkt|eten/i.test(c.name || '')) || null; };
+const dealWeekStart = () => { const d = fromISO(today()), back = (d.getDay() + 4) % 7; return addDays(today(), -back); }; // the deals week runs Wednesday to Tuesday
+function groceryBudget() {
+  const c = groceryEnv(); if (!c) return null;
+  const w = fWindow(), days = Math.max(1, diffDays(w.start, w.end) + 1), per = num(c.budget) || 0, ws = dealWeekStart();
+  const spentWeek = fSum(recs('ftx').filter(x => x.category === c.id && !x.bill && !x.transfer && x.date >= ws && x.date <= today()));
+  return { cat: c, week: Math.round(per / days * 7 * 100) / 100, spentWeek, spentPeriod: fCatSpent(c.id, w), period: per };
+}
+const isMeatFish = o => /vlees|vis|meat|fish|kip|gehakt|biefstuk|varken|rund|zalm|kabeljauw|garnal|worst|spek|filet/i.test(`${o.category || ''} ${o.name || ''}`) && !/vega|plant|vegan/i.test(o.name || '');
+const inFreezer = () => recs('ingredients').filter(i => i.location === 'Vriezer' && i.stock !== false && (i.stock || i.frozen));
+const freezerAge = i => i.frozen ? Math.round((fromISO(today()) - fromISO(i.frozen)) / 864e5) : null;
 const HELPS = ['Stop smoking'];
 const FEELS = ['Comfort', 'Light', 'Fresh', 'Hearty', 'Quick', 'Savoury', 'Sweet', 'Spicy'];
 const TEXTURES = ['Crispy', 'Creamy', 'Crunchy', 'Soft', 'Chewy', 'Saucy', 'Dry', 'Mushy'];
@@ -104,7 +125,7 @@ const QUIT = 'Stop smoking', helpsQuit = r => [].concat(r.helps || []).includes(
 const STAY_SCORES = [['clean', 'Cleanliness'], ['location', 'Location'], ['comfort', 'Comfort and bed'], ['facilities', 'Facilities'], ['staff', 'Staff and service'], ['value', 'Value for money'], ['breakfast', 'Breakfast'], ['wifi', 'Wifi'], ['quiet', 'Quiet']];
 const stayScore = r => { const v = STAY_SCORES.map(([k]) => Number(r[k]) || 0).filter(Boolean); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : Number(r.rating) || 0; };
 const CAT_NL = {
-  ingredients: { 'Fruits & Veg': 'Groente & fruit', 'Fish & Meat': 'Vlees & vis', 'Eggs & Dairy': 'Zuivel & eieren', 'Grains & Legumes': 'Granen & peulvruchten', 'Bread & Bakery': 'Brood & bakkerij', 'Nuts & Seeds': 'Noten & zaden', 'Herbs & Spices': 'Kruiden & specerijen', 'Sauces & Oils': 'Sauzen & olie', 'Tins & Jars': 'Blik & pot', 'Frozen': 'Diepvries', 'Drinks': 'Dranken', 'Snack': 'Snacks', 'Confections': 'Zoetigheid', 'Supplements': 'Supplementen', 'Other': 'Overig' },
+  ingredients: { 'Fruits & Veg': 'Groente & fruit', 'Fish & Meat': 'Vlees & vis', 'Eggs & Dairy': 'Zuivel & eieren', 'Grains & Legumes': 'Granen & peulvruchten', 'Bread & Bakery': 'Brood & bakkerij', 'Nuts & Seeds': 'Noten & zaden', 'Herbs & Spices': 'Kruiden & specerijen', 'Sauces & Oils': 'Sauzen & olie', 'Tins & Jars': 'Blik & pot', 'Frozen': 'Diepvries', 'Leftovers': 'Restjes', 'Drinks': 'Dranken', 'Snack': 'Snacks', 'Confections': 'Zoetigheid', 'Supplements': 'Supplementen', 'Other': 'Overig' },
   gear: { 'Kitchen Appliances': 'Keukenapparaten', 'Cookware & Bakeware': 'Pannen & bakvormen', 'Prep Tools & Essentials': 'Voorbereiden', 'Cooking Tools & Utensils': 'Kookgerei', 'Organizing Essentials': 'Opbergen', 'Cleaning Supplies': 'Schoonmaken' }
 };
 const catNL = (kind, v) => (CAT_NL[kind] || {})[v] || v;
@@ -220,21 +241,47 @@ const KINDS = {
     fields: [F('name', 'Name'), F('category', 'Category', 'select', { options: Object.values(CAT_NL.ingredients) }),
       F('location', 'Kept in', 'select', { options: ['Koelkast', 'Vriezer', 'Voorraadkast', 'Keukenkast', 'Fruitmand', 'Broodtrommel', 'Kelder / Berging', 'Overig'] }),
       F('stock', 'In stock', 'check', { half: 1 }), F('low', 'Running low', 'check', { half: 1 }), F('list', 'On grocery list', 'check', { half: 1 }),
-      F('expires', 'Best before', 'date', { half: 1 }), F('helps', 'Helps with', 'multi', { options: HELPS }),
+      F('expires', 'Best before', 'date', { half: 1 }), F('frozen', 'Frozen on', 'date', { half: 1 }), F('portions', 'Portions', 'num', { half: 1 }), F('shop', 'Buy at', 'select', { options: STORES, more: () => shopNames('shops'), half: 1 }), F('staple', 'Basic: always keep in stock', 'check', { half: 1 }), F('helps', 'Helps with', 'multi', { options: HELPS }),
       F('qty', 'Amount', 'text', { half: 1 }), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['category', 'Category'], ['location', 'Where it is']],
-    filters: [['all', 'All'], ['in', 'In stock'], ['low', 'Running low'], ['soon', 'Use soon'], ['out', 'Out of stock']],
-    filter: (r, f) => f === 'in' ? !!r.stock : f === 'out' ? !r.stock : f === 'low' ? !!r.low : f === 'soon' ? useSoon(r) : true,
-    sub: r => [r.category, r.location, r.low ? 'running low' : '', r.expires ? (r.expires < today() ? 'past its date' : 'best before ' + shortDate(r.expires)) : '', r.list ? 'on grocery list' : ''].filter(Boolean).join(' · '),
-    quick: r => ({ on: !!r.stock, label: 'In stock', act: () => save(r, { stock: !r.stock }) })
+    filters: [['all', 'All'], ['in', 'In stock'], ['low', 'Running low'], ['soon', 'Use soon'], ['out', 'Out of stock'], ['basic', 'Basics']],
+    filter: (r, f) => f === 'basic' ? !!r.staple : f === 'in' ? !!r.stock : f === 'out' ? !r.stock : f === 'low' ? !!r.low : f === 'soon' ? useSoon(r) : true,
+    sub: r => [r.category, r.location, r.frozen ? 'frozen ' + shortDate(r.frozen) : '', num(r.portions) ? plural(num(r.portions), 'portion') : '', r.low ? 'running low' : '', r.expires ? (r.expires < today() ? 'past its date' : 'best before ' + shortDate(r.expires)) : '', r.list ? 'on grocery list' : ''].filter(Boolean).join(' · '),
+    quick: r => ({ on: !!r.stock, label: 'In stock', act: () => save(r, { stock: !r.stock, ...(r.staple && r.stock ? { list: true } : {}) }) })
   },
   offers: {
     one: 'deal', many: 'Deals', facet: 'store', photo: 'photo', display: 'cards',
-    fields: [F('name', 'Product'), F('store', 'Shop', 'select', { options: STORES, half: 1 }), F('deal', 'Deal', 'text', { half: 1 }),
+    fields: [F('name', 'Product'), F('store', 'Shop', 'select', { options: STORES, more: () => shopNames('shops'), half: 1 }), F('deal', 'Deal', 'text', { half: 1 }),
       F('price', 'Deal price', 'money', { half: 1 }), F('was', 'Normal price', 'money', { half: 1 }), F('unit', 'Amount', 'text', { half: 1 }), F('category', 'Category', 'text', { half: 1 }),
       F('from', 'From', 'date', { half: 1 }), F('until', 'Until', 'date', { half: 1 }), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo')],
     sorts: [['store', 'Shop'], ['name', 'A to Z'], ['price', 'Cheapest']],
     sub: r => [r.store, r.deal, r.unit, num(r.price) ? eur(num(r.price)) + (num(r.was) ? ` (was ${eur(num(r.was))})` : '') : '', r.until ? 'until ' + shortDate(r.until) : ''].filter(Boolean).join(' · ')
+  },
+  shops: {
+    one: 'shop', many: 'Shops', facet: 'type',
+    fields: [F('name', 'Name'), F('type', 'Type', 'select', { options: SHOP_TYPES, half: 1 }), F('address', 'Address', 'text', { half: 1 }),
+      F('website', 'Website', 'url'), F('dealsUrl', 'Deals or folder page', 'url'),
+      F('readDeals', 'Read the deals every week', 'check', { half: 1 }), F('mine', 'My regular shop', 'check', { half: 1 }), F('notes', 'Notes', 'long')],
+    sorts: [['name', 'A to Z'], ['type', 'Type']],
+    sub: r => [r.type, r.address, r.readDeals ? 'deals read weekly' : '', r.mine ? 'my regular' : ''].filter(Boolean).join(' · ')
+  },
+  bshops: {
+    one: 'shop', many: 'Beauty shops', facet: 'type',
+    fields: [F('name', 'Name'), F('type', 'Type', 'select', { options: SHOP_TYPES, half: 1 }), F('address', 'Address', 'text', { half: 1 }),
+      F('website', 'Website', 'url'), F('dealsUrl', 'Deals or folder page', 'url'),
+      F('readDeals', 'Read the deals every week', 'check', { half: 1 }), F('mine', 'My regular shop', 'check', { half: 1 }), F('notes', 'Notes', 'long')],
+    sorts: [['name', 'A to Z'], ['type', 'Type']],
+    sub: r => [r.type, r.address, r.readDeals ? 'deals read weekly' : '', r.mine ? 'my regular' : ''].filter(Boolean).join(' · ')
+  },
+  bdeals: {
+    one: 'deal', many: 'Beauty deals', facet: 'store', photo: 'photo', display: 'cards',
+    fields: [F('name', 'Product'), F('brand', 'Brand', 'text', { half: 1 }), F('store', 'Shop', 'select', { options: [], more: () => shopNames('bshops'), half: 1 }),
+      F('deal', 'Deal', 'text', { half: 1 }), F('match', 'Why you see it', 'select', { options: ['Your product', 'Running low', 'On your wishlist', 'Brand you use'], half: 1 }),
+      F('price', 'Deal price', 'money', { half: 1 }), F('was', 'Normal price', 'money', { half: 1 }),
+      F('until', 'Until', 'date', { half: 1 }), F('product', 'Your product', 'rel', { to: 'beauty' }), F('wish', 'Your wish', 'rel', { to: 'wishes' }),
+      F('why', 'Note', 'long'), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo')],
+    sorts: [['store', 'Shop'], ['name', 'A to Z'], ['price', 'Cheapest']],
+    sub: r => [r.brand, r.store, r.deal, num(r.price) ? eur(num(r.price)) + (num(r.was) ? ` (was ${eur(num(r.was))})` : '') : '', r.until ? 'until ' + shortDate(r.until) : ''].filter(Boolean).join(' · ')
   },
   rreviews: {
     one: 'review', many: 'Recipe reviews',
@@ -262,7 +309,7 @@ const KINDS = {
   meals: {
     one: 'meal', many: 'Meals',
     fields: [F('date', 'Date', 'date', { half: 1 }), F('slot', 'Meal', 'select', { options: MEALS, half: 1 }),
-      F('recipe', 'Recipe', 'rel', { to: 'recipes' }), F('what', 'Or just write what you eat'), F('away', 'Not eating at home', 'check'), F('notes', 'Notes', 'long')],
+      F('recipe', 'Recipe', 'rel', { to: 'recipes' }), F('what', 'Or just write what you eat'), F('away', 'Not eating at home', 'check'), F('leftover', 'Leftovers', 'select', { options: ['None', 'Fridge', 'Freezer'], half: 1 }), F('notes', 'Notes', 'long')],
     title: r => relName(r.recipe) || r.what || (r.away ? 'Not at home' : '') || r.slot || 'Meal',
     sorts: [['-date', 'Newest']], sub: r => [r.date && niceDate(r.date), r.slot].filter(Boolean).join(' · ')
   },
@@ -301,14 +348,15 @@ const KINDS = {
       F('price', 'Price', 'money', { half: 1 }), F('qty', 'How many', 'num', { half: 1 }),
       F('bought', 'Bought on', 'date', { half: 1 }), F('opened', 'Opened on', 'date', { half: 1 }),
       F('expiry', 'Use before', 'date', { half: 1 }), F('rating', 'Rating', 'rating', { half: 1 }),
-      F('fav', 'Favourite', 'check', { half: 1 }), F('finished', 'Finished', 'check', { half: 1 }), F('wish', 'On my wishlist', 'check', { half: 1 }),
+      F('fav', 'Favourite', 'check', { half: 1 }), F('low', 'Running low', 'check', { half: 1 }), F('finished', 'Finished', 'check', { half: 1 }), F('wish', 'On my wishlist', 'check', { half: 1 }),
       F('acid', 'Counts as an acid', 'check', { half: 1 }),
       F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['brand', 'Brand'], ['-rating', 'Best rated'], ['expiry', 'Use first'], ['-bought', 'Newest']],
     filters: [['all', 'All'], ['own', 'I have'], ['want', 'Wishlist']],
     filter: (r, f) => f === 'own' ? !r.wish : f === 'want' ? !!r.wish : true,
     hide: r => r.finished || r.archived, hideLabel: 'Show finished',
-    sub: r => [r.wish ? 'Wishlist' : '', r.brand, r.type, r.texture, r.am && r.pm ? 'AM + PM' : r.am ? 'AM' : r.pm ? 'PM' : ''].filter(Boolean).join(' · '),
+    quick: r => ({ on: !!r.low, label: 'Running low', act: () => save(r, { low: !r.low }) }),
+    sub: r => [r.low ? 'running low' : '', r.wish ? 'Wishlist' : '', r.brand, r.type, r.texture, r.am && r.pm ? 'AM + PM' : r.am ? 'AM' : r.pm ? 'PM' : ''].filter(Boolean).join(' · '),
     side: r => r.expiry ? (r.expiry < today() ? 'expired' : diffDays(today(), r.expiry) <= 30 ? 'use by ' + shortDate(r.expiry) : '') : ''
   },
   supplements: {
@@ -1011,10 +1059,10 @@ function fitTile() {
 const SECTIONS = [
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile,
     groups: { food: ['Food', P.book], shop: ['Shop', P.cart] },
-    views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['quit', 'Stop smoking', P.leaf, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['pantry', 'Pantry', P.jar, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['todo', 'To do', P.check]] },
+    views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['quit', 'Stop smoking', P.leaf, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['pantry', 'Pantry', P.jar, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['shops', 'Shops', P.house, 'shop'], ['todo', 'To do', P.check]] },
   { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile,
     groups: { body: ['Body', P.pulse], beauty: ['Beauty', P.drop], mind: ['Mind', P.pen], plans: ['Plans', P.star] },
-    views: [['today', 'Overview', P.grid], ['habits', 'Routines', P.repeat, 'body'], ['health', 'Health', P.pulse, 'body'], ['cycle', 'Cycle', P.moon, 'body'], ['supplements', 'Supplements', P.pill, 'body'], ['beauty', 'Products', P.drop, 'beauty'], ['skin', 'Skincare', P.flask, 'beauty'], ['diary', 'Skin diary', P.camera, 'beauty'], ['journal', 'Journal', P.pen, 'mind'], ['mindful', 'Mindfulness', P.moon, 'mind'], ['growth', 'Growth', P.target, 'mind'], ['ideas', 'Ideas', P.star, 'plans'], ['gifts', 'Gifts', P.gift, 'plans'], ['trips', 'Trips', P.plane, 'plans'], ['docs', 'Documents', P.doc, 'plans'], ['saved', 'Saved links', P.link, 'plans'], ['todo', 'To do', P.check]] },
+    views: [['today', 'Overview', P.grid], ['habits', 'Routines', P.repeat, 'body'], ['health', 'Health', P.pulse, 'body'], ['cycle', 'Cycle', P.moon, 'body'], ['supplements', 'Supplements', P.pill, 'body'], ['beauty', 'Products', P.drop, 'beauty'], ['skin', 'Skincare', P.flask, 'beauty'], ['diary', 'Skin diary', P.camera, 'beauty'], ['bdeals', 'Deals', P.tag, 'beauty'], ['journal', 'Journal', P.pen, 'mind'], ['mindful', 'Mindfulness', P.moon, 'mind'], ['growth', 'Growth', P.target, 'mind'], ['ideas', 'Ideas', P.star, 'plans'], ['gifts', 'Gifts', P.gift, 'plans'], ['trips', 'Trips', P.plane, 'plans'], ['docs', 'Documents', P.doc, 'plans'], ['saved', 'Saved links', P.link, 'plans'], ['todo', 'To do', P.check]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile,
     groups: { plan: ['Plan', P.target], look: ['Review', P.trend] },
     views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target, 'plan'], ['debt', 'Debt', P.card, 'plan'], ['forecast', 'Forecast', P.trend, 'plan'], ['year', 'Year', P.calendar, 'look'], ['networth', 'Net worth', P.wallet, 'look'], ['reviews', 'Reviews', P.doc, 'look'], ['todo', 'To do', P.check]] },
@@ -1037,7 +1085,9 @@ const PAGES = {
 
   'kitchen/meals': { title: 'Meal plan', segs: [{ key: 'week', label: 'Week', kind: 'meals', fill: weekFill, tools: false }, { key: 'month', label: 'Month', kind: 'meals', fill: monthFill, tools: false }, { kind: 'mealprep' }] },
   'kitchen/groceries': { title: 'Groceries', segs: [{ key: 'list', label: 'Shopping list', kind: 'ingredients', fill: groceryFill, tools: false }] },
-  'kitchen/pantry': { title: 'Pantry', segs: [{ kind: 'ingredients' }] },
+  'kitchen/pantry': { title: 'Pantry', segs: [{ kind: 'ingredients' }, { key: 'freezer', label: 'Freezer', kind: 'ingredients', fill: freezerFill, tools: false }] },
+  'kitchen/shops': { title: 'Shops', segs: [{ kind: 'shops', label: 'Your shops' }] },
+  'care/bdeals': { title: 'Beauty deals', segs: [{ key: 'deals', label: 'This week', kind: 'bdeals', fill: bdealFill, tools: false }, { kind: 'bshops' }, { kind: 'bdeals', label: 'All deals' }] },
   'kitchen/gear': { title: 'Kitchen gear', segs: [{ kind: 'gear' }] },
   'care/today': { render: careToday, adds: ['mindful', 'lgoals', 'courses', 'hobbies', 'habits', 'routines', 'journal', 'sleep', 'beauty', 'supplements', 'appts', 'symptoms', 'meditation', 'ideas', 'gifts', 'documents'] },
   'care/beauty': { title: 'Beauty products', segs: [{ kind: 'beauty' }, { kind: 'breviews' }] },
@@ -1891,7 +1941,8 @@ function beautyReviews(r) {
   const vs = recs('breviews').filter(v => v.product === r.id).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const wk = r.opened ? Math.floor(diffDays(r.opened, today()) / 7) : null, has = a => vs.some(v => v.after === a);
   const due = wk == null ? (vs.length ? '' : 'First use') : wk >= 8 && !has('8 weeks') ? '8 weeks' : wk >= 4 && !has('4 weeks') ? '4 weeks' : wk >= 1 && !has('1 week') ? '1 week' : !vs.length ? 'First use' : '';
-  return `<section class="ltipsteps"><div class="lph3"><h3>Reviews</h3><button type="button" class="chip ${due ? 'on' : ''}" data-act="newreview" data-id="${r.id}" data-v="${esc(due || 'Later')}">${due ? `Write your ${esc(due.toLowerCase())} review` : 'Add a review'}</button></div>
+  const lowBtn = `<div class="lwrap blowrow"><button type="button" class="chip ${r.low ? 'on' : ''}" data-act="blowsheet" data-id="${r.id}" aria-pressed="${!!r.low}">${r.low ? svg(P.check) + ' Running low' : 'Running low?'}</button><span class="lnone">${r.low ? 'The weekly task looks for deals on this.' : 'Tap when it is almost empty, and the weekly task looks for deals.'}</span></div>`;
+  return lowBtn + `<section class="ltipsteps"><div class="lph3"><h3>Reviews</h3><button type="button" class="chip ${due ? 'on' : ''}" data-act="newreview" data-id="${r.id}" data-v="${esc(due || 'Later')}">${due ? `Write your ${esc(due.toLowerCase())} review` : 'Add a review'}</button></div>
     ${vs.length ? `<div class="lrows">${vs.map(v => `<div class="lrow"><button class="lmain" data-act="open" data-id="${v.id}"><b>${esc(v.after || 'Review')}${reviewAvg(v) ? ` · ${reviewAvg(v).toFixed(1)} / 5` : ''}</b><span>${esc([v.date && niceDate(v.date), v.again && 'buy again: ' + v.again.toLowerCase(), v.reason].filter(Boolean).join(' · '))}</span></button></div>`).join('')}</div>` : '<p class="lnone">No reviews yet. Rate how your skin reacts, how it feels, and whether you would buy it again.</p>'}</section>`;
 }
 /* Skin diary: photos, how your skin is, what you used and the circumstances, in four views */
@@ -1985,8 +2036,100 @@ function skinOrderSheet() {
     try { p ? await put('skinplan', p.id, { ...dataOf(p), order: [...list.map(b => b.id), ...others] }) : await create('skinplan', { order: list.map(b => b.id) }); C.closeSheet(); C.toast('Order saved'); } catch (e) { failed(e); }
   };
 }
+// basics: when one runs out or runs low it goes on the grocery list by itself
+let stapleBusy = false;
+function stapleRestock() {
+  if (stapleBusy || !C) return;
+  const tried = (L.stapleTried ||= new Set()), need = recs('ingredients').filter(i => i.staple && !i.list && (!i.stock || i.low) && !tried.has(i.id));
+  if (!need.length) return;
+  stapleBusy = true; need.forEach(i => tried.add(i.id));
+  putMany(need.map(i => ({ id: i.id, kind: 'ingredients', data: { ...dataOf(i), list: true } })), null, `Put ${plural(need.length, 'basic')} on the grocery list`)
+    
+    .then(() => C.toast(`${plural(need.length, 'basic')} on your grocery list`)).catch(e => console.warn('restock', e)).finally(() => { stapleBusy = false; });
+}
+// evenings you don't cook: a dinner marked "Not eating at home" in the meal plan
+const awayOn = d => recs('meals').find(m => m.date === d && m.slot === 'Dinner' && m.away);
+async function toggleAway(d) {
+  const m = awayOn(d);
+  try { if (m) await del(m.id); else await create('meals', { date: d, slot: 'Dinner', away: true }); } catch { C.toast('Could not save. Try again.'); }
+}
+function awayRow() {
+  const days = Array.from({ length: 10 }, (_, k) => addDays(today(), k));
+  return `<div class="dday"><span class="rowlbl">Not cooking</span><div class="lwrap">${days.map(d => { const on = !!awayOn(d), dt = fromISO(d); return `<button class="chip ${on ? 'on' : ''}" data-act="away" data-v="${d}" aria-pressed="${on}">${dt.toLocaleDateString('en-GB', { weekday: 'short' })} ${dt.getDate()}</button>`; }).join('')}</div><span class="lnone">Tap the evenings you eat out or get something. The plan cooks fewer dinners.</span></div>`;
+}
+// Sunday prep from the week plan: tick tasks off on this device
+function prepPanel(plan, compact) {
+  const list = plan?.prep || []; if (!list.length) return '';
+  const done = new Set(L.prepDone?.[plan.id] || []), day = plan.prepDay ? fromISO(plan.prepDay).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' }) : 'Sunday';
+  const mins = list.reduce((n, x) => n + (num(x.mins) || 0), 0);
+  return panel(compact ? 'Prep day' : `Prep on ${day}`, `<p class="lnone">${plural(list.length, 'task')}${mins ? `, about ${mins} min` : ''}. Do these once and cook faster all week.</p><div class="lrows">${list.map((x, k) => `<label class="lrow dpick ${done.has(k) ? 'gone' : ''}"><input type="checkbox" data-prep="${plan.id}:${k}" ${done.has(k) ? 'checked' : ''}><span class="lmain"><b>${esc(x.task)}</b><span>${esc([x.for, num(x.mins) ? x.mins + ' min' : ''].filter(Boolean).join(' · '))}</span></span></label>`).join('')}</div>`);
+}
+document.addEventListener('change', e => { const c = e.target; if (!C || !c.matches?.('[data-prep]')) return; const [id, k] = c.dataset.prep.split(':'); const all = (L.prepDone ||= {}), set = new Set(all[id] || []); c.checked ? set.add(+k) : set.delete(+k); all[id] = [...set]; try { localStorage.setItem('prepDone', JSON.stringify(all)); } catch {} C.render(); });
+try { L.prepDone = JSON.parse(localStorage.getItem('prepDone') || '{}'); } catch {}
+// learning to eat breakfast: today's planned breakfast and a tick that counts as a habit in Routines
+const bfHabit = () => recs('habits').find(h => /breakfast|ontbijt/i.test(h.name || ''));
+async function hadBreakfast() {
+  const h = bfHabit();
+  if (h) return toggleDay(h);
+  try { await create('habits', { name: 'Eat breakfast', onDays: [...WEEKDAYS], area: 'Nutrition', why: 'More energy in the morning, fewer cravings later.', days: [today()] }); C.toast('Nice. Breakfast is now a habit in Routines'); } catch { C.toast('Could not save. Try again.'); }
+}
+function breakfastPanel() {
+  const t = today(), m = recs('meals').find(x => x.date === t && x.slot === 'Breakfast' && !x.away), h = bfHabit(), done = h && daysSet(h).has(t);
+  const ideas = (curPlan()?.breakfasts || []).slice(0, 3);
+  const name = m ? relName(m.recipe) || m.what : '';
+  return panel('Breakfast', `${name ? `<p class="lbig">${esc(name)}</p>` : ideas.length ? `<div class="lwrap">${ideas.map(b => `<span class="chip">${esc(b.name)}</span>`).join('')}</div>` : quiet('Something small counts too: a boiled egg, crackers with aged cheese, or toast.')}
+    <div class="dbtns" style="margin-top:8px"><button class="btn small ${done ? '' : 'primary'}" data-act="hadbf">${done ? svg(P.check) + ' Had breakfast' : 'I had breakfast'}</button>${h ? `<span class="lnone">${esc([`${weekDone(h)} of 7 this week`, streak(h)].filter(Boolean).join(' · '))}</span>` : ''}</div>`);
+}
+// after a lunch or dinner: portions left over go to the fridge (3 days) or the freezer, or nowhere
+async function leftover(id, where) {
+  const m = L.byId[id]; if (!m) return;
+  const name = 'Leftover: ' + (relName(m.recipe) || m.what || m.slot);
+  const rows = [{ id: m.id, kind: 'meals', data: { ...dataOf(m), leftover: where } }];
+  if (where !== 'None') rows.push({ id: C.uuid(), kind: 'ingredients', data: { name, category: 'Restjes', stock: true, portions: 1, created: Date.now(), ...(where === 'Freezer' ? { location: 'Vriezer', frozen: today() } : { location: 'Koelkast', expires: addDays(today(), 3) }) } });
+  try { await putMany(rows, null, where === 'None' ? 'No leftovers' : `Leftovers in the ${where.toLowerCase()}`); C.toast(where === 'None' ? 'Noted' : `In the ${where.toLowerCase()}${where === 'Fridge' ? ': eat within 3 days' : ''}`); } catch { C.toast('Could not save. Try again.'); }
+}
+function leftoverPanel() {
+  const t = today(), list = recs('meals').filter(m => (m.slot === 'Dinner' || m.slot === 'Lunch') && !m.away && !m.leftover && (m.recipe || m.what) && (m.date === t || m.date === addDays(t, -1))).sort((a, b) => a.date.localeCompare(b.date));
+  if (!list.length) return '';
+  return panel('Any leftovers?', `<p class="lnone">Put what is left in the fridge or the freezer, so nothing goes to waste.</p><div class="lrows">${list.map(m => `<div class="lrow"><span class="lmain"><b>${esc(relName(m.recipe) || m.what)}</b><span>${esc([m.date === t ? 'today' : 'yesterday', m.slot.toLowerCase()].join(' · '))}</span></span><div class="dbtns"><button class="btn small" data-act="leftover" data-id="${m.id}" data-v="Fridge">Fridge</button><button class="btn small" data-act="leftover" data-id="${m.id}" data-v="Freezer">Freezer</button><button class="btn small ghost" data-act="leftover" data-id="${m.id}" data-v="None">None</button></div></div>`).join('')}</div>`);
+}
+// meat and fish: only when on sale (then stock up and freeze), otherwise from the freezer or the butcher
+function meatPanel(offers) {
+  const on = offers.filter(isMeatFish).sort((a, b) => norm(a.name).localeCompare(norm(b.name))), fz = inFreezer().filter(i => /vlees|vis/i.test(i.category || '') || isMeatFish(i)), b = myButcher();
+  const deal = o => `<div class="lrow"><span class="lmain"><b>${esc(o.name)}</b><span>${esc([o.store, o.deal, o.unit, num(o.price) ? eur(num(o.price)) + (num(o.was) ? ` (was ${eur(num(o.was))})` : '') : '', o.until ? 'until ' + shortDate(o.until) : ''].filter(Boolean).join(' · '))}</span></span><button class="btn small" data-act="freeze" data-id="${o.id}">Bought, freeze it</button></div>`;
+  const body = on.length ? `<p class="lnone">Stock up while it is cheap and freeze what you don't eat this week.</p><div class="lrows mfrows">${on.map(deal).join('')}</div>`
+    : `<p class="lnone">No meat or fish on sale this week. Use your freezer${b ? `, or get it at ${esc(b.name)}` : ', or get it at the butcher'}.</p>`;
+  const fzl = fz.length ? `<p class="dsub">In your freezer · ${fz.length}</p><div class="lwrap">${fz.slice(0, 12).map(i => `<button class="chip" data-act="open" data-id="${i.id}">${esc(i.name)}${num(i.portions) ? ` · ${num(i.portions)}` : ''}</button>`).join('')}</div>` : '';
+  return panel('Meat and fish', body + fzl, ['kitchen/pantry', 'Your freezer']);
+}
+function freezerFill(fill) {
+  const t = today(), list = inFreezer().sort((a, b) => (a.frozen || '9').localeCompare(b.frozen || '9'));
+  const row = i => { const age = freezerAge(i), old = age != null && age >= FREEZE_DAYS;
+    return `<div class="lrow ${old ? 'fzold' : ''}"><button class="lmain" data-act="open" data-id="${i.id}"><b>${esc(i.name)}</b><span>${esc([i.category, num(i.portions) ? plural(num(i.portions), 'portion') : i.qty, age != null ? (age < 7 ? `frozen ${age === 0 ? 'today' : plural(age, 'day') + ' ago'}` : `frozen ${plural(Math.round(age / 7), 'week')} ago`) : 'no freeze date', old ? 'use soon' : ''].filter(Boolean).join(' · '))}</span></button><button class="btn small" data-act="freezeuse" data-id="${i.id}">${num(i.portions) > 1 ? 'Used one' : 'Used it'}</button></div>`; };
+  const old = list.filter(i => (freezerAge(i) ?? 0) >= FREEZE_DAYS).length;
+  fill.innerHTML = `<div class="ltools"><button class="btn small primary" data-freezer>+ Put something in the freezer</button></div>
+    ${old ? `<div class="note">${plural(old, 'thing')} ${old === 1 ? 'has' : 'have'} been in the freezer for 3 months or more. Use ${old === 1 ? 'it' : 'them'} first.</div>` : ''}
+    ${list.length ? `<div class="lrows">${list.map(row).join('')}</div>` : quiet('Your freezer is empty. Meat or fish from a deal goes here with the date you froze it.')}`;
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-freezer]'); if (!b || !C) return; e.stopImmediatePropagation(); openEditor('ingredients', null, { location: 'Vriezer', stock: true, frozen: today(), category: 'Vlees & vis' }); }, true);
+// beauty deals: what the weekly task found on your own products, things running low and your wishes
+function bdealFill(fill) {
+  const live = recs('bdeals').filter(o => !o.until || o.until >= today());
+  const groups = [['Your product', 'On your products'], ['Running low', 'Running low or finished'], ['On your wishlist', 'On your wishlist'], ['Brand you use', 'Brands you use']];
+  const card = o => { const pr = o.product && L.byId[o.product], ph = o.photo || (pr && photoOf(pr));
+    return `<div class="dmeal bdeal">${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}<div class="dmb"><b>${esc(o.name)}</b><span>${esc([o.brand, o.store].filter(Boolean).join(' · '))}</span>
+      <p class="bdprice">${num(o.price) ? `<b>${eur(num(o.price))}</b>` : ''}${num(o.was) ? ` <s>${eur(num(o.was))}</s>` : ''}${o.deal ? ` <span class="chip">${esc(o.deal)}</span>` : ''}</p>
+      ${o.why ? `<p class="duses">${esc(o.why)}</p>` : ''}${o.until ? `<p class="duses">Until ${esc(shortDate(o.until))}</p>` : ''}
+      <div class="dbtns">${o.url ? `<a class="btn small primary" href="${esc(o.url)}" target="_blank" rel="noopener">Open deal</a>` : ''}${pr ? `<button class="btn small" data-act="open" data-id="${pr.id}">Your product</button>` : ''}<button class="btn small" data-act="open" data-id="${o.id}">Details</button></div></div></div>`; };
+  const shops = recs('bshops'), readN = shops.filter(x => x.readDeals).length;
+  const body = groups.map(([k, title]) => { const l = live.filter(o => (o.match || 'Brand you use') === k); return l.length ? `<h3 class="lgh">${esc(title)} · ${l.length}</h3><div class="bdgrid">${l.map(card).join('')}</div>` : ''; }).join('');
+  const low = recs('beauty').filter(b => b.low || b.finished);
+  const lowList = low.length ? `<h3 class="lgh">Running low · ${low.length}</h3><div class="lrows">${low.map(b => { const dl = live.filter(o => o.product === b.id).sort((x, y) => (num(x.price) ?? 1e9) - (num(y.price) ?? 1e9))[0]; return `<div class="lrow"><button class="lmain" data-act="open" data-id="${b.id}"><b>${esc(b.name)}</b><span>${esc([b.brand, b.finished ? 'finished' : 'running low', dl ? `deal at ${dl.store}${num(dl.price) ? ' ' + eur(num(dl.price)) : ''}` : 'no deal this week'].filter(Boolean).join(' · '))}</span></button><button class="btn small ghost" data-act="blow" data-id="${b.id}">Got it</button></div>`; }).join('')}</div>` : '';
+  fill.innerHTML = `${lowList}${body || quiet('No beauty deals yet. Every week a task checks your beauty shops for deals on your own products, things running low and your wishlist.')}
+    <p class="lnone">${shops.length ? `${plural(readN, 'shop')} checked every week. Add or remove shops under Beauty shops.` : 'Add your beauty shops under Beauty shops so the weekly task knows where to look.'}</p>`;
+}
 function dealsPage(host) {
-  const plan = curPlan(), offers = liveOffers(), byStore = STORES.map(s => [s, offers.filter(o => o.store === s)]).filter(([, l]) => l.length);
+  const plan = curPlan(), offers = liveOffers(), allStores = [...new Set([...kitchenStores(), ...offers.map(o => o.store).filter(Boolean)])], byStore = allStores.map(s => [s, offers.filter(o => o.store === s)]).filter(([, l]) => l.length);
   const mine = recipeDeals(offers).slice(0, 8);
   const mealCard = (m, i, k) => {
     const own = m.recipe && L.byId[m.recipe], name = own ? titleOf(own) : m.name || 'Recipe', ph = own ? photoOf(own) : m.photo;
@@ -1997,18 +2140,25 @@ function dealsPage(host) {
       <button class="btn small primary" data-act="dplan" data-k="${k}" data-i="${i}">Put in meal plan</button></div></div></div>`;
   };
   const block = (k, title, sub) => { const l = plan?.[k] || []; return l.length ? panel(title, `<p class="lnone">${esc(sub)}</p><div class="dmeals">${l.map((m, i) => mealCard(m, i, k)).join('')}</div>`) : ''; };
-  const shopping = plan?.shopping || [], shopBy = [...STORES, 'Other'].map(s => [s, shopping.filter(x => (STORES.includes(x.store) ? x.store : 'Other') === s)]).filter(([, l]) => l.length);
+  const shopping = plan?.shopping || [], sday = food().shopDay || '', mkt = MARKET_DAYS.includes(sday), mktName = recs('shops').find(r => r.type === 'Market')?.name || 'Market', storeOf = x => mkt && (x.market || isProduce(x)) ? mktName : x.store,
+    shopStores = [...new Set([...(mkt ? [mktName] : []), ...allStores, ...shopping.map(x => x.store).filter(Boolean)])], shopBy = [...shopStores, 'Other'].map(s => [s, shopping.filter(x => (shopStores.includes(storeOf(x)) ? storeOf(x) : 'Other') === s)]).filter(([, l]) => l.length);
+  const cost = fSum(shopping.filter(x => !x.have), 'price'), bud = groceryBudget();
   const saved = fSum(offers.filter(o => num(o.was) > num(o.price)).map(o => ({ amount: num(o.was) - num(o.price) })));
   host.innerHTML = `${head('Deals of the week')}<div class="ldeals">
-  <div class="tiles">${fTile('Deals', String(offers.length), byStore.map(([s, l]) => `${s} ${l.length}`).join(' · ') || 'none yet')}${fTile('Dinners', String((plan?.dinners || []).length), plan ? `each for 2 days · ${esc(shortDate(plan.start))} to ${esc(shortDate(plan.end))}` : 'no plan yet')}${fTile('Shared', String((plan?.shared || []).length), 'deal ingredients used in more than one recipe')}${fTile('Your recipes', String(mine.length), 'use something on offer')}</div>
-  ${!plan && !offers.length ? panel('How this works', `<p class="lnone">Every Wednesday a task reads the folders of Dirk, Aldi and Albert Heijn, looks through your recipes and your pantry, and puts this week's deals here with a plan: 5 dinners that each last 2 days, 3 office lunches that reheat in a microwave, 3 breakfasts and a few snacks. It reuses the same deal ingredients across recipes, so you buy less and waste less.</p><p class="lnone">It needs the Supabase function <b>offers</b> with the secret <b>OFFERS_TOKEN</b>. Then the first plan shows up after the next Wednesday.</p>`) : ''}
+  <div class="tiles">${fTile('Deals', String(offers.length), byStore.map(([s, l]) => `${s} ${l.length}`).join(' · ') || 'none yet')}${fTile('Dinners', String((plan?.dinners || []).length), plan ? `each for 2 days · ${esc(shortDate(plan.start))} to ${esc(shortDate(plan.end))}` : 'no plan yet')}${fTile('Shared', String((plan?.shared || []).length), 'deal ingredients used in more than one recipe')}${bud ? fTile('Budget this week', fEur0(bud.week), `${eur(bud.spentWeek)} spent since Wednesday${cost ? ` · plan about ${eur(cost)}` : ''}`) : fTile('Plan costs', cost ? eur(cost) : '–', saved ? `${eur(saved)} saved with deals` : 'from the shopping list')}</div>
+  <div class="dday"><span class="rowlbl">I shop on</span><div class="seg fseg" role="group">${[['Wed', 'Wednesday'], ['Fri', 'Friday'], ['Sat', 'Saturday']].map(([k, l]) => `<button data-act="shopday" data-v="${k}" aria-pressed="${sday === k}">${l}</button>`).join('')}</div><span class="lnone">${mkt ? `Fruit and vegetables go on the ${esc(mktName)} list: buy small amounts.` : sday ? 'No market today: fruit and vegetables stay at the shop.' : 'On Wednesday and Saturday fruit and vegetables move to the market list.'}</span></div>
+  ${awayRow()}
+  ${bud ? `<div class="dbudget"><div class="dbar"><i style="width:${Math.min(100, bud.week ? 100 * (bud.spentWeek + (cost || 0)) / bud.week : 0)}%" class="${bud.spentWeek + cost > bud.week ? 'over' : ''}"></i></div><p class="lnone">${esc(bud.cat.name)} in Finance: ${eur(bud.spentPeriod)} of ${eur(bud.period)} this ${fMode() === 'month' ? 'month' : 'pay'}. ${bud.spentWeek + cost > bud.week ? `The plan goes ${eur(bud.spentWeek + cost - bud.week)} over this week's share.` : `${eur(bud.week - bud.spentWeek - cost)} left this week after the plan.`}${saved ? ` Deals save you ${eur(saved)}.` : ''}</p></div>` : (recs('fcats').length ? `<p class="lnone">Pick your groceries envelope under Kitchen › Settings to see your budget here.</p>` : '')}
+  ${!plan && !offers.length ? panel('How this works', `<p class="lnone">Every Wednesday a task reads the deals of Dirk, Aldi, Albert Heijn and every shop under Shops that has its deals switched on, looks through your recipes, pantry and freezer, and puts this week's deals here with a plan: 5 dinners that each last 2 days, 3 office lunches that reheat in a microwave, 3 breakfasts and a few snacks. It reuses the same deal ingredients across recipes, so you buy less and waste less.</p><p class="lnone">It needs the Supabase function <b>offers</b> with the secret <b>OFFERS_TOKEN</b>. Then the first plan shows up after the next Wednesday.</p>`) : ''}
   ${plan?.tips ? `<div class="note dnote">${esc(plan.tips)}</div>` : ''}
+  ${offers.length || inFreezer().length ? meatPanel(offers) : ''}
+  ${prepPanel(plan)}
   ${block('dinners', 'Dinners', 'Cook once, eat twice: each one is enough for 2 days.')}
   <div class="mrow2 dmrow">${block('lunches', 'Lunch for the office', 'Make ahead, take along, warm up in the microwave.') || ''}${block('breakfasts', 'Breakfast', 'Quick, or ready the night before.') || ''}</div>
   <div class="mrow2 dmrow">${block('snacks', 'Snacks', 'Something for in between.') || ''}${block('drinks', 'Instead of soda', 'Drinks without added sugar that still taste of something.') || ''}</div>
   ${block('quit', 'Helps you quit smoking', 'Something for the hands and mouth, or to get through a craving.')}
   <div class="mrow2 dmrow">${plan?.shared?.length ? panel('Used in several recipes', `<div class="lrows">${plan.shared.map(x => `<div class="lrow"><span class="lmain"><b>${esc(x.name)}</b><span>${esc([x.store, x.deal, num(x.price) ? eur(num(x.price)) : '', (x.in || []).length ? 'in ' + x.in.join(', ') : ''].filter(Boolean).join(' · '))}</span></span></div>`).join('')}</div>`) : ''}
-    ${shopping.length ? panel('Shopping list', `${shopBy.map(([s, l]) => `<p class="dsub">${esc(s)}</p><div class="lrows">${l.map(x => { const k = shopping.indexOf(x), on = dealPicked(x, k); return `<label class="lrow dpick ${x.have ? 'gone' : ''}"><input type="checkbox" data-dpick="${k}" ${on ? 'checked' : ''} aria-label="Put ${esc(x.name)} on the list"><span class="lmain"><b>${esc(x.name)}</b><span>${esc([x.qty, x.deal, num(x.price) ? eur(num(x.price)) : '', x.have ? 'you have this' : ''].filter(Boolean).join(' · '))}</span></span></label>`; }).join('')}</div>`).join('')}<p class="lnone">Untick what you don't want.</p><button class="btn small primary" data-act="dgroc">Put ${plural(shopping.filter(dealPicked).length, 'thing')} on my grocery list</button>`) : ''}</div>
+    ${shopping.length ? panel('Shopping list', `${shopBy.map(([s, l]) => `<p class="dsub">${esc(s)}</p><div class="lrows">${l.map(x => { const k = shopping.indexOf(x), on = dealPicked(x, k); return `<label class="lrow dpick ${x.have ? 'gone' : ''}"><input type="checkbox" data-dpick="${k}" ${on ? 'checked' : ''} aria-label="Put ${esc(x.name)} on the list"><span class="lmain"><b>${esc(x.name)}</b><span>${esc([x.qty, x.deal, num(x.price) ? eur(num(x.price)) : '', x.have ? 'you have this' : '', x.left ? 'left over: ' + x.left : ''].filter(Boolean).join(' · '))}</span></span></label>`; }).join('')}</div>`).join('')}<p class="lnone">Untick what you don't want.</p><button class="btn small primary" data-act="dgroc">Put ${plural(shopping.filter(dealPicked).length, 'thing')} on my grocery list</button>`) : ''}</div>
   ${mine.length ? panel('Your recipes with deals', `<div class="lrows">${mine.map(({ r, hits }) => `<div class="lrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(hits.slice(0, 4).map(o => `${o.name} (${o.store})`).join(', '))}${hits.length > 4 ? ` and ${hits.length - 4} more` : ''}</span></button><span class="lside">${plural(hits.length, 'deal')}</span></div>`).join('')}</div>`) : ''}
   ${byStore.length ? panel('All deals', `${byStore.map(([s, l]) => `<p class="dsub">${esc(s)} · ${l.length}</p><div class="lgrid dgrid">${l.sort((a, b) => norm(a.category || 'zz').localeCompare(norm(b.category || 'zz')) || norm(a.name).localeCompare(norm(b.name))).slice(0, L.dealsAll ? 400 : 6).map(o => prodCard(o)).join('')}</div>`).join('')}${byStore.some(([, l]) => l.length > 6) ? `<button class="btn small" data-act="dealsall">${L.dealsAll ? 'Show fewer deals' : `See all ${offers.length} deals`}</button>` : ''}${saved ? `<p class="mmuted">Together about ${fEur0(saved)} off the normal prices.</p>` : ''}`) : ''}</div>`;
 }
@@ -2025,7 +2175,7 @@ async function dealsAct(act, k, i) {
   const m = plan[k]?.[i];
   if (act === 'dgroc') {
     const rows = [], seen = new Set();
-    for (const [k, x] of (plan.shopping || []).entries()) { if (!dealPicked(x, k)) continue; const r = ingRow(x.name, { list: true }); if (seen.has(r.id)) continue; seen.add(r.id); rows.push(r); }
+    for (const [k, x] of (plan.shopping || []).entries()) { if (!dealPicked(x, k)) continue; const r = ingRow(x.name, { list: true, ...(x.store ? { shop: x.store } : {}), ...(x.qty ? { qty: x.qty } : {}) }); if (seen.has(r.id)) continue; seen.add(r.id); rows.push(r); }
     if (!rows.length) { C.toast('Nothing to add: you have everything.'); return; }
     try { await putMany(rows, null, `Put ${plural(rows.length, 'thing')} from the deals on the grocery list`); C.toast(`${plural(rows.length, 'thing')} on your grocery list`); } catch { C.toast('Could not save. Try again.'); }
     return;
@@ -2044,7 +2194,7 @@ async function dealsAct(act, k, i) {
   }
   if (act === 'dplan') {
     const slot = { dinners: 'Dinner', lunches: 'Lunch', breakfasts: 'Breakfast', snacks: 'Snack', drinks: 'Snack', quit: 'Snack' }[k], n = k === 'dinners' ? (num(m.days) || 2) : ['snacks', 'drinks', 'quit'].includes(k) ? 1 : (num(m.days) || 2);
-    const taken = new Set(recs('meals').filter(x => x.slot === slot).map(x => x.date)), dates = [];
+    const taken = new Set(recs('meals').filter(x => x.slot === slot || (x.away && slot === 'Dinner')).map(x => x.date)), dates = [];
     for (let d = today(), j = 0; dates.length < n && j < 21; j++, d = addDays(d, 1)) if (!taken.has(d) && (k !== 'lunches' || ![0, 6].includes(fromISO(d).getDay()))) dates.push(d);
     const rows = dates.map(date => ({ id: C.uuid(), kind: 'meals', data: { date, slot, ...(m.recipe && L.byId[m.recipe] ? { recipe: m.recipe } : { what: m.name || 'Recipe' }), notes: 'From the deals of the week', created: Date.now() } }));
     try { await putMany(rows, null, `Planned ${m.name || 'a recipe'} for ${plural(rows.length, 'day')}`); C.toast(`In your meal plan: ${dates.map(d => shortDate(d)).join(', ')}`); } catch { C.toast('Could not save. Try again.'); }
@@ -2052,6 +2202,7 @@ async function dealsAct(act, k, i) {
 }
 
 function kitchenToday(host) {
+  setTimeout(stapleRestock, 0);
   const t = today(), meals = recs('meals').filter(m => m.date === t);
   const groc = recs('ingredients').filter(i => i.list).sort((a, b) => norm(a.name).localeCompare(norm(b.name)));
   const prep = recs('mealprep').filter(p => p.status === 'Klaar' || p.status === 'Te preppen').sort((a, b) => (a.until || '9').localeCompare(b.until || '9'));
@@ -2066,8 +2217,12 @@ function kitchenToday(host) {
   <div class="panels">
     ${(() => { const soon = recs('ingredients').filter(useSoon).sort((a, b) => a.expires.localeCompare(b.expires)); if (!soon.length) return ''; const ids = new Set(soon.map(x => x.id)), use = rs.filter(r => (r.ingredients || []).some(id => ids.has(id))).sort((a, b) => (b.ingredients || []).filter(id => ids.has(id)).length - (a.ingredients || []).filter(id => ids.has(id)).length).slice(0, 4);
       return panel('Use soon', `<div class="lrows">${soon.slice(0, 6).map(x => `<div class="lrow"><button class="lmain" data-act="open" data-id="${x.id}"><b>${esc(x.name)}</b><span>${x.expires < t ? 'past its date' : x.expires === t ? 'best before today' : 'best before ' + esc(relDay(x.expires))}</span></button></div>`).join('')}</div>${use.length ? `<p class="dsub">Recipes that use them</p><div class="lwrap">${use.map(r => `<button class="chip" data-act="open" data-id="${r.id}">${esc(r.name)}</button>`).join('')}</div>` : ''}`, ['kitchen/pantry', 'Pantry']); })()}
+    ${(() => { const old = inFreezer().filter(i => (freezerAge(i) ?? 0) >= FREEZE_DAYS); return old.length ? panel('Freezer', `<p class="lnone">In the freezer for 3 months or more. Use these first.</p><div class="lwrap">${old.slice(0, 8).map(i => `<button class="chip" data-act="open" data-id="${i.id}">${esc(i.name)}</button>`).join('')}</div>`, ['kitchen/pantry', 'Open freezer']) : ''; })()}
+    ${new Date().getHours() < 14 ? breakfastPanel() : ''}
+    ${leftoverPanel()}
+    ${(() => { const pl = curPlan(); return pl?.prepDay === today() ? prepPanel(pl, true) : ''; })()}
     ${toReview.length ? panel('How was it?', `<p class="lnone">A few taps after eating teach the app what you like.</p><div class="lrows">${toReview.map(m => `<div class="lrow"><span class="lmain"><b>${esc(relName(m.recipe))}</b><span>${esc(niceDate(m.date))}${m.slot ? ' · ' + esc(m.slot.toLowerCase()) : ''}</span></span><button class="btn small" data-rvw="${m.recipe}" data-date="${m.date}">Review</button></div>`).join('')}</div>`) : ''}
-    ${dp || dn ? panel('Deals this week', `<p class="lbig">${plural(dn, 'deal')} at Dirk, Aldi and AH</p>${(dp?.dinners || []).length ? `<div class="lwrap">${dp.dinners.slice(0, 5).map(m => `<span class="chip">${esc(m.recipe && L.byId[m.recipe] ? titleOf(L.byId[m.recipe]) : m.name || 'Recipe')}</span>`).join('')}</div>` : ''}`, ['kitchen/deals', 'See the plan']) : ''}
+    ${dp || dn ? panel('Deals this week', `<p class="lbig">${plural(dn, 'deal')} at ${esc([...new Set(liveOffers().map(o => o.store).filter(Boolean))].slice(0, 4).join(', ') || 'your shops')}</p>${(dp?.dinners || []).length ? `<div class="lwrap">${dp.dinners.slice(0, 5).map(m => `<span class="chip">${esc(m.recipe && L.byId[m.recipe] ? titleOf(L.byId[m.recipe]) : m.name || 'Recipe')}</span>`).join('')}</div>` : ''}`, ['kitchen/deals', 'See the plan']) : ''}
     ${panel('Today’s meals', `<div class="lslots">${MEALS.map(s => { const m = meals.filter(x => x.slot === s); return `<div class="lslot"><span class="rowlbl">${s}</span>${m.map(x => `<button class="chip" data-act="open" data-id="${x.id}">${esc(titleOf(x))}</button>`).join('')}<button class="chip ghost" data-act="slot" data-date="${t}" data-slot="${s}" aria-label="Plan ${s.toLowerCase()}">+</button></div>`; }).join('')}</div>`, ['kitchen/meals', 'Meal plan'])}
     ${panel('Grocery list', groc.length ? `<p class="lbig">${plural(groc.length, 'thing')} to buy</p><div class="lwrap">${groc.slice(0, 14).map(i => `<span class="chip">${esc(i.name)}</span>`).join('')}${groc.length > 14 ? `<span class="chip">+${groc.length - 14}</span>` : ''}</div>` : quiet('Nothing on your list. Tap “Add to list” on a recipe or in the pantry.'), ['kitchen/groceries', 'Go shopping'])}
     ${panel('Meal prep', prep.length ? `<div class="lrows">${prep.slice(0, 5).map(row).join('')}</div>` : quiet('No prepped meals waiting.'), ['kitchen/meals', 'All meal prep'])}
@@ -2589,16 +2744,23 @@ function mealDay(d) {
   sh.querySelector('#md-n').addEventListener('change', e => { const v = e.target.value.trim() || 'Not at home'; for (const a of ms().filter(x => x.away)) save(a, { what: v }); });
 }
 function groceryFill(fill) {
+  setTimeout(stapleRestock, 0);
   if (!fill.querySelector('.lqadd')) {
     fill.innerHTML = `<form class="lqadd" data-qadd><input type="text" placeholder="Add something to buy" aria-label="Add to grocery list" autocomplete="off" enterkeyhint="done"><button class="btn primary" type="submit">Add</button></form><div class="lsugs" data-sugs></div><div data-glist></div>`;
     fill.querySelector('input').addEventListener('input', e => sugs(fill, e.target.value));
   }
-  const items = recs('ingredients').filter(i => i.list);
+  const items = recs('ingredients').filter(i => i.list), mkt = MARKET_DAYS.includes(food().shopDay), mktName = recs('shops').find(r => r.type === 'Market')?.name || 'Market';
+  const shopOf = i => mkt && isProduce(i) ? mktName : i.shop || 'Anywhere';
   const groups = {};
-  for (const i of items) (groups[i.category || 'Other'] ||= []).push(i);
+  for (const i of items) (groups[shopOf(i)] ||= []).push(i);
+  // route: the market first on market days, then the shops in the order of the week plan, then the rest
+  const order = [...(mkt ? [mktName] : []), ...(curPlan()?.shopping || []).map(x => x.store), ...kitchenStores(), ...Object.keys(groups).sort()].filter((v, k, a) => v && a.indexOf(v) === k && groups[v]);
+  if (groups.Anywhere && !order.includes('Anywhere')) order.push('Anywhere');
+  const env = groceryEnv();
   const g = fill.querySelector('[data-glist]');
-  g.innerHTML = items.length ? Object.keys(groups).sort().map(c => `<h3 class="lgh">${esc(c)}</h3><div class="lrows">${groups[c].sort((a, b) => norm(a.name).localeCompare(norm(b.name))).map(i => `<div class="lrow"><button class="lbuy" data-act="buy" data-id="${i.id}" aria-label="Bought ${esc(i.name)}"></button><button class="lmain" data-act="open" data-id="${i.id}"><b>${esc(i.name)}</b>${i.qty || i.location ? `<span>${esc([i.qty, i.location].filter(Boolean).join(' · '))}</span>` : ''}</button><button class="iconbtn lx" data-act="unlist" data-id="${i.id}" aria-label="Take ${esc(i.name)} off the list">${svg(P.x)}</button></div>`).join('')}</div>`).join('')
-    + `<p class="lnone">Tick something off and it moves into your pantry.</p>`
+  const line = i => `<div class="lrow"><button class="lbuy" data-act="buy" data-id="${i.id}" aria-label="Bought ${esc(i.name)}"></button><button class="lmain" data-act="open" data-id="${i.id}"><b>${esc(i.name)}</b>${i.qty || i.category ? `<span>${esc([i.qty, i.category].filter(Boolean).join(' · '))}</span>` : ''}</button>${isMeatFish(i) ? `<button class="btn small" data-act="buyfreeze" data-id="${i.id}" title="Bought, straight into the freezer">Freeze</button>` : ''}<button class="iconbtn lx" data-act="unlist" data-id="${i.id}" aria-label="Take ${esc(i.name)} off the list">${svg(P.x)}</button></div>`;
+  g.innerHTML = items.length ? order.map(c => `<div class="lgh gshop"><h3>${esc(c)} · ${groups[c].length}</h3>${env && c !== 'Anywhere' ? `<button class="chip link" data-act="paid" data-v="${esc(c)}">Paid</button>` : ''}</div><div class="lrows">${groups[c].sort((a, b) => norm(a.category || 'zz').localeCompare(norm(b.category || 'zz')) || norm(a.name).localeCompare(norm(b.name))).map(line).join('')}</div>`).join('')
+    + `<p class="lnone">Tick something off and it moves into your pantry. ${env ? `Tap Paid when you pay at a shop, and it goes into ${esc(env.name)} in Finance.` : ''}</p>`
     : quiet('Your list is empty. Add things above, or use “Add missing to list” on a recipe.');
   sugs(fill, fill.querySelector('.lqadd input').value);
 }
@@ -3378,6 +3540,7 @@ function optsFor(kind, f, cur) {
   const out = [], seen = new Set();
   const add = (v, force) => { if (v && !seen.has(norm(v)) && (force || !hid.has(norm(v)) || now.includes(norm(v)))) { seen.add(norm(v)); out.push(v); } };
   (cfg.list || f.options || []).forEach(v => add(v));
+  (f.more?.() || []).forEach(v => add(v));
   for (const r of recs(kind)) [].concat(r[f.k] || []).forEach(v => add(v));
   [].concat(cur || []).forEach(v => add(v, true));
   return out;
@@ -3405,7 +3568,7 @@ function optionLists() {
 // choices are buttons up to this many, a dropdown above it
 const CHIP_MAX = 12;
 // lists with a natural order keep it; everything else is A to Z (your own order from Settings always wins)
-const ORDERED = new Set(['onDays', 'amDays', 'pmDays', 'step', 'again', 'angle', 'after', 'breakouts', 'redness', 'dryness', 'oiliness', 'stress', 'priority', 'prio', 'stage', 'status', 'cadence', 'freq', 'level', 'slot', 'funnel', 'effort', 'size', 'season', 'seasons', 'time', 'intake', 'when', 'day', 'days', 'nights', 'reheat', 'again', 'portion', 'mood', 'energy', 'quality']);
+const ORDERED = new Set(['match', 'onDays', 'amDays', 'pmDays', 'step', 'again', 'angle', 'after', 'breakouts', 'redness', 'dryness', 'oiliness', 'stress', 'priority', 'prio', 'stage', 'status', 'cadence', 'freq', 'level', 'slot', 'funnel', 'effort', 'size', 'season', 'seasons', 'time', 'intake', 'when', 'day', 'days', 'nights', 'reheat', 'again', 'portion', 'mood', 'energy', 'quality']);
 const sortOpts = (kind, f, opts) => optCfg(kind, f.k).list || ORDERED.has(f.k) ? opts : [...opts].sort((a, b) => norm(a).localeCompare(norm(b)));
 function fieldInner(kind, f, D) {
   const v = D[f.k], id = 'lf-' + f.k;
@@ -3566,6 +3729,7 @@ function openEditor(kind, id, preset = {}) {
     if (d.act === 'ttpost') return ttPostNow(d.id);
     if (d.act === 'mkpost') return ideaToPost(d.id);
     if (d.act === 'newreview') { C.closeSheet(); return openEditor('breviews', null, { product: d.id, date: today(), after: d.v }); }
+    if (d.act === 'blowsheet') { const b = L.byId[d.id]; if (!b) return; sh.querySelector('[data-chk="low"]')?.click(); const on = !!D.low; const btn = sh.querySelector('[data-act="blowsheet"]'); if (btn) { btn.classList.toggle('on', on); btn.setAttribute('aria-pressed', on); btn.innerHTML = on ? svg(P.check) + ' Running low' : 'Running low?'; } return save(b, { low: on }).then(() => C.toast(on ? 'On the running low list' : 'Taken off the running low list')); }
     if (d.act === 'mkidea') return postToIdea(d.id);
     if (d.opt) { const f = fdef(d.opt); if (f.type === 'multi') { const a = [].concat(D[d.opt] || []); const i = a.indexOf(d.v); i >= 0 ? a.splice(i, 1) : a.push(d.v); D[d.opt] = a; } else D[d.opt] = D[d.opt] === d.v ? '' : d.v; redraw(d.opt); }
     else if (d.chk) { D[d.chk] = !D[d.chk]; redraw(d.chk); }
@@ -3778,6 +3942,17 @@ document.addEventListener('click', async e => {
     case 'wishgo': if (d.v === 'wish/master') { const u = uiOf('wish/master'); u.seg = 'all'; u.allSrc = d.src; } if (d.v === 'money/plan') uiOf('money/plan').seg = 'wait'; C.go(d.v); break;
     case 'wmovewait': moveWaitList(); break;
     case 'dkeep': case 'dplan': case 'dgroc': dealsAct(d.act, d.k, Number(d.i)); break;
+    case 'away': toggleAway(d.v); break;
+    case 'hadbf': hadBreakfast(); break;
+    case 'office': { const o = new Set(food().office || ['Mon', 'Tue', 'Thu']); o.has(d.v) ? o.delete(d.v) : o.add(d.v); C.savePrefs({ food: { ...food(), office: WEEKDAYS.filter(x => o.has(x)) } }).catch(() => C.toast('Could not save. Try again.')); break; }
+    case 'shopday': C.savePrefs({ food: { ...food(), shopDay: food().shopDay === d.v ? '' : d.v } }).catch(() => C.toast('Could not save. Try again.')); break;
+    case 'leftover': leftover(d.id, d.v); break;
+    case 'buyfreeze': { const r = L.byId[d.id]; if (r) save(r, { list: false, stock: true, location: 'Vriezer', frozen: today() }).then(() => C.toast(`${r.name} is in the freezer`)); break; }
+    case 'paid': { const env = groceryEnv(); openEditor('ftx', null, { name: 'Boodschappen ' + d.v, date: today(), category: env?.id, account: fMainAcc()?.id }); break; }
+    case 'blow': { const r = L.byId[d.id]; if (r) save(r, { low: !r.low }).then(() => C.toast(r.low ? 'Taken off the running low list' : 'On the running low list: the weekly task looks for deals')); break; }
+    case 'freeze': { const o = L.byId[d.id]; openEditor('ingredients', null, { name: o?.name || '', category: 'Vlees & vis', location: 'Vriezer', stock: true, frozen: today(), notes: o ? [o.store, o.deal, num(o.price) ? eur(num(o.price)) : ''].filter(Boolean).join(' · ') : '' }); break; }
+    case 'freezeuse': { const r = L.byId[d.id]; if (!r) break; const n = num(r.portions); if (n > 1) save(r, { portions: n - 1 }); else { save(r, { portions: null, stock: false, frozen: null }); C.toast(`${r.name} is out of the freezer`); } break; }
+    case 'butcherlist': { const r = ingRow(d.v, { list: true, notes: myButcher() ? 'Slager: ' + myButcher().name : 'Slager' }); putMany([r], null, `Put ${d.v} on the grocery list`).then(() => C.toast('On your grocery list, for the butcher')).catch(() => C.toast('Could not save. Try again.')); break; }
     case 'quitadd': quitAdd(); break;
     case 'triptab': L.tripTab = d.v; C.render(); break;
     case 'igpost': igPostNow(d.id); break;
@@ -4537,7 +4712,12 @@ function secOwn(sec) {
   if (sec === 'money') return wrap(fSettings());
   if (sec === 'kitchen') {
     const f = C.prefs().food || {}, ta = (k, label, help, ph) => `<div class="fset fsetcol"><div><b>${label}</b><span>${help}</span></div><textarea class="finp" rows="2" data-food="${k}" placeholder="${ph}">${esc(f[k] || '')}</textarea></div>`;
-    return wrap(tidyPanel() + `<section class="panel setpanel"><h3>Taste</h3><p class="muted">The weekly deals plan follows this. Separate things with commas.</p>
+    const cats = recs('fcats').filter(c => !c.nospend), gc = groceryEnv();
+    const shopPanel = `<section class="panel setpanel"><h3>Shopping</h3><p class="muted">The weekly plan cooks for this many people and keeps to your budget.</p>
+      <div class="fset"><div><b>I cook for</b><span>Recipes come in 2 portions per person: one to eat, one for the next day or the freezer.</span></div><select class="pill" data-food="people">${['1', '2', '3', '4'].map(n => `<option ${String(f.people || '1') === n ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+      <div class="fset"><div><b>Office days</b><span>The plan makes one take-along lunch for each.</span></div><div class="lwrap">${WEEKDAYS.slice(0, 5).map(w => { const on = (f.office || ['Mon', 'Tue', 'Thu']).includes(w); return `<button class="chip ${on ? 'on' : ''}" data-act="office" data-v="${w}" aria-pressed="${on}">${w}</button>`; }).join('')}</div></div>
+      <div class="fset"><div><b>Groceries budget</b><span>${cats.length ? 'The envelope in Finance that holds your groceries. Deals shows this week’s share.' : 'Set up envelopes in Finance first.'}</span></div>${cats.length ? `<select class="pill" data-food="groceryCat"><option value="">None</option>${cats.map(c => `<option value="${c.id}" ${gc?.id === c.id ? 'selected' : ''}>${esc([c.emoji, c.name].filter(Boolean).join(' '))}</option>`).join('')}</select>` : ''}</div></section>`;
+    return wrap(tidyPanel() + shopPanel + `<section class="panel setpanel"><h3>Taste</h3><p class="muted">The weekly deals plan follows this. Separate things with commas.</p>
       ${ta('no', 'I don’t eat', 'Never in a suggestion.', 'e.g. nuts, avocado')}
       ${ta('hidden', 'Only if you can’t taste it', 'Fine when it is fully worked into the dish.', 'e.g. coconut milk in a curry')}
       ${ta('love', 'I love', 'Gets picked more often.', 'e.g. aged cheese, savoury snacks')}

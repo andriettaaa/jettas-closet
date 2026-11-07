@@ -768,3 +768,18 @@ html.cooking, html.cooking body { overflow: hidden; }
 .sdline { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; }
 .sddot { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
 img.nophoto { background: var(--line); }
+/* beauty deals and freezer */
+.bdgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.bdeal img { object-fit: contain; background: #fff; }
+.bdprice { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.bdprice s { color: var(--muted); font-size: 12.5px; }
+.lrow.fzold .lmain span { color: var(--danger); }
+.mfrows .lmain span { white-space: normal; overflow: visible; text-overflow: clip; }
+.dday { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; }
+.dday .lnone { margin: 0; flex: 1 1 220px; }
+.dbudget { margin: 0 0 16px; }
+.dbar { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin-bottom: 6px; }
+.dbar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.dbar i.over { background: var(--danger); }
+.lgh.gshop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lgh.gshop h3 { margin: 0; font: inherit; }
