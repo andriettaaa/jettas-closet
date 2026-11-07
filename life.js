@@ -321,11 +321,11 @@ const KINDS = {
       F('location', 'Kept in', 'select', { options: ['Koelkast', 'Vriezer', 'Voorraadkast', 'Keukenkast', 'Fruitmand', 'Broodtrommel', 'Kelder / Berging', 'Overig'] }),
       F('stock', 'In stock', 'check', { half: 1 }), F('low', 'Running low', 'check', { half: 1 }), F('list', 'On grocery list', 'check', { half: 1 }),
       F('expires', 'Best before', 'date', { half: 1 }), F('frozen', 'Frozen on', 'date', { half: 1 }), F('portions', 'Portions', 'num', { half: 1 }), F('shop', 'Buy at', 'select', { options: STORES, more: () => shopNames('shops'), half: 1 }), F('amount', 'How much is left', 'num', { half: 1 }), F('unit', 'Counted in', 'select', { options: UNITS, half: 1 }), F('min', 'Minimum to keep', 'num', { half: 1 }), F('staple', 'Basic: always keep in stock', 'check', { half: 1 }), F('helps', 'Helps with', 'multi', { options: HELPS }),
-      F('qty', 'Amount', 'text', { half: 1 }), F('left', 'Open: hoeveel zit er nog in', 'pct'), F('brand', 'Merk', 'text', { half: 1 }), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
+      F('qty', 'Amount', 'text', { half: 1 }), F('left', 'Open: hoeveel zit er nog in', 'pct'), F('brand', 'Merk', 'text', { half: 1 }), F('variant', 'Variant', 'text', { half: 1 }), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['category', 'Category'], ['location', 'Where it is']],
     filters: [['all', 'All'], ['in', 'In stock'], ['low', 'Running low'], ['soon', 'Use soon'], ['out', 'Out of stock'], ['basic', 'Basics']],
     filter: (r, f) => f === 'basic' ? !!r.staple : f === 'in' ? !!r.stock : f === 'out' ? !r.stock : f === 'low' ? !!r.low : f === 'soon' ? useSoon(r) : true,
-    sub: r => [r.category, r.location, r.frozen ? 'frozen ' + shortDate(r.frozen) : '', num(r.portions) ? plural(num(r.portions), 'portion') : '', r.low ? 'running low' : '', r.expires ? (r.expires < today() ? 'past its date' : 'best before ' + shortDate(r.expires)) : '', r.list ? 'on grocery list' : ''].filter(Boolean).join(' · '),
+    sub: r => [r.brand, r.variant, r.category, r.location, r.frozen ? 'frozen ' + shortDate(r.frozen) : '', num(r.portions) ? plural(num(r.portions), 'portion') : '', r.low ? 'running low' : '', r.expires ? (r.expires < today() ? 'past its date' : 'best before ' + shortDate(r.expires)) : '', r.list ? 'on grocery list' : ''].filter(Boolean).join(' · '),
     quick: r => ({ on: !!r.stock, label: 'In stock', act: () => save(r, { stock: !r.stock, ...(r.staple && r.stock ? { list: true } : {}) }) })
   },
   offers: {
@@ -4765,18 +4765,25 @@ async function fromBudgetBackup(j) {
 /* a file can ask to fill in only (mode "fill", like the Albo recipes): a recipe with the same name as one you
    already have keeps everything you filled in yourself and only gets what is still empty */
 const isEmptyVal = v => v == null || v === '' || (Array.isArray(v) && !v.length);
+const nameForms = n => { const b = deUml(n); return [...new Set([b, b.replace(/(en|s)$/, ''), b + 'en', b + 's'].filter(Boolean))]; };
 function fillMatch(rows) {
-  const byName = new Map(); for (const k of new Set(rows.map(r => r.kind))) for (const r of recs(k)) { const key = k + '#' + deUml(titleOf(r)); if (!byName.has(key)) byName.set(key, r.id); }
-  let added = 0, filled = 0, same = 0;
+  const byName = new Map(); for (const k of new Set(rows.map(r => r.kind))) for (const r of recs(k)) for (const f of nameForms(titleOf(r))) { const key = k + '#' + f; if (!byName.has(key)) byName.set(key, r.id); }
+  let added = 0, filled = 0, same = 0; const linked = [], fresh = [];
   const out = rows.map(r => {
-    const id = L.byId[r.id] ? r.id : byName.get(r.kind + '#' + deUml(r.data.name || r.data.title || '')) || r.id, have = L.byId[id];
-    if (!have) { added++; return { ...r, id }; }
+    const { aka, ...rd } = r.data, names = [rd.name || rd.title || '', ...[].concat(aka || [])];
+    let id = L.byId[r.id] ? r.id : null;
+    for (const nm of names) { if (id) break; for (const f of nameForms(nm)) { const hit = byName.get(r.kind + '#' + f); if (hit) { id = hit; break; } } }
+    const have = id && L.byId[id];
+    if (!have) { added++; fresh.push(rd.name || ''); return { ...r, id: r.id, data: rd }; }
+    linked.push([rd.name || '', titleOf(have)]);
     const cur = dataOf(have), data = { ...cur };
-    let n = 0; for (const [k, v] of Object.entries(r.data)) if (isEmptyVal(cur[k]) && !isEmptyVal(v)) { data[k] = v; n++; }
+    let n = 0; for (const [k, v] of Object.entries(rd)) if (k !== 'name' && isEmptyVal(cur[k]) && !isEmptyVal(v)) { data[k] = v; n++; }
+    // a photo from the file only goes on a product that has none yet
+    const pic = r.photoData && isEmptyVal(cur.photo); if (pic) n++;
     n ? filled++ : same++;
-    return n ? { ...r, id, data } : null;
+    return n ? { ...r, id, data, ...(pic ? {} : { photoData: undefined }) } : null;
   }).filter(Boolean);
-  return { rows: out, added, filled, same };
+  return { rows: out, added, filled, same, linked, fresh };
 }
 async function importFile(file) {
   let rows, fill = null;
@@ -4795,6 +4802,8 @@ async function importFile(file) {
   const sh = C.sheet({
     title: fill ? 'Import and fill in' : 'Import',
     body: fill ? `<p>${fill.added ? `This adds ${plural(fill.added, 'new record')}.` : ''} ${fill.filled ? `${plural(fill.filled, 'record')} you already have ${fill.filled === 1 ? 'gets' : 'get'} only what is still empty; what you filled in yourself stays.` : ''} ${fill.same ? `${plural(fill.same, 'record')} ${fill.same === 1 ? 'is' : 'are'} already complete and ${fill.same === 1 ? 'stays' : 'stay'} as ${fill.same === 1 ? 'it is' : 'they are'}.` : ''}</p>
+      ${fill.linked.length ? `<p class="dsub">Gekoppeld aan wat je al hebt</p><p class="lnone">${fill.linked.map(([a, b]) => esc(norm(a) === norm(b) ? b : `${a} → ${b}`)).join(' · ')}</p>` : ''}
+      ${fill.fresh.length ? `<p class="dsub">Nieuw</p><p class="lnone">${fill.fresh.map(esc).join(' · ')}</p>` : ''}
       <div class="lrows">${Object.entries(counts).sort((a, b) => azCmp(KINDS[a[0]].many, KINDS[b[0]].many)).map(([k, n]) => `<div class="lrow"><span class="lmain"><b>${esc(KINDS[k].many)}</b></span><span class="lside">${n}</span></div>`).join('')}</div>` : `<p>This adds ${plural(rows.length, 'record')}${fresh !== rows.length ? `, ${fresh} of them new. The other ${rows.length - fresh} are already here and get the values from the file; what the file leaves out stays as it is` : ''}.${mt.matched ? ` ${plural(mt.matched, 'item')} with the same name as one that is already here ${mt.matched === 1 ? 'is' : 'are'} not added again.` : ''}</p>
       <div class="lrows">${Object.entries(counts).sort((a, b) => azCmp(KINDS[a[0]].many, KINDS[b[0]].many)).map(([k, n]) => `<div class="lrow"><span class="lmain"><b>${esc(KINDS[k].many)}</b></span><span class="lside">${n}</span></div>`).join('')}</div>`,
     foot: `<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-go>Import ${rows.length}</button>`
