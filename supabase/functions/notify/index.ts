@@ -13,7 +13,7 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
 // the same defaults the Settings page shows
 const DEF: Record<string, { on: boolean; time?: string }> = {
   morning: { on: true, time: '07:30' }, evening: { on: true, time: '21:30' }, bills: { on: true, time: '18:00' },
-  payday: { on: true, time: '09:00' }, weekly: { on: true, time: '19:00' }, weekahead: { on: true, time: '19:30' }, reminders: { on: true, time: '10:00' }, content: { on: true, time: '09:00' },
+  payday: { on: true, time: '09:00' }, weekly: { on: true, time: '19:00' }, weekahead: { on: true, time: '19:30' }, reminders: { on: true, time: '10:00' }, content: { on: true, time: '09:00' }, socialweek: { on: true, time: '18:30' },
   budget: { on: true }, applepay: { on: true }
 };
 type Rec = Record<string, any> & { id: string; kind: string };
@@ -132,6 +132,7 @@ function reminders(recs: Rec[], prefs: any, today: string) {
   return lines.length ? { title: lines.length === 1 ? 'Reminder' : `${lines.length} reminders`, body: lines.join('\n'), url: './#overview', tag: 'reminders' } : null;
 }
 
+const DEAL_DATES: [string, string][] = [['draftBy', 'Draft for'], ['postBy', 'Post for'], ['due', 'Due:'], ['payBy', 'Payment from']];
 // every morning, only when there is one: the steps of your posts for today (and any still open from before)
 const STAGES = ['Idea', 'Planned', 'Scripting', 'Filming', 'Editing', 'Scheduled', 'Posted'];
 const STEPS: [string, string, string][] = [['scriptOn', 'Write the script', 'Filming'], ['filmOn', 'Film', 'Editing'], ['editOn', 'Edit', 'Scheduled'], ['date', 'Post', 'Posted']];
@@ -141,7 +142,29 @@ function content(recs: Rec[], today: string) {
     const d = p[k]; if (!d || d > today || STAGES.indexOf(p.stage) >= STAGES.indexOf(upto)) continue;
     lines.push(`${label}: ${p.name || 'a post'}${d < today ? ' (was due ' + d.slice(8, 10) + '/' + d.slice(5, 7) + ')' : ''}`);
   }
+  // collab deadlines today and tomorrow
+  const tom = addDays(today, 1);
+  for (const c of recs.filter(r => r.kind === 'deals' && !['Paid', 'Declined'].includes(r.status))) for (const [k, label] of DEAL_DATES) {
+    const d = c[k]; if (d !== today && d !== tom) continue;
+    if (k !== 'payBy' && c.status === 'Delivered') continue;
+    lines.push(`${label} ${c.name || 'collab'} ${d === today ? 'today' : 'tomorrow'}`);
+  }
+  // good posts from exactly 3 months ago, ready to use again
+  for (const p of recs.filter(r => r.kind === 'posts' && r.stage === 'Posted' && (r.repurpose || r.top) && r.date === addDays(today, -90))) lines.push(`Use again: ${p.name || 'a post'} (posted 3 months ago)`);
   return lines.length ? { title: lines.length === 1 ? 'Content today' : `Content today: ${lines.length} steps`, body: lines.slice(0, 6).join('\n') + (lines.length > 6 ? `\nand ${lines.length - 6} more` : ''), url: './#social/plan', tag: 'content' } : null;
+}
+
+// Sundays: your posts for the coming week, step by step, and collab deadlines
+function socialweek(recs: Rec[], today: string) {
+  const from = addDays(today, 1), to = addDays(today, 7), lines: string[] = [];
+  const day = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' });
+  const ev: [string, string][] = [];
+  for (const p of recs.filter(r => r.kind === 'posts' && r.stage !== 'Posted')) for (const [k, label, upto] of STEPS) { const d = p[k]; if (d && d >= from && d <= to && STAGES.indexOf(p.stage) < STAGES.indexOf(upto)) ev.push([d, `${day(d)}: ${label.toLowerCase()} ${p.name || 'a post'}`]); }
+  for (const c of recs.filter(r => r.kind === 'deals' && !['Paid', 'Declined'].includes(r.status))) for (const [k, label] of DEAL_DATES) { const d = c[k]; if (d && d >= from && d <= to) ev.push([d, `${day(d)}: ${label.toLowerCase()} ${c.name || 'collab'}`]); }
+  ev.sort((a, b) => a[0].localeCompare(b[0])); lines.push(...ev.map(e => e[1]));
+  const open = recs.filter(r => r.kind === 'posts' && r.stage !== 'Posted' && !r.date).length;
+  if (open) lines.push(`${open} post${open === 1 ? '' : 's'} without a post date yet`);
+  return ev.length || open ? { title: ev.length ? `Content next week: ${ev.length} step${ev.length === 1 ? '' : 's'}` : 'Content next week', body: lines.slice(0, 8).join('\n') + (lines.length > 8 ? `\nand ${lines.length - 8} more` : ''), url: './#social/plan', tag: 'socialweek' } : null;
 }
 
 /* ---------- sending ---------- */
@@ -181,14 +204,14 @@ async function runUser(uid: string, prefs: any, force = false) {
     const c = { ...DEF[k], ...(cfg[k] || {}) }; if (!c.on || !c.time) return false;
     const t = toMins(c.time); return force || (now.mins >= t && now.mins < t + 60);
   };
-  const slots = ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders', 'content'].filter(k => due(k) && (!['weekly', 'weekahead'].includes(k) || now.wd === 'sun' || force));
+  const slots = ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders', 'content', 'socialweek'].filter(k => due(k) && (!['weekly', 'weekahead', 'socialweek'].includes(k) || now.wd === 'sun' || force));
   if (!slots.length) return 0;
   const recs = await loadAll(uid);
   let sent = 0;
   for (const k of slots) {
     const msg = k === 'morning' ? morning(recs, now.day, await outfitToday(uid, now.day)) : k === 'evening' ? evening(recs, now.wd)
       : k === 'bills' ? bills(recs, now.day) : k === 'payday' ? payday(recs, now.day) : k === 'weekahead' ? weekahead(recs, prefs, now.day)
-      : k === 'reminders' ? reminders(recs, prefs, now.day) : k === 'content' ? content(recs, now.day) : weekly(recs, now.day);
+      : k === 'reminders' ? reminders(recs, prefs, now.day) : k === 'content' ? content(recs, now.day) : k === 'socialweek' ? socialweek(recs, now.day) : weekly(recs, now.day);
     if (!msg) continue;
     if (!force && !(await claim(uid, k, now.day))) continue;
     if (await send(uid, msg)) sent++;

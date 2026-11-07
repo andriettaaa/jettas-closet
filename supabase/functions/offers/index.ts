@@ -463,7 +463,7 @@ Deno.serve(async req => {
       return json({ recipes, pantry, recent, food: pr?.data?.food || {}, learned });
     }
 
-    const TARGETS = ['recipes', 'wishes', 'closet', 'beauty', 'supplements', 'gear', 'fitgear', 'inventory', 'ideas', 'cideas', 'stips', 'gifts', 'keep', 'stays', 'trip'];
+    const TARGETS = ['recipes', 'wishes', 'closet', 'beauty', 'supplements', 'gear', 'fitgear', 'inventory', 'ideas', 'cideas', 'stips', 'inspo', 'gifts', 'keep', 'stays', 'trip'];
     const cleanDraft = (d: any) => { const o: Record<string, unknown> = {}; if (d && typeof d === 'object') for (const [k, v] of Object.entries(d).slice(0, 40)) { if (!/^[a-zA-Z]{1,24}$/.test(k)) continue; o[k] = typeof v === 'string' ? v.slice(0, 12000) : Array.isArray(v) ? v.slice(0, 60).map(x => typeof x === 'string' ? x.slice(0, 200) : x) : typeof v === 'number' || typeof v === 'boolean' ? v : undefined; } return clean(o); };
     if (body.action === 'share') {
       const text = str(body.text, 4000), url = str(body.url, 1000) || (text.match(/https?:\/\/\S+/) || [''])[0].replace(/[),.]+$/, '');
@@ -491,7 +491,7 @@ Deno.serve(async req => {
       if (data.extId) { const { data: same } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'inbox').filter('data->>extId', 'eq', data.extId); if (same?.[0]) { if (['Done', 'Skipped'].includes(same[0].data.status)) return json({ ok: true, id: same[0].id, already: true }); id = same[0].id; } }
       const { error } = await sb.from('records').upsert({ user_id: uid, id, kind: 'inbox', data, updated_at: new Date().toISOString() });
       if (error) throw error;
-      const label: Record<string, string> = { stays: 'verblijf', recipes: 'recept', closet: 'kast-wishlist', beauty: 'beauty', supplements: 'supplementen', gear: 'keukenspullen', fitgear: 'fitness', inventory: 'wonen', wishes: 'wishlist', ideas: 'idee', cideas: 'contentidee', stips: 'social media tip', gifts: 'cadeau', keep: 'bewaarde link' };
+      const label: Record<string, string> = { stays: 'verblijf', recipes: 'recept', closet: 'kast-wishlist', beauty: 'beauty', supplements: 'supplementen', gear: 'keukenspullen', fitgear: 'fitness', inventory: 'wonen', wishes: 'wishlist', ideas: 'idee', cideas: 'contentidee', stips: 'social media tip', inspo: 'inspiratie', gifts: 'cadeau', keep: 'bewaarde link' };
       return json({ ok: true, id, target, message: target ? `In je inbox, als ${label[target] || target}` : 'In je inbox' });
     }
     if (body.action === 'inbox') {
