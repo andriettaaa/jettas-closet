@@ -715,3 +715,9 @@ html.cooking, html.cooking body { overflow: hidden; }
 /* To do per section */
 .ltodo { display: grid; gap: 6px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
 .ltodo .lmain { text-align: left; }
+/* the eye that hides amounts in Finance */
+.moneyeye { margin-left: auto; }
+.viewhead .moneyeye { align-self: center; }
+.moneyeye svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.moneyeye[aria-pressed="true"] { color: var(--accent); }
+.mtileeye { display: flex; justify-content: flex-end; margin: -6px 0 2px; }

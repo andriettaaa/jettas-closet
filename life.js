@@ -20,7 +20,14 @@ const shortDate = s => s ? fromISO(s).toLocaleDateString('en-GB', { day: 'numeri
 const dayName = s => fromISO(s).toLocaleDateString('en-GB', { weekday: 'short' });
 // amounts follow the currency in Finance settings (display only, nothing is converted)
 let moneyFmt = null, moneyCur = '';
-const money = { format: n => { const c = (L.all.find(r => r.kind === 'fset')?.currency) || 'EUR'; if (c !== moneyCur) { moneyCur = c; moneyFmt = new Intl.NumberFormat('en-IE', { style: 'currency', currency: c }); } return moneyFmt.format(n); } };
+const money = { format: n => { const c = (L.all.find(r => r.kind === 'fset')?.currency) || 'EUR'; if (c !== moneyCur) { moneyCur = c; moneyFmt = new Intl.NumberFormat('en-IE', { style: 'currency', currency: c }); } return masked() ? moneyFmt.format(0).replace(/[\d.,\s]+/, '•••') : moneyFmt.format(n); } };
+// the eye in Finance: amounts hidden on Finance pages and on the Finance card on Today (remembered on this device)
+const hideMoneyKey = 'hangtag:hidemoney';
+const moneyHidden = () => { try { return localStorage.getItem(hideMoneyKey) === '1'; } catch { return false; } };
+const masked = () => moneyHidden() && (L.inMoneyTile || String(C?.view?.() || '').startsWith('money/'));
+const EYE = '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>', EYEOFF = '<path d="M3 3l18 18M10.6 6a9.8 9.8 0 0 1 1.4-.1c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-2.6 3.4M6.7 6.8C4 8.6 2.5 12 2.5 12S6 18.5 12 18.5c1.6 0 3-.4 4.2-1M9.9 9.9a3 3 0 0 0 4.2 4.2"/>';
+const eyeBtn = () => `<button class="iconbtn moneyeye" data-moneyeye aria-pressed="${moneyHidden()}" aria-label="${moneyHidden() ? 'Show amounts' : 'Hide amounts'}" title="${moneyHidden() ? 'Show amounts' : 'Hide amounts'}">${svg(moneyHidden() ? EYEOFF : EYE)}</button>`;
+document.addEventListener('click', e => { if (!e.target.closest?.('[data-moneyeye]') || !C) return; try { localStorage.setItem(hideMoneyKey, moneyHidden() ? '0' : '1'); } catch {} C.render(); });
 const eur = n => (n == null || n === '' || isNaN(n)) ? '' : money.format(n);
 const num = v => (v === '' || v == null || isNaN(Number(v))) ? null : Number(v);
 const norm = s => String(s || '').trim().toLowerCase();
@@ -1893,8 +1900,8 @@ const fBuffer = () => num(fset().buffer) ?? 100;
 const fSeq = r => num(r.seq) ?? (r.created || 0);
 const fSum = (list, k = 'amount') => list.reduce((n, x) => n + (num(x[k]) || 0), 0);
 const fAccs = () => recs('faccounts').filter(a => !a.archived);
-const fEur0 = n => (n < 0 ? '−' : '') + money.format(Math.abs(n)).replace(/\.00$/, '');
-const fSigned = n => (n < 0 ? '−' : '') + eur(Math.abs(n));
+const fEur0 = n => (n < 0 && !masked() ? '−' : '') + money.format(Math.abs(n)).replace(/\.00$/, '');
+const fSigned = n => (n < 0 && !masked() ? '−' : '') + eur(Math.abs(n));
 function fPayday() { let p = fset().payday; if (!p) return null; const t = today(); for (let i = 0; p <= t && i < 600; i++) p = addMonths(p, 1); return p; }
 const fStart = () => { const p = fPayday(); return p ? addMonths(p, -1) : addDays(today(), -30); };
 function fBalance(a) {
@@ -2269,7 +2276,7 @@ function moneyToday(host) {
   const chips = recs('fchips');
   /* safe to spend */
   const safe = `<section class="panel msafe" id="m-safe"><div class="msafe-l"><p class="mh">Safe to spend today</p>
-      <p class="mbig ${st.perDay < 0 ? 'neg' : ''}"><small>${st.perDay < 0 ? '−' : ''}€</small>${Number(whole).toLocaleString('en-GB')}<sup>.${cents}</sup></p>
+      ${masked() ? '<p class="mbig"><small>€</small>•••</p>' : `<p class="mbig ${st.perDay < 0 ? 'neg' : ''}"><small>${st.perDay < 0 ? '−' : ''}€</small>${Number(whole).toLocaleString('en-GB')}<sup>.${cents}</sup></p>`}
       <p class="mmuted">${st.pay ? `${fSigned(st.until)} to last ${plural(st.days, 'day')}, until payday on ${esc(shortDate(st.pay))}` : 'Set your payday under Accounts to see this per day.'}</p>
       <p class="mnote">${st.lastCheck ? `Balance checked ${esc(relDay(st.lastCheck))}, plus what you've logged since.` : 'No balance checked yet.'}${st.overdue.length ? ' Something that was due still needs a tick.' : ''}</p></div>
     <div class="mcalc"><p><span>Money in your accounts</span><b>${fSigned(st.inAcc)}</b></p><p><span>− Bills before payday</span><b>${eur(st.billsBefore)}</b></p><p><span>− Safety buffer</span><b>${eur(st.buf)}</b></p><p class="mtot"><span>= Safe until payday</span><b>${fSigned(st.until)}</b></p></div>
@@ -4404,7 +4411,8 @@ return {
     if (!s?.tile || !C) return '';
     if (L.missing) return `<p class="lnone">Needs one step in Supabase.</p><button class="chip link" data-act="go" data-v="${key}/today">Set it up</button>`;
     if (L.status === 'loading' && !L.all.length) return '<p class="lnone">Loading…</p>';
-    return s.tile();
+    if (key !== 'money') return s.tile();
+    L.inMoneyTile = true; try { return `<div class="mtileeye">${eyeBtn()}</div>` + s.tile(); } finally { L.inMoneyTile = false; }
   },
   start(bridge) { C = bridge; L.all = []; L.byId = {}; L.missing = false; L.status = cacheLoad() ? 'ok' : 'loading'; subscribe(); setTimeout(() => ttReturn(), 0); return load().catch(e => { console.error(e); if (L.status !== 'ok') L.status = 'offline'; C.render(); }); },
   refresh() { if (C?.uid()) load().catch(() => {}); },
@@ -4416,6 +4424,7 @@ return {
     if (L.missing) { setupCard(host); return; }
     if (L.status === 'loading' && !L.all.length) { host.dataset.sig = ''; host.innerHTML = `<div class="viewhead"><h1>${esc(cfg.title || sectionOf(view)?.label || '')}</h1><span class="sub">Loading…</span></div>`; return; }
     if (cfg.render) { host.dataset.sig = ''; cfg.render(host); if (view === overviewOf(sectionOf(view)?.key)) layoutOverview(host, view); } else listPage(host, view);
+    if (sectionOf(view)?.key === 'money') { const vh = host.querySelector('.viewhead'), old = vh?.querySelector('[data-moneyeye]'); if (old) old.outerHTML = eyeBtn(); else vh?.insertAdjacentHTML('beforeend', eyeBtn()); }
   },
   addLabel(view) {
     const cfg = PAGES[view]; if (!cfg) return 'Add';
