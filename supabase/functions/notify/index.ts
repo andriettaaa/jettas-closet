@@ -138,6 +138,10 @@ function reminders(recs: Rec[], prefs: any, today: string) {
   }
   for (const b of recs.filter(r => r.kind === 'fbills' && r.trialEnds === addDays(today, 2))) lines.push(`Free trial of ${b.name} ends in 2 days`);
   for (const i of recs.filter(r => r.kind === 'inventory' && r.warranty === addDays(today, 14))) lines.push(`Warranty of ${i.name} ends in 2 weeks`);
+  for (const i of recs.filter(r => r.kind === 'item' && ['Kleermaker', 'Stomerij', 'Uitgeleend', 'In de was', 'In de koffer'].includes(r.where) && r.whereSince)) {
+    const d = Math.round((fromISO(today).getTime() - fromISO(i.whereSince).getTime()) / 864e5);
+    if (d > 0 && d % 14 === 0) lines.push(i.where === 'Uitgeleend' ? `${i.name || 'A piece'} is lent out${i.loanTo ? ' to ' + i.loanTo : ''} for ${d / 7} weeks` : `${i.name || 'A piece'} has been "${i.where}" for ${d / 7} weeks`);
+  }
   for (const o of recs.filter(r => r.kind === 'orders' && r.status === 'Delivered' && r.returnBy === addDays(today, 2))) lines.push(`Last 2 days to return ${o.name}${o.shop ? ' (' + o.shop + ')' : ''}`);
   for (const o of recs.filter(r => r.kind === 'orders' && ['Ordered', 'Shipped'].includes(r.status || 'Ordered') && r.expected === today)) lines.push(`${o.name} should arrive today`);
   for (const i of recs.filter(r => r.kind === 'insurance' && r.status !== 'Stopped' && r.renews === addDays(today, 30))) lines.push(`${i.name} renews in a month: check if you want to keep it`);
@@ -269,6 +273,9 @@ async function loadAll(uid: string) {
     rows.push(...data.map((r: any) => ({ ...r.data, id: r.id, kind: r.kind })));
     if (data.length < 1000) break;
   }
+  // closet pieces that are away (tailor, dry cleaner, lent out): for the two-weekly nudge
+  const { data: its } = await sb.from('items').select('id,data').eq('user_id', uid).limit(5000);
+  for (const r of its || []) if (r.data?.where && r.data.where !== 'In de kast' && (r.data.status || 'closet') === 'closet') rows.push({ ...r.data, id: r.id, kind: 'item' });
   return rows;
 }
 async function outfitToday(uid: string, day: string) {

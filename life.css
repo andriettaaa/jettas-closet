@@ -1025,3 +1025,6 @@ img.nophoto { background: var(--line); }
 .tdonep:has(> span) { aspect-ratio: auto; min-height: 72px; }
 .lvtable .ltname { min-width: 140px; }
 .lvtable .ltname .tdmain b { white-space: normal; }
+/* closet: where a piece is when it is not in the closet */
+.wheretag { font-weight: 600; color: var(--accent); }
+.wherechips { margin-bottom: 6px; flex-wrap: wrap; overflow: visible; }
