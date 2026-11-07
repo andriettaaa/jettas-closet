@@ -424,6 +424,52 @@ Deno.serve(async req => {
     if (body.action === 'ttpost') return json(await ttPost(uid, str(body.id, 60)));
     // a photo from the web for the closet editor: the browser may not read other sites' images, so this fetches it
     // and hands it back (nothing is stored). A page link instead of an image link gets the page's main picture.
+    // Apple Health, sent each morning by an iPhone Shortcut: sleep, steps, workouts and period
+    if (body.action === 'health') {
+      const date = day(body.date) || new Date().toISOString().slice(0, 10), now = new Date().toISOString(), out: Record<string, unknown> = {};
+      const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['sleep', 'nlog', 'workouts', 'cycles']);
+      if (error) throw error;
+      const up = async (kind: string, match: (r: any) => boolean, patch: Record<string, unknown>) => { const hit = data.find((r: any) => r.kind === kind && match(r.data || {})); const row = { user_id: uid, id: hit?.id || crypto.randomUUID(), kind, data: { ...(hit?.data || { created: Date.now() }), ...clean(patch) }, updated_at: now }; const { error: e } = await sb.from('records').upsert(row); if (e) throw e; };
+      const hrs = num(body.sleepHours);
+      if (hrs != null && hrs > 0 && hrs < 16) { await up('sleep', r => r.date === date, { date, hours: Math.round(hrs * 10) / 10, bed: str(body.bed, 5), up: str(body.wake, 5), source: 'Apple Health' }); out.sleep = hrs; }
+      const steps = num(body.steps); if (steps != null) { await up('nlog', r => r.date === date, { date, steps: Math.round(steps) }); out.steps = steps; }
+      const TYPES: Record<string, string> = { walking: 'Walk', running: 'Run', cycling: 'Cycling', yoga: 'Yoga', pilates: 'Pilates', hiit: 'HIIT', strength: 'Strength', 'traditional strength training': 'Strength', 'functional strength training': 'Strength', 'high intensity interval training': 'HIIT', dance: 'Cardio', elliptical: 'Cardio', rowing: 'Cardio', flexibility: 'Stretching', 'core training': 'Strength' };
+      const wos = (Array.isArray(body.workouts) ? body.workouts : String(body.workouts || '').split('\n').filter(Boolean).map((l: string) => { const [t, m, d] = l.split(/[;,]/).map(x => x.trim()); return { type: t, minutes: m, date: d }; })).slice(0, 10);
+      let wn = 0;
+      for (const w of wos as any[]) {
+        const wd = day(w.date) || date, raw = str(w.type, 60), type = TYPES[raw.toLowerCase()] || 'Other', min = num(w.minutes), hk = `${wd}|${raw}|${min}`;
+        if (!raw || data.some((r: any) => r.kind === 'workouts' && r.data?.hk === hk)) continue;
+        const plan = data.find((r: any) => r.kind === 'workouts' && r.data?.date === wd && !r.data?.done && !r.data?.skipped);
+        if (plan) await up('workouts', r => r === plan.data, { done: true, minutes: min ?? plan.data.minutes, hk, source: 'Apple Health' });
+        else { const { error: e } = await sb.from('records').insert({ user_id: uid, id: crypto.randomUUID(), kind: 'workouts', data: clean({ name: raw, date: wd, minutes: min, type, done: true, hk, source: 'Apple Health', created: Date.now() }), updated_at: now }); if (e) throw e; }
+        wn++;
+      }
+      out.workouts = wn;
+      if (body.period === true || /^(true|ja|yes|1)$/i.test(String(body.period || ''))) {
+        const recent = data.filter((r: any) => r.kind === 'cycles' && r.data?.start && r.data.start >= new Date(Date.parse(date) - 10 * 864e5).toISOString().slice(0, 10));
+        if (!recent.length) { const { error: e } = await sb.from('records').insert({ user_id: uid, id: crypto.randomUUID(), kind: 'cycles', data: { start: date, source: 'Apple Health', created: Date.now() }, updated_at: now }); if (e) throw e; out.period = 'started'; }
+      }
+      return json({ ok: true, ...out });
+    }
+    // the move list for the weekly price check: open products and their options with a link
+    if (body.action === 'movelist') {
+      const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['inventory', 'invopts']);
+      if (error) throw error;
+      const open = data.filter((r: any) => r.kind === 'inventory' && ['Idee', 'Kiezen', 'Besteld', 'Wishlist', 'Ordered'].includes(r.data?.status));
+      return json({ items: open.map((r: any) => clean({ id: r.id, name: r.data.name, room: r.data.room, budget: r.data.budget, options: data.filter((o: any) => o.kind === 'invopts' && o.data?.item === r.id && !o.data?.archived && o.data?.url).map((o: any) => clean({ id: o.id, name: o.data.name, shop: o.data.shop, price: o.data.price, url: o.data.url })) })) });
+    }
+    if (body.action === 'moveprices') {
+      const now = new Date().toISOString(), drops: string[] = [];
+      for (const u of (Array.isArray(body.updates) ? body.updates : []).slice(0, 100)) {
+        const { data: o } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'invopts').eq('id', str(u?.id, 60)).maybeSingle(); if (!o) continue;
+        const price = num(u?.price); if (price == null) continue;
+        const old = num(o.data?.price), note = old != null && price < old ? `Van ${old} naar ${price} (${new Date().toISOString().slice(0, 10)})` : '';
+        if (note) drops.push(`${o.data?.name || 'Optie'}: ${old} → ${price}`);
+        await sb.from('records').update({ data: { ...o.data, price, wasPrice: old ?? o.data?.wasPrice, priceNote: note || o.data?.priceNote, checked: now.slice(0, 10), ...(u?.inStock === false ? { soldOut: true } : {}) }, updated_at: now }).eq('user_id', uid).eq('id', o.id);
+      }
+      if (drops.length) await send(uid, { title: 'Prijsdaling op je verhuislijst', body: drops.slice(0, 4).join('\n'), url: './#home/inventory', tag: 'moveprices' });
+      return json({ ok: true, drops: drops.length });
+    }
     // a product link pasted in the move list: name, price, shop and photo, read from the page
     if (body.action === 'linkinfo') {
       const url = str(body.url, 2000);

@@ -274,21 +274,64 @@ async function outfitToday(uid: string, day: string) {
   return o?.data?.name || 'planned';
 }
 
+// your day rhythm (Plan › Settings): when you wake, so the morning bundle and the bedtime nudge follow you
+const WD = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+function dayTimes(prefs: any, day: string) {
+  const c = { wakeOffice: '06:30', wakeHome: '07:30', wakeWeekend: '09:00', sleep: 8, ...(prefs?.day || {}) };
+  const office = ((prefs?.food?.office || ['Mon', 'Tue', 'Thu']) as string[]).map(x => x.toLowerCase().slice(0, 3));
+  const wake = (d: string) => { const wd = WD[new Date(d + 'T12:00:00Z').getUTCDay()]; return toMins(['sat', 'sun'].includes(wd) ? c.wakeWeekend : office.includes(wd) ? c.wakeOffice : c.wakeHome); };
+  const bed = Math.min(wake(addDays(day, 1)) + 1440 - (Number(c.sleep) || 8) * 60, 1470);
+  return { wake: wake(day), bed, tomorrowOffice: office.includes(WD[new Date(addDays(day, 1) + 'T12:00:00Z').getUTCDay()]), wakeTomorrow: wake(addDays(day, 1)) };
+}
+const clock = (m: number) => `${String(Math.floor(((m % 1440) + 1440) % 1440 / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+// half an hour before bed: wind down, what's left for tonight, when the alarm goes
+function bedtime(recs: Rec[], prefs: any, day: string, wd: string) {
+  const t = dayTimes(prefs, day), lines = [`Bed om ${clock(t.bed)}, wekker ${clock(t.wakeTomorrow)}${t.tomorrowOffice ? ' (kantoordag)' : ''}.`];
+  const ev = evening(recs, wd); if (ev) lines.push(...ev.body.split('\n'));
+  lines.push('Licht dimmen, schermen weg, 2 minuten journalen.');
+  if (t.tomorrowOffice) lines.push('Klaarzetten: outfit, lunch en tas.');
+  return { title: 'Tijd om af te bouwen', body: lines.slice(0, 6).join('\n'), url: './#overview', tag: 'bedtime' };
+}
+const BUNDLES: Record<string, string[]> = {
+  morning: ['morning', 'content', 'reminders', 'shopday', 'eatbf', 'payday', 'skindiary', 'freezer'],
+  midday: ['eatlunch', 'eatsnack', 'bills'],
+  evening: ['weekly', 'weekahead', 'socialweek', 'foodweek', 'movelist'],
+  bedtime: ['bedtime']
+};
+const SUNDAY = ['weekly', 'weekahead', 'socialweek', 'skindiary', 'freezer', 'foodweek'];
 async function runUser(uid: string, prefs: any, force = false) {
   const cfg = { ...DEF, ...(prefs?.notify || {}) }, tz = cfg.tz || 'Europe/Amsterdam', now = localNow(tz);
-  const due = (k: string) => {
-    const c = { ...DEF[k], ...(cfg[k] || {}) }; if (!c.on || !c.time) return false;
-    const t = toMins(c.time) + (['eatbf', 'eatlunch'].includes(k) && ['sat', 'sun'].includes(now.wd) ? 60 : 0); return force || (now.mins >= t && now.mins < t + 60);
-  };
-  const slots = ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders', 'content', 'socialweek', 'skindiary', 'freezer', 'shopday', 'eatbf', 'eatlunch', 'eatsnack', 'foodweek', 'movelist'].filter(k => due(k) && (!['weekly', 'weekahead', 'socialweek', 'skindiary', 'freezer', 'foodweek'].includes(k) || now.wd === 'sun' || force));
+  const on = (k: string) => k === 'bedtime' ? cfg.bedtime?.on !== false : ({ ...DEF[k], ...(cfg[k] || {}) }).on && (!SUNDAY.includes(k) || now.wd === 'sun' || force);
+  const inHour = (t: number) => force || (now.mins >= t && now.mins < t + 60);
+  const dt = dayTimes(prefs, now.day), wkend = ['sat', 'sun'].includes(now.wd);
+  const msgOf = async (recs: Rec[], k: string) => k === 'morning' ? morning(recs, now.day, await outfitToday(uid, now.day)) : k === 'evening' ? evening(recs, now.wd)
+    : k === 'bills' ? bills(recs, now.day) : k === 'payday' ? payday(recs, now.day) : k === 'weekahead' ? weekahead(recs, prefs, now.day)
+    : k === 'reminders' ? reminders(recs, prefs, now.day) : k === 'content' ? content(recs, now.day) : k === 'socialweek' ? socialweek(recs, now.day) : k === 'skindiary' ? skindiary(recs, now.day) : k === 'freezer' ? freezer(recs, now.day)
+    : k === 'shopday' ? shopday(recs, prefs, now.wd) : k === 'eatbf' ? eatNudge(recs, now.day, 'Breakfast') : k === 'eatlunch' ? eatNudge(recs, now.day, 'Lunch') : k === 'eatsnack' ? eatNudge(recs, now.day, 'snack')
+    : k === 'foodweek' ? foodweek(recs, now.day, prefs) : k === 'movelist' ? movelist(recs, now.day, prefs) : k === 'bedtime' ? bedtime(recs, prefs, now.day, now.wd) : k === 'weekly' ? weekly(recs, now.day) : null;
+  let sent = 0;
+  if (cfg.bundle?.on !== false && cfg.bundle !== false) {
+    // at most four a day: a morning, midday, evening and bedtime message that each gather what's due
+    const at: Record<string, number> = { morning: dt.wake + 45, midday: 12 * 60 + 45 + (wkend ? 60 : 0), evening: 19 * 60, bedtime: Math.min(dt.bed - 30, 1410) };
+    const due = Object.keys(BUNDLES).filter(b => inHour(at[b]));
+    if (!due.length) return 0;
+    const recs = await loadAll(uid);
+    for (const b of due) {
+      const msgs = []; for (const k of BUNDLES[b].filter(on)) { const m = await msgOf(recs, k); if (m) msgs.push(m); }
+      if (!msgs.length) continue;
+      if (!force && !(await claim(uid, 'b:' + b, now.day))) continue;
+      const title = msgs.length === 1 ? msgs[0].title : ({ morning: 'Goedemorgen', midday: 'Even tussendoor', evening: 'Vanavond', bedtime: 'Tijd om af te bouwen' } as Record<string, string>)[b];
+      const body = msgs.length === 1 ? msgs[0].body : msgs.map(m => `${m.title}: ${String(m.body).split('\n')[0]}`).join('\n');
+      if (await send(uid, { title, body: body.slice(0, 600), url: msgs[0].url, tag: 'bundle-' + b })) sent++;
+    }
+    return sent;
+  }
+  const due = (k: string) => { if (k === 'bedtime') return inHour(Math.min(dt.bed - 30, 1410)); const c = { ...DEF[k], ...(cfg[k] || {}) }; if (!c.time) return false; return inHour(toMins(c.time) + (['eatbf', 'eatlunch'].includes(k) && wkend ? 60 : 0)); };
+  const slots = ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders', 'content', 'socialweek', 'skindiary', 'freezer', 'shopday', 'eatbf', 'eatlunch', 'eatsnack', 'foodweek', 'movelist', 'bedtime'].filter(k => on(k) && due(k));
   if (!slots.length) return 0;
   const recs = await loadAll(uid);
-  let sent = 0;
   for (const k of slots) {
-    const msg = k === 'morning' ? morning(recs, now.day, await outfitToday(uid, now.day)) : k === 'evening' ? evening(recs, now.wd)
-      : k === 'bills' ? bills(recs, now.day) : k === 'payday' ? payday(recs, now.day) : k === 'weekahead' ? weekahead(recs, prefs, now.day)
-      : k === 'reminders' ? reminders(recs, prefs, now.day) : k === 'content' ? content(recs, now.day) : k === 'socialweek' ? socialweek(recs, now.day) : k === 'skindiary' ? skindiary(recs, now.day) : k === 'freezer' ? freezer(recs, now.day) : k === 'shopday' ? shopday(recs, prefs, now.wd) : k === 'eatbf' ? eatNudge(recs, now.day, 'Breakfast') : k === 'eatlunch' ? eatNudge(recs, now.day, 'Lunch') : k === 'eatsnack' ? eatNudge(recs, now.day, 'snack') : k === 'foodweek' ? foodweek(recs, now.day, prefs) : k === 'movelist' ? movelist(recs, now.day, prefs) : weekly(recs, now.day);
-    if (!msg) continue;
+    const msg = await msgOf(recs, k); if (!msg) continue;
     if (!force && !(await claim(uid, k, now.day))) continue;
     if (await send(uid, msg)) sent++;
   }
