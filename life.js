@@ -96,7 +96,7 @@ const F = (k, label, type = 'text', o = {}) => ({ k, label, type, ...o });
 const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 const STORES = ['Dirk', 'Aldi', 'Albert Heijn'];
 const UNITS = ['stuks', 'gram', 'ml', 'portie'];
-const SHOP_TYPES = ['Supermarket', 'Toko', 'Butcher', 'Fishmonger', 'Greengrocer', 'Market', 'Drugstore', 'Perfumery', 'Brand store', 'Webshop', 'Other'];
+const SHOP_TYPES = ['Supermarket', 'Toko', 'Butcher', 'Fishmonger', 'Greengrocer', 'Market', 'Household', 'Drugstore', 'Perfumery', 'Brand store', 'Webshop', 'Other'];
 // the shops you keep in Kitchen › Shops and Beauty › Deals; the weekly tasks read the deals of every shop that has them on
 const shopNames = kind => recs(kind).map(r => r.name).filter(Boolean);
 const kitchenStores = () => { const own = recs('shops').filter(r => r.name && r.type !== 'Butcher' && r.type !== 'Fishmonger').map(r => r.name); return [...new Set([...STORES, ...own])]; };
@@ -132,6 +132,14 @@ const CAT_NL = {
 const catNL = (kind, v) => (CAT_NL[kind] || {})[v] || v;
 const ROOMS = ['Entree', 'Woonkamer', 'Keuken', 'Slaapkamer', 'Badkamer', 'Toilet', 'Wasruimte', 'Balkon', 'Schoonmaak', 'Overig'];
 const PRIO = ['Must-have', 'Binnen 3 maanden', 'Handig', 'Kan later'];
+// the home inventory is a move list in Dutch: an idea, then options to choose from, then ordered and bought
+const INV_STATUS = ['Idee', 'Kiezen', 'Besteld', 'Gekocht', 'Teruggestuurd', 'Weg'];
+const INV_WANT = ['Idee', 'Kiezen', 'Besteld'];
+const INV_PRIO = ['Eerste week', 'Binnen 3 maanden', 'Later'];
+const INV_CATS = ['Meubels', 'Keukenspullen', 'Apparaten', 'Decoratie', 'Textiel', 'Opbergen', 'Elektronica', 'Gereedschap', 'Buiten', 'Schoonmaak', 'Overig'];
+const MOVE_TYPES = ['Borg en huur', 'Verhuizen', 'Klussen', 'Aansluitingen', 'Overig'];
+const INV_OLD = { status: { Wishlist: 'Idee', Ordered: 'Besteld', Have: 'Gekocht', Returned: 'Teruggestuurd', Gone: 'Weg' }, priority: { 'Must-have': 'Eerste week', Handig: 'Later', 'Kan later': 'Later' }, category: { Furniture: 'Meubels', Kitchenware: 'Keukenspullen', Appliances: 'Apparaten', 'Home Decor': 'Decoratie', Linens: 'Textiel', Storage: 'Opbergen', Electronics: 'Elektronica', Tools: 'Gereedschap', 'Outdoor Equipment': 'Buiten', Miscellaneous: 'Overig' } };
+const invStatus = r => INV_OLD.status[r.status] || r.status || 'Gekocht';
 const FREQ = { 'Daily': 1, 'Every 2 days': 2, 'Twice a week': 3, 'Weekly': 7, 'Every 2 weeks': 14, 'Monthly': 30, 'Every 3 months': 91, 'Every 6 months': 182, 'Yearly': 365 };
 const mins = n => n ? (n >= 60 ? `${Math.floor(n / 60)} h${n % 60 ? ' ' + (n % 60) + ' min' : ''}` : `${n} min`) : '';
 const totalTime = r => (num(r.prep) || 0) + (num(r.cook) || 0);
@@ -217,7 +225,7 @@ function doVideo(v) {
 // wishlists: one place for every wish in the app
 const WISH_PRIO = ['Must have', 'Want', 'Someday'];
 // older priorities (High/Medium/Low, and the home inventory's own list) read as one of the three
-const wishPrio = v => ({ High: 'Must have', 'Must have': 'Must have', 'Must-have': 'Must have', Medium: 'Want', Want: 'Want', 'Binnen 3 maanden': 'Want', Handig: 'Want', Low: 'Someday', Someday: 'Someday', 'Kan later': 'Someday' })[v] || '';
+const wishPrio = v => ({ High: 'Must have', 'Must have': 'Must have', 'Must-have': 'Must have', 'Eerste week': 'Must have', Later: 'Someday', Medium: 'Want', Want: 'Want', 'Binnen 3 maanden': 'Want', Handig: 'Want', Low: 'Someday', Someday: 'Someday', 'Kan later': 'Someday' })[v] || '';
 const WISH_CATS = ['Tech', 'Books', 'Home', 'Kitchen', 'Beauty', 'Clothing', 'Fitness', 'Hobby', 'Travel', 'Other'];
 const daysSince = d => d ? Math.max(0, diffDays(String(d).slice(0, 10), today())) : null;
 // tile sets for savings challenges
@@ -607,22 +615,37 @@ const KINDS = {
     quick: r => ({ on: r.last === today(), label: 'Watered', act: () => save(r, { last: r.last === today() ? (r.prevLast || '') : today(), prevLast: r.last === today() ? '' : (r.last || '') }) })
   },
   inventory: {
-    one: 'item', many: 'Inventory', facet: 'room',
-    fields: [F('name', 'Name'), F('brand', 'Brand', 'text', { half: 1 }), F('qty', 'How many', 'text', { half: 1 }),
-      F('room', 'Room', 'select', { options: ROOMS }),
-      F('category', 'Category', 'select', { options: ['Furniture', 'Kitchenware', 'Appliances', 'Home Decor', 'Linens', 'Storage', 'Electronics', 'Tools', 'Outdoor Equipment', 'Miscellaneous'] }),
-      F('status', 'Status', 'select', { options: ['Wishlist', 'Ordered', 'Have', 'Returned', 'Gone'] }),
-      F('priority', 'Priority', 'select', { options: PRIO }),
-      F('price', 'Price', 'money', { half: 1 }), F('bought', 'Bought on', 'date', { half: 1 }),
-      F('warranty', 'Warranty until', 'date', { half: 1 }), F('receipt', 'Receipt', 'photo'),
-      F('rating', 'Rating', 'rating'), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
-    sorts: [['prio', 'Priority'], ['name', 'A to Z'], ['-bought', 'Newest'], ['-price', 'Priciest']],
-    filters: [['want', 'To buy'], ['have', 'Have'], ['all', 'All']],
-    filter: (r, f) => f === 'have' ? (r.status || 'Have') === 'Have' : f === 'want' ? ['Wishlist', 'Ordered'].includes(r.status) : true,
-    sub: r => [r.room, r.category, r.qty && r.qty !== '1' ? r.qty + '×' : '', r.status === 'Ordered' ? 'ordered' : '', r.warranty ? (r.warranty < today() ? 'warranty over' : 'warranty until ' + shortDate(r.warranty)) : '', r.receipt ? 'receipt' : ''].filter(Boolean).join(' · '),
-    side: r => [r.priority && ['Wishlist', 'Ordered'].includes(r.status) ? r.priority : '', eur(r.price)].filter(Boolean).join(' · '),
-    quick: r => ['Wishlist', 'Ordered'].includes(r.status) ? { on: false, label: 'Bought', act: () => recs('faccounts').length ? buyWish('inventory', r.id) : save(r, { status: 'Have', bought: r.bought || today() }) } : null
+    one: 'product', ones: 'producten', many: 'Verhuislijst', facet: 'room',
+    fields: [F('name', 'Product'), F('room', 'Kamer', 'select', { options: ROOMS, half: 1 }), F('status', 'Status', 'select', { options: INV_STATUS, half: 1 }),
+      F('priority', 'Prioriteit', 'select', { options: INV_PRIO, half: 1 }), F('category', 'Categorie', 'select', { options: INV_CATS, half: 1 }),
+      F('budget', 'Budget', 'money', { half: 1 }), F('price', 'Betaald', 'money', { half: 1 }), F('qty', 'Aantal', 'text', { half: 1 }), F('brand', 'Merk', 'text', { half: 1 }),
+      F('shop', 'Winkel', 'text', { half: 1 }), F('bought', 'Gekocht op', 'date', { half: 1 }), F('warranty', 'Garantie tot', 'date', { half: 1 }),
+      F('chosen', 'Gekozen optie', 'rel', { to: 'invopts', half: 1 }), F('receipt', 'Bon', 'photo'),
+      F('rating', 'Beoordeling', 'rating'), F('url', 'Link', 'url'), F('photo', 'Foto', 'photo'), F('notes', 'Notities', 'long')],
+    sorts: [['prio', 'Prioriteit'], ['name', 'A tot Z'], ['-bought', 'Nieuwste'], ['-budget', 'Hoogste budget']],
+    filters: [['want', 'Nog kopen'], ['have', 'Gekocht'], ['all', 'Alles']],
+    filter: (r, f) => f === 'have' ? invStatus(r) === 'Gekocht' : f === 'want' ? INV_WANT.includes(invStatus(r)) : true,
+    sub: r => [r.room, invStatus(r), r.priority, invOpts(r.id).length ? plural(invOpts(r.id).length, 'optie', 'opties') : '', r.qty && r.qty !== '1' ? r.qty + '×' : '', r.warranty ? (r.warranty < today() ? 'garantie voorbij' : 'garantie tot ' + shortDate(r.warranty)) : ''].filter(Boolean).join(' · '),
+    side: r => invMoney(r),
+    quick: r => INV_WANT.includes(invStatus(r)) ? { on: false, label: 'Gekocht', act: () => invBuy(r.id) } : null
   },
+  invopts: {
+    one: 'optie', ones: 'opties', many: 'Opties', facet: 'shop', photo: 'photo', display: 'cards',
+    fields: [F('name', 'Naam'), F('item', 'Voor product', 'rel', { to: 'inventory' }), F('shop', 'Winkel', 'text', { half: 1 }), F('price', 'Prijs', 'money', { half: 1 }),
+      F('url', 'Link', 'url'), F('photo', 'Foto', 'photo'), F('fav', 'Favoriet', 'check', { half: 1 }), F('archived', 'Gearchiveerd', 'check', { half: 1 }), F('notes', 'Notities', 'long')],
+    sorts: [['price', 'Goedkoopste'], ['name', 'A tot Z']],
+    hide: r => !!r.archived, hideLabel: 'Toon gearchiveerd',
+    sub: r => [relName(r.item), r.shop, num(r.price) ? eur(num(r.price)) : '', r.fav ? 'favoriet' : '', r.chosenFor ? 'gekozen' : ''].filter(Boolean).join(' · ')
+  },
+  movecosts: {
+    one: 'kostenpost', ones: 'kostenposten', many: 'Verhuiskosten', facet: 'type',
+    fields: [F('name', 'Wat'), F('type', 'Soort', 'select', { options: MOVE_TYPES, half: 1 }), F('date', 'Datum', 'date', { half: 1 }),
+      F('budget', 'Budget', 'money', { half: 1 }), F('price', 'Betaald', 'money', { half: 1 }), F('paid', 'Betaald', 'check', { half: 1 }), F('notes', 'Notities', 'long')],
+    sorts: [['type', 'Soort'], ['-budget', 'Hoogste budget']],
+    sub: r => [r.type, num(r.budget) ? 'budget ' + eur(num(r.budget)) : '', r.paid ? 'betaald' + (num(r.price) ? ' ' + eur(num(r.price)) : '') : 'nog betalen'].filter(Boolean).join(' · '),
+    quick: r => ({ on: !!r.paid, label: 'Betaald', act: () => save(r, { paid: !r.paid }) })
+  },
+
   repairs: {
     one: 'repair', many: 'Repairs', facet: 'status',
     fields: [F('name', 'What needs doing'), F('status', 'Status', 'select', { options: ['To do', 'Planned', 'Done'] }),
@@ -678,7 +701,7 @@ const KINDS = {
   ftx: {
     one: 'purchase', many: 'Purchases',
     fields: [F('name', 'What'), F('amount', 'Amount', 'money', { half: 1 }), F('date', 'Date', 'date', { half: 1 }),
-      F('category', 'Category', 'rel', { to: 'fcats', half: 1 }), F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 }), F('tags', 'Tags', 'multi', { options: ['wishlist'] }), F('receipt', 'Receipt photo', 'photo'), F('notes', 'Notes', 'long')],
+      F('category', 'Category', 'rel', { to: 'fcats', half: 1 }), F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 }), F('tags', 'Tags', 'multi', { options: ['wishlist', 'verhuizen'] }), F('receipt', 'Receipt photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['-date', 'Newest'], ['-amount', 'Biggest'], ['name', 'A to Z']],
     sub: r => [niceDate(r.date), relName(r.category), relName(r.account), r.bill ? 'bill' : r.debt ? 'debt payment' : '', isWishTx(r) ? 'wishlist' : ''].filter(Boolean).join(' · '),
     side: r => eur(num(r.amount))
@@ -1074,7 +1097,7 @@ const SECTIONS = [
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile,
     groups: { plan: ['Plan', P.target], look: ['Review', P.trend] },
     views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target, 'plan'], ['debt', 'Debt', P.card, 'plan'], ['forecast', 'Forecast', P.trend, 'plan'], ['year', 'Year', P.calendar, 'look'], ['networth', 'Net worth', P.wallet, 'look'], ['reviews', 'Reviews', P.doc, 'look'], ['todo', 'To do', P.check]] },
-  { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench], ['todo', 'To do', P.check]] },
+  { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Verhuislijst', P.box], ['repairs', 'Repairs', P.wrench], ['todo', 'To do', P.check]] },
   { key: 'wish', label: 'Wishlists', icon: P.heart, tile: wishTile, views: [['today', 'Overview', P.grid], ['inbox', 'Inbox', P.inbox], ['master', 'Master', P.heart], ['todo', 'To do', P.check]] },
   { key: 'social', label: 'Social', icon: P.phone, tile: socialTile,
     groups: { work: ['Work', P.check], create: ['Create', P.phone], grow: ['Grow', P.trend], library: ['Library', P.book] },
@@ -1140,10 +1163,10 @@ const PAGES = {
   'money/year': { render: moneyYear, adds: ['fbills'] },
   'money/networth': { title: 'Net worth', segs: [{ key: 'nw', label: 'Net worth', kind: 'faccounts', fill: fNetFill, tools: false }, { kind: 'faccounts' }, { kind: 'fchecks' }, { kind: 'fset', label: 'Payday and buffer' }] },
   'money/reviews': { render: moneyReviews, adds: ['ftx', 'fincome'] },
-  'home/today': { render: homeToday, adds: ['chores', 'plants', 'inventory', 'repairs'] },
+  'home/today': { render: homeToday, adds: ['chores', 'plants', 'inventory', 'invopts', 'movecosts', 'repairs'] },
   'home/chores': { title: 'Chores', segs: [{ key: 'plan', label: 'Schedule', kind: 'chores', fill: choreFill, tools: false }, { kind: 'chores', label: 'All chores' }] },
   'home/plants': { title: 'Plants', segs: [{ kind: 'plants' }] },
-  'home/inventory': { title: 'Inventory', segs: [{ kind: 'inventory' }] },
+  'home/inventory': { title: 'Verhuislijst', segs: [{ key: 'rooms', label: 'Per kamer', kind: 'inventory', fill: invRooms, tools: false }, { key: 'status', label: 'Per status', kind: 'inventory', fill: invByStatus, tools: false }, { key: 'prio', label: 'Per prioriteit', kind: 'inventory', fill: invByPrio, tools: false }, { key: 'board', label: 'Moodboard', kind: 'invopts', fill: invBoard, tools: false }, { key: 'analyse', label: 'Analyse', kind: 'inventory', fill: invAnalysis, tools: false }, { kind: 'inventory', label: 'Alle producten' }, { kind: 'invopts', label: 'Opties' }, { kind: 'movecosts', label: 'Verhuiskosten' }] },
   'home/repairs': { title: 'Repairs', segs: [{ kind: 'repairs' }] },
   'fit/today': { render: fitToday, adds: ['workouts', 'vworkouts', 'fitgoals', 'sets', 'body', 'exercises'] },
   'fit/workouts': { title: 'Workouts', segs: [{ kind: 'workouts' }] },
@@ -1198,14 +1221,14 @@ function applyRule(kind, id, data) {
 const undoName = (kind, d) => { const K = KINDS[kind]; const t = K ? ((K.title ? K.title({ ...d, kind }) : d.name) || K.one) : 'item'; return String(t).slice(0, 40); };
 // what is still a wish, per kind; when a record stops being one, it gets a stamp: bought or let go, and when
 const WISHY = { wishes: r => !r.archived && !['Bought', 'Dropped'].includes(r.status), beauty: r => !!r.wish && !r.archived, supplements: r => !!r.wish && !r.finished,
-  gear: r => !r.own && !r.dropped, fitgear: r => !r.own && !r.dropped, inventory: r => ['Wishlist', 'Ordered'].includes(r.status), fwait: r => (!r.status || r.status === 'Waiting') && !r.moved };
+  gear: r => !r.own && !r.dropped, fitgear: r => !r.own && !r.dropped, inventory: r => INV_WANT.includes(invStatus(r)), fwait: r => (!r.status || r.status === 'Waiting') && !r.moved };
 function stampWish(kind, id, data) {
   const w = WISHY[kind], was = L.byId[id]; if (!w || !was) return data;
   const before = w(was), now = w(data);
   if (!before && now && data.wishOut) { const { wishOut, wishOutOn, ...rest } = data; return rest; }
   if (!before || now || data.wishOut) return data;
   if (kind === 'fwait' && data.moved) return data;
-  const dropped = kind === 'wishes' ? data.status === 'Dropped' || (data.archived && data.status !== 'Bought') : kind === 'inventory' ? ['Returned', 'Gone'].includes(data.status) : kind === 'beauty' || kind === 'supplements' ? !!data.wish : kind === 'fwait' ? data.status === 'Let go' : !!data.dropped;
+  const dropped = kind === 'wishes' ? data.status === 'Dropped' || (data.archived && data.status !== 'Bought') : kind === 'inventory' ? ['Returned', 'Gone', 'Teruggestuurd', 'Weg'].includes(data.status) : kind === 'beauty' || kind === 'supplements' ? !!data.wish : kind === 'fwait' ? data.status === 'Let go' : !!data.dropped;
   return { ...data, wishOut: dropped ? 'dropped' : 'bought', wishOutOn: today() };
 }
 async function put(kind, id, data) {
@@ -1446,7 +1469,7 @@ function emptyList(K, any) {
    gift) and fills in a card. You accept it, send it somewhere else, keep it as a saved link, or skip it. */
 const INBOX_TO = { recipes: ['Recipe', 'kitchen/recipes'], wishes: ['Wish', 'wish/master'], closet: ['Closet wishlist', 'wishlist'], beauty: ['Beauty', 'care/beauty'], supplements: ['Supplement', 'care/supplements'],
   gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], stips: ['Social tip', 'social/tips'], inspo: ['Inspiration', 'social/inspo'], gifts: ['Gift idea', 'care/gifts'], trip: ['Trip idea', 'care/trips'], stays: ['Saved stay', 'care/trips'], keep: ['Saved link', 'care/saved'] };
-const INBOX_EXTRA = { stays: () => ({ status: 'Saved' }), wishes: () => ({ status: 'Wish', since: today() }), beauty: () => ({ wish: true }), supplements: () => ({ wish: true }), gear: () => ({ own: false }), fitgear: () => ({ own: false }), inventory: () => ({ status: 'Wishlist' }), cideas: () => ({ status: 'Idea', source: 'Inbox' }), gifts: () => ({ status: 'Idea' }) };
+const INBOX_EXTRA = { stays: () => ({ status: 'Saved' }), wishes: () => ({ status: 'Wish', since: today() }), beauty: () => ({ wish: true }), supplements: () => ({ wish: true }), gear: () => ({ own: false }), fitgear: () => ({ own: false }), inventory: () => ({ status: 'Idee' }), cideas: () => ({ status: 'Idea', source: 'Inbox' }), gifts: () => ({ status: 'Idea' }) };
 const inboxOpen = () => recs('inbox').filter(r => ['New', 'Ready'].includes(r.status));
 const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
 // a short preview of inbox cards, with Accept where a card is ready
@@ -3296,8 +3319,8 @@ const wishBudget = () => num(fset().wishBudget) || 0;
 const wishSpent = (w = fWindow()) => fSum(recs('ftx').filter(x => isWishTx(x) && x.date >= w.start && x.date <= w.end && x.date <= today()));
 const wishSaved = () => fSum(wishHistory().filter(h => h.out === 'dropped'), 'price');
 const wishWaitLeft = r => { const h = num(r.wait); if (r.kind === 'fwait') return Math.ceil((waitEnd(r) - Date.now()) / 36e5); if (!h) return null; return Math.ceil(((num(r.waitFrom) || r.created || Date.now()) + h * 36e5 - Date.now()) / 36e5); };
-const BUY_PATCH = { wishes: () => ({ status: 'Bought' }), beauty: d => ({ wish: false, bought: d }), supplements: d => ({ wish: false, bought: d }), gear: d => ({ own: true, bought: d }), fitgear: d => ({ own: true, bought: d }), inventory: d => ({ status: 'Have', bought: d }), fwait: () => ({ status: 'Bought' }) };
-const DROP_PATCH = { wishes: () => ({ status: 'Dropped' }), beauty: () => ({ archived: true }), supplements: () => ({ finished: true }), gear: () => ({ dropped: true }), fitgear: () => ({ dropped: true }), inventory: () => ({ status: 'Gone' }), fwait: () => ({ status: 'Let go' }) };
+const BUY_PATCH = { wishes: () => ({ status: 'Bought' }), beauty: d => ({ wish: false, bought: d }), supplements: d => ({ wish: false, bought: d }), gear: d => ({ own: true, bought: d }), fitgear: d => ({ own: true, bought: d }), inventory: d => ({ status: 'Gekocht', bought: d }), fwait: () => ({ status: 'Bought' }) };
+const DROP_PATCH = { wishes: () => ({ status: 'Dropped' }), beauty: () => ({ archived: true }), supplements: () => ({ finished: true }), gear: () => ({ dropped: true }), fitgear: () => ({ dropped: true }), inventory: () => ({ status: 'Weg' }), fwait: () => ({ status: 'Let go' }) };
 function wishRef(kind, id) {
   if (kind === 'closet') { const c = (C.closetWish?.() || []).find(x => x.id === id); return c ? { kind, id, name: c.name || 'Piece', price: num(c.price) || 0, plan: c.planBuy || '' } : null; }
   const r = L.byId[id]; return r && WISHY[r.kind] ? { kind: r.kind, id, name: titleOf(r), price: num(r.price) || 0, plan: r.planBuy || '' } : null;
@@ -3511,17 +3534,120 @@ function choreFill(fill) {
     + (soon.length ? `<section class="panel lpanel"><div class="lph3"><h3>Coming up this week</h3></div><div class="lrows">${soon.map(row).join('')}</div></section>` : '')
     + `<p class="lnone">Missed one? It stays on the list as carried over until you do it. Pick your free days in Home › Settings.</p>`;
 }
+/* ---------- move list (Home › Verhuislijst) ----------
+   Every product has a budget and a few options you like (links, photos, prices). When you buy one, the app
+   keeps what you really paid, archives the other options and logs the purchase in Finance. */
+const invOpts = (id, all) => recs('invopts').filter(o => o.item === id && (all || !o.archived));
+const invLive = () => recs('inventory').filter(r => !['Teruggestuurd', 'Weg'].includes(invStatus(r)));
+const invMoney = r => { const b = num(r.budget), p = num(r.price); return invStatus(r) === 'Gekocht' ? (p != null ? eur(p) + (b != null ? (p > b ? ' · ' + eur(p - b) + ' boven' : p < b ? ' · ' + eur(b - p) + ' onder' : '') : '') : 'gekocht') : b != null ? 'budget ' + eur(b) : ''; };
+const moveMonth = () => (C?.prefs?.().move || {}).month || '2027-07';
+const moveGoal = () => recs('fgoals').find(g => /verhuiz/i.test(g.name || ''));
+let invMigrated = false;
+function invMigrate() {
+  if (invMigrated || !C) return; invMigrated = true;
+  const rows = recs('inventory').filter(r => INV_OLD.status[r.status] || INV_OLD.priority[r.priority] || INV_OLD.category[r.category] || !r.status).map(r => ({ id: r.id, kind: 'inventory', data: { ...dataOf(r), status: invStatus(r), ...(INV_OLD.priority[r.priority] ? { priority: INV_OLD.priority[r.priority] } : {}), ...(INV_OLD.category[r.category] ? { category: INV_OLD.category[r.category] } : {}), ...(r.price != null && r.budget == null && INV_WANT.includes(invStatus(r)) ? { budget: r.price, price: null } : {}) } }));
+  for (const r of rows) for (const k of Object.keys(r.data)) if (r.data[k] == null) delete r.data[k];
+  if (rows.length) putMany(rows, null, 'Verhuislijst naar het Nederlands').catch(() => { invMigrated = false; });
+}
+async function invBuy(id, optId) {
+  const r = L.byId[id]; if (!r) return;
+  const o = optId && L.byId[optId], guess = num(o?.price) ?? num(r.price) ?? num(r.budget) ?? '';
+  const v = prompt(`Wat heb je betaald voor ${r.name}${o ? ` (${o.name})` : ''}?`, guess); if (v === null) return;
+  const paid = num(String(v).replace(',', '.')), d = today();
+  const rows = [{ id: r.id, kind: 'inventory', data: { ...dataOf(r), status: 'Gekocht', bought: r.bought || d, ...(paid != null ? { price: paid } : {}), ...(o ? { chosen: o.id, shop: r.shop || o.shop, url: r.url || o.url, photo: r.photo || o.photo } : {}) } }];
+  for (const x of invOpts(r.id)) if (!o || x.id !== o.id) rows.push({ id: x.id, kind: 'invopts', data: { ...dataOf(x), archived: true } });
+  if (o) rows.push({ id: o.id, kind: 'invopts', data: { ...dataOf(o), chosenFor: true, archived: false } });
+  if (paid) {
+    rows.push({ id: C.uuid(), kind: 'ftx', data: { name: r.name + (o?.shop ? ' · ' + o.shop : ''), amount: paid, date: d, account: fMainAcc()?.id, tags: ['verhuizen'], notes: 'Verhuislijst', created: Date.now() } });
+    const g = moveGoal(); if (g && num(g.saved)) rows.push({ id: g.id, kind: 'fgoals', data: { ...dataOf(g), saved: Math.max(0, Math.round((num(g.saved) - paid) * 100) / 100) } });
+  }
+  for (const x of rows) for (const k of Object.keys(x.data)) if (x.data[k] == null) delete x.data[k];
+  try { await putMany(rows, null, `${r.name} gekocht`); C.toast(paid ? `${r.name} gekocht voor ${eur(paid)}, ook in Finance` : `${r.name} gekocht`); openEditor('inventory', r.id); } catch { C.toast('Opslaan lukte niet. Probeer het opnieuw.'); }
+}
+function invOptionsPanel(r) {
+  const list = invOpts(r.id), arch = invOpts(r.id, true).filter(o => o.archived && !o.chosenFor), bought = invStatus(r) === 'Gekocht';
+  const card = o => `<div class="iopt ${o.chosenFor ? 'on' : ''}"><span class="iph">${o.photo ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(o.photo))}" alt="" loading="lazy" onerror="this.remove()">` : ''}</span><div><b>${esc(o.name || 'Optie')}</b><span>${esc([o.shop, num(o.price) ? eur(num(o.price)) : '', num(r.budget) && num(o.price) ? (num(o.price) > num(r.budget) ? eur(num(o.price) - num(r.budget)) + ' boven budget' : 'binnen budget') : '', o.chosenFor ? 'gekozen' : ''].filter(Boolean).join(' · '))}</span>
+    <div class="dbtns ioptb">${o.url ? `<a class="btn small" href="${esc(o.url)}" target="_blank" rel="noopener">Bekijk</a>` : ''}<button type="button" class="btn small" data-act="optopen" data-id="${o.id}">Bewerk</button>${!bought ? `<button type="button" class="btn small primary" data-act="optbuy" data-id="${r.id}" data-v="${o.id}">Deze gekocht</button>` : ''}</div></div></div>`;
+  return `<section class="ltipsteps"><div class="lph3"><h3>Opties${list.length ? ' · ' + list.length : ''}</h3><button type="button" class="chip" data-act="optadd" data-id="${r.id}">+ Optie</button></div>
+    ${list.length ? `<div class="iopts">${list.map(card).join('')}</div>` : '<p class="lnone">Zet hier de producten die je mooi vindt, met link, foto en prijs. Bij het kopen kies je er één.</p>'}
+    ${arch.length ? `<p class="lnone">${plural(arch.length, 'optie', 'opties')} gearchiveerd.</p>` : ''}
+    ${!bought ? `<div class="dbtns"><button type="button" class="btn small" data-act="optbuy" data-id="${r.id}" data-v="">Gekocht zonder optie</button></div>` : ''}</section>`;
+}
+// one product line in the move views: photo of the chosen or first option, money, and how many options
+function invLine(r) {
+  const o = (r.chosen && L.byId[r.chosen]) || invOpts(r.id)[0], ph = r.photo || o?.photo, n = invOpts(r.id).length;
+  return `<div class="lrow">${ph ? `<button class="lthumb" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : ''}<button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(r.name || 'Product')}</b><span>${esc([r.room, invStatus(r), r.priority, n ? plural(n, 'optie', 'opties') : ''].filter(Boolean).join(' · '))}</span></button><span class="lside">${esc(invMoney(r))}</span>${INV_WANT.includes(invStatus(r)) ? `<button class="lquick" data-act="invbuy" data-id="${r.id}">Gekocht</button>` : ''}</div>`;
+}
+const invSum = (l, k) => l.reduce((n, r) => n + (num(r[k]) || 0), 0);
+function invGroups(fill, keyOf, order) {
+  invMigrate();
+  const l = invLive(), g = {};
+  for (const r of l) (g[keyOf(r) || 'Geen'] ||= []).push(r);
+  const keys = [...order.filter(k => g[k]), ...Object.keys(g).filter(k => !order.includes(k)).sort()];
+  fill.innerHTML = l.length ? keys.map(k => { const rs = g[k].sort((a, b) => (INV_STATUS.indexOf(invStatus(a)) - INV_STATUS.indexOf(invStatus(b))) || norm(a.name).localeCompare(norm(b.name))), done = rs.filter(r => invStatus(r) === 'Gekocht');
+    return `<div class="lgh gshop"><h3>${esc(k)} · ${done.length}/${rs.length}</h3><span class="lnone">${esc([invSum(rs, 'budget') ? 'budget ' + eur(invSum(rs, 'budget')) : '', invSum(done, 'price') ? 'betaald ' + eur(invSum(done, 'price')) : ''].filter(Boolean).join(' · '))}</span></div><div class="lrows">${rs.map(invLine).join('')}</div>`; }).join('') : invEmpty();
+}
+const invEmpty = () => `<div class="banner">${quiet('Je verhuislijst is nog leeg. Begin met een startlijst per kamer, of voeg zelf producten toe.')}<button class="btn small primary" data-act="invstart">Startlijst toevoegen</button></div>`;
+function invRooms(fill) { invGroups(fill, r => r.room, ROOMS); }
+function invByStatus(fill) { invGroups(fill, r => invStatus(r), INV_STATUS); }
+function invByPrio(fill) { invGroups(fill, r => r.priority, INV_PRIO); }
+function invBoard(fill) {
+  invMigrate();
+  const items = invLive().filter(r => INV_WANT.includes(invStatus(r)) || invOpts(r.id).length);
+  const tiles = items.flatMap(r => invOpts(r.id).filter(o => o.photo || o.url).map(o => ({ r, o })));
+  fill.innerHTML = tiles.length ? [...new Set(tiles.map(t => t.r.room || 'Overig'))].map(room => `<h3 class="lgh">${esc(room)}</h3><div class="iboard">${tiles.filter(t => (t.r.room || 'Overig') === room).map(({ r, o }) => `<button class="itile ${o.chosenFor ? 'on' : ''}" data-act="open" data-id="${r.id}">${o.photo ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(o.photo))}" alt="" loading="lazy" onerror="this.remove()">` : ''}<span><b>${esc(r.name)}</b>${esc([o.name, num(o.price) ? eur(num(o.price)) : ''].filter(Boolean).join(' · '))}</span></button>`).join('')}</div>`).join('')
+    : quiet('Voeg opties met een foto toe aan je producten, dan verschijnen ze hier als moodboard.');
+}
+const MOVE_START = { Woonkamer: ['Bank', 'Salontafel', 'Tv-meubel', 'Televisie', 'Vloerkleed', 'Gordijnen woonkamer', 'Staande lamp', 'Plafondlamp', 'Boekenkast'], Keuken: ['Pannenset', 'Koekenpan', 'Snijplank', 'Bestek', 'Servies', 'Glazen', 'Waterkoker', 'Magnetron', 'Airfryer', 'Afwasrek', 'Vuilnisbak', 'Vershoudbakjes', 'Ovenschaal'], Slaapkamer: ['Bed', 'Matras', 'Dekbed', 'Kussens', 'Dekbedovertrek', 'Kledingkast', 'Nachtkastje', 'Gordijnen slaapkamer', 'Passpiegel'], Badkamer: ['Handdoeken', 'Badmat', 'Douchewisser', 'Badkamerrek', 'Wc-borstel'], Entree: ['Kapstok', 'Schoenenrek', 'Deurmat'], Wasruimte: ['Wasmachine', 'Droogrek', 'Wasmand', 'Strijkijzer'], Schoonmaak: ['Stofzuiger', 'Emmer en dweil', 'Schoonmaakmiddelen'], Overig: ['Gereedschapset', 'Trapje', 'Verlengsnoeren', 'Rookmelder', 'Verbanddoos'] };
+const MOVE_COSTS_START = [['Borg', 'Borg en huur'], ['Eerste maand huur', 'Borg en huur'], ['Verhuisbus', 'Verhuizen'], ['Verhuisdozen', 'Verhuizen'], ['Verf en kwasten', 'Klussen'], ['Vloer', 'Klussen'], ['Gordijnrails', 'Klussen'], ['Lampen ophangen', 'Klussen'], ['Internet aansluiten', 'Aansluitingen'], ['Energie en water', 'Aansluitingen']];
+async function invStart() {
+  const have = new Set(recs('inventory').map(r => norm(r.name))), costs = new Set(recs('movecosts').map(r => norm(r.name))), rows = [];
+  for (const [room, l] of Object.entries(MOVE_START)) for (const name of l) if (!have.has(norm(name))) rows.push({ id: C.uuid(), kind: 'inventory', data: { name, room, status: 'Idee', created: Date.now() } });
+  for (const [name, type] of MOVE_COSTS_START) if (!costs.has(norm(name))) rows.push({ id: C.uuid(), kind: 'movecosts', data: { name, type, created: Date.now() } });
+  if (!rows.length) { C.toast('De startlijst staat er al in'); return; }
+  try { await putMany(rows, null, 'Startlijst voor de verhuizing'); C.toast(`${plural(rows.length, 'ding', 'dingen')} op je verhuislijst. Verwijder wat je niet nodig hebt.`); } catch { C.toast('Opslaan lukte niet. Probeer het opnieuw.'); }
+}
+function invAnalysis(fill) {
+  invMigrate();
+  const l = invLive(), done = l.filter(r => invStatus(r) === 'Gekocht'), open = l.filter(r => INV_WANT.includes(invStatus(r)));
+  const mc = recs('movecosts'), mcPaid = mc.filter(c => c.paid), mcOpen = mc.filter(c => !c.paid);
+  const spent = invSum(done, 'price') + mcPaid.reduce((n, c) => n + (num(c.price ?? c.budget) || 0), 0);
+  const toGo = invSum(open, 'budget') + invSum(mcOpen, 'budget'), budgetAll = invSum(l, 'budget') + invSum(mc, 'budget');
+  const noBudget = open.filter(r => num(r.budget) == null).length + mcOpen.filter(c => num(c.budget) == null).length;
+  const m = moveMonth(), months = Math.max(1, (Number(m.slice(0, 4)) - new Date().getFullYear()) * 12 + Number(m.slice(5, 7)) - (new Date().getMonth() + 1));
+  const g = moveGoal(), saved = num(g?.saved) || 0, perMonth = Math.max(0, toGo - saved) / months;
+  const diff = done.filter(r => num(r.budget) != null && num(r.price) != null).map(r => [r, num(r.price) - num(r.budget)]).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+  const over = diff.reduce((n, [, d]) => n + d, 0);
+  const rooms = [...new Set(l.map(r => r.room || 'Overig'))].sort((a, b) => ROOMS.indexOf(a) - ROOMS.indexOf(b));
+  const bar = (a, b) => `<div class="dbar"><i style="width:${b ? Math.min(100, 100 * a / b) : 0}%"></i></div>`;
+  const monthName = fromISO(m + '-01').toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' });
+  fill.innerHTML = `${!l.length ? invEmpty() : ''}<div class="tiles">${fTile('Nog nodig', fEur0(toGo), noBudget ? `${plural(noBudget, 'ding', 'dingen')} zonder budget` : 'alles heeft een budget')}${fTile('Al uitgegeven', fEur0(spent), `${done.length} van ${l.length} producten gekocht`)}${fTile('Per maand sparen', fEur0(perMonth), `tot ${monthName}${saved ? `, ${eur(saved)} al gespaard` : ''}`)}${fTile('Budget vs betaald', (over > 0 ? '+' : over < 0 ? '−' : '') + fEur0(Math.abs(over)), over > 0 ? 'boven budget bij wat je kocht' : over < 0 ? 'onder budget bij wat je kocht' : 'precies op budget')}</div>
+  <div class="panels">
+    ${panel('Per kamer', `<div class="lrows">${rooms.map(room => { const rs = l.filter(r => (r.room || 'Overig') === room), d = rs.filter(r => invStatus(r) === 'Gekocht'); return `<div class="lrow iroom"><span class="lmain"><b>${esc(room)}</b><span>${d.length} van ${rs.length} gekocht · ${eur(invSum(d, 'price'))} betaald · ${eur(invSum(rs.filter(r => INV_WANT.includes(invStatus(r))), 'budget'))} nog nodig</span>${bar(d.length, rs.length)}</span></div>`; }).join('')}</div>`)}
+    ${panel('Verhuiskosten', mc.length ? `<div class="lrows">${MOVE_TYPES.filter(t => mc.some(c => (c.type || 'Overig') === t)).map(t => { const cs = mc.filter(c => (c.type || 'Overig') === t); return `<div class="lrow"><span class="lmain"><b>${esc(t)}</b><span>${cs.filter(c => c.paid).length} van ${cs.length} betaald · budget ${eur(invSum(cs, 'budget'))}</span></span></div>`; }).join('')}</div>` : quiet('Nog geen verhuiskosten. Borg, verhuisbus, verf en aansluitingen komen erbij met de startlijst.'))}
+    ${panel('Sparen', `<p class="lnone">Streefmaand: <input type="month" class="pill" data-movemonth value="${esc(m)}" aria-label="Verhuismaand"></p>
+      ${g ? `<p class="lnone">Spaardoel ${esc(g.name)}: ${eur(saved)} van ${eur(num(g.target) || 0)}.</p><button class="btn small" data-act="movegoal">Spaardoel bijwerken naar ${eur(toGo)}</button>` : `<button class="btn small primary" data-act="movegoal">Maak spaardoel Verhuizen van ${eur(toGo)}</button>`}
+      <p class="lnone">Het doel is wat nog nodig is: producten die je nog niet hebt en kosten die nog open staan.</p>`)}
+    ${diff.length ? panel('Boven en onder budget', `<div class="lrows">${diff.slice(0, 8).map(([r, d]) => `<div class="lrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(r.name)}</b><span>budget ${eur(num(r.budget))} · betaald ${eur(num(r.price))}</span></button><span class="lside ${d > 0 ? 'hot' : ''}">${d > 0 ? '+' : '−'}${eur(Math.abs(d))}</span></div>`).join('')}</div>`) : ''}
+  </div>`;
+}
+async function moveGoalSync() {
+  const open = invLive().filter(r => INV_WANT.includes(invStatus(r))), toGo = invSum(open, 'budget') + invSum(recs('movecosts').filter(c => !c.paid), 'budget');
+  const g = moveGoal(), by = moveMonth() + '-01';
+  try { g ? await save(g, { target: Math.round(toGo * 100) / 100, by }) : await create('fgoals', { name: 'Verhuizen', target: Math.round(toGo * 100) / 100, saved: 0, by }); C.toast(g ? 'Spaardoel bijgewerkt' : 'Spaardoel Verhuizen staat in Finance'); } catch { C.toast('Opslaan lukte niet. Probeer het opnieuw.'); }
+}
+document.addEventListener('change', e => { const t = e.target; if (!C || !t.matches?.('[data-movemonth]') || !/^\d{4}-\d{2}$/.test(t.value)) return; C.savePrefs({ move: { ...(C.prefs().move || {}), month: t.value } }).catch(() => C.toast('Opslaan lukte niet.')); });
 function homeToday(host) {
   const t = today();
   const chores = recs('chores').filter(c => choreDue(c) <= t).sort((a, b) => choreDue(a).localeCompare(choreDue(b)));
   const doneToday = recs('chores').filter(c => c.last === t);
   const plants = recs('plants').filter(p => plantDue(p) && plantDue(p) <= t);
   const reps = recs('repairs').filter(r => r.status !== 'Done').sort((a, b) => (a.date || '9').localeCompare(b.date || '9'));
-  const inv = recs('inventory').filter(i => (i.status || 'Have') === 'Have');
+  const inv = recs('inventory').filter(i => invStatus(i) === 'Gekocht');
   const worth = inv.reduce((s, i) => s + (num(i.price) || 0), 0);
-  const wish = recs('inventory').filter(i => ['Wishlist', 'Ordered'].includes(i.status));
-  const must = sortList(wish.filter(i => i.priority === 'Must-have'), KINDS.inventory, 'room');
-  const wishCost = wish.reduce((s, i) => s + (num(i.price) || 0), 0);
+  const wish = recs('inventory').filter(i => INV_WANT.includes(invStatus(i)));
+  const must = sortList(wish.filter(i => ['Must-have', 'Eerste week'].includes(i.priority)), KINDS.inventory, 'room');
+  const wishCost = wish.reduce((s, i) => s + (num(i.budget ?? i.price) || 0), 0);
   const wty = recs('inventory').filter(i => i.warranty && i.warranty >= t && i.warranty <= addDays(t, 90)).sort((a, b) => a.warranty.localeCompare(b.warranty));
   host.innerHTML = `${head('Home')}
   <div class="panels">
@@ -3646,7 +3772,7 @@ function optionLists() {
 // choices are buttons up to this many, a dropdown above it
 const CHIP_MAX = 12;
 // lists with a natural order keep it; everything else is A to Z (your own order from Settings always wins)
-const ORDERED = new Set(['meals', 'unit', 'match', 'onDays', 'amDays', 'pmDays', 'step', 'again', 'angle', 'after', 'breakouts', 'redness', 'dryness', 'oiliness', 'stress', 'priority', 'prio', 'stage', 'status', 'cadence', 'freq', 'level', 'slot', 'funnel', 'effort', 'size', 'season', 'seasons', 'time', 'intake', 'when', 'day', 'days', 'nights', 'reheat', 'again', 'portion', 'mood', 'energy', 'quality']);
+const ORDERED = new Set(['meals', 'priority', 'status', 'unit', 'match', 'onDays', 'amDays', 'pmDays', 'step', 'again', 'angle', 'after', 'breakouts', 'redness', 'dryness', 'oiliness', 'stress', 'priority', 'prio', 'stage', 'status', 'cadence', 'freq', 'level', 'slot', 'funnel', 'effort', 'size', 'season', 'seasons', 'time', 'intake', 'when', 'day', 'days', 'nights', 'reheat', 'again', 'portion', 'mood', 'energy', 'quality']);
 const sortOpts = (kind, f, opts) => optCfg(kind, f.k).list || ORDERED.has(f.k) ? opts : [...opts].sort((a, b) => norm(a).localeCompare(norm(b)));
 function fieldInner(kind, f, D) {
   const v = D[f.k], id = 'lf-' + f.k;
@@ -3701,7 +3827,7 @@ function openEditor(kind, id, preset = {}) {
   if (!r) for (const f of K.fields) if (f.type === 'date' && D[f.k] === undefined && ['date', 'start'].includes(f.k)) D[f.k] = today();
   const sh = C.sheet({
     title: r ? titleOf(r) : 'New ' + K.one,
-    body: `${r && WISHY[kind] ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${r && kind === 'beauty' ? beautyReviews(r) : ''}${kind === 'stips' ? '<div data-tipsteps></div>' : ''}${kind === 'posts' ? '<div data-postkit></div><div data-posttips></div>' : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}">${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
+    body: `${r && WISHY[kind] && kind !== 'inventory' ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${r && kind === 'beauty' ? beautyReviews(r) : ''}${r && kind === 'inventory' ? invOptionsPanel(r) : ''}${kind === 'stips' ? '<div data-tipsteps></div>' : ''}${kind === 'posts' ? '<div data-postkit></div><div data-posttips></div>' : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}">${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
     foot: `${r ? '<button class="btn danger" data-del>Delete</button>' : ''}<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save</button>`,
     onClose: () => { Object.values(D._previews).forEach(u => URL.revokeObjectURL(u)); }
   });
@@ -3807,6 +3933,9 @@ function openEditor(kind, id, preset = {}) {
     if (d.act === 'ttpost') return ttPostNow(d.id);
     if (d.act === 'mkpost') return ideaToPost(d.id);
     if (d.act === 'newreview') { C.closeSheet(); return openEditor('breviews', null, { product: d.id, date: today(), after: d.v }); }
+    if (d.act === 'optadd') { C.closeSheet(); return openEditor('invopts', null, { item: d.id }); }
+    if (d.act === 'optopen') { C.closeSheet(); return openEditor('invopts', d.id); }
+    if (d.act === 'optbuy') { C.closeSheet(); return invBuy(d.id, d.v || null); }
     if (d.act === 'cnt') { const r0 = L.byId[d.id]; if (!r0) return; const p = countPatch({ ...r0, ...D, kind: r0.kind }, Number(d.v)); Object.assign(D, p); for (const [k, v] of Object.entries(p)) { const inp = sh.querySelector(`input[data-k="${k}"]`); if (inp) inp.value = v ?? ''; const ck = sh.querySelector(`[data-chk="${k}"]`); if (ck) { ck.setAttribute('aria-pressed', !!v); ck.innerHTML = (v ? svg(P.check) : '') + esc(K.fields.find(f => f.k === k)?.label || k); } } await save(r0, p).catch(() => C.toast('Could not save. Try again.')); const st = b.closest('.stepper'); if (st) st.outerHTML = stepper({ ...r0, ...D, kind: r0.kind, id: r0.id }); return; }
     if (d.act === 'blowsheet') { const b = L.byId[d.id]; if (!b) return; sh.querySelector('[data-chk="low"]')?.click(); const on = !!D.low; const btn = sh.querySelector('[data-act="blowsheet"]'); if (btn) { btn.classList.toggle('on', on); btn.setAttribute('aria-pressed', on); btn.innerHTML = on ? svg(P.check) + ' Running low' : 'Running low?'; } return save(b, { low: on }).then(() => C.toast(on ? 'On the running low list' : 'Taken off the running low list')); }
     if (d.act === 'mkidea') return postToIdea(d.id);
@@ -4023,6 +4152,9 @@ document.addEventListener('click', async e => {
     case 'wmovewait': moveWaitList(); break;
     case 'dkeep': case 'dplan': case 'dgroc': dealsAct(d.act, d.k, Number(d.i)); break;
     case 'cnt': countStep(d.id, Number(d.v)); break;
+    case 'invbuy': invBuy(d.id); break;
+    case 'invstart': invStart(); break;
+    case 'movegoal': moveGoalSync(); break;
     case 'nl': nlToggle(d.v); break;
     case 'nlstep': nlStep(d.v, Number(d.d)); break;
     case 'away': toggleAway(d.v); break;

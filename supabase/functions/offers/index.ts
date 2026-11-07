@@ -34,7 +34,7 @@ const str = (v: unknown, n = 200) => String(v ?? '').trim().slice(0, n);
 const num = (v: unknown) => (v === '' || v == null || isNaN(Number(v))) ? null : Math.round(Number(v) * 100) / 100;
 const day = (v: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? String(v) : '';
 const clean = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== '' && v != null && !(Array.isArray(v) && !v.length)));
-const SHOP_TYPES = ['Supermarket', 'Toko', 'Butcher', 'Fishmonger', 'Greengrocer', 'Market', 'Drugstore', 'Perfumery', 'Brand store', 'Webshop', 'Other'];
+const SHOP_TYPES = ['Supermarket', 'Toko', 'Butcher', 'Fishmonger', 'Greengrocer', 'Market', 'Household', 'Drugstore', 'Perfumery', 'Brand store', 'Webshop', 'Other'];
 const shopOut = (a: any) => clean({ name: str(a?.name, 80), type: SHOP_TYPES.includes(a?.type) ? a.type : undefined, address: str(a?.address, 160), website: str(a?.website, 300), dealsUrl: str(a?.dealsUrl, 300), readDeals: a?.readDeals === true ? true : undefined, mine: a?.mine === true ? true : undefined, notes: str(a?.notes, 400) });
 
 // one suggested recipe: your own (recipe = its id) or a new one from the web (link)
