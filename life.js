@@ -1216,7 +1216,7 @@ const SECTIONS = [
     groups: { mind: ['Mind', P.pen], body: ['Body', P.pulse], plans: ['Plans', P.star], wish: ['Wishlists', P.heart] },
     // a third layer inside a group: Body › Health, Train, Beauty
     subs: { body: { health: ['Health', P.moon], train: ['Train', P.run], beauty: ['Beauty', P.drop] } },
-    views: [['overview', 'Overview', P.grid], ['week', 'Kalender', P.calendar],
+    views: [['overview', 'Overview', P.grid], ['week', 'Calendar', P.calendar],
       ['plan/mind', 'Overview', P.grid, 'mind'], ['today', 'My year', P.target, 'mind'], ['care/habits', 'Routines', P.repeat, 'mind'], ['care/journal', 'Journal', P.pen, 'mind'], ['care/mindful', 'Mindfulness', P.moon, 'mind'], ['care/growth', 'Growth', P.target, 'mind'], ['care/vision', 'Vision', P.sparkle, 'mind'], ['care/discover', 'Self discovery', P.user, 'mind'], ['plan/mindstats', 'Analyse', P.trend, 'mind'],
       ['body/today', 'Overview', P.grid, 'body'],
       ['care/health', 'Sleep & health', P.moon, 'body', 'health'], ['care/cycle', 'Cycle', P.moon, 'body', 'health'], ['care/supplements', 'Supplements', P.pill, 'body', 'health'], ['body/clean', 'Clean', P.leaf, 'body', 'health'],
@@ -1305,7 +1305,7 @@ const PAGES = {
   'care/health': { title: 'Health', segs: [{ kind: 'sleep' }, { kind: 'appts' }, { kind: 'symptoms' }, { kind: 'meditation' }, { kind: 'water' }] },
   'money/today': { render: moneyToday, adds: ['ftx', 'fincome', 'fbills', 'fchecks'] },
   'money/spending': { title: 'Spending', segs: [{ key: 'plan', label: 'Your plan', kind: 'ftx', fill: fEnvFill, tools: false }, { key: 'all', label: 'Everything in and out', kind: 'ftx', fill: fAllFill, tools: false }] },
-  'money/repeats': { title: 'Repeats', segs: [{ key: 'coming', label: 'Coming up', kind: 'fbills', fill: fComingFill, tools: false }, { key: 'cal', label: 'Calendar', kind: 'fbills', fill: fCalFill, tools: false }, { key: 'bills', label: 'Bills', kind: 'fbills', fill: fBillsOf('Bill'), tools: false }, { key: 'subs', label: 'Subscriptions', kind: 'fbills', fill: fBillsOf('Subscription'), tools: false }, { key: 'in', label: 'Money in', kind: 'fincome' }, { key: 'split', label: 'Split my pay', kind: 'fbills', fill: fSplitFill, tools: false }, { kind: 'fbills', label: 'All repeats' }, { kind: 'fpaid' }] },
+  'money/repeats': { title: 'Repeats', segs: [{ key: 'coming', label: 'Coming up', kind: 'fbills', fill: fComingFill, tools: false }, { kind: 'fbills', label: 'Repeats' }, { key: 'in', label: 'Money in', kind: 'fincome' }, { key: 'split', label: 'Split my pay', kind: 'fbills', fill: fSplitFill, tools: false }] },
   'money/plan': { title: 'Goals', segs: [{ kind: 'fgoals', top: fGoalsTop }, { key: 'safety', label: 'Safety net', kind: 'fgoals', fill: fSafetyFill, tools: false }, { key: 'chall', label: 'Challenges', kind: 'fgrid', fill: fChallFill, tools: false }, { key: 'wait', label: 'Wait list', kind: 'fwait', fill: fWaitFill, tools: false }] },
   'money/debt': { title: 'Debt', segs: [{ key: 'free', label: 'Debt-free date', kind: 'fdebts', fill: fDebtFreeFill, tools: false }, { key: 'method', label: 'Snowball or avalanche', kind: 'fdebts', fill: fMethodFill, tools: false }, { kind: 'fdebts', label: 'Your debts' }, { key: 'made', label: 'Payments made', kind: 'ftx', fill: fPaymentsFill, tools: false }] },
   'money/forecast': { render: moneyForecast, adds: ['ftx', 'fbills', 'fincome'] },
@@ -4482,7 +4482,7 @@ document.addEventListener('click', async e => {
     case 'ingtypeadd': openEditor('ingredients', null, { category: d.cat, type: d.type, ...(d.ctx === 'freezer' ? { location: 'Vriezer', stock: true, frozen: today() } : d.ctx === 'grocery' ? { list: true } : { stock: true }) }); break;
     case 'icalnew': { if (C.prefs().calToken && !confirm('Een nieuwe sleutel maakt je huidige abonnementen ongeldig. Doorgaan?')) break; const tok = (C.uuid() + C.uuid()).replace(/-/g, '').slice(0, 40); C.savePrefs({ calToken: tok }).then(() => { L.calFeedAt = 0; calFeedSync(true).then(() => C.render()); C.toast('Sleutel gemaakt. Zet hem in Supabase als CAL_TOKEN.'); }).catch(() => {}); break; }
     case 'icalcopy': navigator.clipboard?.writeText(d.v).then(() => C.toast('Gekopieerd')).catch(() => C.toast('Kopiëren lukte niet')); break;
-    case 'icalsync': L.calFeedAt = 0; calFeedSync(true).then(() => { C.toast('Kalender bijgewerkt'); C.render(); }); break;
+    case 'icalsync': L.calFeedAt = 0; calFeedSync(true).then(() => { C.toast('Calendar bijgewerkt'); C.render(); }); break;
     case 'anaper': try { localStorage.setItem('anaPeriod', d.v); } catch {} C.render(); break;
     case 'calview': { const c = calLoad(); c.view = d.v; try { localStorage.setItem('calView', d.v); } catch {} C.render(); break; }
     case 'calstep': { const c = calLoad(), n = +d.v; c.date = c.view === 'month' ? (() => { const x = fromISO(c.date); return iso(new Date(x.getFullYear(), x.getMonth() + n, 1)); })() : addDays(c.date, n * (c.view === 'week' ? 7 : c.view === 'agenda' ? 30 : 1)); C.render(); break; }
@@ -4507,6 +4507,7 @@ document.addEventListener('click', async e => {
     case 'envstep': { const c = L.byId[d.id]; if (c) save(c, { budget: Math.max(0, (num(c.budget) || 0) + Number(d.v)) }); break; }
     case 'everymode': L.everyMode = d.v; C.render(); break;
     case 'everytag': L.everyQ = norm(L.everyQ) === d.v ? '' : d.v; C.render(); break;
+    case 'paidmore': L.paidLim = (L.paidLim || 20) + 30; C.render(); break;
     case 'everymore': L.everyLim = (L.everyLim || 50) + 50; C.render(); break;
     case 'calmove': L.calOff = d.v === '0' ? 0 : (L.calOff || 0) + Number(d.v); C.render(); break;
     case 'newbill': openEditor('fbills', null, { type: d.v, cadence: 'Monthly', active: true }); break;
@@ -4691,8 +4692,10 @@ function fEnvFill(fill) {
 /* repeats */
 const fOpenOccs = (days = 62) => fOccs(addDays(fStart(), -62), addDays(today(), days)).filter(o => !o.paid && !o.skipped && (o.date >= today() || o.date >= fStart()));
 function fComingFill(fill) {
+  const rv = ingViewOf('repView', 'list'), sw = ingViewSeg('repView', rv, [['list', 'List'], ['cal', 'Calendar']]);
+  if (rv === 'cal') { fCalFill(fill); fill.insertAdjacentHTML('afterbegin', fDupNote() + sw); return; }
   const t = today(), os = fOpenOccs(70), sum = fSum(os.filter(o => o.date <= (fPayday() || addDays(t, 30))));
-  fill.innerHTML = `${fDupNote()}<div class="tiles lt3">${fTile('Before payday', eur(sum), fPayday() ? 'still to go out until ' + shortDate(fPayday()) : 'in the next 30 days')}${fTile('Overdue', String(os.filter(o => o.date < t).length), 'tap Mark paid when they went out')}${fTile('Every month', eur(recs('fbills').filter(b => b.active !== false).reduce((n, b) => n + fPerMonth(b), 0)), 'all repeats, spread per month')}</div>
+  fill.innerHTML = `${fDupNote()}${sw}<div class="tiles lt3">${fTile('Before payday', eur(sum), fPayday() ? 'still to go out until ' + shortDate(fPayday()) : 'in the next 30 days')}${fTile('Overdue', String(os.filter(o => o.date < t).length), 'tap Mark paid when they went out')}${fTile('Every month', eur(recs('fbills').filter(b => b.active !== false).reduce((n, b) => n + fPerMonth(b), 0)), 'all repeats, spread per month')}</div>
   ${MP('Coming up', os.length ? `<div class="mlist">${os.map(o => `<div class="mup"><span class="mdate"><b>${fromISO(o.date).getDate()}</b>${esc(fromISO(o.date).toLocaleDateString('en-GB', { month: 'short' }))}</span><button class="lmain fcomemain" data-act="open" data-id="${o.bill.id}"><b>${esc(o.bill.name)}</b><span>${esc(o.type)} · ${o.date < t ? 'overdue' : esc(relDay(o.date))}</span></button><b>${o.bill.vary ? '~' : ''}${eur(o.amount)}</b><button class="btn small primary" data-act="fpay" data-v="${o.key}">Mark paid</button></div>`).join('')}</div>` : quiet('Nothing coming up.'))}`;
 }
 function fCalFill(fill) {
@@ -4775,6 +4778,7 @@ function fSettings() {
       ${fld('Safety buffer', 'Kept back from safe to spend, for surprises.', `<input class="finp" type="number" inputmode="decimal" step="1" data-fset="buffer" value="${s.buffer ?? 100}">`)}
       ${wishBudgetField()}`)}
     ${MP('Your accounts', `${accs.length ? `<div class="lrows facclist">${accs.map(accRow).join('')}</div>` : quiet('Add your bank accounts to see balances and safe to spend.')}<p class="lnone">Counts: the account is part of safe to spend. Add the IBAN to an account so bank imports land on it by themselves.</p><div class="dbtns"><button class="btn small" data-act="fcheck">Update balances</button><button class="btn small" data-act="fmove">⇄ Move money</button></div>`, '<button class="chip link" data-act="new" data-v="faccounts">+ Add an account</button>')}
+    ${(() => { const pd = recs('fpaid').sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))); return MP('Paid bills', pd.length ? `<p class="lnone">Your history of repeats you marked paid or skipped, newest first.</p><div class="lrows">${pd.slice(0, L.paidLim || 20).map(row).join('')}</div>${pd.length > (L.paidLim || 20) ? '<button class="btn small mmore" data-act="paidmore">Show more</button>' : ''}` : quiet('Nothing marked paid yet. Tap Mark paid under Repeats › Coming up.')); })()}
     ${MP('Import and backup', `<p class="lnone">Bank statements from ING or Rabobank (CSV). Duplicates are skipped, own transfers are recognised and your sort rules pick the categories.</p><div class="dbtns"><button class="btn small primary" data-act="fcsv">Import bank CSV</button><button class="btn small" data-act="import">Import budget backup</button><button class="btn small" data-act="fdups">Find duplicates</button></div><p class="lnone">Imported something twice? Find duplicates keeps one copy of everything and removes the rest.</p><div class="dbtns"><button class="btn small danger" data-act="fclear">Clear all finance data</button></div><p class="lnone">Removes everything in Finance so you can import again from scratch.</p>`)}
     ${MP('Categories', list('fcats', 'No categories yet.', '+ Category') + '<p class="lnone">Open one to set its budget, let it roll over, or mark it as not spending.</p>')}
     ${MP('Sort rules', list('frules', 'No rules yet. A rule puts every purchase whose name contains a word in a category.', '+ Sort rule'))}
@@ -5670,7 +5674,7 @@ function socialPinterest(host) {
   host.querySelectorAll('[data-pnrole]').forEach(el => el.addEventListener('change', () => pnSetRole(el.dataset.pnrole, el.value)));
 }
 
-/* ---------- Life › Kalender: everything in the app on one calendar ----------
+/* ---------- Life › Calendar: everything in the app on one calendar ----------
    Each source turns its records into events { id, cat, date, time, title, sub, imp, done, toggle, move, open, go }.
    Month, week, day (with your day rhythm) and agenda; filter per area; tick off, move (drag on a computer, Move on a phone)
    and add straight onto a day. The week review sits under it. */
@@ -5754,7 +5758,7 @@ function calPage(host) {
     const days = Object.keys(byDay).sort();
     body = `<div class="calagenda">${days.map(d => `<div class="calag" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${esc(calDayLabel(d))}${d === t ? ' · vandaag' : ''}</button>${addBtn(d)}</div>${byDay[d].map(e => calItem(e, 'wide')).join('')}</div>`).join('') || quiet('Niets gepland in de komende 30 dagen.')}</div>`;
   }
-  host.innerHTML = `<div class="viewhead"><h1>Kalender</h1><span class="sub">${esc(title)}</span></div>
+  host.innerHTML = `<div class="viewhead"><h1>Calendar</h1><span class="sub">${esc(title)}</span></div>
   <div class="caltools"><div class="seg" role="group" aria-label="Weergave">${[['month', 'Maand'], ['week', 'Week'], ['day', 'Dag'], ['agenda', 'Agenda']].map(([k, l]) => `<button data-act="calview" data-v="${k}" aria-pressed="${c.view === k}">${l}</button>`).join('')}</div>
     <div class="calnav"><button class="iconbtn" data-act="calstep" data-v="-1" aria-label="Vorige">‹</button><button class="btn small" data-act="calgo" data-v="${t}" data-keep="1">Vandaag</button><button class="iconbtn" data-act="calstep" data-v="1" aria-label="Volgende">›</button></div></div>
   <div class="calcats" role="group" aria-label="Onderdelen">${CAL_CATS.map(([k, l]) => `<button class="chip calcat cal-${k}" data-act="calcat" data-v="${k}" aria-pressed="${!c.off.has(k)}"><span class="caldot"></span>${l}</button>`).join('')}</div>
@@ -5793,7 +5797,7 @@ function calAdd(d) {
 function calStrip() {
   const t = today(), to = addDays(t, 6); let ev = []; try { ev = calEvents(t, to); } catch { return ''; }
   const byDay = {}; for (const e of ev) (byDay[e.date] ||= []).push(e);
-  return `<section class="panel calstrip"><div class="lph3"><h3>Komende week</h3><button class="chip link" data-act="go" data-v="plan/week">Kalender</button></div><div class="calsd">${Array.from({ length: 7 }, (_, i) => addDays(t, i)).map(d => { const l = byDay[d] || [], cats = [...new Set(l.map(e => e.cat))], top = l.find(e => e.imp) || l[0]; return `<button class="calsday ${d === t ? 'now' : ''}" data-act="calopenday" data-v="${d}"><small>${NL_WD[(fromISO(d).getDay() + 6) % 7]}</small><b>${fromISO(d).getDate()}</b><span class="caldots">${cats.slice(0, 5).map(k => `<i class="caldot cal-${k}"></i>`).join('')}</span><em>${top ? esc(top.title) : ''}</em></button>`; }).join('')}</div></section>`;
+  return `<section class="panel calstrip"><div class="lph3"><h3>Komende week</h3><button class="chip link" data-act="go" data-v="plan/week">Calendar</button></div><div class="calsd">${Array.from({ length: 7 }, (_, i) => addDays(t, i)).map(d => { const l = byDay[d] || [], cats = [...new Set(l.map(e => e.cat))], top = l.find(e => e.imp) || l[0]; return `<button class="calsday ${d === t ? 'now' : ''}" data-act="calopenday" data-v="${d}"><small>${NL_WD[(fromISO(d).getDay() + 6) % 7]}</small><b>${fromISO(d).getDate()}</b><span class="caldots">${cats.slice(0, 5).map(k => `<i class="caldot cal-${k}"></i>`).join('')}</span><em>${top ? esc(top.title) : ''}</em></button>`; }).join('')}</div></section>`;
 }
 document.addEventListener('click', e => { const b = e.target.closest?.('[data-cal]'); if (!b || !C || b.closest('.sheet')) return; calSheet(b.dataset.cal); });
 document.addEventListener('dragstart', e => { const b = e.target.closest?.('[data-cal][draggable="true"]'); if (!b) return; e.dataTransfer.setData('text/x-cal', b.dataset.cal); e.dataTransfer.effectAllowed = 'move'; });
@@ -5986,7 +5990,7 @@ setInterval(() => calFeedSync(), 15 * 60e3);
 const icalUrl = cat => { const base = C.fnUrl?.('calendar') || ''; return base.replace(/^https?:/, 'webcal:') + `?t=${encodeURIComponent(C.prefs().calToken || '')}&cat=${cat}`; };
 function icalPanel() {
   const tok = C.prefs().calToken, feed = recs('calfeed')[0];
-  return `<section class="panel setpanel"><h3>Kalender in je iPhone</h3><p class="muted">Elk onderdeel als eigen agenda in je iPhone, met de kleuren van je brandboard. Je iPhone haalt hem elk uur op; de app werkt hem bij als je hem opent.</p>
+  return `<section class="panel setpanel"><h3>Calendar in je iPhone</h3><p class="muted">Elk onderdeel als eigen agenda in je iPhone, met de kleuren van je brandboard. Je iPhone haalt hem elk uur op; de app werkt hem bij als je hem opent.</p>
     ${tok ? `<div class="fset"><div><b>Je sleutel</b><span>Zet deze in Supabase als secret CAL_TOKEN.</span></div><button class="btn small" data-act="icalcopy" data-v="${esc(tok)}">Kopieer sleutel</button></div>
       <div class="lrows">${[...CAL_CATS, ['all', 'Alles samen']].map(([k, l]) => `<div class="lrow"><span class="lmain"><b>${k === 'all' ? '' : `<span class="caldot cal-${k}"></span> `}${esc(l)}</b></span><a class="btn small" href="${esc(icalUrl(k))}">Abonneer</a><button class="chip link" data-act="icalcopy" data-v="${esc(icalUrl(k))}">Kopieer link</button></div>`).join('')}</div>
       <p class="lnone">${feed?.at ? 'Laatst bijgewerkt ' + esc(new Date(feed.at).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) + ', ' + plural((feed.items || []).length, 'item') + '.' : 'Nog niet bijgewerkt.'} <button class="chip link" data-act="icalsync">Nu bijwerken</button> <button class="chip link" data-act="icalnew">Nieuwe sleutel</button></p>`
@@ -6107,6 +6111,7 @@ function bodyTile() { const cs = cleanStats(); return (cs.start ? `<p class="dli
 /* ---------- what index.html calls ---------- */
 const sectionOf = view => SECTIONS.find(s => s.views.some(v => vkey(s, v) === view)) || SECTIONS.find(s => view.startsWith(s.key + '/')) || ({ care: SECTIONS.find(s => s.key === 'plan'), fit: SECTIONS.find(s => s.key === 'plan'), body: SECTIONS.find(s => s.key === 'plan'), wish: SECTIONS.find(s => s.key === 'plan') })[view.split('/')[0]];
 return {
+  icons: Object.fromEntries(Object.entries(P).filter(([k]) => !['plus', 'minus', 'left', 'right', 'x', 'check'].includes(k)).map(([k, v]) => [k, G(v)])),
   sections: SECTIONS.map(s => ({ key: s.key, label: s.label, icon: G(s.icon), groups: Object.fromEntries(Object.entries(s.groups || {}).map(([g, [l, ic]]) => [g, [l, G(ic)]])), subs: Object.fromEntries(Object.entries(s.subs || {}).map(([g, o]) => [g, Object.fromEntries(Object.entries(o).map(([k, [l, ic]]) => [k, [l, G(ic)]]))])), views: s.views.map(v => [vkey(s, v), v[1], G(v[2]), v[3] || '', v[4] || '']) })),
   has: view => !!PAGES[view],
   lists: optionLists, fullList: fullOptions, renameIn: renameOption,
