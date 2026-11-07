@@ -1634,7 +1634,7 @@ function fillList(host, page) {
   }
   if (seg.fill) { seg.fill(fill, page); return; }
   // Finance lists say so when something is in there twice, with the button to clean it up
-  const top = (FIN_KINDS.includes(seg.kind) ? fDupNote() : '') + (seg.top ? seg.top() : '') + (K.total && list.length ? K.total(list, u) : '');
+  const top = (FIN_KINDS.includes(seg.kind) ? fDupNote() : seg.kind === 'recipes' ? recipeDupNote() : '') + (seg.top ? seg.top() : '') + (K.total && list.length ? K.total(list, u) : '');
   fill.innerHTML = top + (list.length ? groupedHTML(list, K, l => viewMode(K) === 'table' ? tableHTML(l, K) : listHTML(l, K)) : emptyList(K, all.length));
   drawSel(host, page, list);
 }
@@ -4740,14 +4740,57 @@ async function fromBudgetBackup(j) {
   out.push({ id: fs?.id || await U('settings'), kind: 'fset', data: clean({ payday: st.payday, payAmount: st.v3PayAmount, buffer: st.buffer, cycle: 'Monthly' }) });
   return out;
 }
+/* the same recipe twice: a name that only differs in capitals, accents or punctuation ("30-Minute Brothy Rice" and
+   "30 minute brothy rice"), the same Albo or web link, or the same photo */
+const looseName = v => deUml(v || '').replace(/[^a-z0-9]+/g, ' ').trim();
+const sameKeys = r => [looseName(titleOf(r)) && 'n:' + looseName(titleOf(r)), r.link && 'l:' + String(r.link).trim().toLowerCase(), /^https?:/.test(r.photo || '') && 'p:' + r.photo].filter(Boolean);
+function recipeDups() {
+  const rs = recs('recipes'), parent = new Map(rs.map(r => [r.id, r.id])), find = id => { while (parent.get(id) !== id) id = parent.get(id); return id; };
+  const seen = new Map(); for (const r of rs) for (const k of sameKeys(r)) { if (seen.has(k)) parent.set(find(r.id), find(seen.get(k))); else seen.set(k, r.id); }
+  const groups = new Map(); for (const r of rs) { const g = find(r.id); (groups.get(g) || groups.set(g, []).get(g)).push(r); }
+  // the copy that stays: the one with most of your own things (made it, rating, in a plan), then the most filled in, then the oldest
+  const uses = id => recs('meals').filter(m => m.recipe === id).length + recs('rreviews').filter(x => x.recipe === id).length;
+  const score = r => (num(r.rating) ? 5 : 0) + (r.fav ? 3 : 0) + (num(r.cooks) || 0) * 2 + uses(r.id) * 2 + Object.values(dataOf(r)).filter(v => !isEmptyVal(v)).length / 10;
+  return [...groups.values()].filter(l => l.length > 1).map(l => { const keep = [...l].sort((a, b) => score(b) - score(a) || (a.created || 0) - (b.created || 0))[0]; return { keep, gone: l.filter(r => r !== keep) }; });
+}
+const recipeDupNote = () => { let n = 0; try { n = recipeDups().reduce((a, g) => a + g.gone.length, 0); } catch {} return n ? `<div class="note tnote fdupnote"><span>${n === 1 ? 'Er staat 1 recept dubbel' : `Er staan ${n} recepten dubbel`}.</span><button class="btn small primary" data-act="rdups">Dubbele opruimen</button></div>` : ''; };
+function rDups() {
+  const gs = recipeDups(); if (!gs.length) { C.toast('No duplicate recipes.'); return; }
+  const n = gs.reduce((a, g) => a + g.gone.length, 0);
+  const sh = C.sheet({ title: 'Duplicate recipes', body: `<p class="lnone">Each recipe stays once: the copy with your own rating, notes and meal plans. It gets what the other copy had and it lacked. You can undo this right after.</p><div class="lrows">${gs.map(g => `<div class="lrow"><span class="lmain"><b>${esc(titleOf(g.keep))}</b><span>${esc(g.gone.map(titleOf).filter(t => t !== titleOf(g.keep)).join(', ') || 'same name')}</span></span><span class="lside">${g.gone.length + 1}×</span></div>`).join('')}</div>`,
+    foot: '<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-go>Clean up ' + n + '</button>' });
+  sh.querySelector('[data-go]').onclick = async e => {
+    e.target.disabled = true; const msg = sh.querySelector('[data-msg]'); msg.textContent = 'Cleaning up…';
+    const map = new Map(), fillIn = new Map();
+    for (const g of gs) for (const r of g.gone) { map.set(r.id, g.keep.id); (fillIn.get(g.keep.id) || fillIn.set(g.keep.id, []).get(g.keep.id)).push(r); }
+    const changes = [];
+    for (const r of L.all) {
+      if (map.has(r.id)) continue;
+      let d = relink(dataOf(r), map);
+      for (const o of fillIn.get(r.id) || []) for (const [k, v] of Object.entries(dataOf(o))) if (isEmptyVal(d[k]) && !isEmptyVal(v)) d = { ...d, [k]: v };
+      if (r.kind === 'recipes' && fillIn.has(r.id)) d = { ...d, cooks: (num(d.cooks) || 0) + fillIn.get(r.id).reduce((a, o) => a + (num(o.cooks) || 0), 0) || undefined };
+      if (JSON.stringify(d) !== JSON.stringify(dataOf(r))) changes.push({ id: r.id, kind: r.kind, data: JSON.parse(JSON.stringify(d)) });
+    }
+    const old = [...[...map.keys()].map(id => L.byId[id]), ...changes.map(c => L.byId[c.id])].map(r => ({ id: r.id, kind: r.kind, data: dataOf(r) }));
+    const ids = [...map.keys()], now = new Date().toISOString();
+    try {
+      for (let i = 0; i < changes.length; i += 400) { const { error } = await C.sb.from('records').upsert(changes.slice(i, i + 400).map(r => ({ user_id: C.uid(), id: r.id, kind: r.kind, data: r.data, updated_at: now }))); if (error) throw error; }
+      for (let i = 0; i < ids.length; i += 200) { const { error } = await C.sb.from('records').delete().in('id', ids.slice(i, i + 200)); if (error) throw error; }
+    } catch (err) { console.error(err); msg.textContent = ''; C.toast('Could not clean up. Reload and try again.'); e.target.disabled = false; return; }
+    const gone = new Set(ids), ch = new Map(changes.map(c => [c.id, c]));
+    L.all = L.all.filter(r => !gone.has(r.id)).map(r => ch.has(r.id) ? { ...ch.get(r.id).data, id: r.id, kind: r.kind } : r);
+    index(); cacheSave(); C.closeSheet(); C.render();
+    C.undoPush?.(`Removed ${plural(ids.length, 'duplicate recipe')}`, () => putMany(old, null, 'restore'), true);
+  };
+}
 /* a file can ask to fill in only (mode "fill", like the Albo recipes): a recipe with the same name as one you
    already have keeps everything you filled in yourself and only gets what is still empty */
 const isEmptyVal = v => v == null || v === '' || (Array.isArray(v) && !v.length);
 function fillMatch(rows) {
-  const byName = new Map(); for (const k of new Set(rows.map(r => r.kind))) for (const r of recs(k)) { const key = k + '#' + deUml(titleOf(r)); if (!byName.has(key)) byName.set(key, r.id); }
+  const byName = new Map(); for (const k of new Set(rows.map(r => r.kind))) for (const r of recs(k)) for (const key of sameKeys(r)) if (!byName.has(k + '#' + key)) byName.set(k + '#' + key, r.id);
   let added = 0, filled = 0, same = 0;
   const out = rows.map(r => {
-    const id = L.byId[r.id] ? r.id : byName.get(r.kind + '#' + deUml(r.data.name || r.data.title || '')) || r.id, have = L.byId[id];
+    const id = L.byId[r.id] ? r.id : sameKeys({ ...r.data, kind: r.kind }).map(k => byName.get(r.kind + '#' + k)).find(Boolean) || r.id, have = L.byId[id];
     if (!have) { added++; return { ...r, id }; }
     const cur = dataOf(have), data = { ...cur };
     let n = 0; for (const [k, v] of Object.entries(r.data)) if (isEmptyVal(cur[k]) && !isEmptyVal(v)) { data[k] = v; n++; }
@@ -4894,6 +4937,7 @@ document.addEventListener('click', async e => {
     case 'fwnew': openEditor('wishes', null, { status: 'Wish', since: today(), wait: WAIT_DAYS * 24, category: 'Other' }); break;
     case 'fcsv': pickCsv(); break;
     case 'fdups': fDups(); break;
+    case 'rdups': rDups(); break;
     case 'fpaydates': fPayDates(); break;
     case 'finsmove': insMove(); break;
     case 'fclear': fClear(); break;
