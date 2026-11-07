@@ -624,7 +624,9 @@ const secSettings = sec => [sec + '/settings', 'Settings', GEAR];
 const viewsAll = sec => byOrder(sec === 'closet' ? VIEWS : (SECTIONS.find(x => x.key === sec)?.views || []), NAV().views?.[sec]?.order, v => v[0]);
 const isSecSettings = v => /\/settings$/.test(String(v)) && SECTIONS.some(s => s.key === secOf(v) && !['overview', 'settings'].includes(s.key));
 const viewsShown = sec => { const h = NAV().views?.[sec]?.hidden || []; const vs = viewsAll(sec).filter(v => !h.includes(v[0])); return [...(vs.length ? vs : viewsAll(sec).slice(0, 1)), secSettings(sec)]; };
-const secOf = v => v === 'overview' || v === 'settings' ? v : String(v).includes('/') ? v.split('/')[0] : 'closet';
+// the area a page belongs to: the one whose tabs hold it (Plan and Body borrow pages from older areas), else its prefix
+const OLD_AREAS = { care: 'body', fit: 'body', wish: 'plan' };
+const secOf = v => { if (v === 'overview' || v === 'settings') return v; v = String(v); if (!v.includes('/')) return 'closet'; const own = SECTIONS.find(s => s.views?.some(x => x[0] === v)); if (own) return own.key; const pre = v.split('/')[0]; return SECTIONS.some(s => s.key === pre) ? pre : OLD_AREAS[pre] || pre; };
 const isLife = v => !!window.LIFE?.has(v);
 const okView = v => v === 'overview' || v === 'settings' || VIEWS.some(x => x[0] === v) || isLife(v) || isSecSettings(v);
 const tabsFor = v => ['overview', 'settings'].includes(secOf(v)) ? [] : viewsShown(secOf(v));
@@ -970,15 +972,16 @@ function renderTabs() {
   $('#addBtn').hidden = sec === 'overview' || sec === 'settings' || isSecSettings(S.view);
   $('#addBtn .addlabel').textContent = sec === 'closet' ? 'Add piece' : sec === 'overview' ? 'Add' : window.LIFE.addLabel(S.view);
 }
+const MOVED = { 'inbox/review': 'wish/inbox', 'inbox/saved': 'care/saved', 'wish/saved': 'care/saved', 'care/today': 'body/today', 'fit/today': 'body/today', 'kitchen/quit': 'body/clean', 'care/settings': 'body/settings', 'fit/settings': 'body/settings', 'wish/settings': 'plan/settings', 'care/todo': 'body/todo', 'fit/todo': 'body/todo', 'wish/todo': 'plan/todo' };
 function go(v) {
-  v = ({ 'inbox/review': 'wish/inbox', 'inbox/saved': 'care/saved', 'wish/saved': 'care/saved' })[v] || v; // the inbox moved under Wishlists
+  v = MOVED[v] || v; // pages that moved
   if (!okView(v)) v = 'overview';
   S.view = v; pref.set('view', v); pref.set('view:' + secOf(v), v);
   try { history.replaceState(null, '', '#' + v); } catch {}
   $('#main').innerHTML = ''; render(); window.scrollTo(0, 0);
 }
 // a typed or pasted #page link opens that page without a reload
-window.addEventListener('hashchange', () => { const v = ({ 'inbox/review': 'wish/inbox', 'inbox/saved': 'care/saved', 'wish/saved': 'care/saved' })[(location.hash || '').slice(1)] || (location.hash || '').slice(1), q = /^do=(\w+)/.exec(v); if (q) { try { history.replaceState(null, '', '#' + S.view); } catch {} quickAction(q[1]); return; } if (v && v !== S.view && okView(v)) go(v); });
+window.addEventListener('hashchange', () => { const v = (location.hash || '').slice(1), q = /^do=(\w+)/.exec(v); if (q) { try { history.replaceState(null, '', '#' + S.view); } catch {} quickAction(q[1]); return; } if (v && v !== S.view && okView(v)) go(v); });
 // only the tab buttons: the view container carries data-view too
 document.addEventListener('click', e => { const b = e.target.closest('nav [data-view]'); if (b) go(b.dataset.view); });
 // the ☰ menu: what isn't in the bar you're looking at (hidden sections, or on a phone what's not in the bottom bar), then Settings
@@ -1888,7 +1891,7 @@ function monthCols(list, dateOf, amount) {
   const max = Math.max(1, ...months.map(m => m.v));
   return { total: months.reduce((a, m) => a + m.v, 0), html: `<div class="months">${months.map(m => `<div class="col"><span class="amt">${m.v ? eur0(m.v) : ''}</span><div class="b ${m.v ? '' : 'zero'}" style="height:${Math.max(2, m.v / max * 120)}px"></div><span class="m">${m.label}</span></div>`).join('')}</div>` };
 }
-const STATS_TABS = [['overview', 'Overview'], ['breakdown', 'Breakdown'], ['money', 'Money']];
+const STATS_TABS = [['overview', 'Overview'], ['breakdown', 'Breakdown'], ['money', 'Money'], ['sort', 'Opruimen']];
 /* ---------- overview ---------- */
 // One card per area with what matters today. The closet card lives here; every other area hands over its own
 // card through LIFE.tile(key), so a new area appears without touching this page.
@@ -1988,7 +1991,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v99';
+const APP_VERSION = 'hangtag-v102';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2173,6 +2176,8 @@ function renderSettings(host) {
    The notify function (Supabase, every 5 minutes) sends these at the times you pick here; the spend function
    sends one after each Apple Pay payment. Each device turns them on for itself. */
 const NOTI = [
+  ['bundle', 'Bundle into 4 a day', 'Morning (after you wake), midday, evening and bedtime. The times below then only pick what goes in.', ''],
+  ['bedtime', 'Bedtime', '30 minutes before bed, from your day in Plan › Settings: wind down and get ready for tomorrow', ''],
   ['morning', 'Morning overview', 'Outfit, supplements, morning routine, tasks and appointments', '07:30'],
   ['evening', 'Evening routine', 'Your evening steps, tonight’s skincare and evening supplements', '21:30'],
   ['bills', 'Bills tomorrow', 'Repeats that go out the next day', '18:00'],
@@ -2184,6 +2189,11 @@ const NOTI = [
   ['skindiary', 'Skin diary', 'Sundays: a nudge to add photos when your last entry is a week old', '10:00'],
   ['freezer', 'Freezer', 'Sundays: what has been in the freezer for 3 months or more', '17:00'],
   ['shopday', 'Shopping day', 'On the day you pick under Kitchen › Deals: your grocery list per shop', '10:00'],
+  ['eatbf', 'Breakfast', 'When breakfast is not ticked in your food check yet (an hour later at the weekend)', '09:30'],
+  ['eatlunch', 'Lunch', 'When lunch is not ticked in your food check yet (an hour later at the weekend)', '12:45'],
+  ['eatsnack', 'Snack', 'An afternoon nudge for a hearty snack', '15:30'],
+  ['foodweek', 'Food week', 'Sundays: how your food week went, with one tip', '18:00'],
+  ['movelist', 'Move list', 'The 1st of the month: what the move still costs and what to save', '19:15'],
   ['socialweek', 'Content next week', 'Sundays: every step of your posts and collabs for the coming week', '18:30'],
   ['budget', 'Budget almost gone', 'When a category passes 80% and 100% of its budget', ''],
   ['applepay', 'After each Apple Pay payment', 'Saved, with what is left in that category', '']
@@ -2264,6 +2274,7 @@ function renderOverview(host) {
   const hidden = dashHidden(), cards = dashCards().filter(s => !hidden.has(s.key));
   host.innerHTML = `<div class="viewhead dviewhead greet ${G.part}"><h1>${esc(G.hello)}</h1><p class="greetline">${esc(G.line)}</p><span class="sub">${t.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span></div>
     ${affirmBlock()}
+    ${window.LIFE?.todayTop?.() || ''}
     <button class="findbar" data-find>${I.search}<span>Search recipes, notes, pages, settings…</span></button>
     <div class="quickacts">${QUICK.filter(q => q[2]()).map(([k, l]) => `<button class="chip" data-quick="${k}">${esc(l)}</button>`).join('')}</div>
     ${wxStrip()}
@@ -2334,6 +2345,30 @@ function renderTodo(host) {
   };
   const so = $('#todoSort', host); if (so) so.onchange = () => { T.sort = so.value; pref.set('todoSort', T.sort); renderTodo(host); };
 }
+/* ---------- Opruimen: what you hardly wear, what goes to Vinted or a friend, clothing money and one in, one out ---------- */
+const CLOSET_START = () => S.prefs.closetMoney?.start || '2026-11-01';
+function clothesBudget() {
+  const st = CLOSET_START(), all = S.items;
+  const sold = all.filter(i => i.status === 'sold' && (i.goneDate || '') >= st), out = all.filter(i => isGone(i) && (i.goneDate || '') >= st);
+  const bought = all.filter(i => (inCloset(i) || isGone(i)) && i.bought && i.bought >= st);
+  const money = sold.reduce((n, i) => n + (Number(i.soldPrice) || 0), 0) - bought.reduce((n, i) => n + (Number(i.price) || 0), 0);
+  return { money, room: out.length - bought.length, soldN: sold.length, outN: out.length, inN: bought.length, start: st };
+}
+function statsSort(host) {
+  const now = seasonNow(), d182 = iso(new Date(Date.now() - 182 * 864e5)), live = S.items.filter(inCloset);
+  const off = live.filter(i => (!(i.seasons || []).length || (i.seasons || []).includes(now)) && (!S.lastWorn[i.id] || S.lastWorn[i.id] < d182) && (!i.created || i.created < Date.now() - 30 * 864e5));
+  const vinted = live.filter(i => i.sell === 'Vinted'), give = live.filter(i => i.sell === 'Weggeven'), cb = clothesBudget(), m = new Date().getMonth();
+  const tile = i => `<button class="sorttile" data-item="${esc(i.id)}">${i.photo ? `<img src="${esc(photoURL(i.photo))}" alt="" loading="lazy">` : ''}<span>${esc(i.name || 'Piece')}${S.lastWorn[i.id] ? ' · ' + fromISO(S.lastWorn[i.id]).toLocaleDateString('nl-NL', { month: 'short', year: '2-digit' }) : ' · nooit'}</span></button>`;
+  host.innerHTML = `<div class="panels">
+    <div class="panel"><h3>Kledinggeld en one in, one out</h3><p class="hint">Sinds ${esc(fromISO(cb.start).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long' }))}: wat je verkocht minus wat je kocht, en stukken eruit tegen stukken erin.</p>
+      <p class="dline"><span>Kledinggeld</span><b>${eur(Math.max(0, cb.money))}</b></p><p class="dline"><span>Ruimte voor nieuwe stukken</span><b>${Math.max(0, cb.room)}</b></p>
+      <p class="muted">${cb.outN} eruit (${cb.soldN} verkocht), ${cb.inN} erin. ${cb.room <= 0 || cb.money <= 0 ? 'Eerst iets verkopen of weggeven voor je iets nieuws koopt.' : 'Je mag iets nieuws kopen van je wishlist.'}</p></div>
+    ${(m === 3 || m === 9) ? `<div class="panel"><h3>Seizoenswissel</h3><div class="sortcheck">${['Was en berg de kleding van vorig seizoen op', 'Haal het nieuwe seizoen tevoorschijn', 'Pas wat twijfelachtig is', 'Zet wat niet meer past op Vinted of weggeven', 'Maak een lijstje van wat echt ontbreekt'].map(t => `<label><input type="checkbox"> ${t}</label>`).join('')}</div></div>` : ''}
+    <div class="panel wide"><h3>Weinig gedragen · ${off.length}</h3><p class="hint">Niet gedragen in 6 maanden, alleen stukken voor dit seizoen (${esc(now)}). Draag het deze week, of laat het gaan.</p>${off.length ? `<div class="sortgrid">${off.slice(0, 40).map(tile).join('')}</div>` : '<p class="muted">Alles wordt gedragen. Mooi.</p>'}</div>
+    <div class="panel"><h3>Vinted-lijst · ${vinted.length}</h3>${vinted.length ? `<div class="sortgrid">${vinted.map(tile).join('')}</div><p class="muted">Verkocht? Open het stuk en tik Sold met de prijs. Het telt mee als kledinggeld.</p>` : '<p class="muted">Open een stuk en tik Op Vinted-lijst.</p>'}</div>
+    <div class="panel"><h3>Weggeven · ${give.length}</h3>${give.length ? `<div class="sortgrid">${give.map(tile).join('')}</div>` : '<p class="muted">Open een stuk en tik Weggeven.</p>'}</div>
+  </div>`;
+}
 function renderStats(host) {
   const tab = S.statsTab = S.statsTab || pref.get('statsTab', 'overview');
   host.innerHTML = `<div class="viewhead"><h1>Stats</h1><span class="sub">What your wardrobe really costs, and what it's actually used for</span></div>
@@ -2345,7 +2380,7 @@ function renderStats(host) {
     const it = e.target.closest('[data-item]'); if (it) openItem(it.dataset.item);
   };
   const body = $('#statsBody', host);
-  if (tab === 'breakdown') statsBreakdown(body); else if (tab === 'money') statsMoney(body); else statsOverview(body);
+  if (tab === 'breakdown') statsBreakdown(body); else if (tab === 'money') statsMoney(body); else if (tab === 'sort') statsSort(body); else statsOverview(body);
 }
 function statsOverview(host) {
   const live = S.items.filter(inCloset);
@@ -2792,7 +2827,7 @@ function openItem(id) {
   const drawGone = () => {
     const cur = S.byId[id], el = $('#goneBox', sh); if (!cur || !el || wish) return;
     el.innerHTML = G.mode ? `<div class="confirm calm"><b>${G.mode === 'sold' ? 'Sold' : 'Donated'}</b> on <input type="date" id="g-date" value="${today()}" aria-label="Date">${G.mode === 'sold' ? `for € <input class="amt" id="g-price" inputmode="decimal" placeholder="optional" aria-label="Sale price, optional">` : ''}<button class="btn small primary" data-act="goneyes">Save</button><button class="btn small" data-act="goneno">Cancel</button></div>`
-      : inCloset(cur) ? `<div class="goneact"><span class="muted">Not in your closet anymore?</span><button class="btn small" data-act="sold">Sold</button><button class="btn small" data-act="donated">Donated</button></div>`
+      : inCloset(cur) ? `<div class="goneact"><span class="muted">Not in your closet anymore?</span><button class="btn small" data-act="sold">Sold</button><button class="btn small" data-act="donated">Donated</button></div><div class="goneact"><span class="muted">Opruimen:</span><button class="btn small ${cur.sell === 'Vinted' ? 'primary' : ''}" data-act="sellv">${cur.sell === 'Vinted' ? '✓ ' : ''}Op Vinted-lijst</button><button class="btn small ${cur.sell === 'Weggeven' ? 'primary' : ''}" data-act="sellg">${cur.sell === 'Weggeven' ? '✓ ' : ''}Weggeven</button></div>`
       : `<div class="goneact"><span class="muted">${cur.status === 'sold' ? 'Sold' : 'Donated'}${cur.goneDate ? ' on ' + niceDate(cur.goneDate) : ''}${cur.status === 'sold' && cur.soldPrice > 0 ? ' for ' + eur(cur.soldPrice) : ''}</span><button class="btn small" data-act="undogone">Back to my closet</button></div>`;
   };
   const draw = () => {
@@ -2865,6 +2900,7 @@ function openItem(id) {
     if (a === 'del') $('#delConfirm', sh).innerHTML = `<div class="confirm">Delete this piece and its photo for good? <button class="btn small danger" data-act="delyes">Delete</button><button class="btn small" data-act="delno">Keep it</button></div>`;
     if (a === 'delno') $('#delConfirm', sh).innerHTML = '';
     if (a === 'sold' || a === 'donated') { G.mode = a; drawGone(); $('#g-date', sh)?.focus(); }
+    if (a === 'sellv' || a === 'sellg') { const v = a === 'sellv' ? 'Vinted' : 'Weggeven', cur = S.byId[id]; DB.put('items', id, { ...noId(cur), sell: cur.sell === v ? null : v, updated: Date.now() }).then(() => { toast(cur.sell === v ? 'Van de lijst gehaald' : v === 'Vinted' ? 'Op je Vinted-lijst' : 'Op je weggeef-lijst'); drawGone(); }).catch(() => toast('Could not save. Try again.')); }
     if (a === 'goneno') { G.mode = null; drawGone(); }
     if (a === 'goneyes' || a === 'undogone') {
       const { id: _, goneDate, soldPrice, ...data } = S.byId[id];
@@ -3532,7 +3568,7 @@ function openDay(date, opts = {}) {
 /* ---------- boot ---------- */
 $('#addBtn').addEventListener('click', () => isLife(S.view) ? window.LIFE.add(S.view) : S.view === 'trips' ? openTripEditor(null) : openEditor(null, S.view === 'wishlist' ? { wish: true } : {}));
 S.fv = { closet: newFilter(pref.get('sort:closet', pref.get('sort', 'new'))), wishlist: newFilter(pref.get('sort:wishlist', 'new')) };
-const h0 = (location.hash || '').slice(1), h = ({ 'inbox/review': 'wish/inbox', 'inbox/saved': 'care/saved', 'wish/saved': 'care/saved' })[h0] || h0;
+const h0 = (location.hash || '').slice(1), h = MOVED[h0] || h0;
 // the app opens on the overview; a link with #page still opens that page
 S.view = okView(h) ? h : 'overview';
 
