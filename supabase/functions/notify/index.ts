@@ -138,6 +138,10 @@ function reminders(recs: Rec[], prefs: any, today: string) {
   }
   for (const b of recs.filter(r => r.kind === 'fbills' && r.trialEnds === addDays(today, 2))) lines.push(`Free trial of ${b.name} ends in 2 days`);
   for (const i of recs.filter(r => r.kind === 'inventory' && r.warranty === addDays(today, 14))) lines.push(`Warranty of ${i.name} ends in 2 weeks`);
+  for (const o of recs.filter(r => r.kind === 'orders' && r.status === 'Delivered' && r.returnBy === addDays(today, 2))) lines.push(`Last 2 days to return ${o.name}${o.shop ? ' (' + o.shop + ')' : ''}`);
+  for (const o of recs.filter(r => r.kind === 'orders' && ['Ordered', 'Shipped'].includes(r.status || 'Ordered') && r.expected === today)) lines.push(`${o.name} should arrive today`);
+  for (const i of recs.filter(r => r.kind === 'insurance' && r.status !== 'Stopped' && r.renews === addDays(today, 30))) lines.push(`${i.name} renews in a month: check if you want to keep it`);
+  if (['11-15', '12-15'].includes(today.slice(5)) && recs.some(r => r.kind === 'insurance' && r.type === 'Zorgverzekering' && r.status !== 'Stopped')) lines.push('You can switch health insurance until 31 December: compare now');
   return lines.length ? { title: lines.length === 1 ? 'Reminder' : `${lines.length} reminders`, body: lines.join('\n'), url: './#overview', tag: 'reminders' } : null;
 }
 
