@@ -1053,3 +1053,11 @@ img.nophoto { background: var(--line); }
 .lbig { font-size: 18px; font-weight: 700; line-height: 1.3; margin: 0; }
 .achart .aavg { fill: var(--ink); font-family: inherit; font-size: 11px; }
 @media (max-width: 760px) { .achart .atick { font-size: 12px; } .achart .aavg { font-size: 13px; } }
+
+/* pantry per kind: Kip with its products under it */
+.itype { margin: 0 0 12px; }
+.itypeh { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 2px; }
+.itypen { display: flex; flex-direction: column; min-width: 0; }
+.itypen b { font-weight: 600; font-size: 15px; }
+.itypen > span { font-size: 12.5px; color: var(--muted); }
+.itwarn { color: var(--danger); font-weight: 600; }
