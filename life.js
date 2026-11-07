@@ -86,6 +86,8 @@ const P = {
   gear: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M21.2 12h-2.4M5.2 12H2.8M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7M18.5 18.5l-1.7-1.7M7.2 7.2 5.5 5.5"/>',
   heart: '<path d="M12 19.5s-7.5-4.6-7.5-10.2A4.1 4.1 0 0 1 12 7a4.1 4.1 0 0 1 7.5 2.3c0 5.6-7.5 10.2-7.5 10.2Z"/>',
   inbox: '<path d="M4 13.5 6.5 5h11l2.5 8.5V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z"/><path d="M4 13.5h4.5l1 2h5l1-2H20"/>',
+  camera: '<path d="M4 8.5h3l1.6-2.5h6.8L17 8.5h3v10H4Z"/><circle cx="12" cy="13.3" r="3.3"/>',
+  flask: '<path d="M9.5 3.5h5M10.5 3.5v5.2L5.6 17a2 2 0 0 0 1.7 3h9.4a2 2 0 0 0 1.7-3l-4.9-8.3V3.5"/>',
   star: '<path d="m12 3.8 2.5 5.1 5.6.8-4 4 .9 5.6L12 16.6l-5 2.7.9-5.6-4-4 5.6-.8Z"/>'
 };
 
@@ -128,6 +130,13 @@ const SOCIAL_FORMATS = ['Short Video', 'Long-form Video', 'Carousel', 'Image Pos
 const SOCIAL_STYLES = ['Educational', 'Entertaining', 'Inspirational', 'Relatable', 'Storytelling', 'Behind-the-Scenes', 'Informational'];
 const SOCIAL_FUNNEL = ['Awareness', 'Consideration', 'Conversion', 'Loyalty/Advocacy'];
 const NIGHTS = ['Acid night', 'Retinoid night', 'Recovery night'];
+// the order of a skincare routine; products follow it unless you drag them into your own order
+const REVIEW_AFTER = ['First use', '1 week', '4 weeks', '8 weeks', 'Later'];
+const SKIN_LEVELS = ['None', 'A little', 'Some', 'A lot'];
+const SKIN_SCORES = [['breakouts', 'Breakouts'], ['redness', 'Redness'], ['dryness', 'Dryness'], ['oiliness', 'Oiliness']];
+const REVIEW_KEYS = ['hydration', 'calm', 'clear', 'glow', 'smooth', 'feel', 'scent', 'absorbs', 'makeup', 'value'];
+const reviewAvg = r => { const v = REVIEW_KEYS.map(k => num(r[k])).filter(Boolean); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; };
+const SKIN_STEPS = ['Makeup remover', 'Cleanser', 'Exfoliant', 'Toner', 'Essence', 'Treatment', 'Serum', 'Eye cream', 'Spot treatment', 'Moisturiser', 'Face oil', 'Sunscreen', 'Mask', 'Lip care', 'Other'];
 // tasks and projects (Social), habits, routines, gifts and documents (Life)
 const TASK_STATUS = ['Not started', 'In progress', 'Completed'];
 const TASK_CATS = ['Finances', 'Fitness', 'Growth', 'Household', 'Nutrition', 'Planning', 'Productivity', 'Self-Care'];
@@ -137,10 +146,16 @@ const taskDone = r => r.status === 'Completed';
 const projTasks = p => recs('tasks').filter(t => [].concat(t.project || []).includes(p.id));
 // habits and routines keep the days you ticked them as a list of dates on the record itself
 const daysSet = r => new Set([].concat(r.days || []));
+// the weekdays a routine step or habit is planned on (none picked = every day)
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const wdOf = (d = today()) => WEEKDAYS[(fromISO(d).getDay() + 6) % 7];
+const onDay = (r, d = today()) => !(r.onDays || []).length || r.onDays.includes(wdOf(d));
+const daysLabel = r => { const ds = WEEKDAYS.filter(x => (r.onDays || []).includes(x)); return !ds.length ? '' : ds.length === 7 ? 'every day' : ds.join(', '); };
+const perWeek = r => (r.onDays || []).length || Math.min(7, num(r.per) || 7);
 const weekDays = () => { const w = weekStart(0); return [0, 1, 2, 3, 4, 5, 6].map(i => addDays(w, i)); };
 const weekDone = r => { const s = daysSet(r); return weekDays().filter(d => s.has(d)).length; };
 function streak(r) {
-  const s = daysSet(r), per = Math.min(7, num(r.per) || 7);
+  const s = daysSet(r), per = perWeek(r);
   if (per >= 7) { let d = s.has(today()) ? today() : addDays(today(), -1), n = 0; while (s.has(d) && n < 3650) { n++; d = addDays(d, -1); } return n ? n + '-day streak' : ''; }
   // a week counts when it reaches the target; this week joins once it does
   const hit = w => [0, 1, 2, 3, 4, 5, 6].filter(i => s.has(addDays(w, i))).length >= per;
@@ -161,7 +176,7 @@ function toggleDay(r, d = today()) {
   else s.has(d) ? s.delete(d) : s.add(d);
   return save(r, { days: [...s].sort().slice(-500) });
 }
-const routineNow = () => { const want = new Date().getHours() >= 15 ? 'Evening' : 'Morning'; return { label: want, list: recs('routines').filter(r => r.routine === want).sort((a, b) => (a.created || 0) - (b.created || 0) || norm(a.name).localeCompare(norm(b.name))) }; };
+const routineNow = () => { const want = new Date().getHours() >= 15 ? 'Evening' : 'Morning'; return { label: want, list: recs('routines').filter(r => r.routine === want && onDay(r)).sort((a, b) => (a.created || 0) - (b.created || 0) || norm(a.name).localeCompare(norm(b.name))) }; };
 // growth: the life areas from your Notion dashboard
 const AREAS = ['Health & Nutrition', 'Fitness', 'Mindset', 'Growth', 'Career', 'Finances', 'Home', 'Organization', 'Relationship', 'Family', 'Social', 'Creativity', 'Leisure', 'Lifestyle', 'Spirituality', 'Digital Life'];
 const goalTasks = g => recs('tasks').filter(t => [].concat(t.goal || []).includes(g.id));
@@ -282,12 +297,12 @@ const KINDS = {
       F('type', 'Type', 'select', { options: ['Face', 'Hair', 'Body', 'Makeup', 'Fragrance', 'Nails', 'Other'] }),
       F('concern', 'Concern', 'multi', { options: ['Hydration', 'Dryness', 'Cleansing', 'Dullness', 'Textural Irregularities', 'Signs of Congestion', 'Dark Circles', 'Uneven Skin Tone', 'Signs of Aging', 'Redness', 'Puffiness', 'Heat Protection', 'Styling Product', 'Hair Growth', 'Fragrance'] }),
       F('texture', 'Texture', 'select', { options: ['Creamy', 'Gel-like', 'Serum', 'Oily', 'Watery', 'Spray', 'Balm', 'Foam', 'Wipes', 'Wax'] }),
-      F('am', 'Morning routine', 'check', { half: 1 }), F('pm', 'Evening routine', 'check', { half: 1 }),
+      F('step', 'Step in your routine', 'select', { options: SKIN_STEPS }), F('amDays', 'Morning on', 'multi', { options: WEEKDAYS }), F('pmDays', 'Evening on', 'multi', { options: WEEKDAYS }),
       F('price', 'Price', 'money', { half: 1 }), F('qty', 'How many', 'num', { half: 1 }),
       F('bought', 'Bought on', 'date', { half: 1 }), F('opened', 'Opened on', 'date', { half: 1 }),
       F('expiry', 'Use before', 'date', { half: 1 }), F('rating', 'Rating', 'rating', { half: 1 }),
       F('fav', 'Favourite', 'check', { half: 1 }), F('finished', 'Finished', 'check', { half: 1 }), F('wish', 'On my wishlist', 'check', { half: 1 }),
-      F('nights', 'Evenings', 'multi', { options: NIGHTS }), F('acid', 'Counts as an acid', 'check', { half: 1 }),
+      F('acid', 'Counts as an acid', 'check', { half: 1 }),
       F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['brand', 'Brand'], ['-rating', 'Best rated'], ['expiry', 'Use first'], ['-bought', 'Newest']],
     filters: [['all', 'All'], ['own', 'I have'], ['want', 'Wishlist']],
@@ -467,6 +482,30 @@ const KINDS = {
     hide: r => r.status === 'Paid' || r.status === 'Declined', hideLabel: 'Show finished',
     sub: r => [r.status, r.type, r.due && 'due ' + niceDate(r.due), eur(r.fee)].filter(Boolean).join(' · ')
   },
+  breviews: {
+    one: 'review', many: 'Reviews', facet: 'after',
+    fields: [F('product', 'Product', 'rel', { to: 'beauty' }), F('date', 'Date', 'date', { half: 1 }), F('after', 'After', 'select', { options: REVIEW_AFTER, half: 1 }),
+      F('hydration', 'Hydration', 'rating', { half: 1 }), F('calm', 'Calm skin, no irritation', 'rating', { half: 1 }), F('clear', 'Fewer breakouts', 'rating', { half: 1 }),
+      F('glow', 'Glow', 'rating', { half: 1 }), F('smooth', 'Smoother texture', 'rating', { half: 1 }),
+      F('feel', 'Texture feels nice', 'rating', { half: 1 }), F('scent', 'Scent', 'rating', { half: 1 }), F('absorbs', 'Absorbs well', 'rating', { half: 1 }),
+      F('makeup', 'Works under make-up', 'rating', { half: 1 }), F('value', 'Value for money', 'rating', { half: 1 }),
+      F('again', 'Buy it again?', 'select', { options: ['Yes', 'Maybe', 'No'], half: 1 }), F('reason', 'Why', 'text', { half: 1 }), F('notes', 'Notes', 'long')],
+    title: r => [relName(r.product) || 'Review', r.after].filter(Boolean).join(', '), sorts: [['-date', 'Newest']],
+    sub: r => [r.date && niceDate(r.date), reviewAvg(r) ? `${reviewAvg(r).toFixed(1)} / 5` : '', r.again && 'buy again: ' + r.again.toLowerCase()].filter(Boolean).join(' · ')
+  },
+  skinlog: {
+    one: 'diary entry', many: 'Skin diary', photo: 'front',
+    fields: [F('date', 'Date', 'date', { half: 1 }), F('time', 'Time of day', 'select', { options: ['Morning', 'Evening'], half: 1 }),
+      F('front', 'Front', 'pphoto'), F('left', 'Left side', 'pphoto'), F('right', 'Right side', 'pphoto'),
+      F('breakouts', 'Breakouts', 'select', { options: SKIN_LEVELS, half: 1 }), F('redness', 'Redness', 'select', { options: SKIN_LEVELS, half: 1 }),
+      F('dryness', 'Dryness', 'select', { options: SKIN_LEVELS, half: 1 }), F('oiliness', 'Oiliness', 'select', { options: SKIN_LEVELS, half: 1 }),
+      F('glow', 'Glow', 'rating', { half: 1 }), F('used', 'Products used', 'rel', { to: 'beauty', multi: 1 }),
+      F('sleep', 'Sleep', 'num', { unit: 'hours', half: 1 }), F('stress', 'Stress', 'select', { options: ['Low', 'Medium', 'High'], half: 1 }),
+      F('cycle', 'Cycle day', 'num', { half: 1 }), F('weather', 'Weather', 'text', { half: 1 }), F('food', 'Food and drink', 'text'), F('notes', 'Notes', 'long')],
+    title: r => r.date ? niceDate(r.date) : 'Diary entry', sorts: [['-date', 'Newest']],
+    sub: r => SKIN_SCORES.filter(([k]) => r[k] && r[k] !== 'None').map(([k, l]) => `${l.toLowerCase()} ${r[k].toLowerCase()}`).join(' · ') || 'clear skin'
+  },
+  skinplan: { one: 'skincare order', many: 'Skincare order', fields: [F('name', 'Name')] },
   bsched: {
     one: 'week schedule', many: 'Week schedule',
     fields: WEEK.map(([k, l]) => F(k, l, 'select', { options: NIGHTS, half: 1 })),
@@ -752,19 +791,19 @@ const KINDS = {
   /* life: habits, routines, gifts and documents */
   habits: {
     one: 'habit', many: 'Habits',
-    fields: [F('name', 'Habit'), F('per', 'Times a week', 'num', { half: 1 }), F('area', 'Area', 'select', { options: TASK_CATS, half: 1 }), F('goal', 'Goal', 'rel', { to: 'lgoals', half: 1 }),
+    fields: [F('name', 'Habit'), F('onDays', 'Days', 'multi', { options: WEEKDAYS }), F('per', 'Or: times a week', 'num', { half: 1 }), F('area', 'Area', 'select', { options: TASK_CATS, half: 1 }), F('goal', 'Goal', 'rel', { to: 'lgoals', half: 1 }),
       F('why', 'Why it matters', 'long'), F('paused', 'Paused', 'check')],
     sorts: [['name', 'A to Z'], ['-created', 'Newest']],
     hide: r => !!r.paused, hideLabel: 'Show paused',
-    sub: r => [`${weekDone(r)} of ${Math.min(7, num(r.per) || 7)} this week`, streak(r)].filter(Boolean).join(' · '),
+    sub: r => [`${weekDone(r)} of ${perWeek(r)} this week`, daysLabel(r), streak(r)].filter(Boolean).join(' · '),
     quick: r => ({ on: daysSet(r).has(today()), label: 'Today', act: () => toggleDay(r) })
   },
   routines: {
     one: 'routine step', many: 'Routines', facet: 'routine',
     fields: [F('name', 'Activity'), F('routine', 'Routine', 'select', { options: ROUTINES, half: 1 }),
-      F('freq', 'How often', 'select', { options: ['1x/week', '2x/week', '3x/week', '4x/week', '5x/week', '6x/week', '7x/week'], half: 1 }), F('notes', 'Notes', 'long')],
+      F('onDays', 'Days', 'multi', { options: WEEKDAYS }), F('notes', 'Notes', 'long')],
     sorts: [['routine', 'By routine'], ['name', 'A to Z']],
-    sub: r => [r.routine, r.freq, r.notes].filter(Boolean).join(' · '),
+    sub: r => [r.routine, daysLabel(r) || r.freq, r.notes].filter(Boolean).join(' · '),
     quick: r => ({ on: routineDone(r), label: r.routine === 'Weekly' ? 'This week' : r.routine === 'Monthly' ? 'This month' : 'Today', act: () => toggleDay(r) })
   },
   lgoals: {
@@ -883,11 +922,21 @@ function kitchenTile() {
 // evening skincare follows the week schedule: products tagged for tonight's kind of evening (or for every evening),
 // and on an acid night the acids are offered as a choice, never all at once
 const nightOf = (d = new Date()) => recs('bsched')[0]?.[['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][d.getDay()]] || '';
+/* Skincare: each product has the weekdays it is used in the morning and the evening. Products set up the old way
+   (a morning or evening tick, maybe with evening themes from the week schedule) count on the days that matches. */
+const skinUsable = b => !b.finished && !b.archived && !b.wish;
+const themeDays = themes => WEEKDAYS.filter(d => themes.includes(recs('bsched')[0]?.[d.toLowerCase()] || ''));
+const amDaysOf = b => Array.isArray(b.amDays) ? b.amDays : b.am ? [...WEEKDAYS] : [];
+const pmDaysOf = b => Array.isArray(b.pmDays) ? b.pmDays : !b.pm ? [] : (b.nights || []).length ? themeDays(b.nights) : b.acid ? themeDays(['Acid night']) : [...WEEKDAYS];
+const skinPlan = () => recs('skinplan')[0];
+function skinOrder(list) {
+  const ord = skinPlan()?.order || [], pos = b => { const i = ord.indexOf(b.id); return i < 0 ? 1000 + SKIN_STEPS.indexOf(b.step || 'Other') * 10 : i; };
+  return [...list].sort((a, b) => pos(a) - pos(b) || norm(a.name).localeCompare(norm(b.name)));
+}
+const skinSlot = (wd, eve) => skinOrder(recs('beauty').filter(b => skinUsable(b) && (eve ? pmDaysOf(b) : amDaysOf(b)).includes(wd)));
 function routineFor(eve) {
-  const type = eve ? nightOf() : '', ps = recs('beauty').filter(b => !b.finished && !b.archived && !b.wish && (eve ? b.pm : b.am));
-  if (!eve || !type) return { type, ps: eve ? ps : ps.filter(b => !b.acid || !(b.nights || []).length), pick: [] };
-  const fits = ps.filter(b => !(b.nights || []).length || b.nights.includes(type));
-  return { type, ps: fits.filter(b => !b.acid), pick: type === 'Acid night' ? fits.filter(b => b.acid) : [] };
+  const type = eve ? nightOf() : '', ps = skinSlot(wdOf(), eve);
+  return { type, ps, pick: [] };
 }
 const prodChips = ps => ps.map(b => `<button class="chip" data-act="open" data-id="${b.id}">${esc(b.name)}</button>`).join('');
 function careTile() {
@@ -961,7 +1010,7 @@ function fitTile() {
 /* ---------- sections and their pages ---------- */
 const SECTIONS = [
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile, views: [['today', 'Overview', P.grid], ['deals', 'Deals', P.tag], ['quit', 'Stop smoking', P.leaf], ['recipes', 'Recipes', P.book], ['meals', 'Meal plan', P.calendar], ['groceries', 'Groceries', P.cart], ['pantry', 'Pantry', P.jar], ['gear', 'Gear', P.spoon], ['todo', 'To do', P.check]] },
-  { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Habits', P.repeat], ['growth', 'Growth', P.target], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['mindful', 'Mindfulness', P.moon], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['trips', 'Trips', P.plane], ['docs', 'Documents', P.doc], ['saved', 'Saved links', P.link], ['todo', 'To do', P.check]] },
+  { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Routines', P.repeat], ['growth', 'Growth', P.target], ['beauty', 'Beauty', P.drop], ['skin', 'Skincare', P.flask], ['diary', 'Skin diary', P.camera], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['mindful', 'Mindfulness', P.moon], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['trips', 'Trips', P.plane], ['docs', 'Documents', P.doc], ['saved', 'Saved links', P.link], ['todo', 'To do', P.check]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc], ['todo', 'To do', P.check]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench], ['todo', 'To do', P.check]] },
   { key: 'wish', label: 'Wishlists', icon: P.heart, tile: wishTile, views: [['today', 'Overview', P.grid], ['inbox', 'Inbox', P.inbox], ['master', 'Master', P.heart], ['todo', 'To do', P.check]] },
@@ -981,12 +1030,14 @@ const PAGES = {
   'kitchen/pantry': { title: 'Pantry', segs: [{ kind: 'ingredients' }] },
   'kitchen/gear': { title: 'Kitchen gear', segs: [{ kind: 'gear' }] },
   'care/today': { render: careToday, adds: ['mindful', 'lgoals', 'courses', 'hobbies', 'habits', 'routines', 'journal', 'sleep', 'beauty', 'supplements', 'appts', 'symptoms', 'meditation', 'ideas', 'gifts', 'documents'] },
-  'care/beauty': { title: 'Beauty', segs: [{ kind: 'beauty' }, { kind: 'bsched', label: 'Week schedule' }] },
+  'care/beauty': { title: 'Beauty', segs: [{ kind: 'beauty' }, { kind: 'breviews' }] },
+  'care/skin': { render: skinWeek, adds: ['beauty'] },
+  'care/diary': { render: skinDiary, adds: ['skinlog'] },
   'care/supplements': { title: 'Supplements', segs: [{ kind: 'supplements' }, { kind: 'suplog' }] },
   'care/cycle': { title: 'Cycle', segs: [{ kind: 'cycles', label: 'Periods', top: cycleTop }] },
   'care/journal': { title: 'Journal', segs: [{ kind: 'journal' }] },
   'care/ideas': { title: 'Ideas', segs: [{ kind: 'ideas' }] },
-  'care/habits': { title: 'Habits', segs: [{ kind: 'habits', top: habitWeek }, { kind: 'routines' }] },
+  'care/habits': { title: 'Routines', segs: [{ kind: 'routines' }, { kind: 'habits', top: habitWeek }] },
   'care/gifts': { title: 'Gifts', segs: [{ kind: 'gifts' }] },
   'care/mindful': { title: 'Mindfulness', segs: [{ kind: 'mindful', top: mindTop }, { kind: 'meditation', label: 'Sessions' }] },
   'care/growth': { title: 'Growth', segs: [{ kind: 'lgoals', top: growthTop }, { kind: 'courses' }, { kind: 'hobbies' }] },
@@ -1802,6 +1853,128 @@ function socialInsights(host) {
     ${panel('Ready to use again', reuse.length ? `<div class="lrows">${reuse.slice(0, 8).map(row).join('')}</div><p class="lnone">Posts marked Top performer or Repurpose this, posted 3 months ago or more.</p>` : quiet('Mark a post Top performer or Repurpose this. After 3 months it shows up here, and you get a reminder.'))}
   </div>`;
 }
+/* Skincare week: seven days, a morning and an evening each, with the products in the order you use them.
+   Tap + to add products to a moment, × to take one off that day, Order to drag your own order. */
+async function setSkinDays(b, eve, days) {
+  const k = eve ? 'pmDays' : 'amDays', o = eve ? 'amDays' : 'pmDays', d = dataOf(b);
+  const data = { ...d, [k]: WEEKDAYS.filter(x => days.includes(x)), [o]: eve ? amDaysOf(b) : pmDaysOf(b) };
+  data.am = data.amDays.length > 0; data.pm = data.pmDays.length > 0;
+  await put('beauty', b.id, data);
+}
+/* Skin diary photos live in a private bucket "skin": only you, signed in, can open them (links last an hour). */
+const SIGNED = new Map();
+async function signedURL(path) {
+  const hit = SIGNED.get(path); if (hit && hit.until > Date.now()) return hit.url;
+  const { data, error } = await C.sb.storage.from('skin').createSignedUrl(path, 3600); if (error) throw error;
+  SIGNED.set(path, { url: data.signedUrl, until: Date.now() + 3300e3 }); return data.signedUrl;
+}
+function fillSigned(root) { root?.querySelectorAll?.('img[data-spath]').forEach(img => { if (img.src) return; signedURL(img.dataset.spath).then(u => { img.src = u; }).catch(() => { img.alt = 'Photo not available'; img.classList.add('nophoto'); }); }); }
+async function skinUpload(blob) {
+  const path = `${C.uid()}/${C.uuid()}.jpg`;
+  const { error } = await C.sb.storage.from('skin').upload(path, blob, { contentType: 'image/jpeg', cacheControl: '3600', upsert: false });
+  if (error) throw new Error(/bucket|not found/i.test(error.message) ? 'The private photo storage is not set up yet. See Skin diary for the steps.' : error.message);
+  return path;
+}
+function skinRemove(path) { C.sb.storage.from('skin').remove([path]).catch(() => {}); }
+// reviews of a product, and which one is due (1, 4 and 8 weeks after you opened it)
+function beautyReviews(r) {
+  const vs = recs('breviews').filter(v => v.product === r.id).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const wk = r.opened ? Math.floor(diffDays(r.opened, today()) / 7) : null, has = a => vs.some(v => v.after === a);
+  const due = wk == null ? (vs.length ? '' : 'First use') : wk >= 8 && !has('8 weeks') ? '8 weeks' : wk >= 4 && !has('4 weeks') ? '4 weeks' : wk >= 1 && !has('1 week') ? '1 week' : !vs.length ? 'First use' : '';
+  return `<section class="ltipsteps"><div class="lph3"><h3>Reviews</h3><button type="button" class="chip ${due ? 'on' : ''}" data-act="newreview" data-id="${r.id}" data-v="${esc(due || 'Later')}">${due ? `Write your ${esc(due.toLowerCase())} review` : 'Add a review'}</button></div>
+    ${vs.length ? `<div class="lrows">${vs.map(v => `<div class="lrow"><button class="lmain" data-act="open" data-id="${v.id}"><b>${esc(v.after || 'Review')}${reviewAvg(v) ? ` · ${reviewAvg(v).toFixed(1)} / 5` : ''}</b><span>${esc([v.date && niceDate(v.date), v.again && 'buy again: ' + v.again.toLowerCase(), v.reason].filter(Boolean).join(' · '))}</span></button></div>`).join('')}</div>` : '<p class="lnone">No reviews yet. Rate how your skin reacts, how it feels, and whether you would buy it again.</p>'}</section>`;
+}
+/* Skin diary: photos, how your skin is, what you used and the circumstances, in four views */
+const lvl = v => Math.max(0, SKIN_LEVELS.indexOf(v));
+function skinDiary(host) {
+  const D2 = L.sdiary ||= { mode: 'timeline' }, list = recs('skinlog').filter(x => x.date).sort((a, b) => (b.date + (b.time === 'Evening' ? 'b' : 'a')).localeCompare(a.date + (a.time === 'Evening' ? 'b' : 'a')));
+  const ANG = [['front', 'Front'], ['left', 'Left'], ['right', 'Right']], thumb = (x, k) => x[k] ? `<img data-spath="${esc(x[k])}" alt="${esc(k)} ${esc(niceDate(x.date))}" loading="lazy">` : '';
+  const seg = `<div class="seg" role="group" aria-label="View">${[['timeline', 'Timeline'], ['compare', 'Compare'], ['grid', 'Photos'], ['chart', 'Chart']].map(([k, l]) => `<button data-sdmode="${k}" aria-pressed="${D2.mode === k}">${l}</button>`).join('')}</div>`;
+  let body = '';
+  if (!list.length) body = quiet('Add your first entry: a few photos, how your skin is today, and what you used.');
+  else if (D2.mode === 'timeline') body = `<div class="lrows">${list.map(x => `<div class="sdrow"><button class="lmain" data-act="open" data-id="${x.id}"><b>${esc(niceDate(x.date))}${x.time ? ' · ' + esc(x.time.toLowerCase()) : ''}</b><span>${esc(KINDS.skinlog.sub(x))}</span>${x.notes ? `<span>${esc(x.notes.slice(0, 120))}</span>` : ''}</button><div class="sdthumbs">${ANG.map(([k]) => thumb(x, k)).join('')}</div><p class="todomiss">${[...[].concat(x.used || []).map(relName).filter(Boolean).slice(0, 6).map(n => `<span>${esc(n)}</span>`), x.sleep ? `<span>${esc(x.sleep)} h sleep</span>` : '', x.stress ? `<span>stress ${esc(x.stress.toLowerCase())}</span>` : '', x.cycle ? `<span>cycle day ${esc(x.cycle)}</span>` : ''].join('')}</p></div>`).join('')}</div>`;
+  else if (D2.mode === 'compare') {
+    const withP = list.filter(x => ANG.some(([k]) => x[k])); D2.a = D2.a && L.byId[D2.a] ? D2.a : withP[withP.length - 1]?.id; D2.b = D2.b && L.byId[D2.b] ? D2.b : withP[0]?.id; D2.ang = D2.ang || 'front';
+    const pick = (k, cur) => `<select class="pill" data-sdpick="${k}" aria-label="${k === 'a' ? 'Before' : 'After'}">${withP.map(x => `<option value="${x.id}" ${x.id === cur ? 'selected' : ''}>${esc(niceDate(x.date))}${x.time ? ' ' + esc(x.time.toLowerCase()) : ''}</option>`).join('')}</select>`;
+    const side = id => { const x = L.byId[id]; return x ? `<figure class="sdfig">${x[D2.ang] ? `<img data-spath="${esc(x[D2.ang])}" alt="">` : '<div class="sdnone">No photo from this side</div>'}<figcaption>${esc(niceDate(x.date))} · ${esc(KINDS.skinlog.sub(x))}</figcaption></figure>` : ''; };
+    body = withP.length ? `<div class="lplanhead"><span>Before</span>${pick('a', D2.a)}<span>After</span>${pick('b', D2.b)}<div class="seg">${ANG.map(([k, l]) => `<button data-sdang="${k}" aria-pressed="${D2.ang === k}">${l}</button>`).join('')}</div></div><div class="sdcompare">${side(D2.a)}${side(D2.b)}</div>` : quiet('Add entries with photos to compare them.');
+  } else if (D2.mode === 'grid') {
+    const months = [...new Set(list.map(x => x.date.slice(0, 7)))];
+    body = months.map(m => { const xs = list.filter(x => x.date.startsWith(m) && ANG.some(([k]) => x[k])); return xs.length ? `<h3 class="sdmonth">${esc(fromISO(m + '-01').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }))}</h3><div class="sdgrid">${xs.flatMap(x => ANG.filter(([k]) => x[k]).map(([k]) => `<button data-act="open" data-id="${x.id}" title="${esc(niceDate(x.date))}">${thumb(x, k)}</button>`)).join('')}</div>` : ''; }).join('') || quiet('No photos yet.');
+  } else {
+    const pts = [...list].reverse(), W = 600, H = 120, pad = 14;
+    const mini = (k, l) => { const v = pts.filter(x => x[k]); if (v.length < 2) return ''; const xs = i => pad + (W - 2 * pad) * i / (v.length - 1), ys = x => H - 22 - (H - 40) * lvl(x[k]) / 3;
+      return `<div class="sdchart"><p class="dsub">${esc(l)}</p><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(l)} over time">${[0, 3].map(n => `<line x1="${pad}" x2="${W - pad}" y1="${H - 22 - (H - 40) * n / 3}" y2="${H - 22 - (H - 40) * n / 3}" class="lgrid"/>`).join('')}<text x="${pad}" y="${H - 26 - (H - 40)}" class="ltick">a lot</text><text x="${pad}" y="${H - 6}" class="ltick">none</text><polyline class="sdline" points="${v.map((x, i) => `${xs(i)},${ys(x)}`).join(' ')}"/>${v.map((x, i) => `<g><title>${esc(niceDate(x.date))}: ${esc(x[k])}</title><circle cx="${xs(i)}" cy="${ys(x)}" r="5" class="sddot"/></g>`).join('')}<text x="${W - pad}" y="${H - 6}" text-anchor="end" class="ltick">${esc(shortDate(v[v.length - 1].date))}</text></svg></div>`; };
+    body = SKIN_SCORES.map(([k, l]) => mini(k, l)).join('') || quiet('Score your skin in at least two entries to see a chart.');
+  }
+  host.innerHTML = `<div class="viewhead"><h1>Skin diary</h1><span class="sub">${plural(list.length, 'entry', 'entries')}</span></div>
+    <div class="lplanhead">${seg}<button class="btn small primary" data-act="new" data-v="skinlog">+ New entry</button></div>
+    <div data-sdsetup></div>${body}`;
+  fillSigned(host);
+  if (list.some(x => ANG.some(([k]) => x[k]))) { const img = host.querySelector('img[data-spath]'); if (img) signedURL(img.dataset.spath).catch(() => { host.querySelector('[data-sdsetup]').innerHTML = skinSetupNote(); }); }
+  else C.sb.storage.from('skin').list(C.uid(), { limit: 1 }).then(({ error }) => { if (error) host.querySelector('[data-sdsetup]').innerHTML = skinSetupNote(); }).catch(() => {});
+  if (host.dataset.sdwired) return; host.dataset.sdwired = '1';
+  host.addEventListener('click', e => {
+    const m = e.target.closest('[data-sdmode]'); if (m) { L.sdiary.mode = m.dataset.sdmode; skinDiary(host); return; }
+    const a = e.target.closest('[data-sdang]'); if (a) { L.sdiary.ang = a.dataset.sdang; skinDiary(host); }
+  });
+  host.addEventListener('change', e => { const p = e.target.closest('[data-sdpick]'); if (p) { L.sdiary[p.dataset.sdpick] = p.value; skinDiary(host); } });
+}
+const skinSetupNote = () => `<section class="ltipsteps"><h3>One step in Supabase first</h3><p class="lnone">Your skin photos go into a private storage space that only you can open. Create it once: open the SQL editor in Supabase, paste the setup from the chat and click Run. Until then the photos can't be saved.</p></section>`;
+function skinWeek(host) {
+  const t = wdOf(), prods = recs('beauty').filter(skinUsable);
+  const slot = (wd, eve) => { const ps = skinSlot(wd, eve); return `<div class="sslot ${eve ? 'pm' : 'am'}"><span class="rowlbl">${eve ? 'Evening' : 'Morning'}</span><ol>${ps.map(b => `<li><button class="sprod" data-act="open" data-id="${b.id}"><b>${esc(b.name)}</b>${b.step ? `<small>${esc(b.step)}</small>` : ''}</button><button class="sx" data-skinx="${b.id}" data-wd="${wd}" data-eve="${eve ? 1 : ''}" aria-label="Not on ${wd} ${eve ? 'evening' : 'morning'}">×</button></li>`).join('')}</ol><button class="chip ghost sadd" data-skinadd="${wd}" data-eve="${eve ? 1 : ''}">+ Add</button></div>`; };
+  host.innerHTML = `<div class="viewhead"><h1>Skincare</h1><span class="sub">Your week, morning and evening</span></div>
+    <div class="lplanhead"><button class="btn small" data-skinorder>Order</button><button class="btn small" data-act="go" data-v="care/diary">Skin diary</button><button class="btn small" data-act="new" data-v="beauty">+ Product</button></div>
+    ${prods.length ? '' : quiet('Add your skincare products under Beauty, then put them on the days you use them.')}
+    <div class="skweek">${WEEKDAYS.map(wd => `<section class="skday ${wd === t ? 'now' : ''}"><div class="ldh"><b>${({ Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' })[wd]}</b>${wd === t ? '<span>today</span>' : ''}</div>${slot(wd, false)}${slot(wd, true)}</section>`).join('')}</div>`;
+  if (host.dataset.skwired) return; host.dataset.skwired = '1';
+  host.addEventListener('click', async e => {
+    const x = e.target.closest('[data-skinx]'); if (x) { const b = L.byId[x.dataset.skinx], eve = !!x.dataset.eve; await setSkinDays(b, eve, (eve ? pmDaysOf(b) : amDaysOf(b)).filter(d => d !== x.dataset.wd)); return; }
+    const a = e.target.closest('[data-skinadd]'); if (a) return skinAdd(a.dataset.skinadd, !!a.dataset.eve);
+    if (e.target.closest('[data-skinorder]')) skinOrderSheet();
+  });
+}
+function skinAdd(wd, eve) {
+  const list = skinOrder(recs('beauty').filter(b => skinUsable(b) && !(eve ? pmDaysOf(b) : amDaysOf(b)).includes(wd)));
+  const sh = C.sheet({ title: `Add to ${wd} ${eve ? 'evening' : 'morning'}`, body: list.length ? `<div class="lrows">${list.map(b => `<label class="lrow lbatch"><input type="checkbox" value="${b.id}"><span class="lmain"><b>${esc(b.name)}</b><span>${esc([b.brand, b.step, b.type].filter(Boolean).join(' · '))}</span></span></label>`).join('')}</div>
+      <label class="lrow lbatch" style="margin-top:10px"><input type="checkbox" data-alldays><span class="lmain"><b>Every ${eve ? 'evening' : 'morning'}</b><span>Add it to all seven days at once</span></span></label>` : quiet('Every product is on this moment already. Add a new product under Beauty.'),
+    foot: `<button class="btn" data-act="new" data-v="beauty">New product</button><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-skok>Add</button>` });
+  sh.querySelector('[data-skok]').onclick = async () => {
+    const ids = [...sh.querySelectorAll('.lrows input:checked')].map(i => i.value), all = sh.querySelector('[data-alldays]')?.checked;
+    for (const id of ids) { const b = L.byId[id]; await setSkinDays(b, eve, all ? WEEKDAYS : [...new Set([...(eve ? pmDaysOf(b) : amDaysOf(b)), wd])]); }
+    C.closeSheet(); if (ids.length) C.toast(`${plural(ids.length, 'product')} added`);
+  };
+}
+function skinOrderSheet() {
+  let list = skinOrder(recs('beauty').filter(b => skinUsable(b) && (amDaysOf(b).length || pmDaysOf(b).length)));
+  if (!list.length) { C.toast('Put products on a day first'); return; }
+  const sh = C.sheet({ title: 'Order of your routine', body: `<p class="lnone">Drag the handle, or use the arrows. "By step" puts them back in the usual order: cleanse, treat, moisturise, protect.</p><ol class="skorder" data-skl></ol>`,
+    foot: `<button class="btn" data-skauto>By step</button><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-sksave>Save order</button>` });
+  const box = sh.querySelector('[data-skl]');
+  const draw = () => { box.innerHTML = list.map((b, i) => `<li data-i="${i}"><span class="skh" aria-hidden="true">⋮⋮</span><span class="skn"><b>${esc(b.name)}</b><small>${esc(b.step || 'No step set')}</small></span><button class="iconbtn" data-up="${i}" aria-label="Move up" ${i ? '' : 'disabled'}>${svg(P.left)}</button><button class="iconbtn" data-down="${i}" aria-label="Move down" ${i < list.length - 1 ? '' : 'disabled'}>${svg(P.right)}</button></li>`).join(''); };
+  draw();
+  sh.addEventListener('click', e => {
+    const u = e.target.closest('[data-up]'), dn = e.target.closest('[data-down]');
+    if (u) { const i = +u.dataset.up; [list[i - 1], list[i]] = [list[i], list[i - 1]]; draw(); }
+    if (dn) { const i = +dn.dataset.down; [list[i + 1], list[i]] = [list[i], list[i + 1]]; draw(); }
+    if (e.target.closest('[data-skauto]')) { list = [...list].sort((a, b) => SKIN_STEPS.indexOf(a.step || 'Other') - SKIN_STEPS.indexOf(b.step || 'Other') || norm(a.name).localeCompare(norm(b.name))); draw(); }
+  });
+  // drag with a finger or the mouse on the handle
+  let drag = null;
+  box.addEventListener('pointerdown', e => { const h = e.target.closest('.skh'); if (!h) return; e.preventDefault(); drag = +h.closest('li').dataset.i; h.closest('li').classList.add('drag'); box.setPointerCapture(e.pointerId); });
+  box.addEventListener('pointermove', e => {
+    if (drag == null) return;
+    const lis = [...box.children], over = lis.findIndex(li => { const r = li.getBoundingClientRect(); return e.clientY >= r.top && e.clientY <= r.bottom; });
+    if (over >= 0 && over !== drag) { const [m] = list.splice(drag, 1); list.splice(over, 0, m); drag = over; draw(); box.children[drag]?.classList.add('drag'); }
+  });
+  const end = () => { drag = null; box.querySelector('.drag')?.classList.remove('drag'); };
+  box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
+  sh.querySelector('[data-sksave]').onclick = async () => {
+    const p = skinPlan(), others = (p?.order || []).filter(id => !list.some(b => b.id === id));
+    try { p ? await put('skinplan', p.id, { ...dataOf(p), order: [...list.map(b => b.id), ...others] }) : await create('skinplan', { order: list.map(b => b.id) }); C.closeSheet(); C.toast('Order saved'); } catch (e) { failed(e); }
+  };
+}
 function dealsPage(host) {
   const plan = curPlan(), offers = liveOffers(), byStore = STORES.map(s => [s, offers.filter(o => o.store === s)]).filter(([, l]) => l.length);
   const mine = recipeDeals(offers).slice(0, 8);
@@ -2574,7 +2747,7 @@ function careToday(host) {
   const am = routineFor(false).ps, tn = routineFor(true), pm = tn.ps, wk = recs('bsched')[0];
   const soon = prods.filter(b => b.expiry && diffDays(t, b.expiry) <= 30).sort((a, b) => a.expiry.localeCompare(b.expiry));
   const appts = recs('appts').filter(a => !a.done && a.date && a.date >= t).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''))).slice(0, 3);
-  const rts = recs('routines'), habits = recs('habits').filter(h => !h.paused);
+  const rts = recs('routines').filter(r => onDay(r)), habits = recs('habits').filter(h => !h.paused && onDay(h));
   const rslot = (l, list) => list.length ? `<div class="lslot"><span class="rowlbl">${l}</span>${list.map(r => tick(r.name, routineDone(r), `data-act="quick" data-id="${r.id}"`)).join('')}</div>` : '';
   host.innerHTML = `${head('Life')}
   <div class="panels">
@@ -2587,7 +2760,7 @@ function careToday(host) {
     ${panel('Sleep', sl ? `<p class="lbig">${sl.hours ? sl.hours + ' hours' : 'Logged'}${sl.quality ? ', ' + sl.quality.toLowerCase() : ''}</p><p class="lnone">${esc(niceDate(sl.date))}${sl.wake ? ' · woke up ' + esc(sl.wake.toLowerCase()) : ''}</p>${sl.date === t ? '' : '<button class="btn small" data-act="new" data-v="sleep">Log last night</button>'}` : `${quiet('How did you sleep?')}<button class="btn small" data-act="new" data-v="sleep">Log last night</button>`, ['care/health', 'Sleep log'])}
     ${panel('Journal', j ? `<button class="lrow lmain" data-act="open" data-id="${j.id}"><b>${esc(titleOf(j))}</b><span>${esc((j.entry || '').slice(0, 140))}</span></button>` : `${quiet('Nothing written today yet.')}<button class="btn small" data-act="new" data-v="journal">Write today’s entry</button>`, ['care/journal', 'All entries'])}
     ${panel('Skincare routine', am.length || pm.length || tn.pick.length ? [['Morning', am], [tn.type ? 'Tonight: ' + tn.type.toLowerCase() : 'Evening', pm]].filter(x => x[1].length).map(([l, ps]) => `<div class="lslot"><span class="rowlbl">${esc(l)}</span>${prodChips(ps)}</div>`).join('') + (tn.pick.length ? `<div class="lslot"><span class="rowlbl">Choose one acid</span>${prodChips(tn.pick)}</div>` : '')
-      + (wk ? `<p class="lnone">${esc(KINDS.bsched.sub(wk))}</p><button class="chip link" data-act="open" data-id="${wk.id}">Change the week</button>` : '<button class="btn small" data-act="new" data-v="bsched">Plan your skincare week</button>') : quiet('Mark products as part of your morning or evening routine and they show up here.'), ['care/beauty', 'All products'])}
+      + '<button class="chip link" data-act="go" data-v="care/skin">Open your skincare week</button>' : `${quiet('Plan which products you use on which mornings and evenings.')}<button class="btn small" data-act="go" data-v="care/skin">Plan your skincare week</button>`, ['care/skin', 'Skincare week'])}
     ${soon.length ? panel('Use these up', `<div class="lrows">${soon.slice(0, 5).map(row).join('')}</div>`) : ''}
     ${panel('Coming up', appts.length ? `<div class="lrows">${appts.map(row).join('')}</div>` : quiet('No appointments planned.'), ['care/health', 'Appointments'])}
   </div>`;
@@ -3074,7 +3247,7 @@ function growthTop() {
 function habitWeek() {
   const hs = recs('habits').filter(h => !h.paused); if (!hs.length) return '';
   const days = weekDays(), t = today();
-  return `<section class="panel lpanel hweek"><div class="lph3"><h3>This week</h3></div><div class="hgrid"><span></span>${days.map(d => `<span class="hd ${d === t ? 'now' : ''}">${dayName(d).slice(0, 2)}</span>`).join('')}${hs.map(h => { const s = daysSet(h); return `<button class="hname" data-act="open" data-id="${h.id}">${esc(h.name)}</button>` + days.map(d => `<button class="hcell ${s.has(d) ? 'on' : ''}" data-act="hday" data-id="${h.id}" data-d="${d}" aria-pressed="${s.has(d)}" aria-label="${esc(h.name)}, ${dayName(d)}" ${d > t ? 'disabled' : ''}>${s.has(d) ? svg(P.check) : ''}</button>`).join(''); }).join('')}</div></section>`;
+  return `<section class="panel lpanel hweek"><div class="lph3"><h3>This week</h3></div><div class="hgrid"><span></span>${days.map(d => `<span class="hd ${d === t ? 'now' : ''}">${dayName(d).slice(0, 2)}</span>`).join('')}${hs.map(h => { const s = daysSet(h); return `<button class="hname" data-act="open" data-id="${h.id}">${esc(h.name)}</button>` + days.map(d => `<button class="hcell ${s.has(d) ? 'on' : ''} ${onDay(h, d) ? '' : 'rest'}" data-act="hday" data-id="${h.id}" data-d="${d}" aria-pressed="${s.has(d)}" aria-label="${esc(h.name)}, ${dayName(d)}" ${d > t ? 'disabled' : ''}>${s.has(d) ? svg(P.check) : ''}</button>`).join(''); }).join('')}</div></section>`;
 }
 
 // the cleaning schedule: what is due today in three lists, what comes next, and whether today is a free day
@@ -3222,7 +3395,7 @@ function optionLists() {
 // choices are buttons up to this many, a dropdown above it
 const CHIP_MAX = 12;
 // lists with a natural order keep it; everything else is A to Z (your own order from Settings always wins)
-const ORDERED = new Set(['priority', 'prio', 'stage', 'status', 'cadence', 'freq', 'level', 'slot', 'funnel', 'effort', 'size', 'season', 'seasons', 'time', 'intake', 'when', 'day', 'days', 'nights', 'reheat', 'again', 'portion', 'mood', 'energy', 'quality']);
+const ORDERED = new Set(['onDays', 'amDays', 'pmDays', 'step', 'again', 'angle', 'after', 'breakouts', 'redness', 'dryness', 'oiliness', 'stress', 'priority', 'prio', 'stage', 'status', 'cadence', 'freq', 'level', 'slot', 'funnel', 'effort', 'size', 'season', 'seasons', 'time', 'intake', 'when', 'day', 'days', 'nights', 'reheat', 'again', 'portion', 'mood', 'energy', 'quality']);
 const sortOpts = (kind, f, opts) => optCfg(kind, f.k).list || ORDERED.has(f.k) ? opts : [...opts].sort((a, b) => norm(a).localeCompare(norm(b)));
 function fieldInner(kind, f, D) {
   const v = D[f.k], id = 'lf-' + f.k;
@@ -3243,6 +3416,10 @@ function fieldInner(kind, f, D) {
       if (opts.length > CHIP_MAX) return span + `<div class="lwrap">${f.type === 'multi' ? sel.map(o => `<button type="button" class="chip on" data-opt="${f.k}" data-v="${esc(o)}" aria-pressed="true">${esc(o)} ×</button>`).join('') : ''}</div>
         <div class="lpick"><select class="pill" data-optsel="${f.k}" aria-label="${esc(f.label)}"><option value="">${f.type === 'multi' ? 'Add…' : 'Choose…'}</option>${opts.map(o => `<option value="${esc(o)}" ${f.type !== 'multi' && sel.includes(o) ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>${add}</div>`;
       return span + `<div class="lwrap">${opts.map(o => `<button type="button" class="chip" data-opt="${f.k}" data-v="${esc(o)}" aria-pressed="${sel.includes(o)}">${esc(o)}</button>`).join('')}${add}</div>`;
+    }
+    case 'pphoto': {
+      const src = D._previews?.[f.k] || '';
+      return span + `<div class="lphoto">${src ? `<img src="${esc(src)}" alt="">` : v ? `<img data-spath="${esc(v)}" alt="">` : ''}<div class="lphb"><label class="btn small">${v || src ? 'Replace' : 'Take or choose photo'}<input type="file" accept="image/*" capture="user" class="vh" data-photo="${f.k}"></label>${src || v ? `<button type="button" class="btn small ghost" data-photox="${f.k}">Remove</button>` : ''}</div><p class="lphnote">Only you can see this photo.</p></div>`;
     }
     case 'photo': {
       const src = D._previews?.[f.k] || (v ? C.photoURL(v) : '');
@@ -3267,16 +3444,19 @@ function fieldInner(kind, f, D) {
 function openEditor(kind, id, preset = {}) {
   const K = KINDS[kind], r = id ? L.byId[id] : null;
   const D = r ? JSON.parse(JSON.stringify(dataOf(r))) : { created: Date.now(), ...preset };
+  if (kind === 'skinlog' && !r) { const wd = wdOf(); D.used = D.used || [...new Set([...skinSlot(wd, false), ...skinSlot(wd, true)].map(b => b.id))]; D.time = D.time || (new Date().getHours() < 15 ? 'Morning' : 'Evening'); const cy = cycleStats(); if (cy.last && !cy.guessed && cy.day) D.cycle = D.cycle ?? cy.day; }
+  if (kind === 'beauty' && r) { if (!Array.isArray(D.amDays)) D.amDays = amDaysOf(r); if (!Array.isArray(D.pmDays)) D.pmDays = pmDaysOf(r); }
   D._blobs = {}; D._previews = {}; // one picked photo per photo field (a product photo and a receipt, say)
   if (!r) for (const f of K.fields) if (f.type === 'date' && D[f.k] === undefined && ['date', 'start'].includes(f.k)) D[f.k] = today();
   const sh = C.sheet({
     title: r ? titleOf(r) : 'New ' + K.one,
-    body: `${r && WISHY[kind] ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${kind === 'stips' ? '<div data-tipsteps></div>' : ''}${kind === 'posts' ? '<div data-postkit></div><div data-posttips></div>' : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}">${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
+    body: `${r && WISHY[kind] ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${r && kind === 'beauty' ? beautyReviews(r) : ''}${kind === 'stips' ? '<div data-tipsteps></div>' : ''}${kind === 'posts' ? '<div data-postkit></div><div data-posttips></div>' : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}">${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
     foot: `${r ? '<button class="btn danger" data-del>Delete</button>' : ''}<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save</button>`,
     onClose: () => { Object.values(D._previews).forEach(u => URL.revokeObjectURL(u)); }
   });
   const fdef = k => K.fields.find(f => f.k === k);
-  const redraw = k => { const el = sh.querySelector(`[data-f="${k}"]`); if (el) el.innerHTML = fieldInner(kind, fdef(k), D); };
+  const redraw = k => { const el = sh.querySelector(`[data-f="${k}"]`); if (el) { el.innerHTML = fieldInner(kind, fdef(k), D); fillSigned(el); } };
+  fillSigned(sh);
   const relOpts = (k, q) => {
     const f = fdef(k), box = sh.querySelector(`[data-relopts="${k}"]`), n = norm(q), have = [].concat(D[k] || []);
     if (!n) { box.innerHTML = ''; return; }
@@ -3375,6 +3555,7 @@ function openEditor(kind, id, preset = {}) {
     if (d.act === 'igpost') return igPostNow(d.id);
     if (d.act === 'ttpost') return ttPostNow(d.id);
     if (d.act === 'mkpost') return ideaToPost(d.id);
+    if (d.act === 'newreview') { C.closeSheet(); return openEditor('breviews', null, { product: d.id, date: today(), after: d.v }); }
     if (d.act === 'mkidea') return postToIdea(d.id);
     if (d.opt) { const f = fdef(d.opt); if (f.type === 'multi') { const a = [].concat(D[d.opt] || []); const i = a.indexOf(d.v); i >= 0 ? a.splice(i, 1) : a.push(d.v); D[d.opt] = a; } else D[d.opt] = D[d.opt] === d.v ? '' : d.v; redraw(d.opt); }
     else if (d.chk) { D[d.chk] = !D[d.chk]; redraw(d.chk); }
@@ -3393,11 +3574,16 @@ function openEditor(kind, id, preset = {}) {
       if (['text'].includes(first.type) && !String(D[first.k] || '').trim() && !K.title) { msg.textContent = `Give it a ${first.label.toLowerCase()} first.`; sh.querySelector(`[data-k="${first.k}"]`)?.focus(); return; }
       b.disabled = true;
       try {
+        for (const pf of K.fields.filter(f => f.type === 'pphoto')) {
+          if (D._blobs[pf.k]) { msg.textContent = 'Uploading photo…'; const old = r?.[pf.k]; D[pf.k] = await skinUpload(D._blobs[pf.k]); if (old && old !== D[pf.k]) skinRemove(old); }
+          else if (r?.[pf.k] && r[pf.k] !== D[pf.k]) skinRemove(r[pf.k]);
+        }
         for (const pf of K.fields.filter(f => f.type === 'photo' || f.type === 'video')) {
           if (D._blobs[pf.k]) { msg.textContent = pf.type === 'video' ? 'Uploading video… this can take a minute' : 'Uploading photo…'; const old = r?.[pf.k]; D[pf.k] = pf.type === 'video' ? await C.uploadFile(D._blobs[pf.k]) : await C.uploadPhoto(D._blobs[pf.k]); if (old && old !== D[pf.k]) C.deletePhoto(old); }
           else if (r?.[pf.k] && r[pf.k] !== D[pf.k] && !/^https?:/.test(r[pf.k])) C.deletePhoto(r[pf.k]);
         }
-        const out = {}; for (const [k, v] of Object.entries(D)) if (!k.startsWith('_') && v !== '' && v != null && !(Array.isArray(v) && !v.length)) out[k] = v;
+        if (kind === 'beauty') { D.amDays = [].concat(D.amDays || []); D.pmDays = [].concat(D.pmDays || []); D.am = D.amDays.length > 0; D.pm = D.pmDays.length > 0; }
+        const out = {}; for (const [k, v] of Object.entries(D)) if (!k.startsWith('_') && v !== '' && v != null && !(Array.isArray(v) && !v.length && !['amDays', 'pmDays'].includes(k))) out[k] = v;
         if (out.name) out.name = String(out.name).trim();
         await put(kind, r ? r.id : C.uuid(), out);
         C.closeSheet(); C.toast('Saved');
