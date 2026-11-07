@@ -913,7 +913,7 @@ function fitTile() {
 
 /* ---------- sections and their pages ---------- */
 const SECTIONS = [
-  { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile, views: [['today', 'Overview', P.grid], ['deals', 'Deals', P.tag], ['quit', 'Stop smoking', P.leaf], ['recipes', 'Recipes', P.book], ['meals', 'Meal plan', P.calendar], ['groceries', 'Groceries', P.cart], ['pantry', 'Pantry', P.jar], ['gear', 'Gear', P.spoon]] },
+  { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile, views: [['today', 'Overview', P.grid], ['deals', 'Deals', P.tag], ['quit', 'Stop smoking', P.leaf], ['recipes', 'Recipes', P.book], ['rtodo', 'To do', P.check], ['meals', 'Meal plan', P.calendar], ['groceries', 'Groceries', P.cart], ['pantry', 'Pantry', P.jar], ['gear', 'Gear', P.spoon]] },
   { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Habits', P.repeat], ['growth', 'Growth', P.target], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['mindful', 'Mindfulness', P.moon], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['trips', 'Trips', P.plane], ['docs', 'Documents', P.doc], ['saved', 'Saved links', P.link]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
@@ -926,6 +926,7 @@ const PAGES = {
   'kitchen/deals': { render: dealsPage, adds: ['recipes'] },
   'kitchen/quit': { render: quitPage, adds: ['recipes', 'ingredients'] },
   'kitchen/recipes': { title: 'Recipes', segs: [{ kind: 'recipes' }] },
+  'kitchen/rtodo': { render: recipesTodo, adds: ['recipes'] },
   'kitchen/meals': { title: 'Meal plan', segs: [{ key: 'week', label: 'Week', kind: 'meals', fill: weekFill, tools: false }, { key: 'month', label: 'Month', kind: 'meals', fill: monthFill, tools: false }, { kind: 'mealprep' }] },
   'kitchen/groceries': { title: 'Groceries', segs: [{ key: 'list', label: 'Shopping list', kind: 'ingredients', fill: groceryFill, tools: false }] },
   'kitchen/pantry': { title: 'Pantry', segs: [{ kind: 'ingredients' }] },
@@ -1575,6 +1576,36 @@ function recipeDeals(offers) {
   const ingName = id => L.byId[id]?.name || '';
   return recs('recipes').map(r => { const hits = new Map(); for (const id of [].concat(r.ingredients || [])) for (const o of dealsFor(ingName(id), offers)) hits.set(o.id, o); return { r, hits: [...hits.values()] }; })
     .filter(x => x.hits.length).sort((a, b) => b.hits.length - a.hits.length || (b.r.rating || 0) - (a.r.rating || 0));
+}
+/* To do: recipes that still miss details. Each check names a field from the recipe editor; tap a card to fill it in. */
+const RTODO = [
+  ['photo', 'Photo', r => !r.photo],
+  ['category', 'Category', r => !r.category],
+  ['time', 'Time', r => !num(r.prep) && !num(r.cook)],
+  ['servings', 'Servings', r => !num(r.servings)],
+  ['ingredients', 'Ingredients', r => ![].concat(r.ingredients || []).length],
+  ['instructions', 'Instructions', r => !String(r.instructions || '').trim()],
+  ['protein', 'Protein', r => !String(r.protein || '').trim()],
+  ['feel', 'Feels like', r => ![].concat(r.feel || []).length],
+  ['rating', 'Rating', r => !num(r.rating)]
+];
+function recipesTodo(host) {
+  const T = L.rtodo ||= { field: 'all', sort: 'most' };
+  const all = recs('recipes'), list = all.map(r => ({ r, miss: RTODO.filter(c => c[2](r)) })).filter(x => x.miss.length);
+  const count = k => list.filter(x => x.miss.some(m => m[0] === k)).length;
+  if (T.field !== 'all' && !count(T.field)) T.field = 'all';
+  const shown = list.filter(x => T.field === 'all' || x.miss.some(m => m[0] === T.field));
+  shown.sort(T.sort === 'new' ? (a, b) => (b.r.created || 0) - (a.r.created || 0) : T.sort === 'az' ? (a, b) => norm(titleOf(a.r)).localeCompare(norm(titleOf(b.r))) : (a, b) => b.miss.length - a.miss.length || norm(titleOf(a.r)).localeCompare(norm(titleOf(b.r))));
+  host.innerHTML = `<div class="viewhead"><h1>To do</h1><span class="sub">${all.length ? `${list.length} of ${all.length} recipes miss something` : ''}</span></div>
+    ${list.length ? `<div class="tools"><select class="pill" data-rtsort aria-label="Sort">${[['most', 'Most missing first'], ['new', 'Recently added'], ['az', 'Name A to Z']].map(([k, l]) => `<option value="${k}" ${T.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <div class="chips" role="group" aria-label="Missing field"><button class="chip" data-rtfield="all" aria-pressed="${T.field === 'all'}">Everything <span class="n">${list.length}</span></button>${RTODO.map(([k, l]) => { const n = count(k); return n ? `<button class="chip" data-rtfield="${k}" aria-pressed="${T.field === k}">${l} <span class="n">${n}</span></button>` : ''; }).join('')}</div>
+    <div class="lgrid">${shown.map(({ r, miss }) => `<div class="todocard">${card(r)}<p class="todomiss">${miss.map(m => `<span class="${m[0] === T.field ? 'on' : ''}">${m[1]}</span>`).join('')}</p></div>`).join('')}</div>`
+    : quiet(all.length ? 'Every recipe has all its details. Nice.' : 'Add recipes; anything they still miss shows up here.')}`;
+  if (!host.dataset.rtwired) {
+    host.dataset.rtwired = '1';
+    host.addEventListener('click', e => { const f = e.target.closest('[data-rtfield]'); if (f) { L.rtodo.field = f.dataset.rtfield; recipesTodo(host); } });
+    host.addEventListener('change', e => { const so = e.target.closest('[data-rtsort]'); if (so) { L.rtodo.sort = so.value; recipesTodo(host); } });
+  }
 }
 function dealsPage(host) {
   const plan = curPlan(), offers = liveOffers(), byStore = STORES.map(s => [s, offers.filter(o => o.store === s)]).filter(([, l]) => l.length);
