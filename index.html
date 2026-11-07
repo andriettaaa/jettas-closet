@@ -712,7 +712,7 @@ const pref = {
    Lists and settings live in Supabase and match everywhere. A few choices are kept on the device itself (tiles or
    list, hidden amounts, sorting, today's ticks); those are copied into prefs.shared with the time you changed them,
    and every device takes the newest. prefs.devices lists your devices with their last sync. */
-const SYNC_KEYS = [/^calView$/, /^calOff$/, /^hangtag:hidemoney$/, /^hangtag:tol$/, /^hangtag:sort(:|$)/, /^hangtag:todo(Field|Sort)$/, /^lview2:/, /^prepDone$/, /^tl:\d{4}-\d{2}-\d{2}$/, /^top3:\d{4}-\d{2}-\d{2}$/, /^reset:/];
+const SYNC_KEYS = [/^calView$/, /^calOff$/, /^hangtag:hidemoney$/, /^hangtag:tol$/, /^hangtag:sort(:|$)/, /^hangtag:todo(Field|Sort|Group|View|OnlyEmpty)$/, /^lview2:/, /^prepDone$/, /^tl:\d{4}-\d{2}-\d{2}$/, /^top3:\d{4}-\d{2}-\d{2}$/, /^reset:/];
 const isSyncKey = k => SYNC_KEYS.some(r => r.test(k));
 const SMETA = pref.get('smeta', {});
 let syncQuiet = false, syncTimer = 0;
@@ -2088,7 +2088,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v114';
+const APP_VERSION = 'hangtag-v115';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2201,7 +2201,7 @@ function renderSettings(host) {
     const cat = listCatalog().filter(g => g.key === sec), items = cat.flatMap(g => g.items);
     if (items.length && !items.some(i => i.id === SET.list)) SET.list = items[0].id;
     const L = items.length ? fullList(SET.list) : { list: [], hidden: [] }, lh = new Set(L.hidden.map(norm));
-    const own = sec === 'closet' ? `<section class="panel setpanel"><h3>Closet</h3><p class="muted">Your categories and a backup of your wardrobe.</p>
+    const own = sec === 'closet' ? `<section class="panel setpanel"><h3>To do counts these fields</h3><p class="muted">Turn a field off and pieces no longer show up in To do for missing it.</p>${TODO_CHECKS.map(([k, l]) => `<label class="settog setrow"><input type="checkbox" data-tdreq="${k}" ${todoSkip().has(k) ? '' : 'checked'}> ${esc(l)}</label>`).join('')}</section><section class="panel setpanel"><h3>Closet</h3><p class="muted">Your categories and a backup of your wardrobe.</p>
         <div class="setbtns"><button class="btn small" data-editcats>Edit categories</button><button class="btn small" data-cexport>Download backup (.json)</button><button class="btn small" data-fullbackup>Everything with photos (.zip)</button><button class="btn small" data-cimport>Import from file</button><input type="file" class="vh" data-cimportfile accept=".json,application/json"></div><p class="busy" data-cimportmsg></p></section>`
       : (window.LIFE?.settingsPanels?.(sec) || '') + (sec === 'money' ? spendPanel() : '');
     const io = sec === 'closet' ? '' : `<section class="panel setpanel"><h3>Import and backup</h3><p class="muted">Bring lists over from Notion or keep a copy of everything.</p><div class="setbtns"><button class="btn small" data-act="import">Import from Notion</button><button class="btn small" data-act="export">Back up all lists</button><button class="btn small" data-fullbackup>Everything with photos (.zip)</button></div><p class="busy" data-fullmsg></p></section>`;
@@ -2242,6 +2242,7 @@ function renderSettings(host) {
     const cp = t.closest('[data-copy]'); if (cp) { navigator.clipboard?.writeText(cp.dataset.copy).then(() => toast('Copied'), () => toast('Select it and copy it by hand')); return; }
   });
   host.addEventListener('change', async e => {
+    if (e.target.matches('[data-tdreq]')) { const sk = todoSkip(), k = e.target.dataset.tdreq; e.target.checked ? sk.delete(k) : sk.add(k); return DB.savePrefs({ closetTodoSkip: [...sk] }).catch(err => saveErr(err, 'Could not save. Try again.')); }
     if (e.target.matches('[data-devname]')) { const v = e.target.value.trim().slice(0, 40); const devs = { ...(S.prefs.devices || {}) }; devs[DEV_ID] = { ...(devs[DEV_ID] || {}), name: v || devGuess(), custom: !!v || undefined }; return DB.savePrefs({ devices: devs }).catch(err => saveErr(err, 'Could not save. Try again.')); }
     const t = e.target, ns = t.dataset.nshow, nb = t.dataset.nbot, v = t.dataset.vshow;
     if (ns) { const h = new Set(NAV().hidden || []); t.checked ? h.delete(ns) : h.add(ns); return saveNav({ hidden: [...h] }); }
@@ -2442,25 +2443,147 @@ const TODO_CHECKS = [
   ['check', 'Double-check', it => /twijfelgeval|waarschijnlijk/i.test(it.notes || '')],
   ['new', 'Not checked yet', it => it.source === 'video' && (!it.updated || it.updated === it.created)]
 ];
-const todoMissing = it => TODO_CHECKS.filter(c => c[2](it));
+const todoSkip = () => new Set(S.prefs.closetTodoSkip || []);
+const todoMissing = it => { const sk = todoSkip(); return TODO_CHECKS.filter(c => !sk.has(c[0]) && c[2](it)); };
+/* the fields you can fill straight from To do: in the table, one by one, or for a selection at once */
+const TD_FIELDS = [
+  ['name', 'Name', 'text'], ['brand', 'Brand', 'text'], ['model', 'Model', 'text'], ['cat', 'Category', 'cat'], ['sub', 'Type', 'text'],
+  ['size', 'Size', 'text'], ['colors', 'Colour', 'list'], ['price', 'Price paid', 'money'], ['shop', 'Shop', 'text'], ['bought', 'Bought on', 'date'],
+  ['material', 'Material', 'text'], ['seasons', 'Season', 'list'], ['occasions', 'Occasion', 'list']
+];
+const TD_BASE = ['name', 'brand', 'model', 'cat', 'sub', 'size', 'colors', 'price', 'shop', 'bought'];
+const tdField = k => TD_FIELDS.find(f => f[0] === k);
+// which editable field a To do check stands for
+const TD_OF = { sub: 'sub', model: 'model', brand: 'brand', size: 'size', colors: 'colors', material: 'material', price: 'price', bought: 'bought', seasons: 'seasons', occasions: 'occasions' };
+const tdVal = (it, k) => { const v = it[k]; return Array.isArray(v) ? v.join(', ') : k === 'price' ? (v == null || v === '' ? '' : String(v).replace('.', ',')) : (v ?? ''); };
+const tdEmpty = (it, k) => { const v = it[k]; return Array.isArray(v) ? !v.length : v == null || String(v).trim() === ''; };
+function tdParse(k, raw) {
+  const f = tdField(k), s = String(raw ?? '').trim();
+  if (f?.[2] === 'list') return s ? [...new Set(s.split(/\s*,\s*/).filter(Boolean))] : [];
+  if (f?.[2] === 'money') { if (!s) return null; const n = Number(s.replace(/\./g, '').replace(',', '.')); return isFinite(n) ? Math.round(n * 100) / 100 : null; }
+  return s;
+}
+// the value most of your other pieces have, among the ones that match
+const mostOf = (list, get) => { const m = new Map(); for (const i of list) { const v = get(i); if (v == null || v === '' || (Array.isArray(v) && !v.length)) continue; const key = JSON.stringify(v); const e = m.get(key) || { v, n: 0 }; e.n++; m.set(key, e); } const best = [...m.values()].sort((a, b) => b.n - a.n)[0]; return best && best.n >= 1 ? best.v : null; };
+// smart suggestions: size and shop from the same brand, material and season from the same type, care from the same material
+function tdSuggest(it, k) {
+  const others = S.items.filter(i => i.id !== it.id && !isInbox(i)), same = (a, b) => a && b && norm(a) === norm(b);
+  if (k === 'size') return mostOf(others.filter(i => same(i.brand, it.brand) && i.cat === it.cat), i => i.size) || mostOf(others.filter(i => i.cat === it.cat), i => i.size);
+  if (k === 'shop') return mostOf(others.filter(i => same(i.brand, it.brand)), i => i.shop);
+  if (k === 'material') return mostOf(others.filter(i => same(i.sub, it.sub)), i => i.material);
+  if (k === 'seasons') return mostOf(others.filter(i => same(i.sub, it.sub)), i => i.seasons);
+  if (k === 'care') { const mat = it.material || (it.materials || [])[0]; return mat ? mostOf(others.filter(i => same(i.material || (i.materials || [])[0], mat) && careTags(i).length), i => i.care) : null; }
+  if (k === 'model' && catKey(it.cat) === 'shoes') return null;
+  return null;
+}
+const tdSugText = (k, v) => k === 'care' ? 'zoals je andere stukken van dit materiaal' : Array.isArray(v) ? v.join(', ') : String(v);
+// save one piece without redrawing the page (so the table keeps your place); Undo still works
+async function tdSave(id, patch, label) {
+  const it = S.byId[id]; if (!it) return;
+  const before = noId(it), data = { ...before, ...patch, updated: Date.now() };
+  undoPush(label || `Changed ${it.name || 'a piece'}`, () => DB.put('items', id, before));
+  await sbWrite('items', 'up', { user_id: UID, id, data, updated_at: new Date().toISOString() });
+  const i = S.items.findIndex(x => x.id === id); if (i >= 0) S.items[i] = { ...data, id };
+  cacheSave(); derive();
+}
+// one write for many pieces, one Undo for all of them
+async function tdBulk(list, label) {
+  if (!list.length) return;
+  const befores = list.map(([id]) => [id, noId(S.byId[id])]), now = new Date().toISOString();
+  for (const [id, patch] of list) { const data = { ...noId(S.byId[id]), ...patch, updated: Date.now() }; await sbWrite('items', 'up', { user_id: UID, id, data, updated_at: now }); const i = S.items.findIndex(x => x.id === id); if (i >= 0) S.items[i] = { ...data, id }; }
+  undoPush(label, async () => { for (const [id, b] of befores) await DB.put('items', id, b); }, true);
+  cacheSave(); derive(); render();
+}
+const TD_GROUPS = [['none', 'No groups'], ['brand', 'Brand'], ['model', 'Model'], ['cat', 'Category'], ['sub', 'Type'], ['missing', 'Missing field']];
+const TD_SORTS = [['most', 'Most missing first'], ['almost', 'Almost done first'], ['az', 'Name A to Z'], ['new', 'Newest first'], ['old', 'Oldest first']];
+const TD_VIEWS = [['tiles', 'Tiles'], ['list', 'List'], ['table', 'Table'], ['one', 'One by one']];
 function renderTodo(host) {
-  const T = S.todo = S.todo || { field: pref.get('todoField', 'all'), sort: pref.get('todoSort', 'most') };
+  const T = S.todo = S.todo || { field: pref.get('todoField', 'all'), sort: pref.get('todoSort', 'most'), group: pref.get('todoGroup', 'none'), view: pref.get('todoView', 'tiles'), sel: new Set(), idx: 0, onlyEmpty: pref.get('todoOnlyEmpty', true) };
+  T.sel ||= new Set();
   const pieces = S.items.filter(inCloset).map(it => ({ it, miss: todoMissing(it) })).filter(x => x.miss.length);
   const count = k => pieces.filter(x => x.miss.some(m => m[0] === k)).length;
   if (T.field !== 'all' && !count(T.field)) T.field = 'all';
   const shown = pieces.filter(x => T.field === 'all' || x.miss.some(m => m[0] === T.field));
-  shown.sort(T.sort === 'new' ? (a, b) => (b.it.created || 0) - (a.it.created || 0) : T.sort === 'az' ? (a, b) => String(a.it.name || '').localeCompare(String(b.it.name || '')) : (a, b) => b.miss.length - a.miss.length || (b.it.created || 0) - (a.it.created || 0));
+  const cmp = { most: (a, b) => b.miss.length - a.miss.length || (b.it.created || 0) - (a.it.created || 0), almost: (a, b) => a.miss.length - b.miss.length || (b.it.created || 0) - (a.it.created || 0), az: (a, b) => String(a.it.name || '').localeCompare(String(b.it.name || '')), new: (a, b) => (b.it.created || 0) - (a.it.created || 0), old: (a, b) => (a.it.created || 0) - (b.it.created || 0) };
+  shown.sort(cmp[T.sort] || cmp.most);
+  for (const id of [...T.sel]) if (!shown.some(x => x.it.id === id)) T.sel.delete(id);
   const total = S.items.filter(inCloset).length;
+  // groups: per brand, model, category or type, or per missing field (a piece can sit in more than one of those)
+  const groups = [];
+  if (T.group === 'missing') for (const [k, l] of TODO_CHECKS) { const g = shown.filter(x => x.miss.some(m => m[0] === k)); if (g.length) groups.push({ key: k, label: 'No ' + l.toLowerCase(), list: g }); }
+  else if (T.group !== 'none') { const m = new Map(); for (const x of shown) { const v = String(x.it[T.group] || '').trim() || '—'; (m.get(v) || m.set(v, []).get(v)).push(x); } [...m.entries()].sort((a, b) => a[0] === '—' ? 1 : b[0] === '—' ? -1 : b[1].length - a[1].length || a[0].localeCompare(b[0])).forEach(([v, l]) => groups.push({ key: v, label: v === '—' ? `No ${TD_GROUPS.find(g => g[0] === T.group)[1].toLowerCase()}` : v, list: l })); }
+  else groups.push({ key: '', label: '', list: shown });
+  const chk = id => `<label class="tdchk" title="Select"><input type="checkbox" data-tdsel="${esc(id)}" ${T.sel.has(id) ? 'checked' : ''} aria-label="Select"></label>`;
+  const sugBtn = (it, k) => { const v = tdEmpty(it, k) || k === 'care' ? tdSuggest(it, k) : null; return v != null ? `<button type="button" class="chip tdsug" data-tdsug="${esc(it.id)}" data-k="${k}" title="Suggestion">↵ ${esc(tdSugText(k, v))}</button>` : ''; };
+  const input = (it, k) => { const f = tdField(k), v = tdVal(it, k), sug = tdEmpty(it, k) ? tdSuggest(it, k) : null, ph = sug != null ? tdSugText(k, sug) : f[1];
+    if (f[2] === 'cat') return `<select class="tdin" data-tdin="${esc(it.id)}" data-k="${k}" aria-label="${f[1]}"><option value="">—</option>${S.cats.map(c => `<option ${c.name === it.cat ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>`;
+    return `<input class="tdin ${sug != null ? 'hassug' : ''}" data-tdin="${esc(it.id)}" data-k="${k}" ${f[2] === 'date' ? 'type="date"' : f[2] === 'money' ? 'inputmode="decimal"' : ''} value="${esc(v)}" placeholder="${esc(ph)}" aria-label="${f[1]}" ${['brand', 'model', 'size', 'shop', 'sub'].includes(k) ? `list="tdl-${k}"` : ''}>`; };
+  const lists = ['brand', 'model', 'size', 'shop', 'sub'].map(k => `<datalist id="tdl-${k}">${valuesOf(k).slice(0, 80).map(v => `<option value="${esc(v)}">`).join('')}</datalist>`).join('');
+  const groupHead = g => g.label ? `<div class="tdgh"><h3>${esc(g.label)} <span class="muted">${g.list.length}</span></h3><button class="chip link" data-tdselgroup="${esc(g.key)}">Select all</button>${g.list.some(x => x.miss.some(m => (TD_OF[m[0]] && tdEmpty(x.it, TD_OF[m[0]]) && tdSuggest(x.it, TD_OF[m[0]]) != null) || (m[0] === 'care' && tdSuggest(x.it, 'care')))) ? `<button class="chip link" data-tdsugall="${esc(g.key)}">Take all suggestions</button>` : ''}</div>` : '';
+  let body = '';
+  if (T.view === 'one') {
+    const list = shown, n = list.length; if (T.idx >= n) T.idx = 0;
+    const x = list[T.idx];
+    body = x ? (() => { const it = x.it, ks = [...new Set(x.miss.map(m => TD_OF[m[0]]).filter(Boolean))], care = x.miss.some(m => m[0] === 'care');
+      return `<div class="tdone"><div class="tdonep">${it.photo ? pimg(it.photo, '', 'loading="lazy"') : '<span class="muted">No photo</span>'}</div><div class="tdonef"><p class="muted">${T.idx + 1} of ${n}</p><h2>${esc(it.name || 'Piece')}</h2><p class="muted">${esc([it.brand, it.model, it.sub || it.cat].filter(Boolean).join(' · '))}</p>
+        ${ks.map(k => `<div class="field"><label>${tdField(k)[1]}</label>${input(it, k)}${sugBtn(it, k)}</div>`).join('')}
+        ${care ? `<div class="field"><label>Care</label>${sugBtn(it, 'care') || '<span class="muted">Set the care symbols in the editor.</span>'}</div>` : ''}
+        ${x.miss.some(m => m[0] === 'photo' || m[0] === 'check' || m[0] === 'new') ? `<p class="muted">Also: ${esc(x.miss.filter(m => ['photo', 'check', 'new'].includes(m[0])).map(m => m[1]).join(', '))}. <button class="chip link" data-item="${esc(it.id)}">Open the editor</button></p>` : ''}
+        <div class="setbtns"><button class="btn" data-tdprev ${T.idx ? '' : 'disabled'}>Back</button><button class="btn primary" data-tdnext>Next</button><button class="btn small" data-item="${esc(it.id)}">Full editor</button></div></div></div>`; })() : '';
+  } else if (T.view === 'table') {
+    const used = TD_BASE.concat(['material', 'seasons', 'occasions']);
+    body = groups.map(g => { const cols = T.onlyEmpty ? used.filter(k => k === 'name' || g.list.some(x => tdEmpty(x.it, k) && x.miss.some(m => TD_OF[m[0]] === k))) : TD_BASE;
+      return `<section class="tdgroup">${groupHead(g)}<div class="tdtablewrap"><table class="tdtable"><thead><tr><th></th><th></th>${cols.map(k => `<th>${tdField(k)[1]}</th>`).join('')}</tr></thead><tbody>${g.list.map(({ it, miss }) => `<tr data-tdrow="${esc(it.id)}"><td>${chk(it.id)}</td><td><button class="tdthumb" data-item="${esc(it.id)}">${it.photo ? pimg(it.photo, '', 'loading="lazy"') : ''}</button></td>${cols.map(k => `<td class="${tdEmpty(it, k) && miss.some(m => TD_OF[m[0]] === k) ? 'miss' : ''}">${input(it, k)}${tdEmpty(it, k) ? sugBtn(it, k) : ''}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`; }).join('');
+  } else if (T.view === 'list') {
+    body = groups.map(g => `<section class="tdgroup">${groupHead(g)}<div class="tdlist">${g.list.map(({ it, miss }) => `<div class="tdrow">${chk(it.id)}<button class="tdthumb" data-item="${esc(it.id)}">${it.photo ? pimg(it.photo, '', 'loading="lazy"') : ''}</button><button class="tdmain" data-item="${esc(it.id)}"><b>${esc(it.name || 'Piece')}</b><span>${esc([it.brand, it.model, it.sub || it.cat].filter(Boolean).join(' · '))}</span></button><p class="todomiss">${miss.map(m => `<span class="${m[0] === T.field ? 'on' : ''}">${m[1]}</span>`).join('')}</p></div>`).join('')}</div></section>`).join('');
+  } else {
+    body = groups.map(g => `<section class="tdgroup">${groupHead(g)}<div class="grid">${g.list.map(({ it, miss }) => `<div class="todocard">${chk(it.id)}${itemCard(it)}<p class="todomiss">${miss.map(m => `<span class="${m[0] === T.field ? 'on' : ''}">${m[1]}</span>`).join('')}</p></div>`).join('')}</div></section>`).join('');
+  }
+  const bulkFields = TD_FIELDS.filter(f => f[0] !== 'name');
   host.innerHTML = `<div class="viewhead"><h1>To do</h1><span class="sub">${total ? `${pieces.length} of ${total} pieces miss something` : ''}</span></div>
-    ${pieces.length ? `<div class="tools"><select class="pill" id="todoSort" aria-label="Sort">${[['most', 'Most missing first'], ['new', 'Recently added'], ['az', 'Name A to Z']].map(([k, l]) => `<option value="${k}" ${T.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    ${pieces.length ? `<div class="tools tdtools">
+      <div class="seg" role="group" aria-label="View">${TD_VIEWS.map(([k, l]) => `<button data-tdview="${k}" aria-pressed="${T.view === k}">${l}</button>`).join('')}</div>
+      <label class="tdpick"><span>Group by</span><select class="pill" data-tdgroup>${TD_GROUPS.map(([k, l]) => `<option value="${k}" ${T.group === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="tdpick"><span>Sort</span><select class="pill" id="todoSort">${TD_SORTS.map(([k, l]) => `<option value="${k}" ${T.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      ${T.view === 'table' ? `<label class="settog tdonly"><input type="checkbox" data-tdonly ${T.onlyEmpty ? 'checked' : ''}> Only empty fields</label>` : ''}</div>
     <div class="chips" role="group" aria-label="Missing field"><button class="chip" data-tfield="all" aria-pressed="${T.field === 'all'}">Everything <span class="n">${pieces.length}</span></button>${TODO_CHECKS.map(([k, l]) => { const n = count(k); return n ? `<button class="chip" data-tfield="${k}" aria-pressed="${T.field === k}">${l} <span class="n">${n}</span></button>` : ''; }).join('')}</div>
-    <div class="grid">${shown.map(({ it, miss }) => `<div class="todocard">${itemCard(it)}<p class="todomiss">${miss.map(m => `<span class="${m[0] === T.field ? 'on' : ''}">${m[1]}</span>`).join('')}</p></div>`).join('')}</div>`
+    ${lists}${body}
+    <div class="tdbar" ${T.sel.size && T.view !== 'one' ? '' : 'hidden'}><b>${T.sel.size} selected</b><select class="pill" data-tdbk aria-label="Field">${bulkFields.map(f => `<option value="${f[0]}">${f[1]}</option>`).join('')}<option value="care">Care (copy from same material)</option></select><input class="tdin" data-tdbv placeholder="Value for all" list="tdl-brand" aria-label="Value"><button class="btn small primary" data-tdapply>Apply</button><button class="btn small" data-tdsugsel>Take suggestions</button><button class="chip link" data-tdclear>Clear</button></div>`
     : `<div class="empty"><p>${total ? 'Every piece in your closet has all its details. Nice.' : 'Add pieces to your closet; anything they still miss shows up here.'}</p></div>`}`;
-  host.onclick = e => {
-    const f = e.target.closest('[data-tfield]'); if (f) { T.field = f.dataset.tfield; pref.set('todoField', T.field); return renderTodo(host); }
-    const it = e.target.closest('[data-item]'); if (it) openEditor(it.dataset.item);
+  const rerender = () => renderTodo(host);
+  const saveCell = async el => { const id = el.dataset.tdin, k = el.dataset.k, it = S.byId[id]; if (!it) return; const v = tdParse(k, el.value); if (JSON.stringify(v ?? '') === JSON.stringify(it[k] ?? (tdField(k)[2] === 'list' ? [] : ''))) return; try { await tdSave(id, { [k]: v }); el.closest('td')?.classList.toggle('miss', tdEmpty(S.byId[id], k)); } catch (err) { saveErr(err, 'Could not save. Try again.'); } };
+  const takeSug = async (ids, label) => { const list = []; for (const id of ids) { const it = S.byId[id]; if (!it) continue; const patch = {}; for (const m of todoMissing(it)) { const k = TD_OF[m[0]]; if (k && tdEmpty(it, k)) { const v = tdSuggest(it, k); if (v != null) patch[k] = v; } if (m[0] === 'care') { const v = tdSuggest(it, 'care'); if (v) patch.care = v; } } if (Object.keys(patch).length) list.push([id, patch]); } if (!list.length) return toast('No suggestions for these pieces yet'); await tdBulk(list, label); toast(`Filled in ${list.length} ${list.length === 1 ? 'piece' : 'pieces'}. Undo is in the toast.`); };
+  host.onclick = async e => {
+    const t = e.target;
+    const f = t.closest('[data-tfield]'); if (f) { T.field = f.dataset.tfield; T.idx = 0; pref.set('todoField', T.field); return rerender(); }
+    const v = t.closest('[data-tdview]'); if (v) { T.view = v.dataset.tdview; T.idx = 0; pref.set('todoView', T.view); return rerender(); }
+    const sg = t.closest('[data-tdsug]'); if (sg) { const id = sg.dataset.tdsug, k = sg.dataset.k, val = tdSuggest(S.byId[id], k); if (val == null) return; await tdSave(id, { [k]: val }, `Filled in ${tdField(k)?.[1] || 'care'}`); return rerender(); }
+    const sga = t.closest('[data-tdsugall]'); if (sga) { const g = groups.find(x => x.key === sga.dataset.tdsugall); return takeSug(g ? g.list.map(x => x.it.id) : [], 'Took the suggestions for ' + (g?.label || 'this group')); }
+    const sgr = t.closest('[data-tdselgroup]'); if (sgr) { const g = groups.find(x => x.key === sgr.dataset.tdselgroup); const ids = g ? g.list.map(x => x.it.id) : []; const all = ids.every(id => T.sel.has(id)); ids.forEach(id => all ? T.sel.delete(id) : T.sel.add(id)); return rerender(); }
+    if (t.closest('[data-tdclear]')) { T.sel.clear(); return rerender(); }
+    if (t.closest('[data-tdsugsel]')) return takeSug([...T.sel], 'Took the suggestions for the selection');
+    if (t.closest('[data-tdapply]')) {
+      const k = $('[data-tdbk]', host).value, raw = $('[data-tdbv]', host).value, ids = [...T.sel];
+      if (k === 'care') return takeSug(ids, 'Copied care for the selection');
+      if (!String(raw).trim()) return toast('Type a value first');
+      const f2 = tdField(k), val = tdParse(k, raw);
+      const list = ids.map(id => [id, { [k]: f2[2] === 'list' ? [...new Set([...(S.byId[id]?.[k] || []), ...val])] : val }]);
+      await tdBulk(list, `Set ${f2[1].toLowerCase()} for ${ids.length} pieces`); T.sel.clear(); return toast(`${f2[1]} set for ${ids.length} ${ids.length === 1 ? 'piece' : 'pieces'}. Undo is in the toast.`);
+    }
+    if (t.closest('[data-tdnext]')) { for (const el of host.querySelectorAll('.tdone [data-tdin]')) await saveCell(el); T.idx++; return rerender(); }
+    if (t.closest('[data-tdprev]')) { T.idx = Math.max(0, T.idx - 1); return rerender(); }
+    if (t.closest('.tdchk')) return;
+    const it = t.closest('[data-item]'); if (it) openEditor(it.dataset.item);
   };
-  const so = $('#todoSort', host); if (so) so.onchange = () => { T.sort = so.value; pref.set('todoSort', T.sort); renderTodo(host); };
+  host.onchange = async e => {
+    const t = e.target;
+    if (t.matches('[data-tdsel]')) { t.checked ? T.sel.add(t.dataset.tdsel) : T.sel.delete(t.dataset.tdsel); const bar = $('.tdbar', host); if (bar) { bar.hidden = !T.sel.size; bar.querySelector('b').textContent = `${T.sel.size} selected`; } return; }
+    if (t.matches('[data-tdgroup]')) { T.group = t.value; pref.set('todoGroup', T.group); return rerender(); }
+    if (t.matches('#todoSort')) { T.sort = t.value; pref.set('todoSort', T.sort); return rerender(); }
+    if (t.matches('[data-tdonly]')) { T.onlyEmpty = t.checked; pref.set('todoOnlyEmpty', T.onlyEmpty); return rerender(); }
+    if (t.matches('[data-tdbk]')) { const k = t.value, inp = $('[data-tdbv]', host); inp.setAttribute('list', ['brand', 'model', 'size', 'shop', 'sub'].includes(k) ? 'tdl-' + k : ''); inp.type = tdField(k)?.[2] === 'date' ? 'date' : 'text'; inp.placeholder = k === 'care' ? 'copied from pieces of the same material' : tdField(k)?.[2] === 'list' ? 'e.g. Autumn, Winter (added)' : 'Value for all'; return; }
+    if (t.matches('[data-tdin]') && !t.closest('.tdone')) return saveCell(t);
+  };
 }
 /* ---------- Opruimen: what you hardly wear, what goes to Vinted or a friend, clothing money and one in, one out ---------- */
 const CLOSET_START = () => S.prefs.closetMoney?.start || '2026-11-01';
