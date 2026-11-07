@@ -13,7 +13,7 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
 // the same defaults the Settings page shows
 const DEF: Record<string, { on: boolean; time?: string }> = {
   morning: { on: true, time: '07:30' }, evening: { on: true, time: '21:30' }, bills: { on: true, time: '18:00' },
-  payday: { on: true, time: '09:00' }, weekly: { on: true, time: '19:00' }, weekahead: { on: true, time: '19:30' }, reminders: { on: true, time: '10:00' }, content: { on: true, time: '09:00' }, skindiary: { on: true, time: '10:00' }, freezer: { on: true, time: '17:00' }, shopday: { on: true, time: '10:00' }, eatbf: { on: true, time: '09:30' }, eatlunch: { on: true, time: '12:45' }, eatsnack: { on: true, time: '15:30' }, foodweek: { on: true, time: '18:00' }, socialweek: { on: true, time: '18:30' },
+  payday: { on: true, time: '09:00' }, weekly: { on: true, time: '19:00' }, weekahead: { on: true, time: '19:30' }, reminders: { on: true, time: '10:00' }, content: { on: true, time: '09:00' }, skindiary: { on: true, time: '10:00' }, freezer: { on: true, time: '17:00' }, shopday: { on: true, time: '10:00' }, eatbf: { on: true, time: '09:30' }, eatlunch: { on: true, time: '12:45' }, eatsnack: { on: true, time: '15:30' }, foodweek: { on: true, time: '18:00' }, movelist: { on: true, time: '19:15' }, socialweek: { on: true, time: '18:30' },
   budget: { on: true }, applepay: { on: true }
 };
 type Rec = Record<string, any> & { id: string; kind: string };
@@ -65,6 +65,8 @@ function morning(recs: Rec[], today: string, outfit: string) {
   if (prep) lines.push(`Prep day: ${(prep.prep as any[]).length} ${(prep.prep as any[]).length === 1 ? 'task' : 'tasks'}`);
   const sups = recs.filter(r => r.kind === 'supplements' && !r.finished && ([].concat(r.times?.length ? r.times : ['AM']) as string[]).includes('AM')).map(r => r.name);
   if (sups.length) lines.push('Supplements: ' + listOf(sups));
+  const supLow = recs.filter(r => r.kind === 'supplements' && !r.finished && r.low).map(r => r.name);
+  if (supLow.length) lines.push('Almost out: ' + listOf(supLow));
   const rt = recs.filter(r => r.kind === 'routines' && r.routine === 'Morning' && onDay(r.onDays, wdOf(today)));
   if (rt.length) lines.push(`Morning routine: ${rt.length} ${rt.length === 1 ? "step" : "steps"}`);
   const tasks = recs.filter(r => r.kind === 'tasks' && open(r) && r.date && r.date <= today);
@@ -206,6 +208,22 @@ function foodweek(recs: Rec[], today: string, prefs: any) {
   const tip = lows.sort((a, b) => a[0] - b[0])[0][1];
   return { title: 'Your food week', body: `3 meals on ${three} of 7 days, breakfast ${bf}×, veg goal ${veg}×, fruit ${fruit}×, snack ${snack}×, no sugary drinks ${soda}×.\n${tip}`, url: './#kitchen/today', tag: 'foodweek' };
 }
+// the 1st of the month: how the move list stands
+function movelist(recs: Rec[], today: string, prefs: any) {
+  if (!today.endsWith('-01')) return null;
+  const OLD: Record<string, string> = { Wishlist: 'Idee', Ordered: 'Besteld', Have: 'Gekocht', Returned: 'Teruggestuurd', Gone: 'Weg' };
+  const st = (r: Rec) => OLD[r.status] || r.status || 'Gekocht';
+  const items = recs.filter(r => r.kind === 'inventory' && !['Teruggestuurd', 'Weg'].includes(st(r)));
+  if (!items.length) return null;
+  const avg = (id: string) => { const p = recs.filter(o => o.kind === 'invopts' && o.item === id && !o.archived && o.price != null).map(o => Number(o.price)); return p.length ? p.reduce((a, b) => a + b, 0) / p.length : 0; };
+  const open = items.filter(r => ['Idee', 'Kiezen', 'Besteld'].includes(st(r))), done = items.length - open.length;
+  const need = open.reduce((n, r) => n + (r.budget != null ? Number(r.budget) : avg(r.id)), 0) + recs.filter(r => r.kind === 'movecosts' && !r.paid).reduce((n, r) => n + (Number(r.budget) || 0), 0);
+  const goal = recs.find(r => r.kind === 'fgoals' && /verhuiz/i.test(r.name || '')), saved = Number(goal?.saved) || 0;
+  const m = String(prefs?.move?.month || '2027-07'), months = Math.max(1, (Number(m.slice(0, 4)) - Number(today.slice(0, 4))) * 12 + Number(m.slice(5, 7)) - Number(today.slice(5, 7)));
+  const first = open.filter(r => ['Eerste week', 'Must-have'].includes(r.priority)).map(r => r.name).slice(0, 4);
+  const eur = (n: number) => '€' + Math.round(n).toLocaleString('nl-NL');
+  return { title: 'Je verhuislijst', body: `${done} van ${items.length} gekocht. Nog nodig: ${eur(need)}${saved ? `, ${eur(saved)} gespaard` : ''}. Zet ${eur(Math.max(0, need - saved) / months)} per maand opzij.${first.length ? `\nEerst: ${first.join(', ')}.` : ''}`, url: './#home/inventory', tag: 'movelist' };
+}
 // Sundays: what has been in the freezer for 3 months or more
 function freezer(recs: Rec[], today: string) {
   const old = recs.filter(r => r.kind === 'ingredients' && r.location === 'Vriezer' && r.stock !== false && r.frozen && r.frozen <= addDays(today, -90)).sort((a, b) => String(a.frozen).localeCompare(String(b.frozen)));
@@ -260,16 +278,16 @@ async function runUser(uid: string, prefs: any, force = false) {
   const cfg = { ...DEF, ...(prefs?.notify || {}) }, tz = cfg.tz || 'Europe/Amsterdam', now = localNow(tz);
   const due = (k: string) => {
     const c = { ...DEF[k], ...(cfg[k] || {}) }; if (!c.on || !c.time) return false;
-    const t = toMins(c.time); return force || (now.mins >= t && now.mins < t + 60);
+    const t = toMins(c.time) + (['eatbf', 'eatlunch'].includes(k) && ['sat', 'sun'].includes(now.wd) ? 60 : 0); return force || (now.mins >= t && now.mins < t + 60);
   };
-  const slots = ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders', 'content', 'socialweek', 'skindiary', 'freezer', 'shopday', 'eatbf', 'eatlunch', 'eatsnack', 'foodweek'].filter(k => due(k) && (!['weekly', 'weekahead', 'socialweek', 'skindiary', 'freezer', 'foodweek'].includes(k) || now.wd === 'sun' || force));
+  const slots = ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders', 'content', 'socialweek', 'skindiary', 'freezer', 'shopday', 'eatbf', 'eatlunch', 'eatsnack', 'foodweek', 'movelist'].filter(k => due(k) && (!['weekly', 'weekahead', 'socialweek', 'skindiary', 'freezer', 'foodweek'].includes(k) || now.wd === 'sun' || force));
   if (!slots.length) return 0;
   const recs = await loadAll(uid);
   let sent = 0;
   for (const k of slots) {
     const msg = k === 'morning' ? morning(recs, now.day, await outfitToday(uid, now.day)) : k === 'evening' ? evening(recs, now.wd)
       : k === 'bills' ? bills(recs, now.day) : k === 'payday' ? payday(recs, now.day) : k === 'weekahead' ? weekahead(recs, prefs, now.day)
-      : k === 'reminders' ? reminders(recs, prefs, now.day) : k === 'content' ? content(recs, now.day) : k === 'socialweek' ? socialweek(recs, now.day) : k === 'skindiary' ? skindiary(recs, now.day) : k === 'freezer' ? freezer(recs, now.day) : k === 'shopday' ? shopday(recs, prefs, now.wd) : k === 'eatbf' ? eatNudge(recs, now.day, 'Breakfast') : k === 'eatlunch' ? eatNudge(recs, now.day, 'Lunch') : k === 'eatsnack' ? eatNudge(recs, now.day, 'snack') : k === 'foodweek' ? foodweek(recs, now.day, prefs) : weekly(recs, now.day);
+      : k === 'reminders' ? reminders(recs, prefs, now.day) : k === 'content' ? content(recs, now.day) : k === 'socialweek' ? socialweek(recs, now.day) : k === 'skindiary' ? skindiary(recs, now.day) : k === 'freezer' ? freezer(recs, now.day) : k === 'shopday' ? shopday(recs, prefs, now.wd) : k === 'eatbf' ? eatNudge(recs, now.day, 'Breakfast') : k === 'eatlunch' ? eatNudge(recs, now.day, 'Lunch') : k === 'eatsnack' ? eatNudge(recs, now.day, 'snack') : k === 'foodweek' ? foodweek(recs, now.day, prefs) : k === 'movelist' ? movelist(recs, now.day, prefs) : weekly(recs, now.day);
     if (!msg) continue;
     if (!force && !(await claim(uid, k, now.day))) continue;
     if (await send(uid, msg)) sent++;

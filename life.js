@@ -96,6 +96,7 @@ const F = (k, label, type = 'text', o = {}) => ({ k, label, type, ...o });
 const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 const STORES = ['Dirk', 'Aldi', 'Albert Heijn'];
 const UNITS = ['stuks', 'gram', 'ml', 'portie'];
+const FILL_LEVELS = ['Full', 'Three quarters', 'Half', 'Almost empty'];
 const SHOP_TYPES = ['Supermarket', 'Toko', 'Butcher', 'Fishmonger', 'Greengrocer', 'Market', 'Household', 'Drugstore', 'Perfumery', 'Brand store', 'Webshop', 'Other'];
 // the shops you keep in Kitchen › Shops and Beauty › Deals; the weekly tasks read the deals of every shop that has them on
 const shopNames = kind => recs(kind).map(r => r.name).filter(Boolean);
@@ -130,7 +131,7 @@ const CAT_NL = {
   gear: { 'Kitchen Appliances': 'Keukenapparaten', 'Cookware & Bakeware': 'Pannen & bakvormen', 'Prep Tools & Essentials': 'Voorbereiden', 'Cooking Tools & Utensils': 'Kookgerei', 'Organizing Essentials': 'Opbergen', 'Cleaning Supplies': 'Schoonmaken' }
 };
 const catNL = (kind, v) => (CAT_NL[kind] || {})[v] || v;
-const ROOMS = ['Entree', 'Woonkamer', 'Keuken', 'Slaapkamer', 'Badkamer', 'Toilet', 'Wasruimte', 'Balkon', 'Schoonmaak', 'Overig'];
+const ROOMS = ['Entree', 'Woonkamer', 'Keuken', 'Slaapkamer', 'Werkkamer', 'Badkamer', 'Toilet', 'Wasruimte', 'Balkon', 'Schoonmaak', 'Overig'];
 const PRIO = ['Must-have', 'Binnen 3 maanden', 'Handig', 'Kan later'];
 // the home inventory is a move list in Dutch: an idea, then options to choose from, then ordered and bought
 const INV_STATUS = ['Idee', 'Kiezen', 'Besteld', 'Gekocht', 'Teruggestuurd', 'Weg'];
@@ -354,7 +355,7 @@ const KINDS = {
       F('concern', 'Concern', 'multi', { options: ['Hydration', 'Dryness', 'Cleansing', 'Dullness', 'Textural Irregularities', 'Signs of Congestion', 'Dark Circles', 'Uneven Skin Tone', 'Signs of Aging', 'Redness', 'Puffiness', 'Heat Protection', 'Styling Product', 'Hair Growth', 'Fragrance'] }),
       F('texture', 'Texture', 'select', { options: ['Creamy', 'Gel-like', 'Serum', 'Oily', 'Watery', 'Spray', 'Balm', 'Foam', 'Wipes', 'Wax'] }),
       F('step', 'Step in your routine', 'select', { options: SKIN_STEPS }), F('amDays', 'Morning on', 'multi', { options: WEEKDAYS }), F('pmDays', 'Evening on', 'multi', { options: WEEKDAYS }),
-      F('price', 'Price', 'money', { half: 1 }), F('qty', 'How many', 'num', { half: 1 }), F('unit', 'Counted in', 'select', { options: UNITS, half: 1 }), F('min', 'Minimum to keep', 'num', { half: 1 }),
+      F('price', 'Price', 'money', { half: 1 }), F('qty', 'How many', 'num', { half: 1 }), F('unit', 'Counted in', 'select', { options: UNITS, half: 1 }), F('min', 'Minimum to keep', 'num', { half: 1 }), F('fill', 'Open one is', 'select', { options: FILL_LEVELS, half: 1 }),
       F('bought', 'Bought on', 'date', { half: 1 }), F('opened', 'Opened on', 'date', { half: 1 }),
       F('expiry', 'Use before', 'date', { half: 1 }), F('rating', 'Rating', 'rating', { half: 1 }),
       F('fav', 'Favourite', 'check', { half: 1 }), F('low', 'Running low', 'check', { half: 1 }), F('finished', 'Finished', 'check', { half: 1 }), F('wish', 'On my wishlist', 'check', { half: 1 }),
@@ -365,7 +366,7 @@ const KINDS = {
     filter: (r, f) => f === 'own' ? !r.wish : f === 'want' ? !!r.wish : true,
     hide: r => r.finished || r.archived, hideLabel: 'Show finished',
     quick: r => ({ on: !!r.low, label: 'Running low', act: () => save(r, { low: !r.low }) }),
-    sub: r => [r.low ? 'running low' : '', r.wish ? 'Wishlist' : '', r.brand, r.type, r.texture, r.am && r.pm ? 'AM + PM' : r.am ? 'AM' : r.pm ? 'PM' : ''].filter(Boolean).join(' · '),
+    sub: r => [r.low ? 'running low' : '', num(r.qty) != null ? `${num(r.qty)} in stock` : '', r.fill && r.fill !== 'Full' ? 'open one ' + r.fill.toLowerCase() : '', r.wish ? 'Wishlist' : '', r.brand, r.type, r.texture, r.am && r.pm ? 'AM + PM' : r.am ? 'AM' : r.pm ? 'PM' : ''].filter(Boolean).join(' · '),
     side: r => r.expiry ? (r.expiry < today() ? 'expired' : diffDays(today(), r.expiry) <= 30 ? 'use by ' + shortDate(r.expiry) : '') : ''
   },
   supplements: {
@@ -1997,7 +1998,8 @@ function beautyReviews(r) {
   const vs = recs('breviews').filter(v => v.product === r.id).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const wk = r.opened ? Math.floor(diffDays(r.opened, today()) / 7) : null, has = a => vs.some(v => v.after === a);
   const due = wk == null ? (vs.length ? '' : 'First use') : wk >= 8 && !has('8 weeks') ? '8 weeks' : wk >= 4 && !has('4 weeks') ? '4 weeks' : wk >= 1 && !has('1 week') ? '1 week' : !vs.length ? 'First use' : '';
-  const lowBtn = `<div class="lwrap blowrow">${stepper(r)}<button type="button" class="chip ${r.low ? 'on' : ''}" data-act="blowsheet" data-id="${r.id}" aria-pressed="${!!r.low}">${r.low ? svg(P.check) + ' Running low' : 'Running low?'}</button><span class="lnone">${r.low ? 'The weekly task looks for deals on this.' : 'Tap when it is almost empty, and the weekly task looks for deals.'}</span></div>`;
+  const fillRow = `<div class="lwrap bfill"><span class="lnone">Open one:</span>${FILL_LEVELS.map(f => `<button type="button" class="chip ${r.fill === f ? 'on' : ''}" data-act="bfill" data-id="${r.id}" data-v="${f}" aria-pressed="${r.fill === f}">${f}</button>`).join('')}</div>`;
+  const lowBtn = fillRow + `<div class="lwrap blowrow"><span class="lnone">In stock:</span>${stepper(r)}<button type="button" class="chip ${r.low ? 'on' : ''}" data-act="blowsheet" data-id="${r.id}" aria-pressed="${!!r.low}">${r.low ? svg(P.check) + ' Running low' : 'Running low?'}</button><span class="lnone">${r.low ? 'The weekly task looks for deals on this.' : 'Tap when it is almost empty, and the weekly task looks for deals.'}</span></div>`;
   return lowBtn + `<section class="ltipsteps"><div class="lph3"><h3>Reviews</h3><button type="button" class="chip ${due ? 'on' : ''}" data-act="newreview" data-id="${r.id}" data-v="${esc(due || 'Later')}">${due ? `Write your ${esc(due.toLowerCase())} review` : 'Add a review'}</button></div>
     ${vs.length ? `<div class="lrows">${vs.map(v => `<div class="lrow"><button class="lmain" data-act="open" data-id="${v.id}"><b>${esc(v.after || 'Review')}${reviewAvg(v) ? ` · ${reviewAvg(v).toFixed(1)} / 5` : ''}</b><span>${esc([v.date && niceDate(v.date), v.again && 'buy again: ' + v.again.toLowerCase(), v.reason].filter(Boolean).join(' · '))}</span></button></div>`).join('')}</div>` : '<p class="lnone">No reviews yet. Rate how your skin reacts, how it feels, and whether you would buy it again.</p>'}</section>`;
 }
@@ -3042,7 +3044,12 @@ function careToday(host) {
 }
 async function toggleSupp(id, tm) {
   const t = today(), hit = recs('suplog').find(l => l.date === t && l.supplement === id && (l.time || 'AM') === tm);
-  try { hit ? await del(hit.id) : await create('suplog', { date: t, supplement: id, time: tm }); } catch {}
+  try { hit ? await del(hit.id) : await create('suplog', { date: t, supplement: id, time: tm }); } catch { return; }
+  // count the dose off the supply (or back on when you untick), and flag it when it runs low
+  const r = L.byId[id], left = r && num(r.left); if (left == null) return;
+  const dose = num(r.amount) || 1, n = Math.max(0, Math.round((left + (hit ? dose : -dose)) * 100) / 100), doses = [].concat(r.times || ['AM']).length * dose;
+  const low = n <= (num(r.min) ?? doses * 7);
+  try { await save(r, { left: n, low }); if (low && !r.low) C.toast(`${r.name} is bijna op: nog ${n}`); } catch {}
 }
 async function water(delta) {
   const w = waterToday(), n = Math.max(0, (w?.glasses || 0) + delta);
@@ -3539,9 +3546,12 @@ function choreFill(fill) {
 /* ---------- move list (Home › Verhuislijst) ----------
    Every product has a budget and a few options you like (links, photos, prices). When you buy one, the app
    keeps what you really paid, archives the other options and logs the purchase in Finance. */
+const invAvg = id => { const p = invOpts(id).map(o => num(o.price)).filter(x => x != null); return p.length ? Math.round(p.reduce((a, b) => a + b, 0) / p.length) : null; };
+const invBudget = r => num(r.budget) ?? invAvg(r.id);
+const BIG = /bank|bed\b|matras|kast|tafel|stoel|bureau|dressoir|tv-meubel|ladekast|fauteuil|boekenkast|eettafel/i;
 const invOpts = (id, all) => recs('invopts').filter(o => o.item === id && (all || !o.archived));
 const invLive = () => recs('inventory').filter(r => !['Teruggestuurd', 'Weg'].includes(invStatus(r)));
-const invMoney = r => { const b = num(r.budget), p = num(r.price); return invStatus(r) === 'Gekocht' ? (p != null ? eur(p) + (b != null ? (p > b ? ' · ' + eur(p - b) + ' boven' : p < b ? ' · ' + eur(b - p) + ' onder' : '') : '') : 'gekocht') : b != null ? 'budget ' + eur(b) : ''; };
+const invMoney = r => { const b = num(r.budget), p = num(r.price); const est = b == null ? invAvg(r.id) : null; return invStatus(r) === 'Gekocht' ? (p != null ? eur(p) + (b != null ? (p > b ? ' · ' + eur(p - b) + ' boven' : p < b ? ' · ' + eur(b - p) + ' onder' : '') : '') : 'gekocht') : b != null ? 'budget ' + eur(b) : est != null ? '± ' + eur(est) : ''; };
 const moveMonth = () => (C?.prefs?.().move || {}).month || '2027-07';
 const moveGoal = () => recs('fgoals').find(g => /verhuiz/i.test(g.name || ''));
 let invMigrated = false;
@@ -3576,6 +3586,8 @@ function invOptionsPanel(r) {
       ${[['Prijs', o => num(o.price) != null ? eur(num(o.price)) + (o === cheapest ? ' ✓' : '') : ''], ['Bezorgen', o => num(o.shipping) != null ? eur(num(o.shipping)) : ''], ['Totaal', o => num(o.price) != null ? eur(tot(o)) : ''], ['Budget', o => num(r.budget) != null && num(o.price) != null ? (tot(o) > num(r.budget) ? '+' + eur(tot(o) - num(r.budget)) : 'binnen') : ''], ['Winkel', o => o.shop], ['Afmetingen', o => o.dims], ['Kleur', o => o.color], ['Materiaal', o => o.material], ['Levertijd', o => o.delivery], ['Mooi', o => o.score ? '★'.repeat(o.score) : ''], ['Tweedehands', o => o.used ? 'ja' : '']]
         .filter(([, f]) => list.some(o => f(o))).map(([l, f]) => `<tr><th>${l}</th>${list.map(o => `<td>${esc(f(o) || '–')}</td>`).join('')}</tr>`).join('')}</tbody></table></div></details>` : '';
   return `<section class="ltipsteps"><div class="lph3"><h3>Opties${list.length ? ' · ' + list.length : ''}</h3><button type="button" class="chip" data-act="optadd" data-id="${r.id}">+ Handmatig</button></div>
+    ${num(r.budget) == null && invAvg(r.id) != null ? `<div class="lwrap"><span class="lnone">Voorstel budget: ${eur(invAvg(r.id))} (gemiddelde van je opties)</span><button type="button" class="chip" data-act="invsetbudget" data-id="${r.id}" data-v="${invAvg(r.id)}">Gebruik</button></div>` : ''}
+    ${BIG.test(r.name || '') || r.category === 'Meubels' ? `<p class="lnone"><a href="https://www.marktplaats.nl/q/${encodeURIComponent(r.name || '')}/#postcode:1315" target="_blank" rel="noopener">Zoek tweedehands op Marktplaats</a>: grote meubels zijn vaak bijna nieuw voor de helft.</p>` : ''}
     <div class="optlink"><input type="url" inputmode="url" placeholder="Plak een link naar een product" data-optlink aria-label="Link naar een optie"><button type="button" class="btn small primary" data-act="optlink" data-id="${r.id}">Toevoegen</button></div>
     ${list.length ? `<div class="iopts">${list.map(card).join('')}</div>${cmp}` : '<p class="lnone">Plak de link van een product dat je mooi vindt. De app haalt de foto, naam en prijs op. Bij het kopen kies je er één.</p>'}
     ${arch.length ? `<p class="lnone">${plural(arch.length, 'optie', 'opties')} gearchiveerd.</p>` : ''}
@@ -3607,7 +3619,7 @@ function invBoard(fill) {
   fill.innerHTML = tiles.length ? [...new Set(tiles.map(t => t.r.room || 'Overig'))].map(room => `<h3 class="lgh">${esc(room)}</h3><div class="iboard">${tiles.filter(t => (t.r.room || 'Overig') === room).map(({ r, o }) => `<button class="itile ${o.chosenFor ? 'on' : ''}" data-act="open" data-id="${r.id}">${o.photo ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(o.photo))}" alt="" loading="lazy" onerror="this.remove()">` : ''}<span><b>${esc(r.name)}</b>${esc([o.name, num(o.price) ? eur(num(o.price)) : ''].filter(Boolean).join(' · '))}</span></button>`).join('')}</div>`).join('')
     : quiet('Voeg opties met een foto toe aan je producten, dan verschijnen ze hier als moodboard.');
 }
-const MOVE_START = { Woonkamer: ['Bank', 'Salontafel', 'Tv-meubel', 'Televisie', 'Vloerkleed', 'Gordijnen woonkamer', 'Staande lamp', 'Plafondlamp', 'Boekenkast'], Keuken: ['Pannenset', 'Koekenpan', 'Snijplank', 'Bestek', 'Servies', 'Glazen', 'Waterkoker', 'Magnetron', 'Airfryer', 'Afwasrek', 'Vuilnisbak', 'Vershoudbakjes', 'Ovenschaal'], Slaapkamer: ['Bed', 'Matras', 'Dekbed', 'Kussens', 'Dekbedovertrek', 'Kledingkast', 'Nachtkastje', 'Gordijnen slaapkamer', 'Passpiegel'], Badkamer: ['Handdoeken', 'Badmat', 'Douchewisser', 'Badkamerrek', 'Wc-borstel'], Entree: ['Kapstok', 'Schoenenrek', 'Deurmat'], Wasruimte: ['Wasmachine', 'Droogrek', 'Wasmand', 'Strijkijzer'], Schoonmaak: ['Stofzuiger', 'Emmer en dweil', 'Schoonmaakmiddelen'], Overig: ['Gereedschapset', 'Trapje', 'Verlengsnoeren', 'Rookmelder', 'Verbanddoos'] };
+const MOVE_START = { Woonkamer: ['Bank', 'Salontafel', 'Tv-meubel', 'Televisie', 'Vloerkleed', 'Gordijnen woonkamer', 'Staande lamp', 'Plafondlamp', 'Boekenkast'], Keuken: ['Pannenset', 'Koekenpan', 'Snijplank', 'Bestek', 'Servies', 'Glazen', 'Waterkoker', 'Magnetron', 'Airfryer', 'Afwasrek', 'Vuilnisbak', 'Vershoudbakjes', 'Ovenschaal'], Slaapkamer: ['Bed', 'Matras', 'Dekbed', 'Kussens', 'Dekbedovertrek', 'Kledingkast', 'Nachtkastje', 'Gordijnen slaapkamer', 'Passpiegel'], Werkkamer: ['Bureau', 'Bureaustoel', 'Bureaulamp', 'Kledingrek', 'Grote spiegel', 'Ringlamp', 'Achtergrond voor filmen', 'Opbergkast', 'Statief'], Badkamer: ['Handdoeken', 'Badmat', 'Douchewisser', 'Badkamerrek', 'Wc-borstel'], Entree: ['Kapstok', 'Schoenenrek', 'Deurmat'], Wasruimte: ['Wasmachine', 'Droogrek', 'Wasmand', 'Strijkijzer'], Schoonmaak: ['Stofzuiger', 'Emmer en dweil', 'Schoonmaakmiddelen'], Overig: ['Gereedschapset', 'Trapje', 'Verlengsnoeren', 'Rookmelder', 'Verbanddoos'] };
 const MOVE_COSTS_START = [['Borg', 'Borg en huur'], ['Eerste maand huur', 'Borg en huur'], ['Verhuisbus', 'Verhuizen'], ['Verhuisdozen', 'Verhuizen'], ['Verf en kwasten', 'Klussen'], ['Vloer', 'Klussen'], ['Gordijnrails', 'Klussen'], ['Lampen ophangen', 'Klussen'], ['Internet aansluiten', 'Aansluitingen'], ['Energie en water', 'Aansluitingen']];
 async function invStart() {
   const have = new Set(recs('inventory').map(r => norm(r.name))), costs = new Set(recs('movecosts').map(r => norm(r.name))), rows = [];
@@ -3621,27 +3633,29 @@ function invAnalysis(fill) {
   const l = invLive(), done = l.filter(r => invStatus(r) === 'Gekocht'), open = l.filter(r => INV_WANT.includes(invStatus(r)));
   const mc = recs('movecosts'), mcPaid = mc.filter(c => c.paid), mcOpen = mc.filter(c => !c.paid);
   const spent = invSum(done, 'price') + mcPaid.reduce((n, c) => n + (num(c.price ?? c.budget) || 0), 0);
-  const toGo = invSum(open, 'budget') + invSum(mcOpen, 'budget'), budgetAll = invSum(l, 'budget') + invSum(mc, 'budget');
-  const noBudget = open.filter(r => num(r.budget) == null).length + mcOpen.filter(c => num(c.budget) == null).length;
+  const toGo = open.reduce((n, r) => n + (invBudget(r) || 0), 0) + invSum(mcOpen, 'budget'), budgetAll = invSum(l, 'budget') + invSum(mc, 'budget');
+  const noBudget = open.filter(r => invBudget(r) == null).length + mcOpen.filter(c => num(c.budget) == null).length;
   const m = moveMonth(), months = Math.max(1, (Number(m.slice(0, 4)) - new Date().getFullYear()) * 12 + Number(m.slice(5, 7)) - (new Date().getMonth() + 1));
   const g = moveGoal(), saved = num(g?.saved) || 0, perMonth = Math.max(0, toGo - saved) / months;
   const diff = done.filter(r => num(r.budget) != null && num(r.price) != null).map(r => [r, num(r.price) - num(r.budget)]).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
   const over = diff.reduce((n, [, d]) => n + d, 0);
+  const usedSaved = done.filter(r => r.chosen && L.byId[r.chosen]?.used && invBudget(r) != null && num(r.price) != null).reduce((n, r) => n + Math.max(0, invBudget(r) - num(r.price)), 0);
   const rooms = [...new Set(l.map(r => r.room || 'Overig'))].sort((a, b) => ROOMS.indexOf(a) - ROOMS.indexOf(b));
   const bar = (a, b) => `<div class="dbar"><i style="width:${b ? Math.min(100, 100 * a / b) : 0}%"></i></div>`;
   const monthName = fromISO(m + '-01').toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' });
   fill.innerHTML = `${!l.length ? invEmpty() : ''}<div class="tiles">${fTile('Nog nodig', fEur0(toGo), noBudget ? `${plural(noBudget, 'ding', 'dingen')} zonder budget` : 'alles heeft een budget')}${fTile('Al uitgegeven', fEur0(spent), `${done.length} van ${l.length} producten gekocht`)}${fTile('Per maand sparen', fEur0(perMonth), `tot ${monthName}${saved ? `, ${eur(saved)} al gespaard` : ''}`)}${fTile('Budget vs betaald', (over > 0 ? '+' : over < 0 ? '−' : '') + fEur0(Math.abs(over)), over > 0 ? 'boven budget bij wat je kocht' : over < 0 ? 'onder budget bij wat je kocht' : 'precies op budget')}</div>
   <div class="panels">
-    ${panel('Per kamer', `<div class="lrows">${rooms.map(room => { const rs = l.filter(r => (r.room || 'Overig') === room), d = rs.filter(r => invStatus(r) === 'Gekocht'); return `<div class="lrow iroom"><span class="lmain"><b>${esc(room)}</b><span>${d.length} van ${rs.length} gekocht · ${eur(invSum(d, 'price'))} betaald · ${eur(invSum(rs.filter(r => INV_WANT.includes(invStatus(r))), 'budget'))} nog nodig</span>${bar(d.length, rs.length)}</span></div>`; }).join('')}</div>`)}
+    ${panel('Per kamer', `<div class="lrows">${rooms.map(room => { const rs = l.filter(r => (r.room || 'Overig') === room), d = rs.filter(r => invStatus(r) === 'Gekocht'); return `<div class="lrow iroom"><span class="lmain"><b>${esc(room)}</b><span>${d.length} van ${rs.length} gekocht · ${eur(invSum(d, 'price'))} betaald · ${eur(rs.filter(r => INV_WANT.includes(invStatus(r))).reduce((n, r) => n + (invBudget(r) || 0), 0))} nog nodig</span>${bar(d.length, rs.length)}</span></div>`; }).join('')}</div>`)}
     ${panel('Verhuiskosten', mc.length ? `<div class="lrows">${MOVE_TYPES.filter(t => mc.some(c => (c.type || 'Overig') === t)).map(t => { const cs = mc.filter(c => (c.type || 'Overig') === t); return `<div class="lrow"><span class="lmain"><b>${esc(t)}</b><span>${cs.filter(c => c.paid).length} van ${cs.length} betaald · budget ${eur(invSum(cs, 'budget'))}</span></span></div>`; }).join('')}</div>` : quiet('Nog geen verhuiskosten. Borg, verhuisbus, verf en aansluitingen komen erbij met de startlijst.'))}
     ${panel('Sparen', `<p class="lnone">Streefmaand: <input type="month" class="pill" data-movemonth value="${esc(m)}" aria-label="Verhuismaand"></p>
       ${g ? `<p class="lnone">Spaardoel ${esc(g.name)}: ${eur(saved)} van ${eur(num(g.target) || 0)}.</p><button class="btn small" data-act="movegoal">Spaardoel bijwerken naar ${eur(toGo)}</button>` : `<button class="btn small primary" data-act="movegoal">Maak spaardoel Verhuizen van ${eur(toGo)}</button>`}
       <p class="lnone">Het doel is wat nog nodig is: producten die je nog niet hebt en kosten die nog open staan.</p>`)}
+    ${usedSaved ? panel('Tweedehands', `<p class="lbig">${eur(usedSaved)} bespaard</p><p class="lnone">Wat je onder budget bleef door tweedehands te kopen.</p>`) : ''}
     ${diff.length ? panel('Boven en onder budget', `<div class="lrows">${diff.slice(0, 8).map(([r, d]) => `<div class="lrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(r.name)}</b><span>budget ${eur(num(r.budget))} · betaald ${eur(num(r.price))}</span></button><span class="lside ${d > 0 ? 'hot' : ''}">${d > 0 ? '+' : '−'}${eur(Math.abs(d))}</span></div>`).join('')}</div>`) : ''}
   </div>`;
 }
 async function moveGoalSync() {
-  const open = invLive().filter(r => INV_WANT.includes(invStatus(r))), toGo = invSum(open, 'budget') + invSum(recs('movecosts').filter(c => !c.paid), 'budget');
+  const open = invLive().filter(r => INV_WANT.includes(invStatus(r))), toGo = open.reduce((n, r) => n + (invBudget(r) || 0), 0) + invSum(recs('movecosts').filter(c => !c.paid), 'budget');
   const g = moveGoal(), by = moveMonth() + '-01';
   try { g ? await save(g, { target: Math.round(toGo * 100) / 100, by }) : await create('fgoals', { name: 'Verhuizen', target: Math.round(toGo * 100) / 100, saved: 0, by }); C.toast(g ? 'Spaardoel bijgewerkt' : 'Spaardoel Verhuizen staat in Finance'); } catch { C.toast('Opslaan lukte niet. Probeer het opnieuw.'); }
 }
@@ -3781,7 +3795,7 @@ function optionLists() {
 // choices are buttons up to this many, a dropdown above it
 const CHIP_MAX = 12;
 // lists with a natural order keep it; everything else is A to Z (your own order from Settings always wins)
-const ORDERED = new Set(['meals', 'priority', 'status', 'unit', 'match', 'onDays', 'amDays', 'pmDays', 'step', 'again', 'angle', 'after', 'breakouts', 'redness', 'dryness', 'oiliness', 'stress', 'priority', 'prio', 'stage', 'status', 'cadence', 'freq', 'level', 'slot', 'funnel', 'effort', 'size', 'season', 'seasons', 'time', 'intake', 'when', 'day', 'days', 'nights', 'reheat', 'again', 'portion', 'mood', 'energy', 'quality']);
+const ORDERED = new Set(['fill', 'meals', 'priority', 'status', 'unit', 'match', 'onDays', 'amDays', 'pmDays', 'step', 'again', 'angle', 'after', 'breakouts', 'redness', 'dryness', 'oiliness', 'stress', 'priority', 'prio', 'stage', 'status', 'cadence', 'freq', 'level', 'slot', 'funnel', 'effort', 'size', 'season', 'seasons', 'time', 'intake', 'when', 'day', 'days', 'nights', 'reheat', 'again', 'portion', 'mood', 'energy', 'quality']);
 const sortOpts = (kind, f, opts) => optCfg(kind, f.k).list || ORDERED.has(f.k) ? opts : [...opts].sort((a, b) => norm(a).localeCompare(norm(b)));
 function fieldInner(kind, f, D) {
   const v = D[f.k], id = 'lf-' + f.k;
@@ -3942,6 +3956,8 @@ function openEditor(kind, id, preset = {}) {
     if (d.act === 'ttpost') return ttPostNow(d.id);
     if (d.act === 'mkpost') return ideaToPost(d.id);
     if (d.act === 'newreview') { C.closeSheet(); return openEditor('breviews', null, { product: d.id, date: today(), after: d.v }); }
+    if (d.act === 'bfill') { const r0 = L.byId[d.id]; if (!r0) return; const p = { fill: d.v, ...(d.v === 'Almost empty' && (num(r0.qty) ?? 1) <= 1 ? { low: true } : {}) }; Object.assign(D, p); sh.querySelectorAll('[data-act="bfill"]').forEach(x => { const on = x.dataset.v === d.v; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on); }); const sel = sh.querySelector('select[data-k="fill"]'); if (sel) sel.value = d.v; if (p.low) { const lb = sh.querySelector('[data-act="blowsheet"]'); if (lb) { lb.classList.add('on'); lb.setAttribute('aria-pressed', 'true'); lb.innerHTML = svg(P.check) + ' Running low'; } const ck = sh.querySelector('[data-chk="low"]'); if (ck) { ck.setAttribute('aria-pressed', 'true'); ck.innerHTML = svg(P.check) + 'Running low'; } } return save(r0, p).then(() => p.low && !r0.low && C.toast(`${r0.name} is running low`)); }
+    if (d.act === 'invsetbudget') { const r0 = L.byId[d.id]; if (!r0) return; D.budget = Number(d.v); const inp = sh.querySelector('input[data-k="budget"]'); if (inp) inp.value = d.v; b.closest('.lwrap')?.remove(); return save(r0, { budget: Number(d.v) }).then(() => C.toast('Budget ingesteld')); }
     if (d.act === 'optlink') {
       const inp = sh.querySelector('[data-optlink]'), url = inp?.value.trim(); if (!url) { inp?.focus(); return; }
       b.disabled = true; b.textContent = 'Ophalen…';
