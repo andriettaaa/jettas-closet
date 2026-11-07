@@ -834,7 +834,7 @@ function allBrands() {
   const add = (b, n) => { const t = String(b || '').trim(); if (!t) return; const k = t.toLowerCase(); const e = m.get(k) || { name: t, n: 0 }; e.n += n; m.set(k, e); };
   (S.prefs.brands || []).forEach(b => add(b, 0));
   S.items.filter(i => !isInbox(i)).forEach(i => add(i.brand, 1));
-  return [...m.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+  return [...m.values()].sort((a, b) => azSort(a.name, b.name));
 }
 const sameBrand = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
 const catOptions = cur => [...cats(), ...(cur && !cats().includes(cur) ? [cur] : [])].map(c => `<option ${c === cur ? 'selected' : ''}>${esc(c)}</option>`).join('');
@@ -1261,7 +1261,7 @@ const FV = () => S.fv[S.view === 'wishlist' ? 'wishlist' : 'closet'];
 const isWish = it => it.status === 'wishlist';
 const isPassed = it => it.status === 'passed'; // "no longer want it": archived wishlist piece
 const isWishAll = it => isWish(it) || isPassed(it);
-const azSort = (a, b) => String(a).localeCompare(String(b), undefined, { sensitivity: 'base' });
+const azSort = (a, b) => String(a).localeCompare(String(b), undefined, { sensitivity: 'base', numeric: true });
 const daysOn = it => it.wishSince ? Math.max(0, Math.round((Date.now() - fromISO(it.wishSince)) / 864e5)) : it.created ? Math.max(0, Math.round((Date.now() - it.created) / 864e5)) : null;
 const saving = it => it.origPrice > 0 && it.price > 0 && it.origPrice > it.price ? it.origPrice - it.price : 0;
 const SORTS = {
@@ -1277,7 +1277,7 @@ const SORTFN = {
   price: (a, b) => (b.price || 0) - (a.price || 0),
   cheap: (a, b) => (a.price ?? 1e9) - (b.price ?? 1e9),
   sale: (a, b) => saving(b) - saving(a),
-  name: (a, b) => String(a.name).localeCompare(String(b.name))
+  name: (a, b) => azSort(a.name, b.name)
 };
 function baseList(view, f) {
   return S.items.filter(it => view === 'wishlist' ? (f.showGone ? isPassed(it) : isWish(it)) : !isInbox(it) && !isWishAll(it) && (f.showGone || inCloset(it)));
@@ -1409,7 +1409,7 @@ function fillRail(host) {
   const cur = avail.find(a => a.fc.k === f.facet);
   if (cur) {
     const order = cur.fc.order;
-    const vals = [...cur.vals.entries()].sort((a, b) => order ? (order.indexOf(a[1].label) + 1 || 999) - (order.indexOf(b[1].label) + 1 || 999) : cur.fc.az ? a[1].label.localeCompare(b[1].label, undefined, { sensitivity: 'base' }) : b[1].n - a[1].n || a[1].label.localeCompare(b[1].label));
+    const vals = [...cur.vals.entries()].sort((a, b) => order ? (order.indexOf(a[1].label) + 1 || 999) - (order.indexOf(b[1].label) + 1 || 999) : azSort(a[1].label, b[1].label));
     $('#facetVals', host).innerHTML = vals.map(([k, v]) => `<button class="chip" data-fk="${cur.fc.k}" data-fval="${esc(k)}" aria-pressed="${(f.sel[cur.fc.k] || []).includes(k)}">${cur.fc.k === 'colors' ? `<i class="dot" style="background:${swatchBg(v.label)}"></i>` : ''}${esc(v.label)} <span class="n">${v.n}</span></button>`).join('');
   } else $('#facetVals', host).innerHTML = '';
   $('#facetVals', host).hidden = !cur;
@@ -2115,7 +2115,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v129';
+const APP_VERSION = 'hangtag-v130';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2550,7 +2550,7 @@ function renderTodo(host) {
   // groups: per brand, model, category or type, or per missing field (a piece can sit in more than one of those)
   const groups = [];
   if (T.group === 'missing') for (const [k, l] of TODO_CHECKS) { const g = shown.filter(x => x.miss.some(m => m[0] === k)); if (g.length) groups.push({ key: k, label: 'No ' + l.toLowerCase(), list: g }); }
-  else if (T.group !== 'none') { const m = new Map(); for (const x of shown) { const v = String(x.it[T.group] || '').trim() || '—'; (m.get(v) || m.set(v, []).get(v)).push(x); } [...m.entries()].sort((a, b) => a[0] === '—' ? 1 : b[0] === '—' ? -1 : b[1].length - a[1].length || a[0].localeCompare(b[0])).forEach(([v, l]) => groups.push({ key: v, label: v === '—' ? `No ${TD_GROUPS.find(g => g[0] === T.group)[1].toLowerCase()}` : v, list: l })); }
+  else if (T.group !== 'none') { const m = new Map(); for (const x of shown) { const v = String(x.it[T.group] || '').trim() || '—'; (m.get(v) || m.set(v, []).get(v)).push(x); } [...m.entries()].sort((a, b) => a[0] === '—' ? 1 : b[0] === '—' ? -1 : azSort(a[0], b[0])).forEach(([v, l]) => groups.push({ key: v, label: v === '—' ? `No ${TD_GROUPS.find(g => g[0] === T.group)[1].toLowerCase()}` : v, list: l })); }
   else groups.push({ key: '', label: '', list: shown });
   const chk = id => `<label class="tdchk" title="Select"><input type="checkbox" data-tdsel="${esc(id)}" ${T.sel.has(id) ? 'checked' : ''} aria-label="Select"></label>`;
   const sugBtn = (it, k) => { const v = tdEmpty(it, k) || k === 'care' ? tdSuggest(it, k) : null; return v != null ? `<button type="button" class="chip tdsug" data-tdsug="${esc(it.id)}" data-k="${k}" title="Suggestion">↵ ${esc(tdSugText(k, v))}</button>` : ''; };
@@ -2739,10 +2739,10 @@ function statsBreakdown(host) {
   // brands: everything you've bought, including what has gone since
   const all = owned(), bm = new Map();
   for (const i of all) { const b = String(i.brand || '').trim(); if (!b) continue; const e = bm.get(b.toLowerCase()) || { b, l: [] }; e.l.push(i); bm.set(b.toLowerCase(), e); }
-  const brands = [...bm.values()].sort((x, y) => priceSum(y.l) - priceSum(x.l) || y.l.length - x.l.length);
+  const brands = [...bm.values()].sort((x, y) => azSort(x.b, y.b));
   const brandTable = brands.length ? tbl(['Brand', 'Pieces', 'Spent', 'Avg price', 'Wears'],
-    brands.slice(0, 25).map(({ b, l }) => { const p = l.filter(i => i.price > 0); return [goBtn('brand', b), l.length, eur0(priceSum(l)), p.length ? eur0(priceSum(p) / p.length) : '—', l.reduce((a, i) => a + wearCount(i), 0)]; }))
-    + (brands.length > 25 ? `<p class="muted" style="font-size:12.5px">Top 25 of ${brands.length} brands by spend.</p>` : '') : `<p class="muted">Add brands to your pieces to see this.</p>`;
+    brands.map(({ b, l }) => { const p = l.filter(i => i.price > 0); return [goBtn('brand', b), l.length, eur0(priceSum(l)), p.length ? eur0(priceSum(p) / p.length) : '—', l.reduce((a, i) => a + wearCount(i), 0)]; }))
+    : `<p class="muted">Add brands to your pieces to see this.</p>`;
   const multiHint = 'A piece with more than one counts once for each.';
   host.innerHTML = `<div class="panels">
     ${panel('Categories', 'Pieces in your closet. Tap a slice or name to see them.', donut(countBy(live, i => one(i.cat)), { k: 'cat', order: catOrder.length <= 7 ? catOrder : null }))}
@@ -3412,7 +3412,7 @@ function openEditor(id, opts = {}) {
 function valuesOf(k) {
   const m = new Map();
   for (const i of S.items) { const v = String(i[k] || '').trim(); if (!v) continue; const key = v.toLowerCase(); const e = m.get(key) || { v, n: 0 }; e.n++; m.set(key, e); }
-  return [...m.values()].sort((a, b) => b.n - a.n).map(e => e.v);
+  return [...m.values()].map(e => e.v).sort(azSort);
 }
 
 function loadImage(src) {
@@ -3666,7 +3666,7 @@ function openBuilder(id, presetPieces, presetName) {
       <div style="min-width:0;display:grid;gap:10px;align-content:start">
         <div class="form">
           <div class="field"><label for="o-name">Name</label><input id="o-name" value="${esc(src?.name || presetName || '')}" placeholder="e.g. Office Friday"></div>
-          <div class="field"><label for="o-occ">Occasion</label><input id="o-occ" value="${esc(src?.occasion || '')}" placeholder="Work, weekend, dinner…" autocomplete="off"><div class="brandsugs">${[...new Map([...S.outfits.map(o => String(o.occasion || '').trim()).filter(Boolean), 'Work', 'Weekend', 'Dinner', 'Party', 'Travel', 'Sport', 'Date night', 'Lounge'].map(o => [norm(o), o])).values()].map(o => `<button type="button" class="chip" data-occ="${esc(o)}" aria-pressed="${norm(o) === norm(src?.occasion || '')}">${esc(o)}</button>`).join('')}</div></div>
+          <div class="field"><label for="o-occ">Occasion</label><input id="o-occ" value="${esc(src?.occasion || '')}" placeholder="Work, weekend, dinner…" autocomplete="off"><div class="brandsugs">${[...new Map([...S.outfits.map(o => String(o.occasion || '').trim()).filter(Boolean), 'Work', 'Weekend', 'Dinner', 'Party', 'Travel', 'Sport', 'Date night', 'Lounge'].map(o => [norm(o), o])).values()].sort(azSort).map(o => `<button type="button" class="chip" data-occ="${esc(o)}" aria-pressed="${norm(o) === norm(src?.occasion || '')}">${esc(o)}</button>`).join('')}</div></div>
         </div>
         <span class="lbl">Tap a piece to put it on the board</span>
         <div class="chips" id="bcats"></div>
@@ -3791,7 +3791,7 @@ function openDay(date, opts = {}) {
       <div class="seg" role="group"><button data-mode="outfit">Saved outfit</button><button data-mode="pieces">Pick pieces</button></div></div>
       <div id="dayPick"></div>
       <div class="field"><label for="d-place">Where${rec.place ? ` <button type="button" class="chip link" data-place="${esc(rec.place)}">All days at ${esc(rec.place)}</button>` : ''}</label><input id="d-place" list="placeList" value="${esc(rec.place || '')}" placeholder="Work, a dinner, a city" autocomplete="off"><datalist id="placeList">${places().map(([p]) => `<option value="${esc(p)}">`).join('')}</datalist>
-        ${places().length ? `<div class="chips" style="margin-top:6px">${places().slice(0, 40).map(([p]) => `<button type="button" class="chip" data-fillplace="${esc(p)}" aria-pressed="${norm(p) === norm(rec.place || '')}">${esc(p)}</button>`).join('')}</div>` : ''}</div>
+        ${places().length ? `<div class="chips" style="margin-top:6px">${places().slice(0, 40).sort((a, b) => azSort(a[0], b[0])).map(([p]) => `<button type="button" class="chip" data-fillplace="${esc(p)}" aria-pressed="${norm(p) === norm(rec.place || '')}">${esc(p)}</button>`).join('')}</div>` : ''}</div>
       <div class="field"><label for="d-note">Note</label><input id="d-note" value="${esc(rec.note || '')}" placeholder="How it felt"></div>`,
     foot: `<span class="busy" id="dStatus"></span><div class="spacer"></div>${S.days[date] ? '<button class="btn danger" id="dClear">Clear day</button>' : ''}<button class="btn primary" id="dSave">${future ? 'Save plan' : 'Save'}</button>`,
     onClose: () => D.adds.forEach(a => URL.revokeObjectURL(a.url))

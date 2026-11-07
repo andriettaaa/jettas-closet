@@ -1523,7 +1523,7 @@ function groupedHTML(list, K, inner) {
   const g = groupOf(K), f = g && K.fields.find(x => x.k === g);
   if (!f || !list.length) return inner(list);
   const m = new Map(); for (const r of list) { const k = String(groupVal(r, f) || '').trim() || '—'; (m.get(k) || m.set(k, []).get(k)).push(r); }
-  return [...m.entries()].sort((a, b) => a[0] === '—' ? 1 : b[0] === '—' ? -1 : b[1].length - a[1].length || a[0].localeCompare(b[0]))
+  return [...m.entries()].sort((a, b) => a[0] === '—' ? 1 : b[0] === '—' ? -1 : azCmp(a[0], b[0]))
     .map(([k, l]) => `<section class="lgrp"><div class="tdgh"><h3>${esc(k === '—' ? 'Geen ' + f.label.toLowerCase() : k)} <span class="muted">${l.length}</span></h3></div>${inner(l)}</section>`).join('');
 }
 const TABLE_TYPES = ['text', 'num', 'money', 'date', 'select', 'multi', 'check'];
@@ -1562,16 +1562,21 @@ document.addEventListener('change', e => { const el = e.target; if (C && el.matc
 document.addEventListener('click', async e => { const b = e.target.closest?.('[data-lsug]'); if (!b || !C) return; const r = L.byId[b.dataset.lsug], f = r && KINDS[r.kind].fields.find(x => x.k === b.dataset.k), v = f && lSuggest(r, f); if (v == null) return; try { await put(r.kind, r.id, { ...dataOf(r), [f.k]: v }); } catch (err) { failed(err); } });
 
 /* ---------- list pages ---------- */
+/* every list starts A to Z. Logs and things with a date keep their date order (newest sleep, next due chore),
+   so do lists you put in your own order and the inboxes; the old order stays one tap away in the sort menu */
+const KEEP_SORT = /^-?(date|start|end|at|month|added|due|expected|by|order|prepDay|routine)$/;
+const defSort = K => { const s = K.sorts?.[0]?.[0]; return s && (KEEP_SORT.test(s) || K === KINDS.inbox || K === KINDS.winbox) ? s : 'name'; };
+const sortsOf = K => { const s = K.sorts || [], az = s.find(x => x[0] === 'name') || ['name', 'A to Z'], rest = s.filter(x => x[0] !== 'name'); return defSort(K) === 'name' ? [az, ...rest] : [...rest, az]; };
+const azCmp = (a, b) => String(a).localeCompare(String(b), undefined, { sensitivity: 'base', numeric: true });
 function sortList(list, K, key) {
   const desc = key.startsWith('-'), k = desc ? key.slice(1) : key;
   const val = r => k === 'score' ? (stayScore(r) || '') : k === 'routine' ? (ROUTINES.includes(r.routine) ? ROUTINES.indexOf(r.routine) : 9) : k === 'prio' ? (PRIO.includes(r.priority) ? PRIO.indexOf(r.priority) : 9) : k === 'time' ? (totalTime(r) || 1e9) : k === 'due' && ['chores', 'plants'].includes(r.kind) ? (r.kind === 'plants' ? (plantDue(r) || '9999') : choreDue(r)) : k === 'name' ? norm(titleOf(r)) : r[k];
   return list.sort((a, b) => {
     let x = val(a), y = val(b);
     const ex = x == null || x === '', ey = y == null || y === '';
-    if (ex || ey) return ex && ey ? norm(titleOf(a)).localeCompare(norm(titleOf(b))) : ex ? 1 : -1;
-    if (typeof x === 'string') x = x.toLowerCase(), y = String(y).toLowerCase();
-    const c = x < y ? -1 : x > y ? 1 : 0;
-    return (desc ? -c : c) || norm(titleOf(a)).localeCompare(norm(titleOf(b)));
+    if (ex || ey) return ex && ey ? azCmp(titleOf(a), titleOf(b)) : ex ? 1 : -1;
+    const c = typeof x === 'string' || typeof y === 'string' ? azCmp(x, y) : x < y ? -1 : x > y ? 1 : 0;
+    return (desc ? -c : c) || azCmp(titleOf(a), titleOf(b));
   });
 }
 function filtered(page, seg) {
@@ -1584,18 +1589,18 @@ function filtered(page, seg) {
   if (fk && fv) list = list.filter(r => [].concat(r[fk] || []).includes(fv));
   if (K.facet2 && fv && u.facet2) list = list.filter(r => [].concat(r[K.facet2] || []).includes(u.facet2));
   if (q) list = list.filter(r => norm([titleOf(r), K.sub?.(r), r.brand, r.notes, ...relNames(r.ingredients)].join(' ')).includes(q));
-  return sortList(list, K, u.sort[seg.key] || K.sorts?.[0]?.[0] || 'name');
+  return sortList(list, K, u.sort[seg.key] || defSort(K));
 }
 function listPage(host, page) {
   const cfg = PAGES[page], u = uiOf(page), seg = curSeg(page), K = KINDS[seg.kind], ss = segsOf(page);
   const sig = page + '|' + seg.key;
   if (host.dataset.sig !== sig) {
     host.dataset.sig = sig;
-    const sorts = K.sorts || [];
+    const sorts = sortsOf(K);
     host.innerHTML = `<div class="viewhead"><h1>${esc(cfg.title)}</h1><span class="sub" data-count></span></div>
       ${ss.length > 1 ? `<div class="seg lseg">${ss.map(s => `<button data-act="seg" data-v="${s.key}" aria-pressed="${s.key === seg.key}">${esc(s.label)}</button>`).join('')}</div>` : ''}
       ${seg.tools ? `<div class="tools"><label class="search">${svg(P.search)}<input type="search" data-lq placeholder="Search ${esc(K.many.toLowerCase())}" value="${esc(u.q)}" aria-label="Search"></label>
-        ${sorts.length > 1 ? `<select class="pill" data-lsort aria-label="Sort">${sorts.map(([k, l]) => `<option value="${k}" ${(u.sort[seg.key] || sorts[0][0]) === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}${groupSel(K)}${viewSwitch(K)}<button class="btn small" data-act="selmode" data-selbtn>Select</button></div>
+        ${sorts.length > 1 ? `<select class="pill" data-lsort aria-label="Sort">${sorts.map(([k, l]) => `<option value="${k}" ${(u.sort[seg.key] || defSort(K)) === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}${groupSel(K)}${viewSwitch(K)}<button class="btn small" data-act="selmode" data-selbtn>Select</button></div>
         <div class="chips facets" data-facets></div>` : ''}
       <div data-lfill></div>`;
   }
@@ -1612,7 +1617,7 @@ function fillList(host, page) {
     const f = u.filter[seg.key] ?? K.filters?.[0]?.[0];
     const counts = {};
     if (K.facet) for (const r of all) if (!K.hide?.(r) || u.all) for (const v of [].concat(r[K.facet] || [])) counts[v] = (counts[v] || 0) + 1;
-    const opts = K.facet ? Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b)) : [];
+    const opts = K.facet ? Object.keys(counts).sort(azCmp) : [];
     fh.innerHTML = (K.filters || []).map(([k, l]) => `<button class="chip tab" data-act="filter" data-v="${k}" aria-pressed="${f === k}">${esc(l)}</button>`).join('')
       + (K.filters && opts.length ? '<span class="lsep"></span>' : '')
       + (opts.length > 1 ? opts.map(v => `<button class="chip" data-act="facet" data-v="${esc(v)}" aria-pressed="${u.facet === v}">${esc(v)}<span class="n">${counts[v]}</span></button>`).join('') : '')
@@ -1620,7 +1625,7 @@ function fillList(host, page) {
     fh.hidden = !fh.innerHTML;
     // the second row (a recipe category's kinds of dish) sits under the scrolling chips, on its own line
     let f2 = host.querySelector('[data-facets2]'); if (!f2) { f2 = document.createElement('div'); f2.dataset.facets2 = ''; fh.after(f2); }
-    f2.innerHTML = (() => { if (!K.facet2 || !u.facet) return ''; const c2 = {}; for (const r of all) if ([].concat(r[K.facet] || []).includes(u.facet)) for (const v of [].concat(r[K.facet2] || [])) c2[v] = (c2[v] || 0) + 1; const o2 = Object.keys(c2).sort((a, b) => c2[b] - c2[a] || a.localeCompare(b)); return o2.length ? `<div class="lfacet2" role="group" aria-label="Soort">${o2.map(v => `<button class="chip small" data-act="facet2" data-v="${esc(v)}" aria-pressed="${u.facet2 === v}">${esc(v)}<span class="n">${c2[v]}</span></button>`).join('')}</div>` : ''; })();
+    f2.innerHTML = (() => { if (!K.facet2 || !u.facet) return ''; const c2 = {}; for (const r of all) if ([].concat(r[K.facet] || []).includes(u.facet)) for (const v of [].concat(r[K.facet2] || [])) c2[v] = (c2[v] || 0) + 1; const o2 = Object.keys(c2).sort(azCmp); return o2.length ? `<div class="lfacet2" role="group" aria-label="Soort">${o2.map(v => `<button class="chip small" data-act="facet2" data-v="${esc(v)}" aria-pressed="${u.facet2 === v}">${esc(v)}<span class="n">${c2[v]}</span></button>`).join('')}</div>` : ''; })();
     f2.hidden = !f2.innerHTML;
   }
   if (seg.fill) { seg.fill(fill, page); return; }
@@ -4201,7 +4206,7 @@ function textSugs(kind, f) {
   for (const r of recs(kind)) add(r[f.k]);
   if (shop) { for (const r of L.all) for (const k of SUG_SHOP) if (r.kind !== kind) add(r[k]); for (const v of C.closetVals?.('shop') || []) add(v); }
   else if (f.k === 'brand') { for (const r of L.all) if (r.kind !== kind) add(r.brand); for (const v of C.closetVals?.('brand') || []) add(v); }
-  return [...n.values()].filter(e => !title || e.n > 1).sort((a, b) => b.n - a.n || norm(a.v).localeCompare(norm(b.v))).slice(0, 40).map(e => e.v);
+  return [...n.values()].filter(e => !title || e.n > 1).sort((a, b) => b.n - a.n).slice(0, 40).map(e => e.v).sort(azCmp);
 }
 // every shop you used anywhere in the app, for the closet's shop buttons
 const allShops = () => { const out = []; for (const r of L.all || []) for (const k of SUG_SHOP) if (r[k] && String(r[k]).trim().length <= 40) out.push(String(r[k]).trim()); return out; };
@@ -4454,7 +4459,7 @@ async function importFile(file) {
   const sh = C.sheet({
     title: 'Import from Notion',
     body: `<p>This adds ${plural(rows.length, 'record')}${fresh !== rows.length ? `, ${fresh} of them new. The other ${rows.length - fresh} are already here and get the values from the file; what the file leaves out stays as it is` : ''}.${mt.matched ? ` ${plural(mt.matched, 'item')} with the same name as one that is already here ${mt.matched === 1 ? 'is' : 'are'} not added again.` : ''}</p>
-      <div class="lrows">${Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<div class="lrow"><span class="lmain"><b>${esc(KINDS[k].many)}</b></span><span class="lside">${n}</span></div>`).join('')}</div>`,
+      <div class="lrows">${Object.entries(counts).sort((a, b) => azCmp(KINDS[a[0]].many, KINDS[b[0]].many)).map(([k, n]) => `<div class="lrow"><span class="lmain"><b>${esc(KINDS[k].many)}</b></span><span class="lside">${n}</span></div>`).join('')}</div>`,
     foot: `<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-go>Import ${rows.length}</button>`
   });
   sh.querySelector('[data-go]').onclick = async e => {
@@ -4745,7 +4750,7 @@ function fEnvFill(fill) {
     ${MP('Your envelopes', `<div class="seg fseg" role="group"><button data-act="envmode" data-v="month" aria-pressed="${mode === 'month'}">Per month</button><button data-act="envmode" data-v="pay" aria-pressed="${mode === 'pay'}">Per paycheck</button></div><p class="lnone">${esc(shortDate(w.start))} – ${esc(shortDate(w.end))}</p>${cats.map(c => fEnvRow(c, w)).join('') || quiet('Add a category for each kind of everyday spending.')}`, '<button class="chip link" data-act="new" data-v="fcats">+ Category</button>')}
     ${MP('Every purchase', `<div class="seg fseg" role="group">${[['out', 'Purchases'], ['in', 'Money in'], ['both', 'Both']].map(([k, l]) => `<button data-act="everymode" data-v="${k}" aria-pressed="${(L.everyMode || 'out') === k}">${l}</button>`).join('')}</div>
       <label class="search fsearch">${svg(P.search)}<input type="search" data-everyq placeholder="Search, like “coffee”, “12.50” or “#holiday”" value="${esc(L.everyQ || '')}" aria-label="Search purchases"></label>
-      ${Object.keys(tags).length ? `<div class="lwrap">${Object.entries(tags).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([t]) => `<button class="chip" data-act="everytag" data-v="${esc(t)}" aria-pressed="${norm(L.everyQ) === t}">${esc(t)}</button>`).join('')}</div>` : ''}
+      ${Object.keys(tags).length ? `<div class="lwrap">${Object.entries(tags).sort((a, b) => b[1] - a[1]).slice(0, 8).sort((a, b) => azCmp(a[0], b[0])).map(([t]) => `<button class="chip" data-act="everytag" data-v="${esc(t)}" aria-pressed="${norm(L.everyQ) === t}">${esc(t)}</button>`).join('')}</div>` : ''}
       <div data-everylist>${fEveryList()}</div>`)}
   </div>`;
 }
@@ -4824,7 +4829,7 @@ function accRow(a) {
   return `<div class="lrow facc ${a.archived ? 'gone' : ''}"><span class="lmain"><b>${accIcon(a)} ${esc(a.name || 'Account')}</b><span>${a.type === 'Savings' ? 'Savings' : 'Everyday account'} · ${b == null ? 'no balance yet' : 'about ' + fSigned(b) + ' now'}</span></span><label class="settog"><input type="checkbox" data-accsafe="${a.id}" ${a.safe ? 'checked' : ''}> Counts</label><button class="btn small" data-act="acchist" data-id="${a.id}">History</button><button class="btn small" data-act="open" data-id="${a.id}">Edit</button></div>`;
 }
 function fSettings() {
-  const s = fset(), list = (kind, empty, add) => `${recs(kind).length ? `<div class="lrows">${sortList(recs(kind), KINDS[kind], KINDS[kind].sorts?.[0]?.[0] || 'name').map(row).join('')}</div>` : quiet(empty)}<button class="btn small mmore" data-act="new" data-v="${kind}">${add}</button>`;
+  const s = fset(), list = (kind, empty, add) => `${recs(kind).length ? `<div class="lrows">${sortList(recs(kind), KINDS[kind], defSort(KINDS[kind])).map(row).join('')}</div>` : quiet(empty)}<button class="btn small mmore" data-act="new" data-v="${kind}">${add}</button>`;
   const fld = (label, help, input) => `<div class="fset"><div><b>${label}</b>${help ? `<span>${help}</span>` : ''}</div>${input}</div>`;
   const accs = recs('faccounts').sort((a, b) => (a.archived ? 1 : 0) - (b.archived ? 1 : 0) || ['Spending', 'Savings', 'Card'].indexOf(a.type || 'Spending') - ['Spending', 'Savings', 'Card'].indexOf(b.type || 'Spending') || norm(a.name).localeCompare(norm(b.name)));
   return `<div class="fsetgrid">
