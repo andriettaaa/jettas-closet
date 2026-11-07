@@ -1213,6 +1213,7 @@ document.addEventListener('click', e => {
 const FACETS = [
   { k: 'colors', label: 'Colour', get: it => it.colors || [], az: true },
   { k: 'brand', label: 'Brand', get: it => one(it.brand) },
+  { k: 'model', label: 'Model', get: it => one(it.model) },
   { k: 'size', label: 'Size', get: it => one(it.size) },
   { k: 'sub', label: 'Type', get: it => one(it.sub) },
   { k: 'fits', label: 'Fit', get: it => it.fits || [], az: true },
@@ -2087,7 +2088,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v113';
+const APP_VERSION = 'hangtag-v114';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2427,6 +2428,8 @@ function renderOverview(host) {
 const TODO_CHECKS = [
   ['photo', 'Photo', it => !it.photo],
   ['sub', 'Type', it => !String(it.sub || '').trim()],
+  // shoes: the model (Vomero 5, Samba OG), so the colourways of one model stay together
+  ['model', 'Model', it => catKey(it.cat) === 'shoes' && !String(it.model || '').trim()],
   ['brand', 'Brand', it => !String(it.brand || '').trim()],
   ['size', 'Size', it => !String(it.size || '').trim() && !['bags', 'accessories'].includes(catKey(it.cat))],
   ['colors', 'Colour', it => !(it.colors || []).length],
@@ -2962,7 +2965,8 @@ function openItem(id) {
     $('#itemBody', sh).innerHTML = `<div class="detail">
       <div class="stage">${cur.photo ? pimg(cur.photo, cur.name) : PH}</div>
       <div style="display:grid;gap:14px;align-content:start;min-width:0">
-        <div><h2 style="font-size:24px">${esc(cur.name || 'Untitled piece')}</h2><span class="muted">${cur.brand ? fchip('brand', cur.brand) + ' · ' : ''}${cur.sub ? fchip('sub', cur.sub) : esc(cur.cat || '')}${inCloset(cur) || wish ? '' : ` · <b>${cur.status === 'sold' ? 'Sold' : 'Donated'}</b>`}</span></div>
+        <div><h2 style="font-size:24px">${esc(cur.name || 'Untitled piece')}</h2><span class="muted">${cur.brand ? fchip('brand', cur.brand) + ' · ' : ''}${cur.model ? fchip('model', cur.model) + ' · ' : ''}${cur.sub ? fchip('sub', cur.sub) : esc(cur.cat || '')}${inCloset(cur) || wish ? '' : ` · <b>${cur.status === 'sold' ? 'Sold' : 'Donated'}</b>`}</span></div>
+        ${(() => { if (!cur.model) return ''; const same = S.items.filter(i => i.id !== cur.id && i.model && norm(i.model) === norm(cur.model) && norm(i.brand) === norm(cur.brand) && !isInbox(i)); return same.length ? `<div class="samemodel"><span class="lbl">Same model, other colours (${same.length + 1} in total)</span><div class="samerow">${same.map(i => `<button class="sameit" data-item="${esc(i.id)}" title="${esc(i.name || '')}">${i.photo ? pimg(i.photo, '', 'loading="lazy"') : '<span></span>'}<small>${esc((i.colors || []).join(', ') || i.name || '')}</small></button>`).join('')}</div></div>` : ''; })()}
         <div class="tagrow">${tagrow}</div>
         ${priceLine ? `<p class="priceline">${priceLine}</p>` : ''}
         ${!wish && cur.origPrice > 0 ? `<div class="note">Original price ${eur(cur.origPrice)}${sv ? ` · you saved <b>${eur(sv)}</b> (${Math.round(sv / cur.origPrice * 100)}%)` : ''}</div>` : ''}
@@ -2996,6 +3000,7 @@ function openItem(id) {
   };
   draw(); S.sheetRefresh = draw;
   sh.addEventListener('click', async e => {
+    const sm = e.target.closest(".sameit[data-item]"); if (sm) { closeSheet(); return openItem(sm.dataset.item); }
     const og = e.target.closest('[data-goout]'); if (og) return openOutfit(og.dataset.goout);
     const gf = e.target.closest('[data-go]'); if (gf) return goFilter(view, gf.dataset.go, gf.dataset.v);
     const cp = e.target.closest('[data-copy]');
@@ -3065,6 +3070,7 @@ function openEditor(id, opts = {}) {
         <div class="field"><label for="f-cat">Category</label><select id="f-cat">${catOptions(it.cat)}</select></div>
         <div class="field"><label for="f-sub">Type</label><input id="f-sub" value="${esc(it.sub)}" placeholder="e.g. Jumper, wide-leg jeans" autocomplete="off">${sugRow('sub', [])}</div>
         <div class="field"><label for="f-brand">Brand</label><input id="f-brand" value="${esc(it.brand)}" autocomplete="off">${sugRow('brand', [])}</div>
+        <div class="field"><label for="f-model">Model / style</label><input id="f-model" value="${esc(it.model)}" placeholder="e.g. Vomero 5, Samba OG" autocomplete="off">${sugRow('model', [])}</div>
         <div class="field"><label for="f-size">Size</label><input id="f-size" value="${esc(it.size)}" placeholder="e.g. M, 38, 27/30" autocomplete="off">${sugRow('size', [])}</div>
         <div class="field"><label for="f-art">Article number</label><input id="f-art" value="${esc(it.articleNo)}" placeholder="from the label or shop page" autocomplete="off" autocapitalize="characters"></div>
         <div class="field"><label for="f-price">${wishMode ? 'Price now (€)' : 'Price paid (€)'}</label><input id="f-price" inputmode="decimal" value="${money2(it.price)}" placeholder="0,00"></div>
@@ -3110,6 +3116,8 @@ function openEditor(id, opts = {}) {
   // remembered values offered as taps under brand, type, size and shop, A to Z
   const known = {
     brand: () => allBrands().map(b => b.name),
+    // models you already have, from the brand you typed (all models when no brand yet)
+    model: () => { const b = norm($('#f-brand', sh).value); return [...new Set(S.items.filter(i => i.model && (!b || norm(i.brand) === b)).map(i => i.model))]; },
     sub: () => [...new Set([...(TYPES[catKey($('#f-cat', sh).value)] || []), ...valuesOf('sub')])], size: () => valuesOf('size'), shop: () => valuesOf('shop')
   };
   const drawSug = key => {
@@ -3119,6 +3127,7 @@ function openEditor(id, opts = {}) {
   };
   for (const key of Object.keys(known)) { drawSug(key); $(`#f-${key}`, sh).addEventListener('input', () => drawSug(key)); }
   $('#f-cat', sh).addEventListener('change', () => drawSug('sub'));
+  $('#f-brand', sh).addEventListener('input', () => drawSug('model'));
   sh.addEventListener('click', async e => {
     const sg = e.target.closest('[data-sug]'); if (sg) { $(`#f-${sg.dataset.sug}`, sh).value = sg.dataset.v; drawSug(sg.dataset.sug); return; }
     const c = e.target.closest('[data-color]'); if (c) { toggleIn(it.colors, c.dataset.color); c.setAttribute('aria-pressed', it.colors.includes(c.dataset.color)); colorNames(); }
@@ -3188,7 +3197,7 @@ function openEditor(id, opts = {}) {
     try {
       const status = asWish ? 'wishlist' : review || buying ? 'closet' : $('#f-status', sh).value;
       const doc = {
-        name, cat: $('#f-cat', sh).value, sub: $('#f-sub', sh).value.trim(), brand: $('#f-brand', sh).value.trim(),
+        name, cat: $('#f-cat', sh).value, sub: $('#f-sub', sh).value.trim(), brand: $('#f-brand', sh).value.trim(), model: $('#f-model', sh).value.trim(),
         size: $('#f-size', sh).value.trim(), articleNo: $('#f-art', sh).value.trim(), price: num('#f-price'), origPrice: num('#f-orig'),
         bought: $('#f-bought', sh)?.value ?? it.bought ?? '', pastWears: Math.max(0, parseInt($('#f-past', sh)?.value, 10) || 0),
         material: $('#f-material', sh).value.trim(), colors: it.colors, seasons: it.seasons, occasions: it.occasions,
