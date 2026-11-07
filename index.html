@@ -83,7 +83,7 @@
 .lookopts .fs { font-size: 18px; line-height: 1.1; }
 .lookopts small { color: var(--muted); font-size: 12px; }
 .setgroup { display: grid; gap: 6px; margin: 10px 0; }
-.quickacts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: -4px 0 14px; }
+.quickacts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: -4px 0 14px; }
 .quickacts .chip { justify-content: center; padding: 11px 12px; border-radius: 14px; font-size: 14px; white-space: normal; text-align: center; }
 .dparts { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 4px 4px 10px 12px; }
 .dashfoot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
@@ -625,7 +625,7 @@ const viewsAll = sec => byOrder(sec === 'closet' ? VIEWS : (SECTIONS.find(x => x
 const isSecSettings = v => /\/settings$/.test(String(v)) && SECTIONS.some(s => s.key === secOf(v) && !['overview', 'settings'].includes(s.key));
 const viewsShown = sec => { const h = NAV().views?.[sec]?.hidden || []; const vs = viewsAll(sec).filter(v => !h.includes(v[0])); return [...(vs.length ? vs : viewsAll(sec).slice(0, 1)), secSettings(sec)]; };
 // the area a page belongs to: the one whose tabs hold it (Plan and Body borrow pages from older areas), else its prefix
-const OLD_AREAS = { care: 'body', fit: 'body', wish: 'plan' };
+const OLD_AREAS = { care: 'plan', fit: 'plan', body: 'plan', wish: 'plan' };
 const secOf = v => { if (v === 'overview' || v === 'settings') return v; v = String(v); if (!v.includes('/')) return 'closet'; const own = SECTIONS.find(s => s.views?.some(x => x[0] === v)); if (own) return own.key; const pre = v.split('/')[0]; return SECTIONS.some(s => s.key === pre) ? pre : OLD_AREAS[pre] || pre; };
 const isLife = v => !!window.LIFE?.has(v);
 const okView = v => v === 'overview' || v === 'settings' || VIEWS.some(x => x[0] === v) || isLife(v) || isSecSettings(v);
@@ -1058,7 +1058,7 @@ function renderTabs() {
   $('#addBtn').hidden = sec === 'overview' || sec === 'settings' || isSecSettings(S.view);
   $('#addBtn .addlabel').textContent = sec === 'closet' ? 'Add piece' : sec === 'overview' ? 'Add' : window.LIFE.addLabel(S.view);
 }
-const MOVED = { 'inbox/review': 'wish/inbox', 'inbox/saved': 'care/saved', 'wish/saved': 'care/saved', 'care/today': 'body/today', 'fit/today': 'body/today', 'kitchen/quit': 'body/clean', 'care/settings': 'body/settings', 'fit/settings': 'body/settings', 'wish/settings': 'plan/settings', 'care/todo': 'body/todo', 'fit/todo': 'body/todo', 'wish/todo': 'plan/todo' };
+const MOVED = { 'inbox/review': 'wish/inbox', 'inbox/saved': 'care/saved', 'wish/saved': 'care/saved', 'care/today': 'body/today', 'fit/today': 'body/today', 'kitchen/quit': 'body/clean', 'care/settings': 'plan/settings', 'fit/settings': 'plan/settings', 'body/settings': 'plan/settings', 'wish/settings': 'plan/settings', 'care/todo': 'plan/todo', 'fit/todo': 'plan/todo', 'body/todo': 'plan/todo', 'wish/todo': 'plan/todo' };
 function go(v) {
   v = MOVED[v] || v; // pages that moved
   if (!okView(v)) v = 'overview';
@@ -2077,7 +2077,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v107';
+const APP_VERSION = 'hangtag-v110';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2267,7 +2267,7 @@ function renderSettings(host) {
    sends one after each Apple Pay payment. Each device turns them on for itself. */
 const NOTI = [
   ['bundle', 'Bundle into 4 a day', 'Morning (after you wake), midday, evening and bedtime. The times below then only pick what goes in.', ''],
-  ['bedtime', 'Bedtime', '30 minutes before bed, from your day in Plan › Settings: wind down and get ready for tomorrow', ''],
+  ['bedtime', 'Bedtime', '30 minutes before bed, from your day in Life › Settings: wind down and get ready for tomorrow', ''],
   ['morning', 'Morning overview', 'Outfit, supplements, morning routine, tasks and appointments', '07:30'],
   ['evening', 'Evening routine', 'Your evening steps, tonight’s skincare and evening supplements', '21:30'],
   ['bills', 'Bills tomorrow', 'Repeats that go out the next day', '18:00'],
@@ -2359,6 +2359,19 @@ function quickAction(k) {
   else if (k === 'inbox') go('wish/inbox');
   else if (k === 'outfit') { if (S.view !== 'overview') go('overview'); setTimeout(() => document.querySelector('.wxpick, [data-overday]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); }
 }
+// Today's cards in columns: in your order, each card under the shortest column, so short cards leave no empty space
+function packDash(el) {
+  if (!el) return;
+  const cards = [...el.querySelectorAll(':scope > .dtile, :scope > .dcol > .dtile')], w = el.clientWidth, n = Math.max(1, Math.floor((w + 16) / 316));
+  el.classList.toggle('packed', n > 1); el.dataset.n = n;
+  if (n < 2) { el.replaceChildren(...cards); return; }
+  el.style.setProperty('--n', n);
+  const cols = Array.from({ length: n }, () => { const c = document.createElement('div'); c.className = 'dcol'; return c; });
+  el.replaceChildren(...cols);
+  for (const c of cards) cols.reduce((a, b) => b.offsetHeight < a.offsetHeight ? b : a).appendChild(c);
+}
+let dashW = 0;
+window.addEventListener('resize', () => { const el = document.querySelector('.dash'); if (!el || Math.abs(el.clientWidth - dashW) < 40) return; dashW = el.clientWidth; const n = Math.max(1, Math.floor((dashW + 16) / 316)); if (String(n) !== el.dataset.n) packDash(el); });
 function renderOverview(host) {
   const t = new Date(), G = greeting(t);
   const hidden = dashHidden(), cards = dashCards().filter(s => !hidden.has(s.key));
@@ -2374,6 +2387,7 @@ function renderOverview(host) {
       return `<section class="panel dtile"><div class="dhead"><button class="dtitle" data-gosec="${s.key}">${icon(s.icon)}<h2>${esc(s.label)}</h2></button><button class="chip link" data-gosec="${s.key}">Open</button></div>${body}</section>`;
     }).join('')}</div>
     <div class="ltools dashfoot"><button class="btn small" data-dasharrange>Arrange Today</button>${window.LIFE ? '<button class="chip link" data-act="export">Back up all your lists</button>' : ''}</div>`;
+  packDash(host.querySelector('.dash'));
   if (!host.dataset.wired) {
     host.dataset.wired = '1';
     host.addEventListener('click', e => {

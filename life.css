@@ -139,6 +139,9 @@ button.lrow.lmain, .lrow > .lmain:only-child { padding-left: 12px; }
 
 /* ---------- overview ---------- */
 .dash { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; align-items: start; }
+/* packed: your order runs left to right, each card goes under the shortest column, so no empty space */
+.dash.packed { grid-template-columns: repeat(var(--n), minmax(0, 1fr)); }
+.dash .dcol { display: grid; gap: 16px; align-content: start; min-width: 0; }
 .dtile { display: grid; gap: 10px; align-content: start; }
 .dhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .dtitle { border: 0; background: none; padding: 0; display: inline-flex; align-items: center; gap: 8px; color: inherit; }
@@ -167,8 +170,8 @@ button.lrow.lmain, .lrow > .lmain:only-child { padding-left: 12px; }
 .mh { font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; font-weight: 600; margin: 0; }
 .mjump { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin: -6px 0 16px; scrollbar-width: none; }
 .mjump .chip { flex: none; }
-.mtop { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; align-items: start; }
-.mrow2 { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; align-items: start; }
+.mtop { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; align-items: stretch; }
+.mrow2 { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; align-items: stretch; }
 @media (max-width: 860px) { .mtop, .mrow2 { grid-template-columns: 1fr; } }
 .mpanel { margin-bottom: 16px; scroll-margin-top: 80px; }
 .mrow2 > .mpanel, .mtop > .mpanel { margin-bottom: 0; }
@@ -353,7 +356,7 @@ button.lrow.lmain, .lrow > .lmain:only-child { padding-left: 12px; }
 @media (max-width: 420px) { .hgrid { grid-template-columns: minmax(0, 1fr) repeat(7, 28px); gap: 4px; } .hcell { width: 28px; height: 28px; } }
 .hweek { margin-bottom: 12px; }
 /* finance: envelopes, every purchase, challenges, split my pay, settings */
-.fenvgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.fenvgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
 @media (max-width: 900px) { .fenvgrid { grid-template-columns: 1fr; } }
 .fseg { margin-bottom: 8px; }
 .fenv { padding: 12px 0; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
@@ -391,7 +394,8 @@ button.lrow.lmain, .lrow > .lmain:only-child { padding-left: 12px; }
 .fpayin { font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .fpayin input { width: 120px; text-align: right; }
 .fcomemain { flex: 1; border: 0; background: none; padding: 0; font: inherit; color: inherit; text-align: left; display: flex; flex-direction: column; min-width: 0; }
-.fsetgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 16px; align-items: start; }
+.fsetgrid { display: block; columns: 2 320px; column-gap: 16px; }
+.fsetgrid > * { break-inside: avoid; margin: 0 0 16px; width: 100%; }
 .fsetgrid > :nth-child(n+3) { grid-column: auto; }
 @media (max-width: 900px) { .fsetgrid { grid-template-columns: 1fr; } }
 .fset { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
@@ -585,9 +589,16 @@ header.top .brand { flex: none; white-space: nowrap; }
 .bigact b { font-size: 17px; }
 .bigact small { font-size: 13px; font-weight: 500; opacity: .85; }
 /* overviews on a wide screen (iPad landscape, Mac): blocks stack in two columns without empty gaps under short ones */
+/* every page: blocks stack in columns and close up under short ones; a wide block still spans the full width */
 @media (min-width: 861px) {
-  .panels:has(> .lpanel):not(:has(> .wide)) { display: block; columns: 2; column-gap: 16px; }
-  .panels:has(> .lpanel):not(:has(> .wide)) > * { break-inside: avoid; margin: 0 0 16px; width: 100%; }
+  .panels { display: block; columns: 2; column-gap: 16px; }
+  .panels > * { break-inside: avoid; margin: 0 0 16px; width: 100%; }
+  .panels > .wide, .panels > .secown { column-span: all; }
+  .setpanels { columns: 3 320px; }
+  /* overviews in your own order (Arrange) close up the same way */
+  .ovflow { display: block; columns: 2 420px; column-gap: 16px; }
+  .ovflow > * { break-inside: avoid; margin: 0 0 16px !important; width: 100%; }
+  .ovflow > .ovwide { column-span: all; }
 }
 .mfilter { margin-bottom: 4px; }
 .mgroup { display: grid; gap: 8px; margin-top: 18px; }

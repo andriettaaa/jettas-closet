@@ -1165,9 +1165,9 @@ function fitTile() {
 
 /* ---------- sections and their pages ---------- */
 const SECTIONS = [
-  { key: 'plan', label: 'Plan', icon: P.target, tile: planTile,
-    groups: { mind: ['Mind', P.pen], plans: ['Plans', P.star], wish: ['Wishlists', P.heart] },
-    views: [['today', 'My year', P.target], ['week', 'Week', P.calendar], ['care/habits', 'Routines', P.repeat], ['care/journal', 'Journal', P.pen, 'mind'], ['care/mindful', 'Mindfulness', P.moon, 'mind'], ['care/growth', 'Growth', P.target, 'mind'], ['care/vision', 'Vision', P.sparkle, 'mind'], ['care/discover', 'Self discovery', P.user, 'mind'], ['care/trips', 'Trips', P.plane, 'plans'], ['care/docs', 'Documents', P.doc, 'plans'], ['care/ideas', 'Ideas', P.star, 'plans'], ['care/saved', 'Saved links', P.link, 'plans'], ['care/gifts', 'Gifts', P.gift, 'plans'], ['wish/today', 'Overview', P.grid, 'wish'], ['wish/inbox', 'Inbox', P.inbox, 'wish'], ['wish/master', 'Master', P.heart, 'wish'], ['wish/orders', 'Orders', P.box, 'wish'], ['todo', 'To do', P.check]] },
+  { key: 'plan', label: 'Life', icon: P.target, tile: () => planTile() + bodyTile(),
+    groups: { mind: ['Mind', P.pen], body: ['Body', P.pulse], train: ['Train', P.run], beauty: ['Beauty', P.drop], plans: ['Plans', P.star], wish: ['Wishlists', P.heart] },
+    views: [['today', 'My year', P.target], ['week', 'Week', P.calendar], ['care/habits', 'Routines', P.repeat], ['care/journal', 'Journal', P.pen, 'mind'], ['care/mindful', 'Mindfulness', P.moon, 'mind'], ['care/growth', 'Growth', P.target, 'mind'], ['care/vision', 'Vision', P.sparkle, 'mind'], ['care/discover', 'Self discovery', P.user, 'mind'], ['body/today', 'Body', P.pulse, 'body'], ['body/clean', 'Clean', P.leaf, 'body'], ['fit/workouts', 'Workouts', P.run, 'train'], ['fit/library', 'Videos', P.star, 'train'], ['fit/plans', 'Plans', P.list, 'train'], ['fit/exercises', 'Exercises', P.dumbbell, 'train'], ['fit/fgoals', 'Goals', P.target, 'train'], ['fit/body', 'Body', P.scale, 'train'], ['fit/gear', 'Gear', P.box, 'train'], ['care/health', 'Sleep & health', P.moon, 'body'], ['care/cycle', 'Cycle', P.moon, 'body'], ['care/supplements', 'Supplements', P.pill, 'body'], ['care/beauty', 'Products', P.drop, 'beauty'], ['care/skin', 'Skincare', P.flask, 'beauty'], ['care/diary', 'Skin diary', P.camera, 'beauty'], ['care/bdeals', 'Deals', P.tag, 'beauty'], ['care/trips', 'Trips', P.plane, 'plans'], ['care/docs', 'Documents', P.doc, 'plans'], ['care/ideas', 'Ideas', P.star, 'plans'], ['care/saved', 'Saved links', P.link, 'plans'], ['care/gifts', 'Gifts', P.gift, 'plans'], ['wish/today', 'Overview', P.grid, 'wish'], ['wish/inbox', 'Inbox', P.inbox, 'wish'], ['wish/master', 'Master', P.heart, 'wish'], ['wish/orders', 'Orders', P.box, 'wish'], ['todo', 'To do', P.check]] },
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile,
     groups: { food: ['Food', P.book], shop: ['Shop', P.cart] },
     views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['pantry', 'Pantry', P.jar, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['shops', 'Shops', P.house, 'shop'], ['todo', 'To do', P.check]] },
@@ -1178,13 +1178,10 @@ const SECTIONS = [
   { key: 'social', label: 'Social', icon: P.phone, tile: socialTile,
     groups: { work: ['Work', P.check], create: ['Create', P.phone], grow: ['Grow', P.trend], library: ['Library', P.book] },
     views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check, 'work'], ['projects', 'Projects', P.list, 'work'], ['ideas', 'Ideas', P.star, 'create'], ['posts', 'Posts', P.phone, 'create'], ['plan', 'Planning', P.calendar, 'create'], ['feed', 'Feed', P.grid, 'create'], ['insights', 'Insights', P.trend, 'grow'], ['pinterest', 'Pinterest', P.heart, 'grow'], ['goals', 'Goals', P.target, 'grow'], ['collabs', 'Collabs', P.handshake, 'grow'], ['income', 'Income', P.coins, 'grow'], ['tips', 'Tips', P.star, 'library'], ['inspo', 'Inspiration', P.heart, 'library'], ['kit', 'Toolkit', P.list, 'library'], ['brand', 'Brand', P.user, 'library'], ['todo', 'To do', P.check]] },
-  { key: 'body', label: 'Body', icon: P.pulse, tile: bodyTile,
-    groups: { train: ['Train', P.run], health: ['Health', P.pulse], beauty: ['Beauty', P.drop] },
-    views: [['today', 'Overview', P.grid], ['clean', 'Clean', P.leaf], ['fit/workouts', 'Workouts', P.run, 'train'], ['fit/library', 'Videos', P.star, 'train'], ['fit/plans', 'Plans', P.list, 'train'], ['fit/exercises', 'Exercises', P.dumbbell, 'train'], ['fit/fgoals', 'Goals', P.target, 'train'], ['fit/body', 'Body', P.scale, 'train'], ['fit/gear', 'Gear', P.box, 'train'], ['care/health', 'Sleep & health', P.moon, 'health'], ['care/cycle', 'Cycle', P.moon, 'health'], ['care/supplements', 'Supplements', P.pill, 'health'], ['care/beauty', 'Products', P.drop, 'beauty'], ['care/skin', 'Skincare', P.flask, 'beauty'], ['care/diary', 'Skin diary', P.camera, 'beauty'], ['care/bdeals', 'Deals', P.tag, 'beauty'], ['todo', 'To do', P.check]] }
 ];
 // a view is "page" for this section, or a full key when it borrows a page from another area
 const vkey = (s, v) => v[0].includes('/') ? v[0] : s.key + '/' + v[0];
-const TODO_ADDS = { plan: ['ideas', 'gifts', 'documents', 'wishes', 'orders', 'vision', 'discover'], body: ['beauty', 'supplements', 'exercises', 'vworkouts', 'fitgear', 'plans'], kitchen: ['recipes', 'ingredients', 'gear'], care: ['beauty', 'supplements', 'ideas', 'gifts', 'courses', 'documents'], social: ['posts', 'cideas', 'stips', 'inspo', 'deals'], wish: ['wishes'], money: ['fbills', 'fdebts', 'fgoals', 'insurance'], home: ['plants', 'inventory', 'chores', 'moodboard'], fit: ['exercises', 'vworkouts', 'fitgear', 'plans'] };
+const TODO_ADDS = { plan: ['ideas', 'gifts', 'documents', 'wishes', 'orders', 'vision', 'discover', 'beauty', 'supplements', 'exercises', 'vworkouts', 'fitgear', 'plans'], body: ['beauty', 'supplements', 'exercises', 'vworkouts', 'fitgear', 'plans'], kitchen: ['recipes', 'ingredients', 'gear'], care: ['beauty', 'supplements', 'ideas', 'gifts', 'courses', 'documents'], social: ['posts', 'cideas', 'stips', 'inspo', 'deals'], wish: ['wishes'], money: ['fbills', 'fdebts', 'fgoals', 'insurance'], home: ['plants', 'inventory', 'chores', 'moodboard'], fit: ['exercises', 'vworkouts', 'fitgear', 'plans'] };
 const PAGES = {
   ...Object.fromEntries(['plan', 'body', 'kitchen', 'care', 'money', 'home', 'wish', 'social', 'fit'].map(sec => [sec + '/todo', { render: host => sectionTodo(host, sec), adds: TODO_ADDS[sec] }])),
   'kitchen/today': { render: kitchenToday, adds: ['meals', 'recipes', 'ingredients', 'mealprep'] },
@@ -3928,7 +3925,7 @@ async function renameOption(id, from, to) {
 }
 function optionLists() {
   return SECTIONS.map(sec => {
-    const kinds = [...new Set(Object.entries(PAGES).filter(([pg]) => pg.startsWith(sec.key + '/')).flatMap(([, c]) => [...(c.segs || []).map(x => x.kind), ...(c.adds || [])]))].filter(k => KINDS[k]);
+    const own = new Set(sec.views.map(v => vkey(sec, v))), kinds = [...new Set(Object.entries(PAGES).filter(([pg]) => pg.startsWith(sec.key + '/') || own.has(pg)).flatMap(([, c]) => [...(c.segs || []).map(x => x.kind), ...(c.adds || [])]))].filter(k => KINDS[k]);
     const items = kinds.flatMap(kind => KINDS[kind].fields.filter(f => f.type === 'select' || f.type === 'multi').map(f => ({ id: kind + '.' + f.k, label: `${KINDS[kind].many}: ${f.label}` })));
     return { group: sec.label, key: sec.key, items };
   }).filter(g => g.items.length);
@@ -5152,7 +5149,7 @@ function secOwn(sec) {
     return wrap(`<section class="panel setpanel"><h3>Your day</h3><p class="muted">The timeline on Today and your bedtime reminder follow this. Office days come from Kitchen › Settings.</p>
       ${tm('wakeOffice', 'Up on office days', 'Kantoordagen')}${tm('wakeHome', 'Up on home days', 'Thuiswerkdagen')}${tm('wakeWeekend', 'Up at the weekend', 'Uitslapen mag')}${tm('workStart', 'Work starts', '')}${tm('workEnd', 'Work ends', '')}
       <div class="fset"><div><b>Hours of sleep</b><span>Bedtime is this many hours before the next alarm.</span></div><input class="finp" type="number" min="6" max="10" step="0.5" data-dayset="sleep" value="${esc(c.sleep)}"></div>
-      <p class="muted">Tonight: bed at ${hm(bedOn(today()))}, up at ${hm(wakeOn(addDays(today(), 1)))}.</p></section>`) + secOwn('wish');
+      <p class="muted">Tonight: bed at ${hm(bedOn(today()))}, up at ${hm(wakeOn(addDays(today(), 1)))}.</p></section>`) + secOwn('wish') + secOwn('care') + secOwn('fit');
   }
   if (sec === 'body') return secOwn('care') + secOwn('fit');
   if (sec === 'care') {
@@ -5464,7 +5461,7 @@ function socialPinterest(host) {
   host.querySelectorAll('[data-pnrole]').forEach(el => el.addEventListener('change', () => pnSetRole(el.dataset.pnrole, el.value)));
 }
 
-/* Plan › My year */
+/* Life › My year */
 function planToday(host) {
   invMigrate();
   const cs = cleanStats(), wk = weekMon(), days = Array.from({ length: 7 }, (_, k) => addDays(wk, k)).filter(d => d <= today());
@@ -5494,7 +5491,7 @@ async function bufferGoal() {
   const f = Math.round(fixedMonthly()); if (!f) return C.toast('Zet eerst je vaste lasten bij Finance › Repeats');
   try { await create('fgoals', { name: 'Buffer', target: f, saved: 0, notes: '1 maand vaste lasten' }); C.toast(`Buffer-doel van ${eur(f)} staat in Finance`); } catch { C.toast('Opslaan lukte niet.'); }
 }
-/* Plan › Week: the Sunday reset */
+/* Life › Week: the Sunday reset */
 const RESET = [['prep', 'Mealprep voor de week', 'kitchen/deals'], ['laundry', 'Was (als de mand vol is)', ''], ['tidy', 'Opruimen en klusjes van de week', 'home/chores'], ['fridge', 'Koelkast en vriezer checken', 'kitchen/pantry'], ['outfits', 'Outfits voor de week plannen', 'calendar'], ['train', 'Trainingen inplannen (3)', 'fit/library'], ['content', 'Content voor de week plannen', 'social/plan'], ['away', 'Avonden dat je niet kookt', 'kitchen/deals'], ['money', 'Geld checken en overmaken', 'money/today']];
 function planWeek(host) {
   const wk = weekMon(), last = Array.from({ length: 7 }, (_, k) => addDays(wk, k - (new Date().getDay() === 0 ? 0 : 7)));
@@ -5518,7 +5515,7 @@ function planWeek(host) {
 document.addEventListener('change', e => { const c = e.target; if (C && c.matches?.('[data-ltkset]')) { const k = c.dataset.ltkset; C.savePrefs({ [k]: k === 'contentTax' ? num(c.value) : c.value.trim() }).then(() => C.toast('Saved')).catch(() => {}); } });
 document.addEventListener('change', e => { const c = e.target; if (!C || !c.matches?.('[data-reset]')) return; const [, wk, k] = c.dataset.reset.split(':'), key = 'reset:' + wk; let s = new Set(); try { s = new Set(JSON.parse(localStorage.getItem(key) || '[]')); } catch {} c.checked ? s.add(k) : s.delete(k); try { localStorage.setItem(key, JSON.stringify([...s])); } catch {} c.closest('.lrow')?.classList.toggle('gone', c.checked); });
 
-/* Body › Overview */
+/* Life › Body */
 const PHASES = d => d <= 5 ? ['Menstruatie', 'Rustig aan: wandelen, stretchen, yoga. IJzerrijk eten helpt (rood vlees, spinazie, ei).'] : d <= 13 ? ['Folliculaire fase', 'Meestal meer energie: goed moment voor zware krachttraining.'] : d <= 16 ? ['Ovulatie', 'Vaak je sterkste dagen. Let op je warming-up.'] : ['Luteale fase', 'Energie kan zakken. Matige training, extra tussendoortje, let op je huid.'];
 function bodyToday(host) {
   const t = today(), cs = cleanStats(), cy = cycleStats(), nl = nlOn(t) || {};
@@ -5558,7 +5555,7 @@ function planTile() { const it = intentNow(), l = top3(); return `${it?.text ? `
 function bodyTile() { const cs = cleanStats(); return (cs.start ? `<p class="dline"><span>Clean</span><b>${cs.before ? 'over ' + plural(cs.toGo, 'dag', 'dagen') : plural(cs.streak, 'dag', 'dagen') + ' · ' + eur(cs.saved)}</b></p>` : '') + careTile() + fitTile(); }
 
 /* ---------- what index.html calls ---------- */
-const sectionOf = view => SECTIONS.find(s => s.views.some(v => vkey(s, v) === view)) || SECTIONS.find(s => view.startsWith(s.key + '/')) || ({ care: SECTIONS.find(s => s.key === 'body'), fit: SECTIONS.find(s => s.key === 'body'), wish: SECTIONS.find(s => s.key === 'plan') })[view.split('/')[0]];
+const sectionOf = view => SECTIONS.find(s => s.views.some(v => vkey(s, v) === view)) || SECTIONS.find(s => view.startsWith(s.key + '/')) || ({ care: SECTIONS.find(s => s.key === 'plan'), fit: SECTIONS.find(s => s.key === 'plan'), body: SECTIONS.find(s => s.key === 'plan'), wish: SECTIONS.find(s => s.key === 'plan') })[view.split('/')[0]];
 return {
   sections: SECTIONS.map(s => ({ key: s.key, label: s.label, icon: G(s.icon), groups: Object.fromEntries(Object.entries(s.groups || {}).map(([g, [l, ic]]) => [g, [l, G(ic)]])), views: s.views.map(v => [vkey(s, v), v[1], G(v[2]), v[3] || '']) })),
   has: view => !!PAGES[view],
