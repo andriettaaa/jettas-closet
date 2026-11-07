@@ -253,11 +253,12 @@ dl.props dd .chip.link { margin-right: 6px; }
 .panel h3 { font-size: 17px; margin-bottom: 4px; }
 .panel .hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
 .panel.wide { grid-column: 1 / -1; }
-.bars { display: grid; gap: 8px; }
-.bar { display: grid; grid-template-columns: 110px minmax(0, 1fr) 70px; gap: 10px; align-items: center; font-size: 13.5px; }
+.bars { display: grid; grid-template-columns: minmax(70px, max-content) minmax(40px, 1fr) max-content; gap: 8px 12px; align-items: center; font-size: 13.5px; }
+.bar { display: contents; }
+.bar > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar .track { height: 10px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
 .bar .fill { height: 100%; background: var(--accent); border-radius: 999px; }
-.bar .val { font-family: var(--mono); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.bar .val { font-family: var(--mono); font-size: 12px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--muted); }
 .colorstrip { display: flex; height: 26px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); margin-bottom: 10px; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; border: 1px solid var(--line); vertical-align: -1px; }
@@ -1987,7 +1988,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v97';
+const APP_VERSION = 'hangtag-v98';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
