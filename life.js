@@ -3352,6 +3352,9 @@ const NUTRI_DB = [
   ['coconut milk|kokosmelk|coconut cream|kokosroom', 197, 2, 3, 21, 0, 2, 18, .03, { can: 400, d: 1 }],
   ['cooked rice|gekookte rijst|leftover rice|steamed rice|cooked brown rice|cooked white rice', 130, 2.7, 28, .3, .4, 0, .1, 0, { cup: 160 }],
   ['rice|rijst|basmati|jasmine rice|jasmijnrijst|brown rice|zilvervliesrijst|risotto rice|risottorijst|sushi rice|sushirijst|arborio', 360, 7, 79, .6, 1.3, .1, .2, 0, { cup: 185 }],
+  ['cooked pasta|gekookte pasta', 158, 5.8, 31, .9, 1.8, .6, .2, 0, { cup: 140 }],
+  ['cooked lentils|gekookte linzen|cooked quinoa|gekookte quinoa|cooked couscous', 120, 7, 21, .6, 5, 1, .1, 0, { cup: 190 }],
+  ['vegetables|groenten|mixed vegetables|frozen vegetables|roerbakgroente|wokgroente|diepvriesgroente|soepgroente|stir fry vegetables', 50, 2.5, 8, .4, 3, 3, 0, .05, { cup: 135 }],
   ['pasta|spaghetti|penne|macaroni|tagliatelle|fusilli|linguine|orzo|lasagne|rigatoni|farfalle|tortellini', 355, 12.5, 71, 1.5, 3, 3, .3, 0, { cup: 100 }],
   ['noodles|noedels|ramen|rice noodles|rijstnoedels|mie|udon|soba|glass noodles', 360, 8, 78, 1, 2, 1, .2, .3],
   ['bread|brood|toast|boterham|sourdough|zuurdesem|baguette|stokbrood|ciabatta|bun|buns|broodje|bolletje', 250, 9, 46, 3, 4, 4, .6, 1.1, { pc: 35 }],
@@ -3455,10 +3458,15 @@ const NUTRI_DB = [
 const NUTRI_RI = { kcal: 2000, p: 50, c: 260, f: 70, fib: 30, sug: 90, sat: 20, salt: 6 };
 const NUTRI_IDX = (() => { const out = []; NUTRI_DB.forEach((e, i) => e[0].split('|').forEach(k => out.push([deUml(k), i]))); return out.sort((a, b) => b[0].length - a[0].length); })();
 // the table row for an ingredient name: the longest name that fits wins ("peanut butter" over "butter")
+const COOKED = /\b(cooked|leftover|left over|day-old|day old|cold|gekookt|gekookte|restje|overgebleven)\b/;
 function nutriFind(name) {
   const n = ' ' + deUml(name).replace(/[^a-z0-9’' -]/g, ' ').replace(/\s+/g, ' ') + ' ';
   for (const [k, i] of NUTRI_IDX) {
-    if (k.length <= 3 ? n.includes(' ' + k + ' ') : n.includes(k)) return NUTRI_DB[i];
+    if (!(k.length <= 3 ? n.includes(' ' + k + ' ') : n.includes(k))) continue;
+    const e = NUTRI_DB[i];
+    // leftover or cooked rice, pasta and grains weigh far less per calorie than dry ones
+    if (COOKED.test(n)) { const c = e[0].startsWith('rice|') ? 'cooked rice' : e[0].startsWith('pasta|') ? 'cooked pasta' : /^(lentils|quinoa|couscous)/.test(e[0]) ? 'cooked lentils' : ''; if (c) return NUTRI_DB.find(x => x[0].split('|').includes(c)); }
+    return e;
   }
   return null;
 }
