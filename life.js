@@ -5585,6 +5585,8 @@ return {
   },
   start(bridge) { C = bridge; L.all = []; L.byId = {}; L.missing = false; L.status = cacheLoad() ? 'ok' : 'loading'; subscribe(); setTimeout(() => ttReturn(), 0); return load().catch(e => { console.error(e); if (L.status !== 'ok') L.status = 'offline'; C.render(); }); },
   refresh() { if (C?.uid()) load().catch(() => {}); },
+  reload: () => C?.uid() ? load().catch(() => {}) : null,
+  localChanged() { try { L.prepDone = JSON.parse(localStorage.getItem('prepDone') || '{}'); } catch {} },
   stop() { channel?.unsubscribe(); channel = null; },
   userName: () => (C && fset()?.name) || '',
   todayTop: () => { try { return todayTop(); } catch (e) { console.error(e); return ''; } },
