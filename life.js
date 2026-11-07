@@ -984,7 +984,7 @@ const KINDS = {
   },
   gifts: {
     one: 'gift', many: 'Gifts', facet: 'status', photo: 'photo',
-    fields: [F('name', 'Gift'), F('for', 'For'), F('occasion', 'Occasion', 'select', { options: ['Birthday', 'Christmas', 'Sinterklaas', 'Anniversary', "Mother's Day", "Father's Day", 'Graduation', 'Housewarming', 'Baby shower', 'Thank you'], half: 1 }),
+    fields: [F('name', 'Gift'), F('for', 'For'), F('date', 'Date (birthday or moment)', 'date', { half: 1 }), F('occasion', 'Occasion', 'select', { options: ['Birthday', 'Christmas', 'Sinterklaas', 'Anniversary', "Mother's Day", "Father's Day", 'Graduation', 'Housewarming', 'Baby shower', 'Thank you'], half: 1 }),
       F('status', 'Status', 'select', { options: GIFT_STATUS, half: 1 }), F('type', 'Type', 'select', { options: ['Physical', 'Experience', 'DIY', 'Subscription', 'Digital', 'Card'], half: 1 }),
       F('price', 'Price', 'money', { half: 1 }), F('shop', 'Where to buy', 'text', { half: 1 }), F('given', 'Given on', 'date', { half: 1 }),
       F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
@@ -1184,7 +1184,7 @@ const SECTIONS = [
     groups: { mind: ['Mind', P.pen], body: ['Body', P.pulse], plans: ['Plans', P.star], wish: ['Wishlists', P.heart] },
     // a third layer inside a group: Body › Health, Train, Beauty
     subs: { body: { health: ['Health', P.moon], train: ['Train', P.run], beauty: ['Beauty', P.drop] } },
-    views: [['overview', 'Overview', P.grid], ['week', 'Week', P.calendar],
+    views: [['overview', 'Overview', P.grid], ['week', 'Kalender', P.calendar],
       ['today', 'My year', P.target, 'mind'], ['care/habits', 'Routines', P.repeat, 'mind'], ['care/journal', 'Journal', P.pen, 'mind'], ['care/mindful', 'Mindfulness', P.moon, 'mind'], ['care/growth', 'Growth', P.target, 'mind'], ['care/vision', 'Vision', P.sparkle, 'mind'], ['care/discover', 'Self discovery', P.user, 'mind'],
       ['body/today', 'Overview', P.grid, 'body'],
       ['care/health', 'Sleep & health', P.moon, 'body', 'health'], ['care/cycle', 'Cycle', P.moon, 'body', 'health'], ['care/supplements', 'Supplements', P.pill, 'body', 'health'], ['body/clean', 'Clean', P.leaf, 'body', 'health'],
@@ -1219,7 +1219,7 @@ const PAGES = {
   'kitchen/shops': { title: 'Shops', segs: [{ kind: 'shops', label: 'Your shops' }] },
   'plan/overview': { render: lifeOverview, adds: ['journal', 'sleep', 'workouts', 'wishes', 'gifts'] },
   'plan/today': { render: planToday, adds: ['habits', 'routines', 'journal', 'lgoals', 'fgoals'] },
-  'plan/week': { render: planWeek, adds: ['journal'] },
+  'plan/week': { render: calPage, adds: ['appts', 'workouts', 'meals', 'posts', 'tasks', 'gifts', 'journal'] },
   'body/today': { render: bodyToday, adds: ['sleep', 'workouts', 'cleanlog', 'symptoms', 'cycles'] },
   'body/clean': { render: cleanPage, adds: ['cleanlog'] },
   'social/income': { render: socialIncome, adds: ['ltk', 'deals'] },
@@ -4331,6 +4331,12 @@ document.addEventListener('click', async e => {
     case 'new': openEditor(d.v, null); break;
     case 'quick': { const r = L.byId[d.id]; KINDS[r?.kind]?.quick?.(r)?.act(); break; }
     case 'go': C.go(d.v); break;
+    case 'calview': { const c = calLoad(); c.view = d.v; try { localStorage.setItem('calView', d.v); } catch {} C.render(); break; }
+    case 'calstep': { const c = calLoad(), n = +d.v; c.date = c.view === 'month' ? (() => { const x = fromISO(c.date); return iso(new Date(x.getFullYear(), x.getMonth() + n, 1)); })() : addDays(c.date, n * (c.view === 'week' ? 7 : c.view === 'agenda' ? 30 : 1)); C.render(); break; }
+    case 'calgo': { const c = calLoad(); c.date = d.v; if (!d.keep) c.view = 'day'; C.render(); break; }
+    case 'calcat': { const c = calLoad(); c.off.has(d.v) ? c.off.delete(d.v) : c.off.add(d.v); try { localStorage.setItem('calOff', JSON.stringify([...c.off])); } catch {} C.render(); break; }
+    case 'caladd': calAdd(d.v); break;
+    case 'calopenday': { const c = calLoad(); c.date = d.v; c.view = 'day'; C.go('plan/week'); break; }
     case 'seg': u.seg = d.v; u.facet = ''; C.render(); break;
     case 'facet': u.facet = u.facet === d.v ? '' : d.v; u.facet2 = ''; C.render(); break;
     case 'facet2': u.facet2 = u.facet2 === d.v ? '' : d.v; C.render(); break;
@@ -5385,6 +5391,7 @@ function todayTop() {
       <ol class="t3">${list.map(x => `<li><span><b>${esc(x.label)}</b><small>${esc(x.sub || '')}</small></span>${x.go ? `<button class="chip link" data-act="go" data-v="${x.go}">Open</button>` : ''}</li>`).join('') || '<li><span><b>Niets dringends</b><small>Kies zelf iets hieronder</small></span></li>'}</ol>
       <input class="finp" data-top3pin placeholder="Mijn eigen belangrijkste ding vandaag" value="${esc(pin)}" aria-label="Eigen top 1"></section>
     ${timelineHTML()}
+    ${calStrip()}
   </div>`;
 }
 
@@ -5501,6 +5508,137 @@ function socialPinterest(host) {
   </div>`;
   host.querySelectorAll('[data-pnrole]').forEach(el => el.addEventListener('change', () => pnSetRole(el.dataset.pnrole, el.value)));
 }
+
+/* ---------- Life › Kalender: everything in the app on one calendar ----------
+   Each source turns its records into events { id, cat, date, time, title, sub, imp, done, toggle, move, open, go }.
+   Month, week, day (with your day rhythm) and agenda; filter per area; tick off, move (drag on a computer, Move on a phone)
+   and add straight onto a day. The week review sits under it. */
+const CAL_CATS = [['life', 'Life'], ['body', 'Body'], ['kitchen', 'Kitchen'], ['money', 'Finance'], ['social', 'Social'], ['home', 'Home'], ['closet', 'Closet'], ['orders', 'Bestellingen']];
+const CAL_MS = [1, 3, 7, 14, 30, 60, 90, 182, 365];
+const NL_WD = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
+const calLoad = () => { const c = L.cal ||= { view: 'month', date: today() }; if (!c.off) { try { c.off = new Set(JSON.parse(localStorage.getItem('calOff') || '[]')); } catch { c.off = new Set(); } try { c.view = localStorage.getItem('calView') || c.view; } catch {} } return c; };
+const inR = (d, a, b) => d && d >= a && d <= b;
+const hmToMin = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
+function calEvents(from, to) {
+  const ev = [], add = e => ev.push(e), t = today();
+  const sv = (r, patch) => save(r, patch);
+  // Life
+  for (const a of recs('appts')) if (inR(a.date, from, to)) add({ id: 'appt:' + a.id, cat: 'life', date: a.date, time: a.time, title: a.what || a.type || 'Afspraak', sub: [a.type, a.where || a.location].filter(Boolean).join(' · '), imp: true, done: !!a.done, toggle: () => sv(a, { done: !a.done }), move: d => sv(a, { date: d }), open: a.id });
+  for (const tr of tripList()) { const end = tripEnd(tr); for (let d = tr.start, i = 0; d <= end && i < 60; d = addDays(d, 1), i++) if (inR(d, from, to)) add({ id: 'trip:' + tr.id + ':' + d, cat: 'life', date: d, title: (d === tr.start ? 'Vertrek: ' : d === end ? 'Terug: ' : '') + tripName(tr), imp: d === tr.start, go: 'care/trips' }); }
+  for (const g of recs('lgoals')) if (inR(g.due, from, to) && g.status !== 'Completed') add({ id: 'goal:' + g.id, cat: 'life', date: g.due, title: 'Deadline: ' + (g.name || 'doel'), imp: true, open: g.id, move: d => sv(g, { due: d }) });
+  for (const g of recs('gifts')) if (inR(g.date, from, to)) add({ id: 'gift:' + g.id, cat: 'life', date: g.date, title: `${g.occasion || 'Cadeau'}${g.for ? ': ' + g.for : ''}`, sub: g.name, imp: true, done: g.status === 'Given', toggle: () => sv(g, g.status === 'Given' ? { status: 'Bought' } : { status: 'Given', given: g.date }), open: g.id, move: d => sv(g, { date: d }) });
+  for (const x of recs('documents')) if (inR(x.expires, from, to)) add({ id: 'doc:' + x.id, cat: 'life', date: x.expires, title: 'Verloopt: ' + (x.name || 'document'), imp: true, open: x.id });
+  for (const w of recs('wishes')) if (inR(w.planBuy, from, to) && w.status !== 'Bought') add({ id: 'wish:' + w.id, cat: 'life', date: w.planBuy, title: 'Kopen: ' + (w.name || 'wens'), sub: eur(num(w.price)), open: w.id, move: d => sv(w, { planBuy: d }) });
+  for (const p of recs('projects')) if (inR(p.end, from, to)) add({ id: 'proj:' + p.id, cat: 'social', date: p.end, title: 'Deadline: ' + (p.name || 'project'), imp: true, open: p.id, move: d => sv(p, { end: d }) });
+  const cs = cleanStats(); if (cs.start) for (const n of CAL_MS) { const d = addDays(cs.start, n - 1); if (inR(d, from, to)) add({ id: 'clean:' + n, cat: 'body', date: d, title: `Clean: ${n === 1 ? 'dag 1' : n < 30 ? n + ' dagen' : n < 365 ? Math.round(n / 30) + ' maanden' : '1 jaar'}`, imp: true, go: 'body/clean' }); }
+  // Body
+  for (const w of recs('workouts')) if (inR(w.date, from, to) && !w.skipped) add({ id: 'wo:' + w.id, cat: 'body', date: w.date, title: w.name || w.type || 'Workout', done: !!w.done, toggle: () => sv(w, { done: !w.done }), move: d => sv(w, { date: d }), open: w.id });
+  for (const g of recs('fitgoals')) if (inR(g.due, from, to)) add({ id: 'fg:' + g.id, cat: 'body', date: g.due, title: 'Doel: ' + (g.name || 'fitness'), imp: true, open: g.id });
+  const cy = cycleStats(); if (cy.next && inR(cy.next, from, to)) add({ id: 'cycle', cat: 'body', date: cy.next, title: 'Menstruatie verwacht', sub: cy.guessed ? 'schatting' : `cyclus ${cy.avg} dagen`, go: 'care/cycle' });
+  for (const c of recs('cycles')) if (inR(c.start, from, to)) add({ id: 'cyc:' + c.id, cat: 'body', date: c.start, title: 'Menstruatie', open: c.id });
+  // Kitchen
+  for (const m of recs('meals')) if (inR(m.date, from, to)) add({ id: 'meal:' + m.id, cat: 'kitchen', date: m.date, title: `${({ Breakfast: 'Ontbijt', Lunch: 'Lunch', Dinner: 'Diner', Snack: 'Snack' })[m.slot] || m.slot || 'Maaltijd'}: ${m.away ? 'uit eten' : relName(m.recipe) || m.what || ''}`, move: d => sv(m, { date: d }), open: m.id });
+  for (const m of recs('mealprep')) if (inR(m.prepDay, from, to)) add({ id: 'prep:' + m.id, cat: 'kitchen', date: m.prepDay, title: 'Meal prep: ' + (titleOf(m) || ''), move: d => sv(m, { prepDay: d }), open: m.id });
+  // Finance
+  try { for (const o of fOccs(from, to)) add({ id: 'bill:' + o.key, cat: 'money', date: o.date, title: `${o.bill.name || 'Rekening'} ${eur(o.amount)}`, sub: o.type, imp: o.amount >= 50 || o.type === 'Bill', done: o.paid, go: 'money/repeats' }); } catch {}
+  const pd = recs('fset')[0]?.payday; if (inR(pd, from, to)) add({ id: 'pay', cat: 'money', date: pd, title: 'Salaris', imp: true, go: 'money/today' });
+  for (const i of recs('insurance')) if (inR(i.renews, from, to) && i.status !== 'Stopped') add({ id: 'ins:' + i.id, cat: 'money', date: i.renews, title: 'Verlengt: ' + (i.name || 'verzekering'), imp: true, open: i.id });
+  for (const b of recs('fbills')) if (inR(b.trialEnds, from, to)) add({ id: 'trial:' + b.id, cat: 'money', date: b.trialEnds, title: 'Proefperiode stopt: ' + (b.name || ''), imp: true, open: b.id });
+  for (const g of recs('fgoals')) if (inR(g.by, from, to)) add({ id: 'fgoal:' + g.id, cat: 'money', date: g.by, title: 'Spaardoel: ' + (g.name || ''), imp: true, open: g.id });
+  // Social
+  try { for (const x of postEvents(from, to)) { const p = x.p, k = x.k; add({ id: 'post:' + p.id + ':' + k + ':' + x.label, cat: 'social', date: x.d, time: k === 'date' ? p.time : '', title: `${x.label}${k === 'collab' ? ' ' : ': '}${p.name || p.brand || ''}`, imp: k === 'collab' || k === 'date', done: x.done, open: p.id, move: k !== 'collab' ? d => sv(p, { [k]: d }) : null }); } } catch {}
+  for (const k of recs('tasks')) if (inR(k.date, from, to) && k.status !== 'Dropped') add({ id: 'task:' + k.id, cat: 'social', date: k.date, title: k.name || 'Taak', done: k.status === 'Done', toggle: () => sv(k, { status: k.status === 'Done' ? 'To do' : 'Done' }), move: d => sv(k, { date: d }), open: k.id });
+  // Home
+  for (const c of recs('chores')) { const d = choreDue(c); if (inR(d, from, to)) add({ id: 'chore:' + c.id, cat: 'home', date: d, title: c.name || 'Klusje', done: false, toggle: () => sv(c, { last: t }), move: nd => sv(c, { last: addDays(nd, -(FREQ[c.freq] || 7)) }), open: c.id }); }
+  for (const p of recs('plants')) { const d = plantDue(p); if (d && inR(d < t ? t : d, from, to)) add({ id: 'plant:' + p.id, cat: 'home', date: d < t ? t : d, title: 'Water: ' + (p.name || 'plant'), toggle: () => sv(p, { last: t }), open: p.id }); }
+  for (const r of recs('repairs')) if (inR(r.date, from, to)) add({ id: 'rep:' + r.id, cat: 'home', date: r.date, title: r.name || 'Reparatie', open: r.id, move: d => sv(r, { date: d }) });
+  // Closet
+  for (const x of C.closetDays?.() || []) if (inR(x.date, from, to)) add({ id: 'look:' + x.date, cat: 'closet', date: x.date, title: 'Outfit: ' + (x.name || 'gepland'), go: 'calendar', move: d => C.closetMove?.(x.date, d) });
+  // Orders
+  for (const o of recs('orders')) {
+    if (inR(o.expected, from, to) && ['Ordered', 'Shipped'].includes(o.status || 'Ordered')) add({ id: 'ord:' + o.id, cat: 'orders', date: o.expected, title: 'Komt binnen: ' + (o.name || 'pakket'), sub: o.shop, toggle: () => sv(o, { status: 'Delivered', received: t, returnBy: o.returnBy || addDays(t, 14) }), open: o.id });
+    if (inR(o.returnBy, from, to) && o.status === 'Delivered') add({ id: 'ret:' + o.id, cat: 'orders', date: o.returnBy, title: 'Laatste retourdag: ' + (o.name || ''), imp: true, toggle: () => sv(o, { status: 'Kept' }), open: o.id });
+  }
+  const off = calLoad().off;
+  return ev.filter(e => !off.has(e.cat)).sort((a, b) => a.date.localeCompare(b.date) || (hmToMin(a.time) ?? -1) - (hmToMin(b.time) ?? -1) || (b.imp ? 1 : 0) - (a.imp ? 1 : 0));
+}
+const calCatName = k => CAL_CATS.find(c => c[0] === k)?.[1] || k;
+const calItem = (e, cls = '') => `<button class="calit cal-${e.cat} ${e.imp ? 'imp' : ''} ${e.done ? 'done' : ''} ${cls}" data-cal="${esc(e.id)}" ${e.move ? 'draggable="true"' : ''} title="${esc(calCatName(e.cat) + ': ' + e.title)}">${e.time ? `<i>${esc(e.time.slice(0, 5))}</i>` : ''}${e.imp ? '<span class="calstar" aria-hidden="true">★</span>' : ''}<span>${esc(e.title)}</span></button>`;
+const calDayLabel = d => { const x = fromISO(d); return `${NL_WD[(x.getDay() + 6) % 7]} ${x.getDate()} ${x.toLocaleDateString('nl-NL', { month: 'short' })}`; };
+function calRange(c) {
+  const d = fromISO(c.date);
+  if (c.view === 'month') { const first = iso(new Date(d.getFullYear(), d.getMonth(), 1)), start = weekMon(first); return [start, addDays(start, 41)]; }
+  if (c.view === 'week') { const s = weekMon(c.date); return [s, addDays(s, 6)]; }
+  if (c.view === 'day') return [c.date, c.date];
+  return [c.date, addDays(c.date, 30)];
+}
+function calPage(host) {
+  const c = calLoad(), [from, to] = calRange(c), ev = calEvents(from, to), t = today();
+  L.calMap = Object.fromEntries(ev.map(e => [e.id, e]));
+  const byDay = {}; for (const e of ev) (byDay[e.date] ||= []).push(e);
+  const dt = fromISO(c.date), title = c.view === 'month' ? dt.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' }) : c.view === 'week' ? `Week van ${calDayLabel(from)}` : c.view === 'day' ? dt.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Komende 30 dagen';
+  const addBtn = d => `<button class="caladd" data-act="caladd" data-v="${d}" aria-label="Iets toevoegen op ${esc(calDayLabel(d))}">+</button>`;
+  let body = '';
+  if (c.view === 'month') {
+    const mo = dt.getMonth();
+    body = `<div class="calmonth"><div class="calwd">${NL_WD.map(w => `<span>${w}</span>`).join('')}</div><div class="calgrid">${Array.from({ length: 42 }, (_, i) => addDays(from, i)).map(d => { const l = byDay[d] || [], x = fromISO(d); return `<div class="calday ${x.getMonth() !== mo ? 'out' : ''} ${d === t ? 'now' : ''}" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${x.getDate()}</button>${addBtn(d)}</div>${l.slice(0, 4).map(e => calItem(e)).join('')}${l.length > 4 ? `<button class="calmore" data-act="calgo" data-v="${d}">+${l.length - 4} meer</button>` : ''}</div>`; }).join('')}</div></div>`;
+  } else if (c.view === 'week') {
+    body = `<div class="calweek">${Array.from({ length: 7 }, (_, i) => addDays(from, i)).map(d => `<div class="calcol ${d === t ? 'now' : ''}" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${esc(calDayLabel(d))}</button>${addBtn(d)}</div>${(byDay[d] || []).map(e => calItem(e)).join('') || '<p class="lnone">Niets gepland</p>'}</div>`).join('')}</div>`;
+  } else if (c.view === 'day') {
+    const l = byDay[c.date] || [], allday = l.filter(e => hmToMin(e.time) == null), timed = l.filter(e => hmToMin(e.time) != null);
+    let rhythm = []; try { rhythm = dayItems(c.date).map(x => ({ min: x.min, label: x.label, sub: x.sub })); } catch {}
+    const rows = [...rhythm.map(r => ({ min: r.min, html: `<div class="calrow rh"><i>${hm(r.min)}</i><span><b>${esc(r.label)}</b>${r.sub ? `<small>${esc(r.sub)}</small>` : ''}</span></div>` })), ...timed.map(e => ({ min: hmToMin(e.time), html: `<div class="calrow"><i>${esc(e.time.slice(0, 5))}</i>${calItem(e, 'wide')}</div>` }))].sort((a, b) => a.min - b.min);
+    body = `<div class="calone" data-calday="${c.date}"><div class="caldh"><b>Hele dag</b>${addBtn(c.date)}</div>${allday.map(e => calItem(e, 'wide')).join('') || '<p class="lnone">Niets voor de hele dag.</p>'}<div class="caldh"><b>Je dag</b></div><div class="caltimes">${rows.map(r => r.html).join('')}</div></div>`;
+  } else {
+    const days = Object.keys(byDay).sort();
+    body = `<div class="calagenda">${days.map(d => `<div class="calag" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${esc(calDayLabel(d))}${d === t ? ' · vandaag' : ''}</button>${addBtn(d)}</div>${byDay[d].map(e => calItem(e, 'wide')).join('')}</div>`).join('') || quiet('Niets gepland in de komende 30 dagen.')}</div>`;
+  }
+  host.innerHTML = `<div class="viewhead"><h1>Kalender</h1><span class="sub">${esc(title)}</span></div>
+  <div class="caltools"><div class="seg" role="group" aria-label="Weergave">${[['month', 'Maand'], ['week', 'Week'], ['day', 'Dag'], ['agenda', 'Agenda']].map(([k, l]) => `<button data-act="calview" data-v="${k}" aria-pressed="${c.view === k}">${l}</button>`).join('')}</div>
+    <div class="calnav"><button class="iconbtn" data-act="calstep" data-v="-1" aria-label="Vorige">‹</button><button class="btn small" data-act="calgo" data-v="${t}" data-keep="1">Vandaag</button><button class="iconbtn" data-act="calstep" data-v="1" aria-label="Volgende">›</button></div></div>
+  <div class="calcats" role="group" aria-label="Onderdelen">${CAL_CATS.map(([k, l]) => `<button class="chip calcat cal-${k}" data-act="calcat" data-v="${k}" aria-pressed="${!c.off.has(k)}"><span class="caldot"></span>${l}</button>`).join('')}</div>
+  ${body}
+  <p class="lnone calhint">Tik op iets om het te openen, af te vinken of te verplaatsen. Op een computer kun je het ook naar een andere dag slepen. ★ is belangrijk.</p>
+  <div data-calweek></div>`;
+  // the week review (terugblik, focus, zondag reset) lives under the calendar
+  const wk = host.querySelector('[data-calweek]');
+  if (wk) { try { planWeek(wk); wk.querySelector('.viewhead')?.remove(); const h = document.createElement('h2'); h.className = 'calwh'; h.textContent = 'Deze week'; wk.prepend(h); } catch {} }
+}
+function calSheet(id) {
+  const e = L.calMap?.[id]; if (!e) return;
+  const sh = C.sheet({ title: e.title, body: `<p class="lnone"><span class="caldot cal-${e.cat}"></span> ${esc(calCatName(e.cat))} · ${esc(calDayLabel(e.date))}${e.time ? ' · ' + esc(e.time.slice(0, 5)) : ''}${e.sub ? ' · ' + esc(e.sub) : ''}</p>
+    <div class="lbar">${e.open || e.go ? '<button class="btn" data-calopen>Open</button>' : ''}${e.toggle ? `<button class="btn ${e.done ? '' : 'primary'}" data-caldone>${e.done ? 'Toch niet gedaan' : 'Afvinken'}</button>` : ''}</div>
+    ${e.move ? `<label class="lfield"><span>Verplaats naar</span><input class="finp" type="date" data-calto value="${e.date}"></label><div class="lbar"><button class="btn small" data-calmove>Verplaatsen</button></div>` : ''}` });
+  sh.addEventListener('click', async ev => {
+    if (ev.target.closest('[data-calopen]')) { C.closeSheet(); if (e.open) openRecord(e.open); else C.go(e.go); }
+    if (ev.target.closest('[data-caldone]')) { C.closeSheet(); try { await e.toggle(); } catch (err) { failed(err); } C.render(); }
+    if (ev.target.closest('[data-calmove]')) { const d = sh.querySelector('[data-calto]').value; if (!d || d === e.date) return; C.closeSheet(); calMove(e, d); }
+  });
+}
+async function calMove(e, d) {
+  if (!e?.move) return;
+  try { await e.move(d); C.toast(`Verplaatst naar ${calDayLabel(d)}`); } catch (err) { failed(err); }
+  C.render();
+}
+const CAL_ADD = [['appts', 'Afspraak', d => ({ date: d })], ['workouts', 'Workout', d => ({ date: d })], ['meals', 'Maaltijd', d => ({ date: d, slot: 'Dinner' })], ['mealprep', 'Meal prep', d => ({ prepDay: d })], ['posts', 'Post', d => ({ date: d, stage: 'Planned' })], ['tasks', 'Taak', d => ({ date: d })], ['gifts', 'Verjaardag of cadeau', d => ({ date: d, occasion: 'Birthday' })], ['repairs', 'Reparatie of klus', d => ({ date: d })]];
+function calAdd(d) {
+  const sh = C.sheet({ title: 'Toevoegen op ' + calDayLabel(d), body: `<div class="calnew">${CAL_ADD.map(([k, l]) => `<button class="btn" data-caln="${k}">${esc(l)}</button>`).join('')}<button class="btn" data-calout>Outfit plannen</button></div>` });
+  sh.addEventListener('click', ev => {
+    const b = ev.target.closest('[data-caln]'); if (b) { const x = CAL_ADD.find(a => a[0] === b.dataset.caln); C.closeSheet(); openEditor(x[0], null, x[2](d)); }
+    if (ev.target.closest('[data-calout]')) { C.closeSheet(); C.go('calendar'); }
+  });
+}
+// a week strip for Today: dots per area, the first important thing, tap to open that day
+function calStrip() {
+  const t = today(), to = addDays(t, 6); let ev = []; try { ev = calEvents(t, to); } catch { return ''; }
+  const byDay = {}; for (const e of ev) (byDay[e.date] ||= []).push(e);
+  return `<section class="panel calstrip"><div class="lph3"><h3>Komende week</h3><button class="chip link" data-act="go" data-v="plan/week">Kalender</button></div><div class="calsd">${Array.from({ length: 7 }, (_, i) => addDays(t, i)).map(d => { const l = byDay[d] || [], cats = [...new Set(l.map(e => e.cat))], top = l.find(e => e.imp) || l[0]; return `<button class="calsday ${d === t ? 'now' : ''}" data-act="calopenday" data-v="${d}"><small>${NL_WD[(fromISO(d).getDay() + 6) % 7]}</small><b>${fromISO(d).getDate()}</b><span class="caldots">${cats.slice(0, 5).map(k => `<i class="caldot cal-${k}"></i>`).join('')}</span><em>${top ? esc(top.title) : ''}</em></button>`; }).join('')}</div></section>`;
+}
+document.addEventListener('click', e => { const b = e.target.closest?.('[data-cal]'); if (!b || !C || b.closest('.sheet')) return; calSheet(b.dataset.cal); });
+document.addEventListener('dragstart', e => { const b = e.target.closest?.('[data-cal][draggable="true"]'); if (!b) return; e.dataTransfer.setData('text/x-cal', b.dataset.cal); e.dataTransfer.effectAllowed = 'move'; });
+document.addEventListener('dragover', e => { const d = e.target.closest?.('[data-calday]'); if (d && [...(e.dataTransfer?.types || [])].includes('text/x-cal')) { e.preventDefault(); d.classList.add('drop'); } });
+document.addEventListener('dragleave', e => { e.target.closest?.('[data-calday]')?.classList.remove('drop'); });
+document.addEventListener('drop', e => { const d = e.target.closest?.('[data-calday]'); if (!d) return; const id = e.dataTransfer.getData('text/x-cal'); if (!id) return; e.preventDefault(); d.classList.remove('drop'); const ev = L.calMap?.[id]; if (ev && ev.date !== d.dataset.calday) calMove(ev, d.dataset.calday); });
 
 /* Life › Overview: one look at Mind, Body, Plans and Wishlists (the analyses come per group) */
 function lifeOverview(host) {
