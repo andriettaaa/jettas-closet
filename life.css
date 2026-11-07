@@ -1023,3 +1023,5 @@ img.nophoto { background: var(--line); }
 .tdbar .tdin { flex: 1 1 160px; width: auto; }
 @media (max-width: 760px) { .tdbar { bottom: 84px; } .tdone { grid-template-columns: minmax(0, 1fr); } .tdonep { aspect-ratio: 4 / 3; } }
 .tdonep:has(> span) { aspect-ratio: auto; min-height: 72px; }
+.lvtable .ltname { min-width: 140px; }
+.lvtable .ltname .tdmain b { white-space: normal; }

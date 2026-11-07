@@ -1314,7 +1314,7 @@ async function load() {
 function apply(id, kind, data) {
   const i = L.all.findIndex(r => r.id === id);
   if (data) { const v = { ...data, id, kind }; i >= 0 ? (L.all[i] = v) : L.all.push(v); } else if (i >= 0) L.all.splice(i, 1);
-  index(); cacheSave(); C.render();
+  index(); cacheSave(); if (!L.quiet) C.render();
 }
 // Changes show at once and are rolled back if Supabase says no
 // a sort rule fills in the category (and a cleaner name) of a new purchase that has none
@@ -1386,7 +1386,7 @@ function subscribe() {
   channel?.unsubscribe();
   channel = C.sb.channel('life-' + C.uid()).on('postgres_changes', { event: '*', schema: 'public', table: 'records' }, p => {
     if (p.eventType === 'DELETE') { if (p.old?.id && L.byId[p.old.id]) apply(p.old.id, L.byId[p.old.id].kind, null); }
-    else if (p.new?.id) apply(p.new.id, p.new.kind, p.new.data);
+    else if (p.new?.id) { const cur = L.byId[p.new.id]; if (cur && JSON.stringify(dataOf(cur)) === JSON.stringify(p.new.data)) return; apply(p.new.id, p.new.kind, p.new.data); }
   }).subscribe();
 }
 
@@ -1422,9 +1422,9 @@ const hasPhotos = K => K.fields.some(f => f.type === 'photo');
 const photoOf = r => hasPhotos(KINDS[r.kind]) ? r.photo : '';
 // products and things you own or want always show as tiles, like the closet
 const PRODUCTS = new Set(['offers', 'gear', 'beauty', 'supplements', 'inventory', 'fitgear', 'wishes', 'ingredients', 'fwait']);
-const viewMode = K => { try { const v = localStorage.getItem('lview2:' + K.kind); if (v === 'rows' || v === 'cards') return v; } catch {} return 'cards'; };  // every list opens as tiles; the switch remembers a list per kind
+const viewMode = K => { try { const v = localStorage.getItem('lview2:' + K.kind); if (v === 'rows' || v === 'cards' || v === 'table') return v; } catch {} return 'cards'; };  // every list opens as tiles; the switch remembers a list per kind
 const setViewMode = (K, v) => { try { localStorage.setItem('lview2:' + K.kind, v); } catch {} };
-const viewSwitch = K => `<div class="seg lviews" role="group" aria-label="Show as">${[['cards', 'Tiles', P.grid], ['rows', 'List', P.list]].map(([v, l, ic]) => `<button data-act="lview" data-v="${v}" aria-pressed="${viewMode(K) === v}" aria-label="${l}" title="${l}">${svg(ic)}</button>`).join('')}</div>`;
+const viewSwitch = K => `<div class="seg lviews" role="group" aria-label="Show as">${[['cards', 'Tiles', P.grid], ['rows', 'List', P.list], ['table', 'Table', P.doc]].map(([v, l, ic]) => `<button data-act="lview" data-v="${v}" aria-pressed="${viewMode(K) === v}" aria-label="${l}" title="${l}">${svg(ic)}</button>`).join('')}</div>`;
 const tick = (label, on, attrs) => `<button class="lquick ${on ? 'on' : ''}" ${attrs} aria-pressed="${on}">${on ? svg(P.check) : ''}${esc(label)}</button>`;
 /* ---------- stock counters: how many pieces or how much is left, with + and − ---------- */
 const COUNTED = new Set(['ingredients', 'beauty', 'supplements']);
@@ -1469,6 +1469,55 @@ const listHTML = (list, K) => !list.length ? '' : viewMode(K) === 'cards' ? `<di
 const panel = (title, body, more) => `<section class="panel lpanel"><div class="lph3"><h3>${esc(title)}</h3>${more ? `<button class="chip link" data-act="go" data-v="${more[0]}">${esc(more[1])}</button>` : ''}</div>${body}</section>`;
 const quiet = t => `<p class="lnone">${esc(t)}</p>`;
 
+/* ---------- any list: group by a field, a table to fill in, and suggestions from similar records ---------- */
+const GROUP_KEYS = ['brand', 'shop', 'store', 'room', 'type', 'category', 'for', 'city', 'country', 'company', 'location', 'area', 'cuisine', 'status'];
+const isDays = f => (f.options || []).includes('Mon');
+const groupFields = K => K.fields.filter(f => ['select', 'multi', 'rel'].includes(f.type) || (f.type === 'text' && GROUP_KEYS.includes(f.k))).filter(f => (f.type !== 'rel' || !f.multi) && !isDays(f));
+const groupOf = K => { try { return localStorage.getItem('lgroup:' + K.kind) || ''; } catch { return ''; } };
+const groupSel = K => { const fs = groupFields(K); return fs.length ? `<select class="pill" data-lgroup aria-label="Group by"><option value="">No groups</option>${fs.map(f => `<option value="${f.k}" ${groupOf(K) === f.k ? 'selected' : ''}>Group: ${esc(f.label)}</option>`).join('')}</select>` : ''; };
+const groupVal = (r, f) => { const v = r[f.k]; if (f.type === 'check') return v ? 'Ja' : 'Nee'; if (f.type === 'rel') return v ? titleOf(L.byId[v] || {}) : ''; return [].concat(v ?? [])[0] ?? ''; };
+function groupedHTML(list, K, inner) {
+  const g = groupOf(K), f = g && K.fields.find(x => x.k === g);
+  if (!f || !list.length) return inner(list);
+  const m = new Map(); for (const r of list) { const k = String(groupVal(r, f) || '').trim() || '—'; (m.get(k) || m.set(k, []).get(k)).push(r); }
+  return [...m.entries()].sort((a, b) => a[0] === '—' ? 1 : b[0] === '—' ? -1 : b[1].length - a[1].length || a[0].localeCompare(b[0]))
+    .map(([k, l]) => `<section class="lgrp"><div class="tdgh"><h3>${esc(k === '—' ? 'Geen ' + f.label.toLowerCase() : k)} <span class="muted">${l.length}</span></h3></div>${inner(l)}</section>`).join('');
+}
+const TABLE_TYPES = ['text', 'num', 'money', 'date', 'select', 'multi', 'check'];
+const tableCols = (K, keys) => keys ? keys.map(k => K.fields.find(f => f.k === k)).filter(f => f && TABLE_TYPES.includes(f.type) && !['name', 'title'].includes(f.k)) : K.fields.filter(f => TABLE_TYPES.includes(f.type) && !['name', 'title'].includes(f.k) && !isDays(f)).slice(0, 9);
+// a value most similar records have: same brand, shop, store, category, type or room
+function lSuggest(r, f) {
+  if (!['select', 'multi', 'text'].includes(f.type) || ['name', 'title'].includes(f.k) || isDays(f) || !empty(r[f.k])) return null;
+  const same = (a, b) => a != null && b != null && a !== '' && norm(a) === norm(b), pool = recs(r.kind).filter(x => x.id !== r.id && !empty(x[f.k]));
+  const by = ['brand', 'store', 'shop', 'category', 'type', 'room', 'cuisine'].find(k => k !== f.k && !empty(r[k]) && pool.some(x => same(x[k], r[k])));
+  if (!by) return null;
+  const m = new Map(); for (const x of pool.filter(x => same(x[by], r[by]))) { const key = JSON.stringify(x[f.k]); m.set(key, (m.get(key) || 0) + 1); }
+  const best = [...m.entries()].sort((a, b) => b[1] - a[1])[0]; return best ? JSON.parse(best[0]) : null;
+}
+const lShow = v => Array.isArray(v) ? v.join(', ') : String(v ?? '');
+function cellIn(r, f) {
+  const v = r[f.k], sug = lSuggest(r, f), ph = sug != null ? lShow(sug) : f.label, a = `data-lcell="${r.id}" data-k="${f.k}" aria-label="${esc(f.label)}"`;
+  const chip = sug != null ? `<button type="button" class="chip tdsug" data-lsug="${r.id}" data-k="${f.k}">↵ ${esc(lShow(sug))}</button>` : '';
+  if (f.type === 'check') return `<input type="checkbox" ${a} ${v ? 'checked' : ''}>`;
+  if (f.type === 'select') return `<select class="tdin" ${a}><option value="">—</option>${optsFor(r.kind, f, v, r).map(o => `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>${chip}`;
+  const val = f.type === 'multi' ? [].concat(v || []).join(', ') : f.type === 'money' && v != null && v !== '' ? String(v).replace('.', ',') : (v ?? '');
+  return `<input class="tdin ${sug != null ? 'hassug' : ''}" ${a} ${f.type === 'date' ? 'type="date"' : ['num', 'money'].includes(f.type) ? 'inputmode="decimal"' : ''} value="${esc(val)}" placeholder="${esc(ph)}">${chip}`;
+}
+const cellParse = (f, el) => { if (f.type === 'check') return el.checked; const s = el.value.trim(); if (f.type === 'multi') return s ? [...new Set(s.split(/\s*,\s*/).filter(Boolean))] : []; if (['num', 'money'].includes(f.type)) { if (!s) return null; const n = Number(s.replace(/\./g, '').replace(',', '.')); return isFinite(n) ? n : null; } return s; };
+function tableHTML(list, K, keys) {
+  const cols = tableCols(K, keys);
+  return `<div class="tdtablewrap"><table class="tdtable lvtable"><thead><tr><th></th><th>${esc(K.one[0].toUpperCase() + K.one.slice(1))}</th>${cols.map(f => `<th>${esc(f.label)}</th>`).join('')}</tr></thead><tbody>${list.map(r => `<tr><td>${photoOf(r) ? `<button class="tdthumb" data-act="open" data-id="${r.id}"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(photoOf(r)))}" alt="" loading="lazy" onerror="this.remove()"></button>` : `<button class="chip link" data-act="open" data-id="${r.id}">Open</button>`}</td><td class="ltname"><button class="tdmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b></button></td>${cols.map(f => `<td class="${empty(r[f.k]) && f.type !== 'check' ? 'miss' : ''}">${cellIn(r, f)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+// save a cell without redrawing the page, so you keep your place in the table
+async function cellSave(el) {
+  const r = L.byId[el.dataset.lcell], K = r && KINDS[r.kind], f = K?.fields.find(x => x.k === el.dataset.k); if (!f) return;
+  const v = cellParse(f, el); if (JSON.stringify(v ?? '') === JSON.stringify(r[f.k] ?? (f.type === 'multi' ? [] : f.type === 'check' ? false : ''))) return;
+  L.quiet = true; try { await put(r.kind, r.id, { ...dataOf(r), [f.k]: v }); } catch (e) { failed(e); } finally { L.quiet = false; }
+  el.closest('td')?.classList.toggle('miss', empty(v) && f.type !== 'check');
+}
+document.addEventListener('change', e => { const el = e.target; if (C && el.matches?.('[data-lcell]') && !el.closest('.ltdone')) cellSave(el); if (C && el.matches?.('[data-lgroup]')) { const host = el.closest('#viewHost') || document, page = C.view(), K = KINDS[curSeg(page).kind]; try { el.value ? localStorage.setItem('lgroup:' + K.kind, el.value) : localStorage.removeItem('lgroup:' + K.kind); } catch {} fillList(host, page); } });
+document.addEventListener('click', async e => { const b = e.target.closest?.('[data-lsug]'); if (!b || !C) return; const r = L.byId[b.dataset.lsug], f = r && KINDS[r.kind].fields.find(x => x.k === b.dataset.k), v = f && lSuggest(r, f); if (v == null) return; try { await put(r.kind, r.id, { ...dataOf(r), [f.k]: v }); } catch (err) { failed(err); } });
+
 /* ---------- list pages ---------- */
 function sortList(list, K, key) {
   const desc = key.startsWith('-'), k = desc ? key.slice(1) : key;
@@ -1503,7 +1552,7 @@ function listPage(host, page) {
     host.innerHTML = `<div class="viewhead"><h1>${esc(cfg.title)}</h1><span class="sub" data-count></span></div>
       ${ss.length > 1 ? `<div class="seg lseg">${ss.map(s => `<button data-act="seg" data-v="${s.key}" aria-pressed="${s.key === seg.key}">${esc(s.label)}</button>`).join('')}</div>` : ''}
       ${seg.tools ? `<div class="tools"><label class="search">${svg(P.search)}<input type="search" data-lq placeholder="Search ${esc(K.many.toLowerCase())}" value="${esc(u.q)}" aria-label="Search"></label>
-        ${sorts.length > 1 ? `<select class="pill" data-lsort aria-label="Sort">${sorts.map(([k, l]) => `<option value="${k}" ${(u.sort[seg.key] || sorts[0][0]) === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}${viewSwitch(K)}<button class="btn small" data-act="selmode" data-selbtn>Select</button></div>
+        ${sorts.length > 1 ? `<select class="pill" data-lsort aria-label="Sort">${sorts.map(([k, l]) => `<option value="${k}" ${(u.sort[seg.key] || sorts[0][0]) === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}${groupSel(K)}${viewSwitch(K)}<button class="btn small" data-act="selmode" data-selbtn>Select</button></div>
         <div class="chips facets" data-facets></div>` : ''}
       <div data-lfill></div>`;
   }
@@ -1533,7 +1582,7 @@ function fillList(host, page) {
   }
   if (seg.fill) { seg.fill(fill, page); return; }
   const top = seg.top ? seg.top() : '';
-  fill.innerHTML = top + (list.length ? listHTML(list, K) : emptyList(K, all.length));
+  fill.innerHTML = top + (list.length ? groupedHTML(list, K, l => viewMode(K) === 'table' ? tableHTML(l, K) : listHTML(l, K)) : emptyList(K, all.length));
   drawSel(host, page, list);
 }
 // select mode: tap rows or cards to pick them, then delete them or set a field on all of them at once
@@ -1551,18 +1600,21 @@ function drawSel(host, page, list) {
   bar.innerHTML = `<b>${k} selected</b><button class="btn small" data-act="selall">Select all</button><div class="spacer"></div>${canSet ? `<button class="btn small" data-act="selset" ${k ? '' : 'disabled'}>Change…</button>` : ''}<button class="btn small danger" data-act="seldel" ${k ? '' : 'disabled'}>Delete</button><button class="btn small" data-act="selmode">Done</button>`;
 }
 function selSet(kind) {
-  const K = KINDS[kind], ids = [...L.sel.ids], fs = K.fields.filter(f => ['select', 'multi', 'check'].includes(f.type));
+  const K = KINDS[kind], ids = [...L.sel.ids], fs = K.fields.filter(f => ['select', 'multi', 'check', 'text', 'num', 'money', 'date'].includes(f.type) && !['name', 'title'].includes(f.k));
   const sh = C.sheet({ title: `Change ${ids.length} ${ids.length === 1 ? K.one : (K.ones || K.one + 's')}`, body: `<div class="lslot"><span class="rowlbl">Field</span>${fs.map((f, i) => `<button class="chip" data-sf="${i}">${esc(f.label)}</button>`).join('')}</div><div data-svals></div>` });
   let f = null;
   sh.addEventListener('click', async e => {
     const b = e.target.closest('[data-sf]');
     if (b) {
       f = fs[+b.dataset.sf]; sh.querySelectorAll('[data-sf]').forEach(x => x.setAttribute('aria-pressed', x === b));
-      const vals = f.type === 'check' ? [['1', 'Yes'], ['0', 'No']] : optsFor(kind, f).map(o => [o, o]);
-      sh.querySelector('[data-svals]').innerHTML = `<p class="lnone">${f.type === 'multi' ? 'Adds this to each one:' : 'Sets this on each one:'}</p><div class="lwrap">${vals.map(([v, l]) => `<button class="chip" data-sv="${esc(v)}">${esc(l)}</button>`).join('')}</div>`;
+      const vals = f.type === 'check' ? [['1', 'Yes'], ['0', 'No']] : ['select', 'multi'].includes(f.type) ? optsFor(kind, f).map(o => [o, o]) : [];
+      const typed = ['text', 'num', 'money', 'date'].includes(f.type);
+      sh.querySelector('[data-svals]').innerHTML = `<p class="lnone">${f.type === 'multi' ? 'Adds this to each one:' : 'Sets this on each one:'}</p>${typed ? `<div class="lbar"><input class="finp" data-svin ${f.type === 'date' ? 'type="date"' : ['num', 'money'].includes(f.type) ? 'inputmode="decimal"' : ''} placeholder="${esc(f.label)}"><button class="btn small primary" data-svgo>Apply</button></div>` : ''}<div class="lwrap">${vals.map(([v, l]) => `<button class="chip" data-sv="${esc(v)}">${esc(l)}</button>`).join('')}</div>`;
       return;
     }
-    const v = e.target.closest('[data-sv]')?.dataset.sv; if (v == null || !f) return;
+    let v = e.target.closest('[data-sv]')?.dataset.sv;
+    if (e.target.closest('[data-svgo]') && f) { const el = sh.querySelector('[data-svin]'); v = el.value.trim(); if (!v) return; if (['num', 'money'].includes(f.type)) v = Number(v.replace(/\./g, '').replace(',', '.')); }
+    if (v == null || !f) return;
     try {
       for (const id of ids) {
         const r = L.byId[id]; if (!r) continue;
@@ -1970,21 +2022,45 @@ const TODO = {
 TODO.plan = { ideas: TODO.care.ideas, gifts: TODO.care.gifts, courses: TODO.care.courses, documents: TODO.care.documents, ...TODO.wish };
 TODO.body = { beauty: TODO.care.beauty, supplements: TODO.care.supplements, ...TODO.fit };
 function sectionTodo(host, sec) {
-  const cfg = TODO[sec] || {}, T = (L.todo ||= {})[sec] ||= { kind: 'all', sort: 'most' };
+  const cfg = TODO[sec] || {};
+  let saved = {}; try { saved = JSON.parse(localStorage.getItem('ltodo:' + sec) || '{}'); } catch {}
+  const T = (L.todo ||= {})[sec] ||= { kind: 'all', sort: 'most', view: 'list', group: 'kind', idx: 0, ...saved };
+  const keep = () => { try { localStorage.setItem('ltodo:' + sec, JSON.stringify({ sort: T.sort, view: T.view, group: T.group })); } catch {} };
   const all = Object.entries(cfg).flatMap(([kind, c]) => recs(kind).filter(r => !c.when || c.when(r)).map(r => ({ r, kind, miss: c.checks.filter(x => x[2](r)) })).filter(x => x.miss.length));
   const kinds = Object.keys(cfg).map(k => [k, all.filter(x => x.kind === k).length]).filter(([, n]) => n);
   if (T.kind !== 'all' && !kinds.some(([k]) => k === T.kind)) T.kind = 'all';
-  const shown = all.filter(x => T.kind === 'all' || x.kind === T.kind).sort(T.sort === 'new' ? (a, b) => (b.r.created || 0) - (a.r.created || 0) : T.sort === 'az' ? (a, b) => norm(titleOf(a.r)).localeCompare(norm(titleOf(b.r))) : (a, b) => b.miss.length - a.miss.length || norm(titleOf(a.r)).localeCompare(norm(titleOf(b.r))));
+  const cmp = { most: (a, b) => b.miss.length - a.miss.length || norm(titleOf(a.r)).localeCompare(norm(titleOf(b.r))), almost: (a, b) => a.miss.length - b.miss.length || norm(titleOf(a.r)).localeCompare(norm(titleOf(b.r))), new: (a, b) => (b.r.created || 0) - (a.r.created || 0), old: (a, b) => (a.r.created || 0) - (b.r.created || 0), az: (a, b) => norm(titleOf(a.r)).localeCompare(norm(titleOf(b.r))) };
+  const shown = all.filter(x => T.kind === 'all' || x.kind === T.kind).sort(cmp[T.sort] || cmp.most);
   const total = Object.entries(cfg).reduce((n, [k, c]) => n + recs(k).filter(r => !c.when || c.when(r)).length, 0);
+  // groups: per list (always for the table, which needs one kind of record), per missing field, or none
+  const groups = [];
+  if (T.view === 'table' || T.group === 'kind') for (const [k] of kinds) { const l = shown.filter(x => x.kind === k); if (l.length) groups.push({ label: KINDS[k].many, kind: k, list: l }); }
+  else if (T.group === 'missing') { const labels = [...new Set(shown.flatMap(x => x.miss.map(m => m[1])))]; for (const lab of labels) groups.push({ label: 'Geen ' + lab.toLowerCase(), list: shown.filter(x => x.miss.some(m => m[1] === lab)) }); }
+  else groups.push({ label: '', list: shown });
+  const row = ({ r, kind, miss }) => `<div class="ltodo"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(KINDS[kind].many)}${KINDS[kind].sub?.(r) ? ' · ' + esc(KINDS[kind].sub(r)) : ''}</span></button><p class="todomiss">${miss.map(m => `<span>${esc(m[1])}</span>`).join('')}</p></div>`;
+  let body = '';
+  if (T.view === 'one') {
+    if (T.idx >= shown.length) T.idx = 0;
+    const x = shown[T.idx];
+    if (x) { const K = KINDS[x.kind], fs = x.miss.map(m => K.fields.find(f => f.k === m[0])).filter(f => f && TABLE_TYPES.includes(f.type)), other = x.miss.filter(m => !fs.some(f => f.k === m[0]));
+      body = `<div class="tdone ltdone"><div class="tdonef"><p class="muted">${T.idx + 1} of ${shown.length} · ${esc(K.many)}</p><h2>${esc(titleOf(x.r))}</h2>${fs.map(f => `<div class="field"><label>${esc(f.label)}</label>${cellIn(x.r, f)}</div>`).join('')}${other.length ? `<p class="muted">Also: ${esc(other.map(m => m[1]).join(', '))}.</p>` : ''}<div class="setbtns"><button class="btn" data-tdprev ${T.idx ? '' : 'disabled'}>Back</button><button class="btn primary" data-tdnext>Next</button><button class="btn small" data-act="open" data-id="${x.r.id}">Full editor</button></div></div></div>`; }
+  } else body = groups.map(g => `<section class="tdgroup">${g.label ? `<div class="tdgh"><h3>${esc(g.label)} <span class="muted">${g.list.length}</span></h3></div>` : ''}${T.view === 'table' ? tableHTML(g.list.map(x => x.r), KINDS[g.kind], [...new Set(g.list.flatMap(x => x.miss.map(m => m[0])))]) : `<div class="lrows">${g.list.slice(0, 300).map(row).join('')}</div>`}</section>`).join('');
   host.innerHTML = `<div class="viewhead"><h1>To do</h1><span class="sub">${total ? `${all.length} of ${total} miss something` : ''}</span></div>
-    ${all.length ? `<div class="lplanhead"><select class="pill" data-tdsort aria-label="Sort">${[['most', 'Most missing first'], ['new', 'Recently added'], ['az', 'Name A to Z']].map(([k, l]) => `<option value="${k}" ${T.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    ${all.length ? `<div class="tools tdtools"><div class="seg" role="group" aria-label="View">${[['list', 'List'], ['table', 'Table'], ['one', 'One by one']].map(([k, l]) => `<button data-tdview="${k}" aria-pressed="${T.view === k}">${l}</button>`).join('')}</div>
+      ${T.view === 'list' ? `<label class="tdpick"><span>Group by</span><select class="pill" data-tdgroup>${[['kind', 'List'], ['missing', 'Missing field'], ['none', 'No groups']].map(([k, l]) => `<option value="${k}" ${T.group === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
+      <label class="tdpick"><span>Sort</span><select class="pill" data-tdsort>${[['most', 'Most missing first'], ['almost', 'Almost done first'], ['az', 'Name A to Z'], ['new', 'Newest first'], ['old', 'Oldest first']].map(([k, l]) => `<option value="${k}" ${T.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
     ${kinds.length > 1 ? `<div class="chips" role="group" aria-label="List"><button class="chip" data-tdkind="all" aria-pressed="${T.kind === 'all'}">Everything <span class="n">${all.length}</span></button>${kinds.map(([k, n]) => `<button class="chip" data-tdkind="${k}" aria-pressed="${T.kind === k}">${esc(KINDS[k].many)} <span class="n">${n}</span></button>`).join('')}</div>` : ''}
-    <div class="lrows">${shown.slice(0, 300).map(({ r, kind, miss }) => `<div class="ltodo"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(KINDS[kind].many)}${KINDS[kind].sub?.(r) ? ' · ' + esc(KINDS[kind].sub(r)) : ''}</span></button><p class="todomiss">${miss.map(m => `<span>${esc(m[1])}</span>`).join('')}</p></div>`).join('')}</div>${shown.length > 300 ? `<p class="lnone">Showing 300 of ${shown.length}. Pick a list above to see the rest.</p>` : ''}`
+    ${body}`
     : quiet(total ? 'Everything here has its details. Nice.' : 'Add things in this section; anything they still miss shows up here.')}`;
   if (!host.dataset.tdwired) {
     host.dataset.tdwired = '1';
-    host.addEventListener('click', e => { const k = e.target.closest('[data-tdkind]'); if (k) { L.todo[sec].kind = k.dataset.tdkind; sectionTodo(host, sec); } });
-    host.addEventListener('change', e => { const so = e.target.closest('[data-tdsort]'); if (so) { L.todo[sec].sort = so.value; sectionTodo(host, sec); } });
+    host.addEventListener('click', async e => {
+      const T2 = L.todo[sec], k = e.target.closest('[data-tdkind]'); if (k) { T2.kind = k.dataset.tdkind; T2.idx = 0; return sectionTodo(host, sec); }
+      const v = e.target.closest('[data-tdview]'); if (v) { T2.view = v.dataset.tdview; T2.idx = 0; keep(); return sectionTodo(host, sec); }
+      if (e.target.closest('[data-tdnext]')) { L.quiet = true; try { for (const el of host.querySelectorAll('.ltdone [data-lcell]')) await cellSave(el); } finally { L.quiet = false; } T2.idx++; return sectionTodo(host, sec); }
+      if (e.target.closest('[data-tdprev]')) { T2.idx = Math.max(0, T2.idx - 1); return sectionTodo(host, sec); }
+    });
+    host.addEventListener('change', e => { const T2 = L.todo[sec]; const so = e.target.closest('[data-tdsort]'); if (so) { T2.sort = so.value; keep(); sectionTodo(host, sec); } const gr = e.target.closest('[data-tdgroup]'); if (gr) { T2.group = gr.value; keep(); sectionTodo(host, sec); } });
   }
 }
 /* Planning: every step of every post on a calendar, a week or a month at a time */

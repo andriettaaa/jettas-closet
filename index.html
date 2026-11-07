@@ -712,7 +712,7 @@ const pref = {
    Lists and settings live in Supabase and match everywhere. A few choices are kept on the device itself (tiles or
    list, hidden amounts, sorting, today's ticks); those are copied into prefs.shared with the time you changed them,
    and every device takes the newest. prefs.devices lists your devices with their last sync. */
-const SYNC_KEYS = [/^calView$/, /^calOff$/, /^hangtag:hidemoney$/, /^hangtag:tol$/, /^hangtag:sort(:|$)/, /^hangtag:todo(Field|Sort|Group|View|OnlyEmpty)$/, /^lview2:/, /^prepDone$/, /^tl:\d{4}-\d{2}-\d{2}$/, /^top3:\d{4}-\d{2}-\d{2}$/, /^reset:/];
+const SYNC_KEYS = [/^calView$/, /^calOff$/, /^lgroup:/, /^ltodo:/, /^hangtag:hidemoney$/, /^hangtag:tol$/, /^hangtag:sort(:|$)/, /^hangtag:todo(Field|Sort|Group|View|OnlyEmpty)$/, /^lview2:/, /^prepDone$/, /^tl:\d{4}-\d{2}-\d{2}$/, /^top3:\d{4}-\d{2}-\d{2}$/, /^reset:/];
 const isSyncKey = k => SYNC_KEYS.some(r => r.test(k));
 const SMETA = pref.get('smeta', {});
 let syncQuiet = false, syncTimer = 0;
@@ -962,7 +962,7 @@ function subscribeLive() {
     channel.on('postgres_changes', { event: '*', schema: 'public', table: t }, p => {
       const key = t === 'days' ? 'day' : 'id';
       if (p.eventType === 'DELETE') { if (p.old?.[key]) applyLocal(t, p.old[key], null); }
-      else if (p.new?.[key]) applyLocal(t, p.new[key], p.new.data);
+      else if (p.new?.[key]) { const cur = t === 'days' ? S.days[p.new[key]] : S.byId?.[p.new[key]]; if (cur && t !== 'days' && JSON.stringify(noId(cur)) === JSON.stringify(p.new.data)) return; applyLocal(t, p.new[key], p.new.data); }
     });
   }
   channel.on('postgres_changes', { event: '*', schema: 'public', table: 'prefs' }, p => {
@@ -2088,7 +2088,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v115';
+const APP_VERSION = 'hangtag-v116';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
