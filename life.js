@@ -291,7 +291,7 @@ const KINDS = {
   /* kitchen */
   recipes: {
     one: 'recipe', many: 'Recipes', display: 'cards', photo: 'photo', facet: 'category', facet2: 'dish',
-    fields: [F('name', 'Name'), F('photo', 'Photo', 'photo'),
+    fields: [F('name', 'Name'), F('photo', 'Photo', 'photo'), F('summary', 'Short description', 'long', { rows: 2 }),
       F('category', 'Category', 'select', { options: ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Side Dish', 'Appetizer', 'Soup', 'Dessert', 'Baking', 'Drink', 'Sauce & Condiment'] }),
       F('dish', 'Soort', 'select', { options: [...new Set(Object.values(DISH_TYPES).flat())], dep: 'category', depOpts: DISH_TYPES }),
       F('rating', 'Rating', 'rating'), F('fav', 'Favourite', 'check', { half: 1 }), F('totry', 'Still to try', 'check', { half: 1 }),
@@ -299,8 +299,11 @@ const KINDS = {
       F('vegG', 'Vegetables per portion (g)', 'num', { half: 1 }),
       F('prep', 'Prep time', 'num', { unit: 'min', half: 1 }), F('cook', 'Cook time', 'num', { unit: 'min', half: 1 }),
       F('servings', 'Servings', 'num', { half: 1 }), F('protein', 'Protein', 'text', { half: 1 }),
-      F('link', 'Recipe link', 'url'), F('ingredients', 'Ingredients', 'rel', { to: 'ingredients', multi: 1 }), F('helps', 'Helps with', 'multi', { options: HELPS }), F('feel', 'Feels like', 'multi', { options: FEELS }),
-      F('instructions', 'Instructions', 'long'), F('notes', 'Notes', 'long')],
+      F('nkcal', 'Own calories per serving', 'num', { half: 1 }), F('nprot', 'Own protein per serving', 'num', { unit: 'g', half: 1 }),
+      F('ncarb', 'Own carbs per serving', 'num', { unit: 'g', half: 1 }), F('nfat', 'Own fat per serving', 'num', { unit: 'g', half: 1 }),
+      F('link', 'Recipe link', 'url'), F('ilines', 'Ingredients and amounts', 'ilines'), F('steps', 'Steps', 'steplist'),
+      F('ingredients', 'Linked to your pantry', 'rel', { to: 'ingredients', multi: 1 }), F('helps', 'Helps with', 'multi', { options: HELPS }), F('feel', 'Feels like', 'multi', { options: FEELS }),
+      F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['-rating', 'Best rated'], ['-created', 'Newest'], ['time', 'Quickest']],
     filters: [['all', 'All'], ['fav', 'Favourites'], ['try', 'Still to try'], ['quick', '30 min or less'], ['prep', 'Meal prep'], ['freeze', 'Freezes well'], ['office', 'Office lunch'], ['now', 'Can make now']],
     filter: (r, f) => f === 'fav' ? !!r.fav : f === 'try' ? !!r.totry : f === 'quick' ? totalTime(r) > 0 && totalTime(r) <= 30 : f === 'prep' ? [].concat(r.good || []).includes('Meal prep') : f === 'freeze' ? [].concat(r.good || []).includes('Freezes well') : f === 'office' ? [].concat(r.good || []).includes('Office lunch') || r.category === 'Lunch' : f === 'now' ? canMakeNow(r) : true,
@@ -3228,16 +3231,18 @@ function openRecipe(r) {
     body: `<div class="lrecipe">${r.photo ? `<img referrerpolicy="no-referrer" class="lrimg" src="${esc(C.photoURL(r.photo))}" alt="" onerror="this.remove()">` : ''}
       <div class="lrbody">
         <p class="lmeta">${esc([r.category, mins(totalTime(r)), r.servings ? plural(r.servings, 'serving') : '', r.protein ? r.protein + ' protein' : ''].filter(Boolean).join(' · '))}${r.rating ? ` <span class="lstars">${stars(r.rating)}</span>` : ''}</p>
+        ${r.summary ? `<p class="lrsum">${esc(r.summary)}</p>` : ''}
         ${r.link ? `<a class="btn small" href="${esc(r.link)}" target="_blank" rel="noopener">${svg(P.link)} Open the recipe</a>` : ''}
-        ${pr.lines.length ? `<div class="lrhead"><h3>Ingredients</h3><span class="lserv" role="group" aria-label="Servings"><button class="iconbtn small" data-serv="-1" aria-label="Fewer servings">${svg(P.minus)}</button><b data-servn>${plural(base, 'serving')}</b><button class="iconbtn small" data-serv="1" aria-label="More servings">${svg(P.plus)}</button></span></div><ul class="rlines" data-rlines>${linesHTML(pr.lines, 1)}</ul>` : ''}
+        ${pr.lines.length ? `<div class="lrhead"><h3>Ingredients</h3><span class="lserv" role="group" aria-label="Servings"><button class="iconbtn small" data-serv="-1" aria-label="Fewer servings">${svg(P.minus)}</button><b data-servn>${plural(base, 'serving')}</b><button class="iconbtn small" data-serv="1" aria-label="More servings">${svg(P.plus)}</button></span></div><ul class="rlines" data-rlines>${linesHTML(pr.lines, 1, pr.secs)}</ul>` : ''}
         ${ings.length ? `<p class="dsub">From your pantry</p><div class="lwrap">${ings.map(i => `<span class="chip ${i.stock ? 'on' : ''}">${i.stock ? '✓ ' : ''}${esc(i.name)}${i.list ? ' (on list)' : ''}</span>`).join('')}</div>` : ''}
         ${pr.steps.length ? `<h3>Method</h3><ol class="rsteps">${pr.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}
+        ${nutriPanel(r)}
         ${r.notes ? `<h3>Notes</h3><p class="lpre">${esc(r.notes)}</p>` : ''}
       </div></div>`,
     foot: `${missing.length ? `<button class="btn" data-miss>Add ${missing.length} missing to list</button>` : ''}<button class="btn" data-plan>Plan it</button><div class="spacer"></div><button class="btn" data-edit>Edit</button>${pr.steps.length || pr.lines.length ? '<button class="btn primary" data-cook>Start cooking</button>' : ''}`
   });
   sh.querySelector('[data-edit]').onclick = () => openEditor('recipes', r.id);
-  sh.querySelectorAll('[data-serv]').forEach(b => b.onclick = () => { serv = Math.max(1, Math.min(40, serv + Number(b.dataset.serv))); sh.querySelector('[data-servn]').textContent = plural(serv, 'serving'); sh.querySelector('[data-rlines]').innerHTML = linesHTML(pr.lines, serv / base); });
+  sh.querySelectorAll('[data-serv]').forEach(b => b.onclick = () => { serv = Math.max(1, Math.min(40, serv + Number(b.dataset.serv))); sh.querySelector('[data-servn]').textContent = plural(serv, 'serving'); sh.querySelector('[data-rlines]').innerHTML = linesHTML(pr.lines, serv / base, pr.secs); });
   const ck = sh.querySelector('[data-cook]'); if (ck) ck.onclick = () => { C.closeSheet(); cookMode(r, serv / base); };
   sh.querySelector('[data-plan]').onclick = () => planRecipe(r);
   const m = sh.querySelector('[data-miss]');
@@ -3248,6 +3253,17 @@ function openRecipe(r) {
    Recipes keep "Ingrediënten:" lines and "Bereiding:" steps in their instructions (that is how imports and the
    weekly fill write them). Amounts scale with the number of servings; cook mode shows one step per screen. */
 function parseRecipe(r) {
+  if (Array.isArray(r.ilines) && r.ilines.length || Array.isArray(r.steps) && r.steps.length) {
+    const old = Array.isArray(r.ilines) && r.ilines.length && Array.isArray(r.steps) && r.steps.length ? null : parseText(r), lines = [], secs = [];
+    let sec = '';
+    if (Array.isArray(r.ilines) && r.ilines.length) for (const x of r.ilines) { if (x.h != null) { sec = String(x.h).trim(); continue; } const l = ilineText(x); if (l) { lines.push(l); secs.push(sec); } }
+    else if (old) lines.push(...old.lines);
+    const steps = Array.isArray(r.steps) && r.steps.length ? r.steps.map(x => String(x).trim()).filter(Boolean) : old?.steps || [];
+    return { lines, steps, secs };
+  }
+  return parseText(r);
+}
+function parseText(r) {
   const t = String(r.instructions || '').replace(/\r/g, ''), lines = [], steps = [];
   const parts = t.split(/\n\s*(?=(?:Bereiding|Method|Instructions|Steps|Werkwijze)\s*:)/i);
   let ingPart = '', stepPart = t;
@@ -3267,7 +3283,259 @@ function scaleLine(line, f) {
   const a = fmtQty(val(m[1]) * f), b = m[2] ? '–' + fmtQty(val(m[2]) * f) : '';
   return a + b + line.slice(m[0].length);
 }
-const linesHTML = (lines, f) => lines.map(l => `<li>${esc(scaleLine(l, f))}</li>`).join('');
+// ingredient lines; with parts (Sauce, Topping) each part gets its own small heading
+const linesHTML = (lines, f, secs = []) => lines.map((l, i) => `${secs[i] && secs[i] !== secs[i - 1] ? `<li class="rsec">${esc(secs[i])}</li>` : ''}<li>${esc(scaleLine(l, f))}</li>`).join('');
+/* ---------- recipe ingredients with amounts ----------
+   Each line: an amount, a unit, the ingredient, a note (chopped, leftover) and the part of the recipe it belongs to.
+   A line that names something in your pantry links to it, so "Can make now" and the grocery list keep working. */
+const RUNITS = ['', 'g', 'kg', 'ml', 'dl', 'l', 'el', 'tl', 'kopje', 'stuk', 'teentje', 'snufje', 'scheutje', 'handje', 'blik', 'pak', 'zakje', 'bosje', 'plak', 'naar smaak'];
+const ilineText = x => { const n = String(x.n || '').trim(); if (!n) return ''; return [String(x.q ?? '').trim(), x.u && x.u !== 'naar smaak' ? x.u : '', n].filter(Boolean).join(' ') + (x.u === 'naar smaak' ? ', naar smaak' : '') + (x.note ? ', ' + String(x.note).trim() : ''); };
+// an old text line ("200 g kip, in blokjes") split into its parts
+function ilineParse(l) {
+  const m = String(l).trim().match(/^((?:\d+\s*\/\s*\d+|\d+(?:[.,]\d+)?(?:\s*[½⅓⅔¼¾⅛])?|[½⅓⅔¼¾⅛])(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?)?\s*(.*)$/), q = (m?.[1] || '').trim();
+  let rest = (m?.[2] || '').trim(), u = '';
+  const um = rest.match(/^(gram|grams|gr|g|kilo|kg|ml|dl|liter|l|eetlepels?|el|tbsp|theelepels?|tl|tsp|kopjes?|cups?|stuks?|teentjes?|cloves?|snufje|pinch|scheutje|handje|handful|blikken|blik|can|pak|zakjes?|bosjes?|plakjes?|plakken|plak)\.?\s+(.+)$/i);
+  if (um) { const w = um[1].toLowerCase(); u = /^(gram|grams|gr|g)$/.test(w) ? 'g' : /^(kilo|kg)$/.test(w) ? 'kg' : /^(liter|l)$/.test(w) ? 'l' : /^(eetlepels?|el|tbsp)$/.test(w) ? 'el' : /^(theelepels?|tl|tsp)$/.test(w) ? 'tl' : /^(kopjes?|cups?)$/.test(w) ? 'kopje' : /^(stuks?)$/.test(w) ? 'stuk' : /^(teentjes?|cloves?)$/.test(w) ? 'teentje' : /^(pinch)$/.test(w) ? 'snufje' : /^(handful)$/.test(w) ? 'handje' : /^(blikken|blik|can)$/.test(w) ? 'blik' : /^zakjes?$/.test(w) ? 'zakje' : /^bosjes?$/.test(w) ? 'bosje' : /^(plakjes?|plakken|plak)$/.test(w) ? 'plak' : w; rest = um[2]; }
+  const c = rest.indexOf(','), n = (c > 0 ? rest.slice(0, c) : rest).trim(), note = c > 0 ? rest.slice(c + 1).trim() : '';
+  return { q, u, n, note };
+}
+const pantryHit = n => { const k = deUml(n || ''); if (!k) return null; return recs('ingredients').find(i => deUml(i.name) === k) || recs('ingredients').find(i => k.split(' ').includes(deUml(i.name)) && deUml(i.name).length > 3) || null; };
+function ilinesEditor(D) {
+  const rows = Array.isArray(D.ilines) ? D.ilines : [];
+  return `<div class="ilines">${rows.map((x, i) => x.h != null
+    ? `<div class="ilrow ilhead"><input data-il="${i}" data-ik="h" value="${esc(x.h)}" placeholder="Part, like Sauce or Topping" aria-label="Part name"><button type="button" class="iconbtn small" data-ilx="${i}" aria-label="Remove part">${svg(P.x)}</button></div>`
+    : `<div class="ilrow"><input class="ilq" data-il="${i}" data-ik="q" value="${esc(x.q ?? '')}" inputmode="decimal" placeholder="200" aria-label="Amount"><select class="ilu" data-il="${i}" data-ik="u" aria-label="Unit">${RUNITS.map(u => `<option value="${u}" ${u === (x.u || '') ? 'selected' : ''}>${u || '–'}</option>`).join('')}</select><input class="iln" data-il="${i}" data-ik="n" value="${esc(x.n || '')}" list="ilnames" placeholder="Ingredient" aria-label="Ingredient"><input class="ilnote" data-il="${i}" data-ik="note" value="${esc(x.note || '')}" placeholder="Note, like chopped" aria-label="Note"><button type="button" class="iconbtn small" data-ilx="${i}" aria-label="Remove ingredient">${svg(P.x)}</button>${x.ing && L.byId[x.ing] ? '<span class="ilpan" title="In your pantry">✓</span>' : ''}</div>`).join('')}</div>
+    <datalist id="ilnames">${[...new Set([...recs('ingredients').map(i => i.name), ...recs('recipes').flatMap(r => [].concat(r.ilines || []).map(x => x.n))].filter(Boolean).map(v => String(v).trim()))].sort(azCmp).map(v => `<option value="${esc(v)}">`).join('')}</datalist>
+    <div class="dbtns"><button type="button" class="btn small" data-iladd>+ Ingredient</button><button type="button" class="btn small ghost" data-iladdh>+ Part</button></div>`;
+}
+function stepsEditor(D) {
+  const st = Array.isArray(D.steps) ? D.steps : [];
+  return `<ol class="stlist">${st.map((x, i) => `<li><textarea data-st="${i}" rows="2" aria-label="Step ${i + 1}">${esc(x)}</textarea><button type="button" class="iconbtn small" data-stx="${i}" aria-label="Remove step ${i + 1}">${svg(P.x)}</button></li>`).join('')}</ol><div class="dbtns"><button type="button" class="btn small" data-stadd>+ Step</button></div>`;
+}
+/* ---------- nutrition: an estimate from the ingredients ----------
+   Per 100 g: kcal, protein, carbs, fat, fibre, sugar, saturated fat, salt. Optional: pc = grams in one piece,
+   d = grams per ml (oil, honey), cup = grams in one cup, can = grams in one tin, z = so little it never counts.
+   Values are rounded averages from public food tables (NEVO, USDA); good enough to compare recipes, not a label. */
+const NUTRI_DB = [
+  ['chicken breast|kipfilet|kippenborst|kipborst|chicken fillet', 120, 23, 0, 2.6, 0, 0, .6, .15, { pc: 170 }],
+  ['chicken thigh|chicken thighs|kippendij|kippendijen|kipdij|dijfilet', 190, 19, 0, 12.5, 0, 0, 3.5, .2, { pc: 110 }],
+  ['chicken|kip|kipstukjes|kippenvlees', 165, 25, 0, 7, 0, 0, 2, .2, { pc: 150 }],
+  ['ground beef|minced beef|beef mince|rundergehakt|gehakt|mince', 250, 26, 0, 17, 0, 0, 6.5, .18],
+  ['beef|rundvlees|biefstuk|steak|runderreepjes|sukade', 200, 26, 0, 10, 0, 0, 4, .15, { pc: 200 }],
+  ['pork|varkensvlees|karbonade|varkenshaas|pork belly|speklappen', 240, 25, 0, 15, 0, 0, 5.5, .15, { pc: 150 }],
+  ['bacon|spek|ontbijtspek|spekjes|pancetta', 460, 13, 1, 45, 0, 0, 15, 1.8, { pc: 10 }],
+  ['ham|hamreepjes|prosciutto|serranoham', 140, 19, 1, 6, 0, 1, 2, 3, { pc: 15 }],
+  ['sausage|sausages|worst|worstjes|chorizo|salami|grillworst|braadworst', 300, 14, 2, 26, 0, 1, 9.5, 2.2, { pc: 70 }],
+  ['turkey|kalkoen|kalkoenfilet', 135, 29, 0, 1.5, 0, 0, .5, .15, { pc: 150 }],
+  ['lamb|lam|lamsvlees|lamsgehakt', 280, 25, 0, 20, 0, 0, 9, .2],
+  ['salmon|zalm|zalmfilet|salmon fillet|salmon fillets', 208, 20, 0, 13, 0, 0, 3, .15, { pc: 125 }],
+  ['smoked salmon|gerookte zalm', 180, 22, 0, 10, 0, 0, 2, 3, { pc: 20 }],
+  ['tuna|tonijn', 116, 26, 0, 1, 0, 0, .3, .9, { can: 145 }],
+  ['cod|kabeljauw|witvis|white fish|pollock|koolvis|tilapia|pangasius|schelvis', 82, 18, 0, .7, 0, 0, .1, .2, { pc: 125 }],
+  ['shrimp|shrimps|prawn|prawns|garnalen|garnaal|scampi', 99, 24, .2, .3, 0, 0, .1, .6, { pc: 12 }],
+  ['eggs|egg|ei|eieren|eidooier|egg yolk', 143, 12.6, .7, 9.5, 0, .4, 3.1, .36, { pc: 50 }],
+  ['egg white|eiwit|eiwitten', 52, 11, .7, .2, 0, .7, 0, .4, { pc: 33 }],
+  ['tofu', 80, 8, 1.9, 4.8, .3, .5, .7, .02, { pc: 200 }],
+  ['tempeh', 190, 19, 9, 11, 5, 0, 2.2, .02],
+  ['milk|melk|halfvolle melk|volle melk|oat milk|havermelk|soy milk|sojamelk|almond milk|amandelmelk', 50, 3.4, 4.8, 2, 0, 4.8, 1.2, .1, { d: 1.03, cup: 245 }],
+  ['butter|boter|roomboter|salted butter|unsalted butter', 717, .9, .1, 81, 0, .1, 51, .6, { el: 14 }],
+  ['cream|room|slagroom|heavy cream|whipping cream|kookroom|double cream', 340, 2.1, 2.8, 36, 0, 2.8, 23, .08, { d: 1 }],
+  ['sour cream|zure room|creme fraiche|crème fraîche', 290, 2.4, 3, 30, 0, 3, 20, .1],
+  ['greek yogurt|griekse yoghurt|turkse yoghurt', 97, 9, 4, 5, 0, 4, 3.3, .1],
+  ['yogurt|yoghurt|plain yogurt|magere yoghurt', 60, 4, 4.5, 3, 0, 4.5, 2, .1],
+  ['kwark|quark|skyr|cottage cheese|huttenkase|hüttenkäse', 70, 11, 4, 1, 0, 4, .6, .1],
+  ['cheese|kaas|cheddar|gouda|geraspte kaas|grated cheese|emmentaler|gruyere', 380, 25, 1, 31, 0, .5, 20, 1.8, { pc: 20 }],
+  ['parmesan|parmezaan|parmigiano|pecorino|grana padano', 431, 38, 4, 29, 0, .9, 19, 1.6],
+  ['mozzarella|burrata', 254, 18, 2, 19, 0, 1, 12, .6, { pc: 125 }],
+  ['feta|geitenkaas|goat cheese|halloumi', 265, 15, 2, 22, 0, 2, 15, 2.6],
+  ['cream cheese|roomkaas|philadelphia|mascarpone|ricotta', 340, 6, 4, 34, 0, 3, 20, .8],
+  ['coconut milk|kokosmelk|coconut cream|kokosroom', 197, 2, 3, 21, 0, 2, 18, .03, { can: 400, d: 1 }],
+  ['cooked rice|gekookte rijst|leftover rice|steamed rice|cooked brown rice|cooked white rice', 130, 2.7, 28, .3, .4, 0, .1, 0, { cup: 160 }],
+  ['rice|rijst|basmati|jasmine rice|jasmijnrijst|brown rice|zilvervliesrijst|risotto rice|risottorijst|sushi rice|sushirijst|arborio', 360, 7, 79, .6, 1.3, .1, .2, 0, { cup: 185 }],
+  ['pasta|spaghetti|penne|macaroni|tagliatelle|fusilli|linguine|orzo|lasagne|rigatoni|farfalle|tortellini', 355, 12.5, 71, 1.5, 3, 3, .3, 0, { cup: 100 }],
+  ['noodles|noedels|ramen|rice noodles|rijstnoedels|mie|udon|soba|glass noodles', 360, 8, 78, 1, 2, 1, .2, .3],
+  ['bread|brood|toast|boterham|sourdough|zuurdesem|baguette|stokbrood|ciabatta|bun|buns|broodje|bolletje', 250, 9, 46, 3, 4, 4, .6, 1.1, { pc: 35 }],
+  ['wrap|wraps|tortilla|tortillas|pita|naan|flatbread', 300, 8, 50, 7, 3, 3, 2, 1.2, { pc: 60 }],
+  ['flour|bloem|meel|tarwebloem|all-purpose flour|zelfrijzend bakmeel|volkorenmeel', 364, 10, 76, 1, 2.7, .3, .2, 0, { cup: 125, el: 8 }],
+  ['oats|havermout|haver|rolled oats|oatmeal|havervlokken', 379, 13, 68, 6.5, 10, 1, 1.1, 0, { cup: 80, el: 6 }],
+  ['couscous|bulgur', 360, 12, 74, 1, 5, 0, .2, 0, { cup: 175 }],
+  ['quinoa', 368, 14, 64, 6, 7, 0, .7, 0, { cup: 170 }],
+  ['potato|potatoes|aardappel|aardappelen|krieltjes|kriel', 77, 2, 17, .1, 2.2, .8, 0, 0, { pc: 150 }],
+  ['sweet potato|sweet potatoes|zoete aardappel|zoete aardappelen|bataat', 86, 1.6, 20, .1, 3, 4.2, 0, .1, { pc: 200 }],
+  ['fries|friet|patat', 280, 3.4, 36, 14, 3.5, .3, 2.3, .5],
+  ['breadcrumbs|paneermeel|panko', 395, 13, 72, 5, 4, 6, 1, 1.2, { cup: 110, el: 7 }],
+  ['cornstarch|corn starch|maizena|maïzena|cornflour|aardappelzetmeel', 381, .3, 91, .1, .9, 0, 0, 0, { el: 8 }],
+  ['sugar|suiker|brown sugar|bruine suiker|basterdsuiker|poedersuiker|icing sugar|rietsuiker|caster sugar', 400, 0, 100, 0, 0, 100, 0, 0, { cup: 200, el: 12 }],
+  ['honey|honing', 304, .3, 82, 0, .2, 82, 0, 0, { d: 1.42 }],
+  ['maple syrup|ahornsiroop|agave|agavesiroop|syrup|stroop|golden syrup', 260, 0, 67, .1, 0, 60, 0, 0, { d: 1.33 }],
+  ['jam|confiture', 250, .4, 60, .1, 1, 49, 0, 0, { el: 20 }],
+  ['chocolate|chocolade|pure chocolade|dark chocolate|chocolate chips|chocoladestukjes', 546, 5, 60, 31, 7, 48, 19, .05],
+  ['cocoa|cacao|cacaopoeder|cocoa powder', 228, 20, 58, 14, 37, 1.8, 8, .05, { el: 6 }],
+  ['protein powder|eiwitpoeder|whey', 380, 78, 8, 5, 0, 5, 2, .6, { pc: 30 }],
+  ['chickpeas|kikkererwten|garbanzo', 120, 7, 14, 2.6, 6, .5, .3, .6, { can: 240, cup: 165 }],
+  ['lentils|linzen|red lentils|rode linzen', 352, 25, 60, 1, 11, 2, .2, 0, { cup: 190 }],
+  ['beans|bonen|kidney beans|kidneybonen|black beans|zwarte bonen|white beans|witte bonen|cannellini|borlotti|bruine bonen', 100, 7, 14, .5, 6, .5, .1, .5, { can: 240, cup: 175 }],
+  ['edamame|sojabonen', 121, 12, 9, 5, 5, 2, .6, 0],
+  ['peanut butter|pindakaas|almond butter|amandelpasta', 590, 25, 20, 50, 6, 6, 10, .8, { el: 16 }],
+  ['peanuts|pinda|pindas|pinda’s|pinda\'s|peanut', 567, 26, 16, 49, 8.5, 4, 7, 0, { cup: 145, el: 9 }],
+  ['almonds|amandelen|amandel', 579, 21, 22, 50, 12, 4, 4, 0, { cup: 140, el: 9 }],
+  ['nuts|noten|walnuts|walnoten|cashews|cashewnoten|pecans|pecannoten|hazelnuts|hazelnoten|pistachios|pistache|pine nuts|pijnboompitten', 620, 17, 18, 57, 7, 4, 7, 0, { cup: 120, el: 9 }],
+  ['sesame seeds|sesamzaad|sesame|sesamzaadjes', 573, 18, 23, 50, 12, .3, 7, 0, { el: 9 }],
+  ['chia|chiazaad|chia seeds|lijnzaad|flaxseed|hennepzaad|zonnebloempitten|pompoenpitten|seeds|pitten', 520, 20, 30, 38, 25, 1, 3.5, 0, { el: 10 }],
+  ['tahini|tahin', 595, 17, 21, 54, 9, .5, 7.5, .1, { el: 15 }],
+  ['hummus|houmous', 166, 8, 14, 10, 6, .3, 1.4, 1],
+  ['onion|onions|ui|uien|sjalot|sjalotten|shallot|shallots|red onion|rode ui|witte ui|pickled onion|pickled red onions|zilveruitjes', 40, 1.1, 9, .1, 1.7, 4.2, 0, 0, { pc: 110 }],
+  ['spring onion|spring onions|scallion|scallions|green onion|green onions|lente-ui|lenteui|bosui|bosuitjes', 32, 1.8, 7, .2, 2.6, 2.3, 0, 0, { pc: 15 }],
+  ['garlic|knoflook|knoflookteen|garlic cloves|garlic clove|knoflookteentjes', 149, 6.4, 33, .5, 2.1, 1, .1, 0, { pc: 5 }],
+  ['ginger|gember|verse gember', 80, 1.8, 18, .8, 2, 1.7, .2, 0, { pc: 15 }],
+  ['tomato|tomatoes|tomaat|tomaten|cherry tomatoes|cherrytomaatjes|cherrytomaten|trostomaten', 18, .9, 3.9, .2, 1.2, 2.6, 0, 0, { pc: 120 }],
+  ['canned tomatoes|chopped tomatoes|diced tomatoes|tomatenblokjes|gepelde tomaten|passata|tomato sauce|tomatensaus|crushed tomatoes', 32, 1.4, 5.5, .2, 1.5, 4, 0, .1, { can: 400, d: 1 }],
+  ['tomato paste|tomatenpuree|tomato puree', 82, 4.3, 19, .5, 4, 12, .1, .1, { el: 16 }],
+  ['bell pepper|bell peppers|paprika|paprika’s|paprikas|red pepper|green pepper|yellow pepper|puntpaprika', 31, 1, 6, .3, 2, 4.2, 0, 0, { pc: 150 }],
+  ['chili|chilli|chili pepper|chilipeper|rode peper|jalapeno|jalapeño|madame jeanette|spaanse peper|bird’s eye|thai chili', 40, 1.9, 9, .4, 1.5, 5, 0, 0, { pc: 15 }],
+  ['carrot|carrots|wortel|wortels|winterpeen|worteltjes', 41, .9, 10, .2, 2.8, 4.7, 0, .1, { pc: 70 }],
+  ['broccoli|broccolini', 34, 2.8, 7, .4, 2.6, 1.7, 0, 0, { pc: 350 }],
+  ['cauliflower|bloemkool', 25, 1.9, 5, .3, 2, 1.9, 0, 0, { pc: 600 }],
+  ['spinach|spinazie|baby spinach|babyspinazie|kale|boerenkool|snijbiet|paksoi|pak choi|bok choy', 23, 2.9, 3.6, .4, 2.2, .4, 0, .2, { cup: 30 }],
+  ['lettuce|sla|rucola|arugula|salad|ijsbergsla|romaine|veldsla|little gem|mesclun|salademix', 15, 1.4, 2.9, .2, 1.3, 1, 0, 0, { cup: 40 }],
+  ['cucumber|komkommer', 15, .7, 3.6, .1, .5, 1.7, 0, 0, { pc: 300 }],
+  ['zucchini|courgette|courgettes', 17, 1.2, 3.1, .3, 1, 2.5, 0, 0, { pc: 200 }],
+  ['eggplant|aubergine|aubergines', 25, 1, 6, .2, 3, 3.5, 0, 0, { pc: 250 }],
+  ['mushroom|mushrooms|champignons|champignon|paddenstoelen|shiitake|kastanjechampignons|oesterzwammen', 22, 3.1, 3.3, .3, 1, 2, 0, 0, { pc: 15 }],
+  ['peas|doperwten|erwten|erwtjes|sugar snaps|peultjes|snow peas', 81, 5.4, 14, .4, 5, 5.7, 0, 0, { cup: 145 }],
+  ['corn|mais|maïs|sweetcorn|corn kernels', 86, 3.3, 19, 1.4, 2, 6, .2, 0, { can: 285, cup: 165 }],
+  ['green beans|sperziebonen|haricots verts|snijbonen', 31, 1.8, 7, .2, 2.7, 3.3, 0, 0],
+  ['cabbage|kool|spitskool|rode kool|witte kool|savooiekool|chinese kool|sauerkraut|zuurkool|spruitjes|brussels sprouts', 25, 1.3, 5.8, .1, 2.5, 3.2, 0, 0, { pc: 800 }],
+  ['leek|leeks|prei', 61, 1.5, 14, .3, 1.8, 3.9, 0, 0, { pc: 200 }],
+  ['celery|selderij|bleekselderij|knolselderij|venkel|fennel', 16, .7, 3, .2, 1.6, 1.3, 0, .2, { pc: 40 }],
+  ['avocado|avocados|avocado’s', 160, 2, 8.5, 14.7, 6.7, .7, 2.1, 0, { pc: 150 }],
+  ['pumpkin|pompoen|butternut|squash|flespompoen', 26, 1, 6.5, .1, .5, 2.8, 0, 0, { pc: 1000 }],
+  ['beetroot|beet|bieten|rode biet|rode bieten', 43, 1.6, 10, .2, 2.8, 7, 0, .2, { pc: 100 }],
+  ['asparagus|asperges|asperge', 20, 2.2, 3.9, .1, 2.1, 1.9, 0, 0, { pc: 20 }],
+  ['cilantro|coriander|koriander|basil|basilicum|parsley|peterselie|dill|dille|mint|munt|bieslook|chives|thyme|tijm|rosemary|rozemarijn|oregano|herbs|kruiden|verse kruiden|salie|sage|dragon|tarragon|laurel|bay leaf|bay leaves|laurierblad', 30, 3, 5, .6, 3, .8, 0, 0, { pc: 1, z: 1 }],
+  ['seaweed|wakame|nori|zeewier|kombu', 45, 3, 9, .6, .5, .6, 0, 8, { z: 1 }],
+  ['lemon|lemons|citroen|citroenen|lemon juice|citroensap', 29, 1.1, 9, .3, 2.8, 2.5, 0, 0, { pc: 100 }],
+  ['lime|limes|limoen|limoenen|lime juice|limoensap', 30, .7, 10.5, .2, 2.8, 1.7, 0, 0, { pc: 65 }],
+  ['banana|bananas|banaan|bananen', 89, 1.1, 23, .3, 2.6, 12, .1, 0, { pc: 120 }],
+  ['apple|apples|appel|appels', 52, .3, 14, .2, 2.4, 10, 0, 0, { pc: 180 }],
+  ['berries|bessen|blueberries|blauwe bessen|strawberries|aardbeien|frambozen|raspberries|bramen|blackberries|rode vruchten|frozen fruit|diepvriesfruit', 45, .8, 10, .3, 3, 7, 0, 0, { cup: 145 }],
+  ['orange|oranges|sinaasappel|sinaasappels|mandarijn|mandarin|clementine', 47, .9, 12, .1, 2.4, 9, 0, 0, { pc: 150 }],
+  ['mango|mangos|mango’s', 60, .8, 15, .4, 1.6, 14, .1, 0, { pc: 300 }],
+  ['pineapple|ananas', 50, .5, 13, .1, 1.4, 10, 0, 0, { pc: 900 }],
+  ['dates|dadels|medjool', 282, 2.5, 75, .4, 8, 63, 0, 0, { pc: 8 }],
+  ['raisins|rozijnen|krenten|cranberries|gedroogde abrikozen|dried fruit|gedroogd fruit', 299, 3, 79, .5, 3.7, 59, 0, 0, { el: 10 }],
+  ['olive oil|olijfolie|oil|olie|vegetable oil|sesame oil|sesamolie|zonnebloemolie|sunflower oil|rapeseed oil|raapzaadolie|coconut oil|kokosolie|arachideolie|frituurolie|neutral oil|canola oil', 884, 0, 0, 100, 0, 0, 14, 0, { d: .92 }],
+  ['mayonnaise|mayo|kewpie', 680, 1, 1, 75, 0, 1, 6, 1.5, { el: 15 }],
+  ['soy sauce|sojasaus|shoyu|tamari|soja saus', 53, 8, 4.9, .6, .8, .4, .1, 14.5, { d: 1.1 }],
+  ['ketjap|kecap manis|ketjap manis|sweet soy sauce', 270, 3, 63, 0, 0, 55, 0, 8, { d: 1.3 }],
+  ['fish sauce|vissaus', 35, 5, 3.6, 0, 0, 3.6, 0, 23, { d: 1.2 }],
+  ['oyster sauce|oestersaus|hoisin|hoisinsaus|teriyaki|teriyakisaus|bbq sauce|barbecuesaus', 150, 2, 33, .3, .5, 25, 0, 5, { d: 1.2 }],
+  ['vinegar|azijn|rice vinegar|rijstazijn|balsamico|balsamic|white wine vinegar|wittewijnazijn|appelazijn|apple cider vinegar', 20, 0, .5, 0, 0, .4, 0, 0, { d: 1 }],
+  ['miso|miso paste|red miso paste|white miso|misopasta', 199, 12, 26, 6, 5.4, 6, 1, 12.5, { el: 17 }],
+  ['stock cube|bouillon cube|bouillonblokje|bouillonblokjes|bouillonpoeder|stock powder|dashi soup base|dashi powder|hondashi', 250, 8, 15, 17, 0, 3, 8, 55, { pc: 10, el: 8 }],
+  ['stock|broth|bouillon|dashi|fond|chicken stock|kippenbouillon|groentebouillon|vegetable stock|pho broth', 5, .5, .4, .2, 0, .2, .1, .8, { d: 1 }],
+  ['ketchup', 112, 1.2, 26, .1, .3, 22, 0, 1.8, { el: 17 }],
+  ['mustard|mosterd|dijon', 66, 4, 6, 4, 4, 3, .2, 5.5, { el: 15 }],
+  ['pesto', 450, 5, 6, 45, 1.5, 1, 7, 2.5, { el: 15 }],
+  ['sriracha|chili sauce|chilisaus|sambal|sambal oelek|gochujang|hot sauce|harissa|chilipasta', 90, 1.5, 18, 1, 2, 14, .1, 5, { el: 16 }],
+  ['curry paste|currypasta|rode curry|red curry paste|green curry paste|groene currypasta', 120, 2, 12, 7, 4, 5, 1, 8, { el: 16 }],
+  ['salt|zout|sea salt|zeezout|sea salt flakes|flaky salt|kosher salt', 0, 0, 0, 0, 0, 0, 0, 100, { el: 18, tl: 6, z: 1 }],
+  ['pepper|black pepper|zwarte peper|peper|witte peper|white pepper|paprika powder|paprikapoeder|smoked paprika|gerookte paprika|cumin|komijn|kurkuma|turmeric|kaneel|cinnamon|kerrie|curry powder|kerriepoeder|chilipoeder|chili flakes|chilivlokken|garam masala|spices|specerijen|nootmuskaat|nutmeg|kruidnagel|cloves|gemberpoeder|knoflookpoeder|garlic powder|onion powder|uienpoeder|ras el hanout|five spice|vijfkruidenpoeder|kardemom|cardamom|steranijs|star anise|italiaanse kruiden|italian seasoning|dried oregano|gedroogde oregano|cayenne|cayennepeper', 300, 10, 60, 5, 30, 1, 1, .1, { tl: 2.5, el: 7, z: 1 }],
+  ['water|ice|ijs|ijsblokjes|kokend water|boiling water|warm water', 0, 0, 0, 0, 0, 0, 0, 0, { d: 1, z: 1 }],
+  ['wine|wijn|white wine|witte wijn|red wine|rode wijn|mirin|sake|shaoxing', 85, 0, 2.6, 0, 0, 1, 0, 0, { d: 1 }],
+  ['beer|bier', 43, .5, 3.6, 0, 0, 0, 0, 0, { d: 1 }],
+  ['baking powder|bakpoeder|baking soda|baking soda|zuiveringszout', 53, 0, 28, 0, 0, 0, 0, 26, { tl: 4, z: 1 }],
+  ['yeast|gist|droge gist', 325, 40, 41, 7.6, 27, 0, 1, .1, { tl: 3, z: 1 }],
+  ['vanilla|vanille|vanilla extract|vanille-extract|vanillesuiker', 288, 0, 13, 0, 0, 13, 0, 0, { tl: 4, z: 1 }],
+  ['gelatin|gelatine|agar', 335, 85, 0, 0, 0, 0, 0, .5, { z: 1 }],
+  ['juice|sap|orange juice|sinaasappelsap|appelsap|apple juice', 45, .7, 10, .2, .2, 9, 0, 0, { d: 1.04 }],
+  ['olives|olijven|kappertjes|capers', 145, 1, 4, 15, 3.3, 0, 2, 3.8, { pc: 4 }],
+  ['tortilla chips|chips|nachos', 500, 7, 63, 24, 5, 1, 3, 1.3],
+];
+const NUTRI_RI = { kcal: 2000, p: 50, c: 260, f: 70, fib: 30, sug: 90, sat: 20, salt: 6 };
+const NUTRI_IDX = (() => { const out = []; NUTRI_DB.forEach((e, i) => e[0].split('|').forEach(k => out.push([deUml(k), i]))); return out.sort((a, b) => b[0].length - a[0].length); })();
+// the table row for an ingredient name: the longest name that fits wins ("peanut butter" over "butter")
+function nutriFind(name) {
+  const n = ' ' + deUml(name).replace(/[^a-z0-9’' -]/g, ' ').replace(/\s+/g, ' ') + ' ';
+  for (const [k, i] of NUTRI_IDX) {
+    if (k.length <= 3 ? n.includes(' ' + k + ' ') : n.includes(k)) return NUTRI_DB[i];
+  }
+  return null;
+}
+const qtyNum = q => { const s = String(q ?? '').trim().replace(',', '.'); if (!s) return null; const r = s.match(/^([\d.]+)\s*[-–]\s*([\d.]+)$/); if (r) return (Number(r[1]) + Number(r[2])) / 2; const fr = s.match(/^(\d+)\s*\/\s*(\d+)$/); if (fr) return fr[1] / fr[2]; const mx = s.match(/^(\d+(?:\.\d+)?)?\s*([½⅓⅔¼¾⅛])$/); if (mx) return Number(mx[1] || 0) + FRAC[mx[2]]; const v = Number(s); return Number.isFinite(v) ? v : null; };
+// grams of one ingredient line, or null when the amount can't be told
+function nutriGrams(x, e) {
+  const o = e[9] || {}, d = o.d || 1, q = qtyNum(x.q), u = String(x.u || '').toLowerCase();
+  if (u === 'snufje' || u === 'naar smaak') return u === 'snufje' ? .4 : 0;
+  if (q == null) return null;
+  const per = { g: 1, kg: 1000, ml: d, dl: 100 * d, l: 1000 * d, el: o.el || 15 * d, tl: o.tl || 5 * d, kopje: o.cup || 240 * d, teentje: o.pc && o.pc < 10 ? o.pc : 5, scheutje: 10 * d, handje: 30, blik: o.can || 400, pak: 500, zakje: 100, bosje: 25, plak: o.pc && o.pc <= 40 ? o.pc : 20 }[u];
+  if (per != null) return q * per;
+  if (!u || u === 'stuk') return o.pc ? q * o.pc : null;
+  return null;
+}
+/* the estimate for a recipe, per serving: what it adds up to, and which lines it could not count */
+function nutriOf(r) {
+  const lines = Array.isArray(r.ilines) && r.ilines.length ? r.ilines.filter(x => x.h == null && String(x.n || '').trim()) : parseText(r).lines.map(ilineParse).filter(x => x.n);
+  const sum = { kcal: 0, p: 0, c: 0, f: 0, fib: 0, sug: 0, sat: 0, salt: 0 }, skipped = [];
+  let counted = 0;
+  for (const x of lines) {
+    const e = nutriFind(x.n); if (!e) { skipped.push(x.n); continue; }
+    const g = nutriGrams(x, e); if (g == null) { if (!(e[9] || {}).z) skipped.push(x.n); continue; }
+    const k = g / 100; counted++;
+    sum.kcal += e[1] * k; sum.p += e[2] * k; sum.c += e[3] * k; sum.f += e[4] * k; sum.fib += e[5] * k; sum.sug += e[6] * k; sum.sat += e[7] * k; sum.salt += e[8] * k;
+  }
+  const sv = Math.max(1, num(r.servings) || 1), per = Object.fromEntries(Object.entries(sum).map(([k, v]) => [k, v / sv]));
+  // your own numbers win over the estimate
+  const own = ['nkcal', 'nprot', 'ncarb', 'nfat'].some(k => num(r[k]) != null);
+  if (own) { if (num(r.nkcal) != null) per.kcal = num(r.nkcal); if (num(r.nprot) != null) per.p = num(r.nprot); if (num(r.ncarb) != null) per.c = num(r.ncarb); if (num(r.nfat) != null) per.f = num(r.nfat); }
+  return { per, skipped: [...new Set(skipped)], counted, total: lines.length, own };
+}
+// a ring of arcs: each part a share of the circle, with a small gap between parts
+function nutriRing(parts, size, stroke, inner = '') {
+  const r = (size - stroke) / 2, c = 2 * Math.PI * r, tot = parts.reduce((n, p) => n + p.v, 0) || 1, gap = parts.filter(p => p.v > 0).length > 1 ? Math.min(6, c * .02) : 0;
+  let off = 0;
+  const arcs = parts.map(p => { const len = Math.max(0, c * p.v / tot - gap); const s = `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${p.col}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${len} ${c - len}" stroke-dashoffset="${-off}" transform="rotate(-90 ${size / 2} ${size / 2})"/>`; off += c * p.v / tot; return p.v > 0 ? s : ''; }).join('');
+  return `<svg class="nring" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" aria-hidden="true"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--none)" stroke-width="${stroke}"/>${arcs}${inner}</svg>`;
+}
+// how full a goal is: one arc from the top
+function nutriMeter(pct, col, size = 44, stroke = 5) {
+  const r = (size - stroke) / 2, c = 2 * Math.PI * r, len = c * Math.min(1, pct / 100);
+  return `<svg class="nmeter" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" aria-hidden="true"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--none)" stroke-width="${stroke}"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${col}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${len} ${c}" transform="rotate(-90 ${size / 2} ${size / 2})"/></svg>`;
+}
+const NUTRI_FLAME = '<path d="M12 3c.6 3-1.8 4.6-3.2 6.6C7.6 11.3 7 12.8 7 14.5A5 5 0 0 0 17 14.5c0-2.2-1-4-2.4-5.3.1 1.4-.4 2.6-1.4 3.2.3-3.3-.4-6.6-1.2-9.4Z" fill="currentColor"/>';
+function nutriPanel(r) {
+  const n = nutriOf(r), v = n.per;
+  if (!n.own && (!n.counted || v.kcal < 1)) return n.total ? `<section class="nutri"><div class="nhead"><h3>Nutrition</h3></div><p class="lnone">Add amounts to the ingredients (Edit) and the app estimates calories, protein, carbs and fat.</p></section>` : '';
+  const cols = { p: 'var(--c1)', c: 'var(--c3)', f: 'var(--c5)' }, pc = (x, ri) => Math.round(100 * x / ri);
+  const g = x => x >= 10 ? Math.round(x) : Math.round(x * 10) / 10;
+  const tile = (k, label, ri) => `<div class="ntile">${nutriMeter(pc(v[k], ri), cols[k])}<b>${g(v[k])} g</b><span>${label}</span><i style="color:${cols[k]}">${pc(v[k], ri)}%</i></div>`;
+  const bar = (k, label, ri) => { const p = pc(v[k], ri), col = p >= 50 ? 'var(--danger)' : 'var(--c3)'; return `<div class="nbar"><div class="nbl"><span>${label}</span><b>${g(v[k])} g</b><i style="color:${p >= 50 ? 'var(--danger)' : 'inherit'}">${p}%</i></div><div class="nbt"><i style="width:${Math.min(100, p)}%;background:${col}"></i></div></div>`; };
+  return `<section class="nutri">
+    <div class="nhead"><h3>Nutrition</h3><span class="nbadge">${n.own ? 'Your values' : 'Estimated'}</span><span class="lnone">Per serving</span></div>
+    <div class="ncal"><div><p class="nkcal"><b>${Math.round(v.kcal)}</b><span>/${NUTRI_RI.kcal}</span></p><span class="lnone">Calories</span></div>${nutriRing([{ v: v.p * 4, col: cols.p }, { v: v.c * 4, col: cols.c }, { v: v.f * 9, col: cols.f }], 96, 9, `<g transform="translate(36 36)" class="nflame"><svg width="24" height="24" viewBox="0 0 24 24">${NUTRI_FLAME}</svg></g>`)}</div>
+    <div class="ntiles">${tile('p', 'Protein', NUTRI_RI.p)}${tile('c', 'Carbs', NUTRI_RI.c)}${tile('f', 'Fat', NUTRI_RI.f)}</div>
+    ${n.own && !n.counted ? '' : `<div class="nbars">${bar('fib', 'Fibre', NUTRI_RI.fib)}${bar('sug', 'Sugar', NUTRI_RI.sug)}${bar('sat', 'Saturated fat', NUTRI_RI.sat)}${bar('salt', 'Salt', NUTRI_RI.salt)}</div>`}
+    <p class="lnone nfoot">% of an adult's reference intake (2000 kcal). ${n.own ? 'From the values you entered.' : `A rough estimate from ${plural(n.counted, 'ingredient')} with an amount.`}${n.skipped.length && !n.own ? ` Not counted: ${esc(n.skipped.slice(0, 8).join(', '))}${n.skipped.length > 8 ? ` and ${n.skipped.length - 8} more` : ''}.` : ''}</p>
+  </section>`;
+}
+// an older recipe keeps its lines and steps as text; the editor turns them into rows once, so you can change amounts
+function recipeToRows(D) {
+  if ((!Array.isArray(D.ilines) || !D.ilines.length) && D.instructions) { const pr = parseText(D); if (pr.lines.length) D.ilines = pr.lines.map(ilineParse); if ((!Array.isArray(D.steps) || !D.steps.length) && pr.steps.length) D.steps = pr.steps; }
+  else if ((!Array.isArray(D.steps) || !D.steps.length) && D.instructions) { const pr = parseText(D); D.steps = pr.steps.length ? pr.steps : []; }
+}
+// before saving: drop empty rows, link pantry items, and keep the text version for older parts of the app
+function recipeBeforeSave(out) {
+  const il = [].concat(out.ilines || []).filter(x => x && (x.h != null ? String(x.h).trim() : String(x.n || '').trim())).map(x => x.h != null ? { h: String(x.h).trim() } : (() => { const y = { q: String(x.q ?? '').trim(), u: x.u || '', n: String(x.n).trim(), note: String(x.note || '').trim() }; const hit = pantryHit(y.n); if (hit) y.ing = hit.id; for (const k of Object.keys(y)) if (y[k] === '') delete y[k]; return y; })());
+  const st = [].concat(out.steps || []).map(x => String(x).trim()).filter(Boolean);
+  if (il.length) out.ilines = il; else delete out.ilines;
+  if (st.length) out.steps = st; else delete out.steps;
+  if (il.length || st.length) {
+    const pr = parseRecipe(out);
+    out.instructions = [pr.lines.length ? 'Ingrediënten:\n' + pr.lines.map(l => '- ' + l).join('\n') : '', pr.steps.length ? 'Bereiding:\n' + pr.steps.map((x, i) => `${i + 1}. ${x}`).join('\n') : ''].filter(Boolean).join('\n\n');
+    const ids = new Set([].concat(out.ingredients || [])); for (const x of il) if (x.ing) ids.add(x.ing); if (ids.size) out.ingredients = [...ids];
+  }
+  return out;
+}
 // the words that name an ingredient, to find it back in a step
 const lineWords = l => norm(l).replace(/[\d½⅓⅔¼¾⅛.,/()–-]+/g, ' ').split(/\s+/).filter(w => w.length > 3 && !/^(gram|grams|cups?|tbsp|tsp|tablespoons?|teaspoons?|eetlepels?|theelepels?|ounces?|pound|pinch|snufje|handful|handje|stuks?|blik|teentjes?|cloves?|large|small|grote|kleine|fresh|verse|chopped|gehakt|finely|fijn|sliced|optional|ongeveer|about|plus|more|extra|taste|naar|smaak)$/.test(w));
 // "10 minutes", "5-7 min", "1 uur", "30 seconden" in a step become timers
@@ -4156,6 +4424,8 @@ function fieldInner(kind, f, D) {
   const span = `<span class="lflabel">${esc(f.label)}</span>`;
   switch (f.type) {
     case 'long': return lab + `<textarea id="${id}" data-k="${f.k}" rows="${f.rows || 4}">${esc(v || '')}</textarea>`;
+    case 'ilines': return span + ilinesEditor(D);
+    case 'steplist': return span + stepsEditor(D);
     case 'num': case 'money': return lab + `<input id="${id}" type="number" inputmode="decimal" step="any" data-k="${f.k}" data-num value="${v ?? ''}">`;
     case 'date': return lab + `<input id="${id}" type="date" data-k="${f.k}" value="${esc(v || '')}">`;
     case 'time': return lab + `<input id="${id}" type="time" data-k="${f.k}" value="${esc(v || '')}">`;
@@ -4215,6 +4485,7 @@ function openEditor(kind, id, preset = {}) {
   const D = r ? JSON.parse(JSON.stringify(dataOf(r))) : { created: Date.now(), ...preset };
   if (kind === 'skinlog' && !r) { const wd = wdOf(); D.used = D.used || [...new Set([...skinSlot(wd, false), ...skinSlot(wd, true)].map(b => b.id))]; D.time = D.time || (new Date().getHours() < 15 ? 'Morning' : 'Evening'); const cy = cycleStats(); if (cy.last && !cy.guessed && cy.day) D.cycle = D.cycle ?? cy.day; }
   if (kind === 'beauty' && r) { if (!Array.isArray(D.amDays)) D.amDays = amDaysOf(r); if (!Array.isArray(D.pmDays)) D.pmDays = pmDaysOf(r); }
+  if (kind === 'recipes') recipeToRows(D);
   D._blobs = {}; D._previews = {}; // one picked photo per photo field (a product photo and a receipt, say)
   if (!r) for (const f of K.fields) if (f.type === 'date' && D[f.k] === undefined && ['date', 'start'].includes(f.k)) D[f.k] = today();
   const sh = C.sheet({
@@ -4250,6 +4521,8 @@ function openEditor(kind, id, preset = {}) {
     const t = e.target;
     if (t.dataset.k) { D[t.dataset.k] = t.dataset.num !== undefined ? num(t.value) : t.value; if (t.dataset.photourl !== undefined) { delete D._blobs[t.dataset.k]; photoPreview(t); } }
     if (t.dataset.relq) relOpts(t.dataset.relq, t.value);
+    if (t.dataset.il !== undefined) { const x = D.ilines[+t.dataset.il]; if (x) x[t.dataset.ik] = t.value; }
+    if (t.dataset.st !== undefined) D.steps[+t.dataset.st] = t.value;
     // while you type, the buttons narrow down to what matches; a full match shows them all again
     if (t.dataset.sugk) { const q = norm(t.value), bs = [...sh.querySelectorAll(`[data-tsug="${t.dataset.sugk}"]`)], exact = bs.some(b => norm(b.dataset.v) === q); bs.forEach(b => { b.hidden = !!q && !exact && !norm(b.dataset.v).includes(q); b.setAttribute('aria-pressed', norm(b.dataset.v) === q); }); }
   });
@@ -4316,6 +4589,10 @@ function openEditor(kind, id, preset = {}) {
     const dop = e.target.closest('[data-opt]'); if (dop) for (const df of (KINDS[kind]?.fields || []).filter(x => x.dep === dop.dataset.opt)) setTimeout(() => { const ok = (df.depOpts?.[D[df.dep]] || []).includes(D[df.k]) || recs(kind).some(r => r[df.dep] === D[df.dep] && r[df.k] === D[df.k]); if (D[df.k] && !ok) delete D[df.k]; redraw(df.k); });
   });
   sh.addEventListener('click', e => {
+    if (e.target.closest('[data-iladd], [data-iladdh]')) { const h = !!e.target.closest('[data-iladdh]'); D.ilines = [...(D.ilines || []), h ? { h: '' } : { q: '', u: '', n: '', note: '' }]; redraw('ilines'); sh.querySelector(`[data-il="${D.ilines.length - 1}"][data-ik="${h ? 'h' : 'q'}"]`)?.focus(); return; }
+    const ilx = e.target.closest('[data-ilx]'); if (ilx) { D.ilines.splice(+ilx.dataset.ilx, 1); redraw('ilines'); return; }
+    if (e.target.closest('[data-stadd]')) { D.steps = [...(D.steps || []), '']; redraw('steps'); sh.querySelector(`[data-st="${D.steps.length - 1}"]`)?.focus(); return; }
+    const stx = e.target.closest('[data-stx]'); if (stx) { D.steps.splice(+stx.dataset.stx, 1); redraw('steps'); return; }
     const tg = e.target.closest('[data-tsug]'); if (tg) { const k = tg.dataset.tsug; D[k] = norm(D[k] || '') === norm(tg.dataset.v) ? '' : tg.dataset.v; redraw(k); return; }
     const ts = e.target.closest('[data-tstep], [data-tstepreset]');
     if (ts) { const i = Number(ts.dataset.tstep), done = new Set([].concat(D.stepsDone || [])); if (ts.dataset.tstepreset !== undefined) done.clear(); else done.has(i) ? done.delete(i) : done.add(i); D.stepsDone = [...done].sort((a, b) => a - b); drawTipSteps(); if (r) save(L.byId[r.id] || r, { stepsDone: D.stepsDone, ...(D.stepsDone.length && D.stepsDone.length === tipSteps(D).length && !D.tried ? { tried: (D.tried = true) } : {}) }); if (D.tried) redraw('tried'); return; }
@@ -4382,6 +4659,7 @@ function openEditor(kind, id, preset = {}) {
         const out = {}; for (const [k, v] of Object.entries(D)) if (!k.startsWith('_') && v !== '' && v != null && !(Array.isArray(v) && !v.length && !['amDays', 'pmDays'].includes(k))) out[k] = v;
         if (out.name) out.name = String(out.name).trim();
         if (kind === 'ingredients' && !out.type && ingGuess(out.name)) out.type = ingGuess(out.name);
+        if (kind === 'recipes') recipeBeforeSave(out);
         await put(kind, r ? r.id : C.uuid(), out);
         C.closeSheet(); C.toast('Saved');
       } catch (err) { console.error(err); msg.textContent = 'Could not save. Try again.'; b.disabled = false; }
