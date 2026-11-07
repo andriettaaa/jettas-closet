@@ -380,6 +380,12 @@ const KINDS = {
     sub: r => [niceDate(r.date), r.time].filter(Boolean).join(' · ')
   },
   water: { one: 'day', many: 'Water', fields: [F('date', 'Date', 'date', { half: 1 }), F('glasses', 'Glasses', 'num', { half: 1 })], title: r => niceDate(r.date), sorts: [['-date', 'Newest']], sub: r => plural(r.glasses || 0, 'glass', 'glasses') },
+  nlog: {
+    one: 'day', many: 'Food check',
+    fields: [F('date', 'Date', 'date', { half: 1 }), F('meals', 'Ate', 'multi', { options: ['Breakfast', 'Lunch', 'Dinner'] }), F('snack', 'Snack', 'check', { half: 1 }), F('nosoda', 'No sugary drinks', 'check', { half: 1 }),
+      F('veg', 'Vegetables (g)', 'num', { half: 1 }), F('fruit', 'Fruit (pieces)', 'num', { half: 1 }), F('notes', 'Notes', 'long')],
+    title: r => niceDate(r.date), sorts: [['-date', 'Newest']], sub: r => `${nlScore(r)} of ${NL_MAX}`
+  },
   journal: {
     one: 'entry', ones: 'entries', many: 'Journal', facet: 'mood',
     fields: [F('date', 'Date', 'date', { half: 1 }), F('mood', 'Mood', 'select', { options: ['Great', 'Good', 'Okay', 'Low', 'Bad'], half: 1 }),
@@ -2091,11 +2097,56 @@ function prepPanel(plan, compact) {
 }
 document.addEventListener('change', e => { const c = e.target; if (!C || !c.matches?.('[data-prep]')) return; const [id, k] = c.dataset.prep.split(':'); const all = (L.prepDone ||= {}), set = new Set(all[id] || []); c.checked ? set.add(+k) : set.delete(+k); all[id] = [...set]; try { localStorage.setItem('prepDone', JSON.stringify(all)); } catch {} C.render(); });
 try { L.prepDone = JSON.parse(localStorage.getItem('prepDone') || '{}'); } catch {}
+// the food check: a few taps a day, no calories, just regular meals, veg, fruit, water and a snack
+const NL_MAX = 8, VEG_GOAL = 250;
+const nlOn = d => recs('nlog').find(x => x.date === d);
+const waterOn = d => recs('water').find(w => w.date === d);
+const nlScore = (r, d = r?.date) => { if (!r && !waterOn(d)) return 0; const m = [].concat(r?.meals || []); const wg = Number(C?.prefs?.().waterGoal) || 8; return m.length + (r?.snack ? 1 : 0) + ((num(r?.veg) || 0) >= VEG_GOAL ? 1 : 0) + ((num(r?.fruit) || 0) >= 1 ? 1 : 0) + (r?.nosoda ? 1 : 0) + ((waterOn(d)?.glasses || 0) >= wg ? 1 : 0); };
+async function nlSet(patch, d = today()) {
+  const r = nlOn(d);
+  try { r ? await put('nlog', r.id, { ...dataOf(r), ...patch }) : await create('nlog', { date: d, ...patch }); } catch { C.toast('Could not save. Try again.'); }
+}
+function nlToggle(key) {
+  const r = nlOn(today()) || {};
+  if (['Breakfast', 'Lunch', 'Dinner'].includes(key)) {
+    const m = new Set([].concat(r.meals || [])), on = !m.has(key); on ? m.add(key) : m.delete(key);
+    nlSet({ meals: ['Breakfast', 'Lunch', 'Dinner'].filter(x => m.has(x)) });
+    if (key === 'Breakfast') { const h = bfHabit(); if (h && daysSet(h).has(today()) !== on) toggleDay(h); else if (!h && on) bfCreate(); }
+    return;
+  }
+  nlSet({ [key]: !r[key] });
+}
+function nlStep(key, dir) {
+  if (key === 'water') return water(dir);
+  const r = nlOn(today()) || {}, step = key === 'veg' ? 50 : 1;
+  nlSet({ [key]: Math.max(0, (num(r[key]) || 0) + dir * step) });
+}
+const SNACKY = /kaas|cracker|knäck|ei\b|eieren|chips|zoutje|kipfilet|rookvlees|worst|salami|ham|olijf|kaasbro|pinda|popcorn|tortilla|wrap|fruit|appel|banaan|mandarijn|druif|komkommer|tomaat|paprika|wortel/i;
+function snackIdeas() {
+  const have = recs('ingredients').filter(i => (i.stock || (cntOf(i) || 0) > 0) && i.location !== 'Vriezer' && SNACKY.test(i.name || '')).map(i => i.name);
+  const plan = (curPlan()?.snacks || []).map(x => x.name);
+  return [...new Set([...plan, ...have])].slice(0, 6);
+}
+function foodCheckPanel() {
+  const t = today(), r = nlOn(t) || {}, m = new Set([].concat(r.meals || [])), wg = Number(C.prefs().waterGoal) || 8, wn = waterOn(t)?.glasses || 0, veg = num(r.veg) || 0, fr = num(r.fruit) || 0;
+  const chip = (k, label, on) => `<button class="chip ${on ? 'on' : ''}" data-act="nl" data-v="${k}" aria-pressed="${on}">${on ? svg(P.check) : ''}${label}</button>`;
+  const st = (k, label, val, goal) => `<div class="nlstep"><span>${label}</span><span class="stepper"><button type="button" data-act="nlstep" data-v="${k}" data-d="-1" aria-label="Less">−</button><b class="${goal && val >= goal ? 'ok' : ''}">${esc(val)}${goal ? ` / ${goal}` : ''}</b><button type="button" data-act="nlstep" data-v="${k}" data-d="1" aria-label="More">+</button></span></div>`;
+  const days = Array.from({ length: 7 }, (_, k) => addDays(dealWeekStart(), k)).map(d => { const sc = nlScore(nlOn(d), d), pct = Math.round(100 * sc / NL_MAX); return `<span class="nldot ${d === t ? 'now' : ''} ${d > t ? 'later' : ''}" title="${esc(niceDate(d))}: ${sc} of ${NL_MAX}" style="--p:${d > t ? 0 : pct}%"><i></i><small>${fromISO(d).toLocaleDateString('en-GB', { weekday: 'narrow' })}</small></span>`; }).join('');
+  const ideas = !r.snack && new Date().getHours() >= 13 ? snackIdeas() : [];
+  return panel('Food today', `<div class="nlweek">${days}</div>
+    <div class="lwrap">${chip('Breakfast', 'Breakfast', m.has('Breakfast'))}${chip('Lunch', 'Lunch', m.has('Lunch'))}${chip('Dinner', 'Dinner', m.has('Dinner'))}${chip('snack', 'Snack', !!r.snack)}${chip('nosoda', 'No sugary drinks', !!r.nosoda)}</div>
+    <div class="nlsteps">${st('veg', 'Vegetables (g)', veg, VEG_GOAL)}${st('fruit', 'Fruit', fr, 1)}${st('water', 'Water', wn, wg)}</div>
+    ${ideas.length ? `<p class="lnone">Snack idea from what you have: ${esc(ideas.join(', '))}</p>` : ''}`);
+}
 // learning to eat breakfast: today's planned breakfast and a tick that counts as a habit in Routines
 const bfHabit = () => recs('habits').find(h => /breakfast|ontbijt/i.test(h.name || ''));
 async function hadBreakfast() {
-  const h = bfHabit();
-  if (h) return toggleDay(h);
+  const h = bfHabit(), r = nlOn(today()), m = new Set([].concat(r?.meals || []));
+  if (!m.has('Breakfast')) { m.add('Breakfast'); nlSet({ meals: ['Breakfast', 'Lunch', 'Dinner'].filter(x => m.has(x)) }); }
+  if (h) return daysSet(h).has(today()) ? null : toggleDay(h);
+  return bfCreate();
+}
+async function bfCreate() {
   try { await create('habits', { name: 'Eat breakfast', onDays: [...WEEKDAYS], area: 'Nutrition', why: 'More energy in the morning, fewer cravings later.', days: [today()] }); C.toast('Nice. Breakfast is now a habit in Routines'); } catch { C.toast('Could not save. Try again.'); }
 }
 function breakfastPanel() {
@@ -2243,6 +2294,7 @@ function kitchenToday(host) {
     ${(() => { const soon = recs('ingredients').filter(useSoon).sort((a, b) => a.expires.localeCompare(b.expires)); if (!soon.length) return ''; const ids = new Set(soon.map(x => x.id)), use = rs.filter(r => (r.ingredients || []).some(id => ids.has(id))).sort((a, b) => (b.ingredients || []).filter(id => ids.has(id)).length - (a.ingredients || []).filter(id => ids.has(id)).length).slice(0, 4);
       return panel('Use soon', `<div class="lrows">${soon.slice(0, 6).map(x => `<div class="lrow"><button class="lmain" data-act="open" data-id="${x.id}"><b>${esc(x.name)}</b><span>${x.expires < t ? 'past its date' : x.expires === t ? 'best before today' : 'best before ' + esc(relDay(x.expires))}</span></button></div>`).join('')}</div>${use.length ? `<p class="dsub">Recipes that use them</p><div class="lwrap">${use.map(r => `<button class="chip" data-act="open" data-id="${r.id}">${esc(r.name)}</button>`).join('')}</div>` : ''}`, ['kitchen/pantry', 'Pantry']); })()}
     ${(() => { const old = inFreezer().filter(i => (freezerAge(i) ?? 0) >= FREEZE_DAYS); return old.length ? panel('Freezer', `<p class="lnone">In the freezer for 3 months or more. Use these first.</p><div class="lwrap">${old.slice(0, 8).map(i => `<button class="chip" data-act="open" data-id="${i.id}">${esc(i.name)}</button>`).join('')}</div>`, ['kitchen/pantry', 'Open freezer']) : ''; })()}
+    ${foodCheckPanel()}
     ${new Date().getHours() < 14 ? breakfastPanel() : ''}
     ${leftoverPanel()}
     ${(() => { const pl = curPlan(); return pl?.prepDay === today() ? prepPanel(pl, true) : ''; })()}
@@ -3594,7 +3646,7 @@ function optionLists() {
 // choices are buttons up to this many, a dropdown above it
 const CHIP_MAX = 12;
 // lists with a natural order keep it; everything else is A to Z (your own order from Settings always wins)
-const ORDERED = new Set(['unit', 'match', 'onDays', 'amDays', 'pmDays', 'step', 'again', 'angle', 'after', 'breakouts', 'redness', 'dryness', 'oiliness', 'stress', 'priority', 'prio', 'stage', 'status', 'cadence', 'freq', 'level', 'slot', 'funnel', 'effort', 'size', 'season', 'seasons', 'time', 'intake', 'when', 'day', 'days', 'nights', 'reheat', 'again', 'portion', 'mood', 'energy', 'quality']);
+const ORDERED = new Set(['meals', 'unit', 'match', 'onDays', 'amDays', 'pmDays', 'step', 'again', 'angle', 'after', 'breakouts', 'redness', 'dryness', 'oiliness', 'stress', 'priority', 'prio', 'stage', 'status', 'cadence', 'freq', 'level', 'slot', 'funnel', 'effort', 'size', 'season', 'seasons', 'time', 'intake', 'when', 'day', 'days', 'nights', 'reheat', 'again', 'portion', 'mood', 'energy', 'quality']);
 const sortOpts = (kind, f, opts) => optCfg(kind, f.k).list || ORDERED.has(f.k) ? opts : [...opts].sort((a, b) => norm(a).localeCompare(norm(b)));
 function fieldInner(kind, f, D) {
   const v = D[f.k], id = 'lf-' + f.k;
@@ -3971,6 +4023,8 @@ document.addEventListener('click', async e => {
     case 'wmovewait': moveWaitList(); break;
     case 'dkeep': case 'dplan': case 'dgroc': dealsAct(d.act, d.k, Number(d.i)); break;
     case 'cnt': countStep(d.id, Number(d.v)); break;
+    case 'nl': nlToggle(d.v); break;
+    case 'nlstep': nlStep(d.v, Number(d.d)); break;
     case 'away': toggleAway(d.v); break;
     case 'hadbf': hadBreakfast(); break;
     case 'office': { const o = new Set(food().office || ['Mon', 'Tue', 'Thu']); o.has(d.v) ? o.delete(d.v) : o.add(d.v); C.savePrefs({ food: { ...food(), office: WEEKDAYS.filter(x => o.has(x)) } }).catch(() => C.toast('Could not save. Try again.')); break; }

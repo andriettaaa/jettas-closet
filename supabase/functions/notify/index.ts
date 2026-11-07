@@ -13,7 +13,7 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
 // the same defaults the Settings page shows
 const DEF: Record<string, { on: boolean; time?: string }> = {
   morning: { on: true, time: '07:30' }, evening: { on: true, time: '21:30' }, bills: { on: true, time: '18:00' },
-  payday: { on: true, time: '09:00' }, weekly: { on: true, time: '19:00' }, weekahead: { on: true, time: '19:30' }, reminders: { on: true, time: '10:00' }, content: { on: true, time: '09:00' }, skindiary: { on: true, time: '10:00' }, freezer: { on: true, time: '17:00' }, shopday: { on: true, time: '10:00' }, socialweek: { on: true, time: '18:30' },
+  payday: { on: true, time: '09:00' }, weekly: { on: true, time: '19:00' }, weekahead: { on: true, time: '19:30' }, reminders: { on: true, time: '10:00' }, content: { on: true, time: '09:00' }, skindiary: { on: true, time: '10:00' }, freezer: { on: true, time: '17:00' }, shopday: { on: true, time: '10:00' }, eatbf: { on: true, time: '09:30' }, eatlunch: { on: true, time: '12:45' }, eatsnack: { on: true, time: '15:30' }, foodweek: { on: true, time: '18:00' }, socialweek: { on: true, time: '18:30' },
   budget: { on: true }, applepay: { on: true }
 };
 type Rec = Record<string, any> & { id: string; kind: string };
@@ -180,6 +180,32 @@ function shopday(recs: Rec[], prefs: any, wd: string) {
   const lines = Object.entries(by).sort((a, b) => (a[0] === mname ? -1 : b[0] === mname ? 1 : a[0] === 'Anywhere' ? 1 : b[0] === 'Anywhere' ? -1 : a[0].localeCompare(b[0]))).map(([s, l]) => `${s}: ${l.slice(0, 8).join(', ')}${l.length > 8 ? ` +${l.length - 8}` : ''}`);
   return { title: `Shopping today: ${list.length} things`, body: lines.slice(0, 6).join('\n'), url: './#kitchen/groceries', tag: 'shopday' };
 }
+// food check: a gentle nudge when a meal or the snack isn't ticked yet (only once you use the food check)
+function eatNudge(recs: Rec[], today: string, what: 'Breakfast' | 'Lunch' | 'snack') {
+  if (!recs.some(r => r.kind === 'nlog')) return null;
+  const n = recs.find(r => r.kind === 'nlog' && r.date === today), meals = ([] as string[]).concat(n?.meals || []);
+  if (what === 'snack' ? n?.snack : meals.includes(what)) return null;
+  const away = recs.some(r => r.kind === 'meals' && r.date === today && r.slot === what && r.away);
+  if (away) return null;
+  const planned = recs.find(r => r.kind === 'meals' && r.date === today && r.slot === (what === 'snack' ? 'Snack' : what) && !r.away);
+  const name = planned ? (recs.find(r => r.id === planned.recipe)?.name || planned.what) : '';
+  const t = what === 'Breakfast' ? { title: 'Breakfast time', body: name ? `On the plan: ${name}. Something small counts too.` : 'Something small counts too: bread with aged cheese or an egg.' }
+    : what === 'Lunch' ? { title: 'Lunch time', body: name ? `On the plan: ${name}.` : 'Time for lunch. A leftover or a sandwich is perfect.' }
+    : { title: 'Snack time', body: 'Something hearty in between: cheese and crackers, an egg, or whatever you fancy.' };
+  return { ...t, url: './#kitchen/today', tag: 'eat' + what.toLowerCase() };
+}
+// Sundays: how the food week went, kind and short
+function foodweek(recs: Rec[], today: string, prefs: any) {
+  const days = Array.from({ length: 7 }, (_, k) => addDays(today, k - 6)), logs = days.map(d => recs.find(r => r.kind === 'nlog' && r.date === d));
+  if (!logs.some(Boolean)) return null;
+  const wg = Number(prefs?.waterGoal) || 8, cnt = (f: (n: any, d: string) => boolean) => days.filter((d, k) => f(logs[k], d)).length;
+  const three = cnt(n => ([] as string[]).concat(n?.meals || []).length === 3), bf = cnt(n => ([] as string[]).concat(n?.meals || []).includes('Breakfast'));
+  const veg = cnt(n => (Number(n?.veg) || 0) >= 250), fruit = cnt(n => (Number(n?.fruit) || 0) >= 1), soda = cnt(n => !!n?.nosoda), snack = cnt(n => !!n?.snack);
+  const water = cnt((n, d) => (recs.find(r => r.kind === 'water' && r.date === d)?.glasses || 0) >= wg);
+  const lows: [number, string][] = [[bf, 'Next week: put bread and cheese ready the night before, so breakfast takes a minute.'], [veg, 'Next week: add a handful of veg to lunch or dinner, frozen veg counts too.'], [snack, 'Next week: keep cheese and crackers in reach for the afternoon.'], [fruit, 'Next week: put fruit on the table where you see it.'], [soda, 'Next week: keep sparkling water with lemon in the fridge.'], [water, 'Next week: a glass of water with every meal adds up fast.']];
+  const tip = lows.sort((a, b) => a[0] - b[0])[0][1];
+  return { title: 'Your food week', body: `3 meals on ${three} of 7 days, breakfast ${bf}×, veg goal ${veg}×, fruit ${fruit}×, snack ${snack}×, no sugary drinks ${soda}×.\n${tip}`, url: './#kitchen/today', tag: 'foodweek' };
+}
 // Sundays: what has been in the freezer for 3 months or more
 function freezer(recs: Rec[], today: string) {
   const old = recs.filter(r => r.kind === 'ingredients' && r.location === 'Vriezer' && r.stock !== false && r.frozen && r.frozen <= addDays(today, -90)).sort((a, b) => String(a.frozen).localeCompare(String(b.frozen)));
@@ -236,14 +262,14 @@ async function runUser(uid: string, prefs: any, force = false) {
     const c = { ...DEF[k], ...(cfg[k] || {}) }; if (!c.on || !c.time) return false;
     const t = toMins(c.time); return force || (now.mins >= t && now.mins < t + 60);
   };
-  const slots = ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders', 'content', 'socialweek', 'skindiary', 'freezer', 'shopday'].filter(k => due(k) && (!['weekly', 'weekahead', 'socialweek', 'skindiary', 'freezer'].includes(k) || now.wd === 'sun' || force));
+  const slots = ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders', 'content', 'socialweek', 'skindiary', 'freezer', 'shopday', 'eatbf', 'eatlunch', 'eatsnack', 'foodweek'].filter(k => due(k) && (!['weekly', 'weekahead', 'socialweek', 'skindiary', 'freezer', 'foodweek'].includes(k) || now.wd === 'sun' || force));
   if (!slots.length) return 0;
   const recs = await loadAll(uid);
   let sent = 0;
   for (const k of slots) {
     const msg = k === 'morning' ? morning(recs, now.day, await outfitToday(uid, now.day)) : k === 'evening' ? evening(recs, now.wd)
       : k === 'bills' ? bills(recs, now.day) : k === 'payday' ? payday(recs, now.day) : k === 'weekahead' ? weekahead(recs, prefs, now.day)
-      : k === 'reminders' ? reminders(recs, prefs, now.day) : k === 'content' ? content(recs, now.day) : k === 'socialweek' ? socialweek(recs, now.day) : k === 'skindiary' ? skindiary(recs, now.day) : k === 'freezer' ? freezer(recs, now.day) : k === 'shopday' ? shopday(recs, prefs, now.wd) : weekly(recs, now.day);
+      : k === 'reminders' ? reminders(recs, prefs, now.day) : k === 'content' ? content(recs, now.day) : k === 'socialweek' ? socialweek(recs, now.day) : k === 'skindiary' ? skindiary(recs, now.day) : k === 'freezer' ? freezer(recs, now.day) : k === 'shopday' ? shopday(recs, prefs, now.wd) : k === 'eatbf' ? eatNudge(recs, now.day, 'Breakfast') : k === 'eatlunch' ? eatNudge(recs, now.day, 'Lunch') : k === 'eatsnack' ? eatNudge(recs, now.day, 'snack') : k === 'foodweek' ? foodweek(recs, now.day, prefs) : weekly(recs, now.day);
     if (!msg) continue;
     if (!force && !(await claim(uid, k, now.day))) continue;
     if (await send(uid, msg)) sent++;

@@ -796,3 +796,13 @@ img.nophoto { background: var(--line); }
 .lrow.grow { flex-wrap: wrap; }
 .lrow.grow .lmain { flex: 1 1 140px; min-width: 0; }
 .lrow.grow .gacts { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+/* food check */
+.nlweek { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 12px; }
+.nldot { display: grid; justify-items: center; gap: 4px; }
+.nldot i { width: 26px; height: 26px; border-radius: 50%; background: conic-gradient(var(--accent) var(--p), var(--surface-2) 0); box-shadow: inset 0 0 0 5px var(--surface); }
+.nldot.now i { outline: 2px solid var(--accent); outline-offset: 2px; }
+.nldot.later i { opacity: .45; }
+.nldot small { font-size: 11px; color: var(--muted); }
+.nlsteps { display: grid; gap: 8px; margin-top: 10px; }
+.nlstep { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.nlstep b.ok { color: var(--accent); }
