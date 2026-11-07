@@ -500,7 +500,7 @@ Deno.serve(async req => {
         helps: r.data.helps, hasInstructions: !!String(r.data.instructions || '').trim() || undefined, hasPhoto: !!r.data.photo || undefined,
         webPhoto: /^https?:/.test(String(r.data.photo || '')) || undefined
       }));
-      const pantry = [...ing.values()].map((i: any) => clean({ name: i.name, stock: i.stock ? true : undefined, category: i.category, location: i.location, frozen: i.frozen, portions: i.portions }));
+      const pantry = [...ing.values()].map((i: any) => clean({ name: i.name, stock: i.stock ? true : undefined, category: i.category, location: i.location, frozen: i.frozen, expires: i.expires, portions: i.portions }));
       // the shops she keeps in Kitchen › Shops: read the deals of every shop with readDeals on (plus Dirk, Aldi and AH)
       const shops = data.filter((r: any) => r.kind === 'shops').map((r: any) => shopOut(r.data));
       // the last plans, so a new week doesn't repeat the same recipes
@@ -672,7 +672,7 @@ Deno.serve(async req => {
         breakfasts: (p.breakfasts || []).slice(0, 6).map(meal), snacks: (p.snacks || []).slice(0, 6).map(meal), drinks: (p.drinks || []).slice(0, 6).map(meal),
         quit: (p.quit || []).slice(0, 6).map(meal), quitTips: str(p.quitTips, 1500),
         shared: (p.shared || []).slice(0, 30).map((s: any) => clean({ name: str(s?.name, 120), store: str(s?.store, 40), price: num(s?.price), deal: str(s?.deal, 120), in: (Array.isArray(s?.in) ? s.in : []).map((x: unknown) => str(x, 140)).slice(0, 12) })),
-        shopping: (p.shopping || []).slice(0, 80).map((s: any) => clean({ name: str(s?.name, 120), store: str(s?.store, 60), price: num(s?.price), deal: str(s?.deal, 120), qty: str(s?.qty, 40), have: s?.have === true ? true : undefined })),
+        shopping: (p.shopping || []).slice(0, 80).map((s: any) => clean({ name: str(s?.name, 120), store: str(s?.store, 60), price: num(s?.price), deal: str(s?.deal, 120), qty: str(s?.qty, 40), have: s?.have === true ? true : undefined, market: s?.market === true ? true : undefined, category: str(s?.category, 40), left: str(s?.left, 120) })),
         tips: str(p.tips, 1200)
       });
       for (const k of ['dinners', 'lunches', 'breakfasts', 'snacks', 'drinks']) for (const m of (plan as any)[k] || []) if (m.photo && !m.recipe) m.photo = await keepPhoto(uid, m.photo);

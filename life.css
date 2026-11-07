@@ -775,3 +775,9 @@ img.nophoto { background: var(--line); }
 .bdprice s { color: var(--muted); font-size: 12.5px; }
 .lrow.fzold .lmain span { color: var(--danger); }
 .mfrows .lmain span { white-space: normal; overflow: visible; text-overflow: clip; }
+.dday { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; }
+.dday .lnone { margin: 0; flex: 1 1 220px; }
+.dbudget { margin: 0 0 16px; }
+.dbar { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin-bottom: 6px; }
+.dbar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.dbar i.over { background: var(--danger); }

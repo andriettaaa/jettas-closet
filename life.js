@@ -101,6 +101,18 @@ const shopNames = kind => recs(kind).map(r => r.name).filter(Boolean);
 const kitchenStores = () => { const own = recs('shops').filter(r => r.name && r.type !== 'Butcher' && r.type !== 'Fishmonger').map(r => r.name); return [...new Set([...STORES, ...own])]; };
 const myButcher = () => { const b = recs('shops').filter(r => r.type === 'Butcher'); return b.find(r => r.mine) || b[0] || null; };
 const FREEZE_DAYS = 90;
+// your food settings (Kitchen › Deals): shopping day this week and the finance envelope for groceries
+const food = () => (C?.prefs?.() || {}).food || {};
+const MARKET_DAYS = ['Wed', 'Sat'];
+const isProduce = x => /groente|fruit|vegetable|veg\b|kruiden vers|sla\b|tomaat|komkommer|paprika|ui\b|uien|wortel|appel|banaan|peer|citroen|limoen|gember|knoflook|courgette|broccoli|spinazie|paksoi/i.test(`${x.category || ''} ${x.name || ''}`);
+const groceryEnv = () => { const cats = recs('fcats'), id = food().groceryCat; return (id && cats.find(c => c.id === id)) || cats.find(c => /boodschap|grocer|supermarkt|eten/i.test(c.name || '')) || null; };
+const dealWeekStart = () => { const d = fromISO(today()), back = (d.getDay() + 4) % 7; return addDays(today(), -back); }; // the deals week runs Wednesday to Tuesday
+function groceryBudget() {
+  const c = groceryEnv(); if (!c) return null;
+  const w = fWindow(), days = Math.max(1, diffDays(w.start, w.end) + 1), per = num(c.budget) || 0, ws = dealWeekStart();
+  const spentWeek = fSum(recs('ftx').filter(x => x.category === c.id && !x.bill && !x.transfer && x.date >= ws && x.date <= today()));
+  return { cat: c, week: Math.round(per / days * 7 * 100) / 100, spentWeek, spentPeriod: fCatSpent(c.id, w), period: per };
+}
 const isMeatFish = o => /vlees|vis|meat|fish|kip|gehakt|biefstuk|varken|rund|zalm|kabeljauw|garnal|worst|spek|filet/i.test(`${o.category || ''} ${o.name || ''}`) && !/vega|plant|vegan/i.test(o.name || '');
 const inFreezer = () => recs('ingredients').filter(i => i.location === 'Vriezer' && i.stock !== false && (i.stock || i.frozen));
 const freezerAge = i => i.frozen ? Math.round((fromISO(today()) - fromISO(i.frozen)) / 864e5) : null;
@@ -113,7 +125,7 @@ const QUIT = 'Stop smoking', helpsQuit = r => [].concat(r.helps || []).includes(
 const STAY_SCORES = [['clean', 'Cleanliness'], ['location', 'Location'], ['comfort', 'Comfort and bed'], ['facilities', 'Facilities'], ['staff', 'Staff and service'], ['value', 'Value for money'], ['breakfast', 'Breakfast'], ['wifi', 'Wifi'], ['quiet', 'Quiet']];
 const stayScore = r => { const v = STAY_SCORES.map(([k]) => Number(r[k]) || 0).filter(Boolean); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : Number(r.rating) || 0; };
 const CAT_NL = {
-  ingredients: { 'Fruits & Veg': 'Groente & fruit', 'Fish & Meat': 'Vlees & vis', 'Eggs & Dairy': 'Zuivel & eieren', 'Grains & Legumes': 'Granen & peulvruchten', 'Bread & Bakery': 'Brood & bakkerij', 'Nuts & Seeds': 'Noten & zaden', 'Herbs & Spices': 'Kruiden & specerijen', 'Sauces & Oils': 'Sauzen & olie', 'Tins & Jars': 'Blik & pot', 'Frozen': 'Diepvries', 'Drinks': 'Dranken', 'Snack': 'Snacks', 'Confections': 'Zoetigheid', 'Supplements': 'Supplementen', 'Other': 'Overig' },
+  ingredients: { 'Fruits & Veg': 'Groente & fruit', 'Fish & Meat': 'Vlees & vis', 'Eggs & Dairy': 'Zuivel & eieren', 'Grains & Legumes': 'Granen & peulvruchten', 'Bread & Bakery': 'Brood & bakkerij', 'Nuts & Seeds': 'Noten & zaden', 'Herbs & Spices': 'Kruiden & specerijen', 'Sauces & Oils': 'Sauzen & olie', 'Tins & Jars': 'Blik & pot', 'Frozen': 'Diepvries', 'Leftovers': 'Restjes', 'Drinks': 'Dranken', 'Snack': 'Snacks', 'Confections': 'Zoetigheid', 'Supplements': 'Supplementen', 'Other': 'Overig' },
   gear: { 'Kitchen Appliances': 'Keukenapparaten', 'Cookware & Bakeware': 'Pannen & bakvormen', 'Prep Tools & Essentials': 'Voorbereiden', 'Cooking Tools & Utensils': 'Kookgerei', 'Organizing Essentials': 'Opbergen', 'Cleaning Supplies': 'Schoonmaken' }
 };
 const catNL = (kind, v) => (CAT_NL[kind] || {})[v] || v;
@@ -297,7 +309,7 @@ const KINDS = {
   meals: {
     one: 'meal', many: 'Meals',
     fields: [F('date', 'Date', 'date', { half: 1 }), F('slot', 'Meal', 'select', { options: MEALS, half: 1 }),
-      F('recipe', 'Recipe', 'rel', { to: 'recipes' }), F('what', 'Or just write what you eat'), F('away', 'Not eating at home', 'check'), F('notes', 'Notes', 'long')],
+      F('recipe', 'Recipe', 'rel', { to: 'recipes' }), F('what', 'Or just write what you eat'), F('away', 'Not eating at home', 'check'), F('leftover', 'Leftovers', 'select', { options: ['None', 'Fridge', 'Freezer'], half: 1 }), F('notes', 'Notes', 'long')],
     title: r => relName(r.recipe) || r.what || (r.away ? 'Not at home' : '') || r.slot || 'Meal',
     sorts: [['-date', 'Newest']], sub: r => [r.date && niceDate(r.date), r.slot].filter(Boolean).join(' · ')
   },
@@ -2022,6 +2034,19 @@ function skinOrderSheet() {
     try { p ? await put('skinplan', p.id, { ...dataOf(p), order: [...list.map(b => b.id), ...others] }) : await create('skinplan', { order: list.map(b => b.id) }); C.closeSheet(); C.toast('Order saved'); } catch (e) { failed(e); }
   };
 }
+// after a lunch or dinner: portions left over go to the fridge (3 days) or the freezer, or nowhere
+async function leftover(id, where) {
+  const m = L.byId[id]; if (!m) return;
+  const name = 'Leftover: ' + (relName(m.recipe) || m.what || m.slot);
+  const rows = [{ id: m.id, kind: 'meals', data: { ...dataOf(m), leftover: where } }];
+  if (where !== 'None') rows.push({ id: C.uuid(), kind: 'ingredients', data: { name, category: 'Restjes', stock: true, portions: 1, created: Date.now(), ...(where === 'Freezer' ? { location: 'Vriezer', frozen: today() } : { location: 'Koelkast', expires: addDays(today(), 3) }) } });
+  try { await putMany(rows, null, where === 'None' ? 'No leftovers' : `Leftovers in the ${where.toLowerCase()}`); C.toast(where === 'None' ? 'Noted' : `In the ${where.toLowerCase()}${where === 'Fridge' ? ': eat within 3 days' : ''}`); } catch { C.toast('Could not save. Try again.'); }
+}
+function leftoverPanel() {
+  const t = today(), list = recs('meals').filter(m => (m.slot === 'Dinner' || m.slot === 'Lunch') && !m.away && !m.leftover && (m.recipe || m.what) && (m.date === t || m.date === addDays(t, -1))).sort((a, b) => a.date.localeCompare(b.date));
+  if (!list.length) return '';
+  return panel('Any leftovers?', `<p class="lnone">Put what is left in the fridge or the freezer, so nothing goes to waste.</p><div class="lrows">${list.map(m => `<div class="lrow"><span class="lmain"><b>${esc(relName(m.recipe) || m.what)}</b><span>${esc([m.date === t ? 'today' : 'yesterday', m.slot.toLowerCase()].join(' · '))}</span></span><div class="dbtns"><button class="btn small" data-act="leftover" data-id="${m.id}" data-v="Fridge">Fridge</button><button class="btn small" data-act="leftover" data-id="${m.id}" data-v="Freezer">Freezer</button><button class="btn small ghost" data-act="leftover" data-id="${m.id}" data-v="None">None</button></div></div>`).join('')}</div>`);
+}
 // meat and fish: only when on sale (then stock up and freeze), otherwise from the freezer or the butcher
 function meatPanel(offers) {
   const on = offers.filter(isMeatFish).sort((a, b) => norm(a.name).localeCompare(norm(b.name))), fz = inFreezer().filter(i => /vlees|vis/i.test(i.category || '') || isMeatFish(i)), b = myButcher();
@@ -2067,11 +2092,15 @@ function dealsPage(host) {
       <button class="btn small primary" data-act="dplan" data-k="${k}" data-i="${i}">Put in meal plan</button></div></div></div>`;
   };
   const block = (k, title, sub) => { const l = plan?.[k] || []; return l.length ? panel(title, `<p class="lnone">${esc(sub)}</p><div class="dmeals">${l.map((m, i) => mealCard(m, i, k)).join('')}</div>`) : ''; };
-  const shopping = plan?.shopping || [], shopStores = [...new Set([...allStores, ...shopping.map(x => x.store).filter(Boolean)])], shopBy = [...shopStores, 'Other'].map(s => [s, shopping.filter(x => (shopStores.includes(x.store) ? x.store : 'Other') === s)]).filter(([, l]) => l.length);
+  const shopping = plan?.shopping || [], sday = food().shopDay || '', mkt = MARKET_DAYS.includes(sday), mktName = recs('shops').find(r => r.type === 'Market')?.name || 'Market', storeOf = x => mkt && (x.market || isProduce(x)) ? mktName : x.store,
+    shopStores = [...new Set([...(mkt ? [mktName] : []), ...allStores, ...shopping.map(x => x.store).filter(Boolean)])], shopBy = [...shopStores, 'Other'].map(s => [s, shopping.filter(x => (shopStores.includes(storeOf(x)) ? storeOf(x) : 'Other') === s)]).filter(([, l]) => l.length);
+  const cost = fSum(shopping.filter(x => !x.have), 'price'), bud = groceryBudget();
   const saved = fSum(offers.filter(o => num(o.was) > num(o.price)).map(o => ({ amount: num(o.was) - num(o.price) })));
   host.innerHTML = `${head('Deals of the week')}<div class="ldeals">
-  <div class="tiles">${fTile('Deals', String(offers.length), byStore.map(([s, l]) => `${s} ${l.length}`).join(' · ') || 'none yet')}${fTile('Dinners', String((plan?.dinners || []).length), plan ? `each for 2 days · ${esc(shortDate(plan.start))} to ${esc(shortDate(plan.end))}` : 'no plan yet')}${fTile('Shared', String((plan?.shared || []).length), 'deal ingredients used in more than one recipe')}${fTile('Your recipes', String(mine.length), 'use something on offer')}</div>
-  ${!plan && !offers.length ? panel('How this works', `<p class="lnone">Every Wednesday a task reads the folders of Dirk, Aldi and Albert Heijn, looks through your recipes and your pantry, and puts this week's deals here with a plan: 5 dinners that each last 2 days, 3 office lunches that reheat in a microwave, 3 breakfasts and a few snacks. It reuses the same deal ingredients across recipes, so you buy less and waste less.</p><p class="lnone">It needs the Supabase function <b>offers</b> with the secret <b>OFFERS_TOKEN</b>. Then the first plan shows up after the next Wednesday.</p>`) : ''}
+  <div class="tiles">${fTile('Deals', String(offers.length), byStore.map(([s, l]) => `${s} ${l.length}`).join(' · ') || 'none yet')}${fTile('Dinners', String((plan?.dinners || []).length), plan ? `each for 2 days · ${esc(shortDate(plan.start))} to ${esc(shortDate(plan.end))}` : 'no plan yet')}${fTile('Shared', String((plan?.shared || []).length), 'deal ingredients used in more than one recipe')}${bud ? fTile('Budget this week', fEur0(bud.week), `${eur(bud.spentWeek)} spent since Wednesday${cost ? ` · plan about ${eur(cost)}` : ''}`) : fTile('Plan costs', cost ? eur(cost) : '–', saved ? `${eur(saved)} saved with deals` : 'from the shopping list')}</div>
+  <div class="dday"><span class="rowlbl">I shop on</span><div class="seg fseg" role="group">${[['Wed', 'Wednesday'], ['Fri', 'Friday'], ['Sat', 'Saturday']].map(([k, l]) => `<button data-act="shopday" data-v="${k}" aria-pressed="${sday === k}">${l}</button>`).join('')}</div><span class="lnone">${mkt ? `Fruit and vegetables go on the ${esc(mktName)} list: buy small amounts.` : sday ? 'No market today: fruit and vegetables stay at the shop.' : 'On Wednesday and Saturday fruit and vegetables move to the market list.'}</span></div>
+  ${bud ? `<div class="dbudget"><div class="dbar"><i style="width:${Math.min(100, bud.week ? 100 * (bud.spentWeek + (cost || 0)) / bud.week : 0)}%" class="${bud.spentWeek + cost > bud.week ? 'over' : ''}"></i></div><p class="lnone">${esc(bud.cat.name)} in Finance: ${eur(bud.spentPeriod)} of ${eur(bud.period)} this ${fMode() === 'month' ? 'month' : 'pay'}. ${bud.spentWeek + cost > bud.week ? `The plan goes ${eur(bud.spentWeek + cost - bud.week)} over this week's share.` : `${eur(bud.week - bud.spentWeek - cost)} left this week after the plan.`}${saved ? ` Deals save you ${eur(saved)}.` : ''}</p></div>` : (recs('fcats').length ? `<p class="lnone">Pick your groceries envelope under Kitchen › Settings to see your budget here.</p>` : '')}
+  ${!plan && !offers.length ? panel('How this works', `<p class="lnone">Every Wednesday a task reads the deals of Dirk, Aldi, Albert Heijn and every shop under Shops that has its deals switched on, looks through your recipes, pantry and freezer, and puts this week's deals here with a plan: 5 dinners that each last 2 days, 3 office lunches that reheat in a microwave, 3 breakfasts and a few snacks. It reuses the same deal ingredients across recipes, so you buy less and waste less.</p><p class="lnone">It needs the Supabase function <b>offers</b> with the secret <b>OFFERS_TOKEN</b>. Then the first plan shows up after the next Wednesday.</p>`) : ''}
   ${plan?.tips ? `<div class="note dnote">${esc(plan.tips)}</div>` : ''}
   ${offers.length || inFreezer().length ? meatPanel(offers) : ''}
   ${block('dinners', 'Dinners', 'Cook once, eat twice: each one is enough for 2 days.')}
@@ -2079,7 +2108,7 @@ function dealsPage(host) {
   <div class="mrow2 dmrow">${block('snacks', 'Snacks', 'Something for in between.') || ''}${block('drinks', 'Instead of soda', 'Drinks without added sugar that still taste of something.') || ''}</div>
   ${block('quit', 'Helps you quit smoking', 'Something for the hands and mouth, or to get through a craving.')}
   <div class="mrow2 dmrow">${plan?.shared?.length ? panel('Used in several recipes', `<div class="lrows">${plan.shared.map(x => `<div class="lrow"><span class="lmain"><b>${esc(x.name)}</b><span>${esc([x.store, x.deal, num(x.price) ? eur(num(x.price)) : '', (x.in || []).length ? 'in ' + x.in.join(', ') : ''].filter(Boolean).join(' · '))}</span></span></div>`).join('')}</div>`) : ''}
-    ${shopping.length ? panel('Shopping list', `${shopBy.map(([s, l]) => `<p class="dsub">${esc(s)}</p><div class="lrows">${l.map(x => { const k = shopping.indexOf(x), on = dealPicked(x, k); return `<label class="lrow dpick ${x.have ? 'gone' : ''}"><input type="checkbox" data-dpick="${k}" ${on ? 'checked' : ''} aria-label="Put ${esc(x.name)} on the list"><span class="lmain"><b>${esc(x.name)}</b><span>${esc([x.qty, x.deal, num(x.price) ? eur(num(x.price)) : '', x.have ? 'you have this' : ''].filter(Boolean).join(' · '))}</span></span></label>`; }).join('')}</div>`).join('')}<p class="lnone">Untick what you don't want.</p><button class="btn small primary" data-act="dgroc">Put ${plural(shopping.filter(dealPicked).length, 'thing')} on my grocery list</button>`) : ''}</div>
+    ${shopping.length ? panel('Shopping list', `${shopBy.map(([s, l]) => `<p class="dsub">${esc(s)}</p><div class="lrows">${l.map(x => { const k = shopping.indexOf(x), on = dealPicked(x, k); return `<label class="lrow dpick ${x.have ? 'gone' : ''}"><input type="checkbox" data-dpick="${k}" ${on ? 'checked' : ''} aria-label="Put ${esc(x.name)} on the list"><span class="lmain"><b>${esc(x.name)}</b><span>${esc([x.qty, x.deal, num(x.price) ? eur(num(x.price)) : '', x.have ? 'you have this' : '', x.left ? 'left over: ' + x.left : ''].filter(Boolean).join(' · '))}</span></span></label>`; }).join('')}</div>`).join('')}<p class="lnone">Untick what you don't want.</p><button class="btn small primary" data-act="dgroc">Put ${plural(shopping.filter(dealPicked).length, 'thing')} on my grocery list</button>`) : ''}</div>
   ${mine.length ? panel('Your recipes with deals', `<div class="lrows">${mine.map(({ r, hits }) => `<div class="lrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(hits.slice(0, 4).map(o => `${o.name} (${o.store})`).join(', '))}${hits.length > 4 ? ` and ${hits.length - 4} more` : ''}</span></button><span class="lside">${plural(hits.length, 'deal')}</span></div>`).join('')}</div>`) : ''}
   ${byStore.length ? panel('All deals', `${byStore.map(([s, l]) => `<p class="dsub">${esc(s)} · ${l.length}</p><div class="lgrid dgrid">${l.sort((a, b) => norm(a.category || 'zz').localeCompare(norm(b.category || 'zz')) || norm(a.name).localeCompare(norm(b.name))).slice(0, L.dealsAll ? 400 : 6).map(o => prodCard(o)).join('')}</div>`).join('')}${byStore.some(([, l]) => l.length > 6) ? `<button class="btn small" data-act="dealsall">${L.dealsAll ? 'Show fewer deals' : `See all ${offers.length} deals`}</button>` : ''}${saved ? `<p class="mmuted">Together about ${fEur0(saved)} off the normal prices.</p>` : ''}`) : ''}</div>`;
 }
@@ -2138,6 +2167,7 @@ function kitchenToday(host) {
     ${(() => { const soon = recs('ingredients').filter(useSoon).sort((a, b) => a.expires.localeCompare(b.expires)); if (!soon.length) return ''; const ids = new Set(soon.map(x => x.id)), use = rs.filter(r => (r.ingredients || []).some(id => ids.has(id))).sort((a, b) => (b.ingredients || []).filter(id => ids.has(id)).length - (a.ingredients || []).filter(id => ids.has(id)).length).slice(0, 4);
       return panel('Use soon', `<div class="lrows">${soon.slice(0, 6).map(x => `<div class="lrow"><button class="lmain" data-act="open" data-id="${x.id}"><b>${esc(x.name)}</b><span>${x.expires < t ? 'past its date' : x.expires === t ? 'best before today' : 'best before ' + esc(relDay(x.expires))}</span></button></div>`).join('')}</div>${use.length ? `<p class="dsub">Recipes that use them</p><div class="lwrap">${use.map(r => `<button class="chip" data-act="open" data-id="${r.id}">${esc(r.name)}</button>`).join('')}</div>` : ''}`, ['kitchen/pantry', 'Pantry']); })()}
     ${(() => { const old = inFreezer().filter(i => (freezerAge(i) ?? 0) >= FREEZE_DAYS); return old.length ? panel('Freezer', `<p class="lnone">In the freezer for 3 months or more. Use these first.</p><div class="lwrap">${old.slice(0, 8).map(i => `<button class="chip" data-act="open" data-id="${i.id}">${esc(i.name)}</button>`).join('')}</div>`, ['kitchen/pantry', 'Open freezer']) : ''; })()}
+    ${leftoverPanel()}
     ${toReview.length ? panel('How was it?', `<p class="lnone">A few taps after eating teach the app what you like.</p><div class="lrows">${toReview.map(m => `<div class="lrow"><span class="lmain"><b>${esc(relName(m.recipe))}</b><span>${esc(niceDate(m.date))}${m.slot ? ' · ' + esc(m.slot.toLowerCase()) : ''}</span></span><button class="btn small" data-rvw="${m.recipe}" data-date="${m.date}">Review</button></div>`).join('')}</div>`) : ''}
     ${dp || dn ? panel('Deals this week', `<p class="lbig">${plural(dn, 'deal')} at ${esc([...new Set(liveOffers().map(o => o.store).filter(Boolean))].slice(0, 4).join(', ') || 'your shops')}</p>${(dp?.dinners || []).length ? `<div class="lwrap">${dp.dinners.slice(0, 5).map(m => `<span class="chip">${esc(m.recipe && L.byId[m.recipe] ? titleOf(L.byId[m.recipe]) : m.name || 'Recipe')}</span>`).join('')}</div>` : ''}`, ['kitchen/deals', 'See the plan']) : ''}
     ${panel('Today’s meals', `<div class="lslots">${MEALS.map(s => { const m = meals.filter(x => x.slot === s); return `<div class="lslot"><span class="rowlbl">${s}</span>${m.map(x => `<button class="chip" data-act="open" data-id="${x.id}">${esc(titleOf(x))}</button>`).join('')}<button class="chip ghost" data-act="slot" data-date="${t}" data-slot="${s}" aria-label="Plan ${s.toLowerCase()}">+</button></div>`; }).join('')}</div>`, ['kitchen/meals', 'Meal plan'])}
@@ -3851,6 +3881,8 @@ document.addEventListener('click', async e => {
     case 'wishgo': if (d.v === 'wish/master') { const u = uiOf('wish/master'); u.seg = 'all'; u.allSrc = d.src; } if (d.v === 'money/plan') uiOf('money/plan').seg = 'wait'; C.go(d.v); break;
     case 'wmovewait': moveWaitList(); break;
     case 'dkeep': case 'dplan': case 'dgroc': dealsAct(d.act, d.k, Number(d.i)); break;
+    case 'shopday': C.savePrefs({ food: { ...food(), shopDay: food().shopDay === d.v ? '' : d.v } }).catch(() => C.toast('Could not save. Try again.')); break;
+    case 'leftover': leftover(d.id, d.v); break;
     case 'freeze': { const o = L.byId[d.id]; openEditor('ingredients', null, { name: o?.name || '', category: 'Vlees & vis', location: 'Vriezer', stock: true, frozen: today(), notes: o ? [o.store, o.deal, num(o.price) ? eur(num(o.price)) : ''].filter(Boolean).join(' · ') : '' }); break; }
     case 'freezeuse': { const r = L.byId[d.id]; if (!r) break; const n = num(r.portions); if (n > 1) save(r, { portions: n - 1 }); else { save(r, { portions: null, stock: false, frozen: null }); C.toast(`${r.name} is out of the freezer`); } break; }
     case 'butcherlist': { const r = ingRow(d.v, { list: true, notes: myButcher() ? 'Slager: ' + myButcher().name : 'Slager' }); putMany([r], null, `Put ${d.v} on the grocery list`).then(() => C.toast('On your grocery list, for the butcher')).catch(() => C.toast('Could not save. Try again.')); break; }
@@ -4613,7 +4645,11 @@ function secOwn(sec) {
   if (sec === 'money') return wrap(fSettings());
   if (sec === 'kitchen') {
     const f = C.prefs().food || {}, ta = (k, label, help, ph) => `<div class="fset fsetcol"><div><b>${label}</b><span>${help}</span></div><textarea class="finp" rows="2" data-food="${k}" placeholder="${ph}">${esc(f[k] || '')}</textarea></div>`;
-    return wrap(tidyPanel() + `<section class="panel setpanel"><h3>Taste</h3><p class="muted">The weekly deals plan follows this. Separate things with commas.</p>
+    const cats = recs('fcats').filter(c => !c.nospend), gc = groceryEnv();
+    const shopPanel = `<section class="panel setpanel"><h3>Shopping</h3><p class="muted">The weekly plan cooks for this many people and keeps to your budget.</p>
+      <div class="fset"><div><b>I cook for</b><span>Recipes come in 2 portions per person: one to eat, one for the next day or the freezer.</span></div><select class="pill" data-food="people">${['1', '2', '3', '4'].map(n => `<option ${String(f.people || '1') === n ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+      <div class="fset"><div><b>Groceries budget</b><span>${cats.length ? 'The envelope in Finance that holds your groceries. Deals shows this week’s share.' : 'Set up envelopes in Finance first.'}</span></div>${cats.length ? `<select class="pill" data-food="groceryCat"><option value="">None</option>${cats.map(c => `<option value="${c.id}" ${gc?.id === c.id ? 'selected' : ''}>${esc([c.emoji, c.name].filter(Boolean).join(' '))}</option>`).join('')}</select>` : ''}</div></section>`;
+    return wrap(tidyPanel() + shopPanel + `<section class="panel setpanel"><h3>Taste</h3><p class="muted">The weekly deals plan follows this. Separate things with commas.</p>
       ${ta('no', 'I don’t eat', 'Never in a suggestion.', 'e.g. nuts, avocado')}
       ${ta('hidden', 'Only if you can’t taste it', 'Fine when it is fully worked into the dish.', 'e.g. coconut milk in a curry')}
       ${ta('love', 'I love', 'Gets picked more often.', 'e.g. aged cheese, savoury snacks')}
