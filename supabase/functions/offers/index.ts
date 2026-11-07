@@ -18,7 +18,7 @@
 // Photos from recipe sites are copied into your own photo storage, so they stay when the site changes. All of this is
 // for your own private use in your own app.
 // Closet pieces from a video: closetlist, closetadd and closetundo (see where they are handled below).
-// Secrets: OFFERS_TOKEN, SPEND_USER_ID (your user id), VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY. Turn off "Verify JWT" for this function.
+// Secrets: OFFERS_TOKEN, SPEND_USER_ID (your user id), VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, and for Pinterest PINTEREST_APP_ID, PINTEREST_APP_SECRET. Turn off "Verify JWT" for this function.
 import { createClient } from 'npm:@supabase/supabase-js@2.50.0';
 import webpush from 'npm:web-push@3.6.7';
 
@@ -329,6 +329,111 @@ async function ttSync(uid: string) {
   return { ok: true, handle: me.username || me.display_name, posts: vids.length, added, followers: me.follower_count, photosWaiting: waiting };
 }
 
+/* ---------- Pinterest ----------
+   Connect once (OAuth, scopes boards:read, pins:read, pins:write, user_accounts:read). The token is kept in a
+   'pnauth' record and refreshed by itself. Sync reads your account stats (last 30 days), your boards and the pins on
+   the boards you picked in the app: a board for the home moodboard, boards for social inspiration and one board of
+   affirmations for Today. A planned post with a photo can be pinned to a board from the app.
+   Secrets: PINTEREST_APP_ID, PINTEREST_APP_SECRET. */
+const PN = 'https://api.pinterest.com/v5';
+const PN_ROOMS = ['Entree', 'Woonkamer', 'Keuken', 'Slaapkamer', 'Werkkamer', 'Badkamer', 'Toilet', 'Wasruimte', 'Balkon'];
+async function pnToken(form: Record<string, string>) {
+  const id = Deno.env.get('PINTEREST_APP_ID') || '', secret = Deno.env.get('PINTEREST_APP_SECRET') || '';
+  const r = await fetch(`${PN}/oauth/token`, { method: 'POST', headers: { Authorization: 'Basic ' + btoa(id + ':' + secret), 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(form) });
+  const j = await r.json().catch(() => ({})); if (!r.ok || !j.access_token) throw new Error(j.message || j.error_description || 'Pinterest said no (' + r.status + ')'); return j;
+}
+async function pnSave(uid: string, id: string | undefined, j: any, old: any = {}) {
+  const data = { access: j.access_token, refresh: j.refresh_token || old.refresh, until: Date.now() + (j.expires_in || 2592000) * 1000 - 6e5, refreshUntil: j.refresh_token_expires_in ? Date.now() + j.refresh_token_expires_in * 1000 : old.refreshUntil };
+  await sb.from('records').upsert({ user_id: uid, id: id || crypto.randomUUID(), kind: 'pnauth', data, updated_at: new Date().toISOString() });
+  return data;
+}
+async function pnAccess(uid: string) {
+  const { data: auth } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'pnauth').maybeSingle();
+  if (!auth?.data?.refresh && !auth?.data?.access) throw new Error('Pinterest is not connected yet');
+  let a = auth.data;
+  if (!a.access || Date.now() > a.until) { try { a = await pnSave(uid, auth.id, await pnToken({ grant_type: 'refresh_token', refresh_token: a.refresh }), a); } catch (e: any) { throw new Error('Pinterest login expired, connect again (' + e.message + ')'); } }
+  const call = async (path: string, init: RequestInit = {}) => {
+    const r = await fetch(PN + path, { ...init, headers: { Authorization: 'Bearer ' + a.access, 'Content-Type': 'application/json', ...(init.headers || {}) } });
+    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.message || 'Pinterest said no (' + r.status + ')'); return j;
+  };
+  return call;
+}
+async function pnConnect(uid: string, code: string, redirect: string) {
+  if (!code) return { error: 'No code from Pinterest' };
+  if (!Deno.env.get('PINTEREST_APP_SECRET')) return { error: 'PINTEREST_APP_SECRET is not set in Supabase yet' };
+  const { data: auth } = await sb.from('records').select('id').eq('user_id', uid).eq('kind', 'pnauth').maybeSingle();
+  try { await pnSave(uid, auth?.id, await pnToken({ grant_type: 'authorization_code', code, redirect_uri: redirect })); } catch (e: any) { return { error: e.message }; }
+  return await pnSync(uid);
+}
+const pnImg = (p: any) => { const m = p?.media?.images || {}; return (m['600x'] || m['1200x'] || m['400x300'] || m['150x150'] || {}).url || ''; };
+const pnText = (p: any) => String(p?.title || p?.description || p?.alt_text || '').trim();
+async function pnPins(call: (p: string) => Promise<any>, board: string, max = 100) {
+  const out: any[] = []; let book = '';
+  for (let i = 0; out.length < max && i < 5; i++) { const j = await call(`/boards/${board}/pins?page_size=50${book ? '&bookmark=' + encodeURIComponent(book) : ''}`); out.push(...(j.items || [])); book = j.bookmark; if (!book) break; }
+  return out.slice(0, max);
+}
+async function pnSync(uid: string) {
+  let call; try { call = await pnAccess(uid); } catch (e: any) { return { error: e.message }; }
+  const now = new Date(), nowS = now.toISOString(), end = nowS.slice(0, 10), start = new Date(now.getTime() - 29 * 864e5).toISOString().slice(0, 10);
+  let me: any; try { me = await call('/user_account'); } catch (e: any) { return { error: e.message }; }
+  const boards: any[] = []; let book = '';
+  for (let i = 0; i < 5; i++) { const j = await call(`/boards?page_size=100${book ? '&bookmark=' + encodeURIComponent(book) : ''}`); boards.push(...(j.items || [])); book = j.bookmark; if (!book) break; }
+  const { data: have, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['accounts', 'moodboard', 'inspo', 'posts']);
+  if (error) throw error;
+  const acc = have.find((r: any) => r.kind === 'accounts' && r.data.platform === 'Pinterest');
+  const d: any = { ...(acc?.data || { platform: 'Pinterest', active: true, created: Date.now() }) };
+  Object.assign(d, { handle: me.username ? '@' + me.username : d.handle, display: me.business_name || me.username || d.display, url: me.username ? 'https://www.pinterest.com/' + me.username + '/' : d.url, followers: me.follower_count ?? d.followers, following: me.following_count ?? d.following, monthlyViews: me.monthly_views ?? d.monthlyViews, avatar: me.profile_image || d.avatar, pnSync: Date.now() });
+  d.pnBoardList = boards.map(b => ({ id: b.id, name: b.name, pins: b.pin_count ?? null, img: b.media?.image_cover_url || '' })).slice(0, 200);
+  try {
+    const a = await call(`/user_account/analytics?start_date=${start}&end_date=${end}&metric_types=IMPRESSION,SAVE,PIN_CLICK,OUTBOUND_CLICK,ENGAGEMENT`);
+    const m = a?.all?.summary_metrics || {};
+    d.pnStats = { from: start, to: end, impressions: m.IMPRESSION ?? null, saves: m.SAVE ?? null, clicks: m.PIN_CLICK ?? null, outbound: m.OUTBOUND_CLICK ?? null, engagement: m.ENGAGEMENT ?? null };
+    d.pnDaily = (a?.all?.daily_metrics || []).map((x: any) => ({ date: x.date, impressions: x.metrics?.IMPRESSION ?? 0, saves: x.metrics?.SAVE ?? 0 })).slice(-30);
+  } catch (e: any) { d.pnStatsError = e.message; }
+  const roles = d.pnBoards || {}, rows: any[] = [];
+  const known = new Set(boards.map(b => b.id));
+  let added = 0;
+  // the affirmations board: kept on the account, Today shows one a day
+  if (roles.affirm && known.has(roles.affirm)) d.pnAffirm = (await pnPins(call, roles.affirm, 120)).map(p => ({ id: p.id, img: pnImg(p), text: pnText(p).slice(0, 300) })).filter(p => p.img);
+  else delete d.pnAffirm;
+  const byPin = new Map(have.filter((r: any) => r.data.pnId && ['moodboard', 'inspo'].includes(r.kind)).map((r: any) => [r.kind + ':' + r.data.pnId, r]));
+  for (const [kind, list] of [['moodboard', [].concat(roles.mood || [])], ['inspo', [].concat(roles.inspo || [])]] as [string, string[]][]) {
+    for (const bid of list.filter(b => known.has(b))) {
+      const bname = boards.find(b => b.id === bid)?.name || '', room = PN_ROOMS.find(r => bname.toLowerCase().includes(r.toLowerCase()));
+      for (const p of await pnPins(call, bid, 100)) {
+        if (byPin.has(kind + ':' + p.id)) continue;
+        const name = (pnText(p).split('\n')[0] || bname || 'Pin').slice(0, 80), link = 'https://www.pinterest.com/pin/' + p.id + '/';
+        const data = kind === 'moodboard' ? { name, photo: pnImg(p), room: room || 'Overig', link, why: p.description || '', pnId: p.id, pnBoard: bname, created: Date.now() }
+          : { name, photo: pnImg(p), type: 'Post', link, why: p.description || '', pnId: p.id, pnBoard: bname, created: Date.now() };
+        rows.push({ user_id: uid, id: crypto.randomUUID(), kind, data: clean(data), updated_at: nowS }); added++;
+      }
+    }
+  }
+  // stats of the pins you made from the app
+  for (const r of have.filter((r: any) => r.kind === 'posts' && r.data.pnId).slice(0, 40)) {
+    try {
+      const a = await call(`/pins/${r.data.pnId}/analytics?start_date=${start}&end_date=${end}&metric_types=IMPRESSION,SAVE,PIN_CLICK,OUTBOUND_CLICK`), m = a?.all?.lifetime_metrics || a?.all?.summary_metrics || {};
+      rows.push({ user_id: uid, id: r.id, kind: 'posts', data: clean({ ...r.data, pnViews: m.IMPRESSION ?? r.data.pnViews, pnSaves: m.SAVE ?? r.data.pnSaves, pnClicks: m.PIN_CLICK ?? r.data.pnClicks, pnOutbound: m.OUTBOUND_CLICK ?? r.data.pnOutbound }), updated_at: nowS });
+    } catch { /* stats for a new pin come a day later */ }
+  }
+  rows.push({ user_id: uid, id: acc?.id || crypto.randomUUID(), kind: 'accounts', data: clean(d), updated_at: nowS });
+  while (rows.length) { const { error: e } = await sb.from('records').upsert(rows.splice(0, 25)); if (e) throw e; }
+  return { ok: true, handle: me.username, boards: boards.length, added, affirmations: d.pnAffirm?.length || 0, stats: !!d.pnStats };
+}
+async function pnPost(uid: string, id: string, board: string, link: string) {
+  const rec = await postRec(uid, id); if (!rec) return { error: 'Post not found' };
+  const d = rec.data; if (!d.photo) return { error: 'Add a photo to the post first' };
+  if (!board) return { error: 'Pick a board first' };
+  try {
+    const call = await pnAccess(uid);
+    const desc = [d.caption, d.hashtags].filter(Boolean).join('\n\n').slice(0, 500);
+    const pin = await call('/pins', { method: 'POST', body: JSON.stringify(clean({ board_id: board, title: String(d.pnTitle || d.name || '').slice(0, 100), description: desc, link: link || d.pnLink || undefined, alt_text: String(d.name || '').slice(0, 500), media_source: { source_type: 'image_url', url: pub(d.photo) } })) });
+    const now = new Date();
+    await sb.from('records').upsert({ user_id: uid, id, kind: 'posts', data: clean({ ...d, pnId: pin.id, pnBoard: board, pnLink: link || d.pnLink, pnPosted: now.toISOString().slice(0, 10), platforms: [...new Set([...(d.platforms || []), 'Pinterest'])] }), updated_at: now.toISOString() });
+    return { ok: true, pinned: true, link: 'https://www.pinterest.com/pin/' + pin.id + '/' };
+  } catch (e: any) { return { error: e.message }; }
+}
+
 /* ---------- posting from the app ----------
    Instagram: a planned post with a video becomes a Reel, one with only a photo (JPEG) a photo post; Instagram has no
    drafts here, so it goes live at once (the app asks first). Video takes a while: the app asks again with the
@@ -410,7 +515,7 @@ Deno.serve(async req => {
     const uid = Deno.env.get('SPEND_USER_ID')!;
     // the app itself may ask for an Instagram sync, signed in as you
     let viaApp = false;
-    if ((!token || token !== Deno.env.get('OFFERS_TOKEN')) && ['igsync', 'ttstart', 'ttconnect', 'ttsync', 'igpost', 'ttpost', 'photourl'].includes(body.action)) {
+    if ((!token || token !== Deno.env.get('OFFERS_TOKEN')) && ['igsync', 'ttstart', 'ttconnect', 'ttsync', 'igpost', 'ttpost', 'photourl', 'pnstart', 'pnconnect', 'pnsync', 'pnpost'].includes(body.action)) {
       const jwt = req.headers.get('authorization')?.replace(/^Bearer /, '') || '';
       const { data: u } = await sb.auth.getUser(jwt); viaApp = !!u?.user && u.user.id === uid;
     }
@@ -422,6 +527,10 @@ Deno.serve(async req => {
     if (body.action === 'ttsync') return json(await ttSync(uid));
     if (body.action === 'igpost') return json(await igPost(uid, str(body.id, 60), str(body.container, 60)));
     if (body.action === 'ttpost') return json(await ttPost(uid, str(body.id, 60)));
+    if (body.action === 'pnstart') { const k = Deno.env.get('PINTEREST_APP_ID'); return json(k ? { appId: k } : { error: 'PINTEREST_APP_ID is not set in Supabase yet' }); }
+    if (body.action === 'pnconnect') return json(await pnConnect(uid, str(body.code, 2000), str(body.redirect, 500)));
+    if (body.action === 'pnsync') return json(await pnSync(uid));
+    if (body.action === 'pnpost') return json(await pnPost(uid, str(body.id, 60), str(body.board, 60), str(body.link, 500)));
     // a photo from the web for the closet editor: the browser may not read other sites' images, so this fetches it
     // and hands it back (nothing is stored). A page link instead of an image link gets the page's main picture.
     // Apple Health, sent each morning by an iPhone Shortcut: sleep, steps, workouts and period

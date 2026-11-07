@@ -1991,7 +1991,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v104';
+const APP_VERSION = 'hangtag-v105';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2054,7 +2054,7 @@ function affirmToday(shift = 0) {
   return l[(((n + shift) % l.length) + l.length) % l.length];
 }
 function affirmBlock() {
-  if (S.prefs.affirm?.off) return '';
+  if (S.prefs.affirm?.off || window.LIFE?.hasPinAffirm?.()) return '';
   const a = affirmToday(S.affShift || 0), fav = (S.prefs.affirm?.fav || []).includes(a);
   return `<section class="affirm" aria-label="Affirmation"><p class="affk">Affirmation</p><blockquote>${esc(a)}</blockquote>
     <div class="affbtns"><button class="chip" data-affnext>Another one</button><button class="chip" data-afffav aria-pressed="${fav}">${fav ? 'Saved' : 'Save'}</button><button class="chip link" data-affown>Add your own</button><button class="chip link" data-affmanage>Manage</button></div>
