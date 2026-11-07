@@ -4481,6 +4481,17 @@ document.addEventListener('click', async e => {
     case 'ingview': try { localStorage.setItem(d.k, d.v); } catch {} C.render(); break;
     case 'ingtypeadd': openEditor('ingredients', null, { category: d.cat, type: d.type, ...(d.ctx === 'freezer' ? { location: 'Vriezer', stock: true, frozen: today() } : d.ctx === 'grocery' ? { list: true } : { stock: true }) }); break;
     case 'icalnew': { if (C.prefs().calToken && !confirm('Een nieuwe sleutel maakt je huidige abonnementen ongeldig. Doorgaan?')) break; const tok = (C.uuid() + C.uuid()).replace(/-/g, '').slice(0, 40); C.savePrefs({ calToken: tok }).then(() => { L.calFeedAt = 0; calFeedSync(true).then(() => C.render()); C.toast('Sleutel gemaakt. Zet hem in Supabase als CAL_TOKEN.'); }).catch(() => {}); break; }
+    case 'icaltest': {
+      const out = document.querySelector('[data-icalmsg]'), show = m => { if (out) out.textContent = m; else C.toast(m); };
+      show('Bezig met testen…');
+      calFeedSync(true).catch(() => {}).then(() => fetch(icalUrl('all').replace(/^webcal:/, 'https:'), { cache: 'no-store' })).then(async r => {
+        const body = await r.text();
+        if (r.ok && body.includes('BEGIN:VCALENDAR')) show(`Het werkt: ${(body.match(/BEGIN:VEVENT/g) || []).length} items gevonden. Tik nu op Abonneer.`);
+        else if (r.status === 403) show('De sleutel in de app is niet gelijk aan CAL_TOKEN in Supabase. Tik op Kopieer sleutel en plak hem opnieuw als CAL_TOKEN.');
+        else if (r.status === 404 && !/unknown calendar/.test(body)) show('De functie calendar bestaat nog niet in Supabase. Maak hem aan met de stappen uit de chat.');
+        else show('Supabase zegt: ' + body.slice(0, 160));
+      }).catch(() => show('Geen antwoord van de functie. Werk de functie calendar in Supabase bij met de nieuwste code en probeer opnieuw.'));
+      break; }
     case 'icalcopy': navigator.clipboard?.writeText(d.v).then(() => C.toast('Gekopieerd')).catch(() => C.toast('Kopiëren lukte niet')); break;
     case 'icalsync': L.calFeedAt = 0; calFeedSync(true).then(() => { C.toast('Calendar bijgewerkt'); C.render(); }); break;
     case 'anaper': try { localStorage.setItem('anaPeriod', d.v); } catch {} C.render(); break;
@@ -5993,7 +6004,7 @@ function icalPanel() {
   return `<section class="panel setpanel"><h3>Calendar in je iPhone</h3><p class="muted">Elk onderdeel als eigen agenda in je iPhone, met de kleuren van je brandboard. Je iPhone haalt hem elk uur op; de app werkt hem bij als je hem opent.</p>
     ${tok ? `<div class="fset"><div><b>Je sleutel</b><span>Zet deze in Supabase als secret CAL_TOKEN.</span></div><button class="btn small" data-act="icalcopy" data-v="${esc(tok)}">Kopieer sleutel</button></div>
       <div class="lrows">${[...CAL_CATS, ['all', 'Alles samen']].map(([k, l]) => `<div class="lrow"><span class="lmain"><b>${k === 'all' ? '' : `<span class="caldot cal-${k}"></span> `}${esc(l)}</b></span><a class="btn small" href="${esc(icalUrl(k))}">Abonneer</a><button class="chip link" data-act="icalcopy" data-v="${esc(icalUrl(k))}">Kopieer link</button></div>`).join('')}</div>
-      <p class="lnone">${feed?.at ? 'Laatst bijgewerkt ' + esc(new Date(feed.at).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) + ', ' + plural((feed.items || []).length, 'item') + '.' : 'Nog niet bijgewerkt.'} <button class="chip link" data-act="icalsync">Nu bijwerken</button> <button class="chip link" data-act="icalnew">Nieuwe sleutel</button></p>`
+      <p class="lnone">${feed?.at ? 'Laatst bijgewerkt ' + esc(new Date(feed.at).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) + ', ' + plural((feed.items || []).length, 'item') + '.' : 'Nog niet bijgewerkt.'} <button class="chip link" data-act="icaltest">Test verbinding</button> <button class="chip link" data-act="icalsync">Nu bijwerken</button></p><p class="lnone" data-icalmsg aria-live="polite"> <button class="chip link" data-act="icalnew">Nieuwe sleutel</button></p>`
     : `<p class="lnone">Maak eerst een sleutel. Die blijft privé in je eigen database.</p><button class="btn small primary" data-act="icalnew">Maak sleutel</button>`}</section>`;
 }
 
