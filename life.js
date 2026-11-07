@@ -216,6 +216,9 @@ function toggleDay(r, d = today()) {
 }
 const routineNow = () => { const want = new Date().getHours() >= 15 ? 'Evening' : 'Morning'; return { label: want, list: recs('routines').filter(r => r.routine === want && onDay(r)).sort((a, b) => (a.created || 0) - (b.created || 0) || norm(a.name).localeCompare(norm(b.name))) }; };
 // growth: the life areas from your Notion dashboard
+const INS_TYPES = ['Zorgverzekering', 'Aansprakelijkheid', 'Inboedel', 'Opstal', 'Reis', 'Rechtsbijstand', 'Fiets', 'Auto', 'Telefoon', 'Uitvaart', 'Overlijdensrisico', 'Other'];
+const ORDER_STATUS = ['Ordered', 'Shipped', 'Delivered', 'Returning', 'Returned', 'Kept'];
+const DISC_TYPES = ['Strengths', 'Weaknesses', 'Values', 'Beliefs', 'Dreams', 'Personality', 'Relationships', 'Other'];
 const AREAS = ['Health & Nutrition', 'Fitness', 'Mindset', 'Growth', 'Career', 'Finances', 'Home', 'Organization', 'Relationship', 'Family', 'Social', 'Creativity', 'Leisure', 'Lifestyle', 'Spirituality', 'Digital Life'];
 const goalTasks = g => recs('tasks').filter(t => [].concat(t.goal || []).includes(g.id));
 const goalPct = g => { if (g.status === 'Completed') return 100; const ts = goalTasks(g); return ts.length ? Math.round(100 * ts.filter(t => t.status === 'Completed').length / ts.length) : (num(g.progress) || 0); };
@@ -422,7 +425,7 @@ const KINDS = {
   journal: {
     one: 'entry', ones: 'entries', many: 'Journal', facet: 'mood',
     fields: [F('date', 'Date', 'date', { half: 1 }), F('mood', 'Mood', 'select', { options: ['Great', 'Good', 'Okay', 'Low', 'Bad'], half: 1 }),
-      F('title', 'Title'), F('entry', 'What happened', 'long', { rows: 8 }), F('grateful', 'Grateful for', 'long')],
+      F('title', 'Title'), F('entry', 'What happened', 'long', { rows: 8 }), F('grateful', 'Grateful for', 'long'), F('dump', 'Brain dump', 'long', { rows: 4 })],
     title: r => r.title || (r.date ? niceDate(r.date) : 'Entry'), sorts: [['-date', 'Newest']],
     sub: r => [r.title ? niceDate(r.date) : '', r.mood].filter(Boolean).join(' · ')
   },
@@ -986,6 +989,53 @@ const KINDS = {
     sorts: [['country', 'Country'], ['name', 'A to Z'], ['-created', 'Newest'], ['-score', 'Best reviewed']],
     sub: r => [r.type, [r.city, r.country].filter(Boolean).join(', '), r.from ? 'stayed ' + fromISO(r.from).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : r.status && r.status !== 'Saved' ? r.status.toLowerCase() : '', stayScore(r) ? '★ ' + stayScore(r).toFixed(1) : ''].filter(Boolean).join(' · ')
   },
+  insurance: {
+    one: 'insurance', ones: 'insurances', many: 'Insurances', facet: 'type',
+    fields: [F('name', 'Insurance'), F('type', 'Type', 'select', { options: INS_TYPES, half: 1 }), F('company', 'Company', 'text', { half: 1 }),
+      F('amount', 'Premium', 'money', { half: 1 }), F('billing', 'Paid', 'select', { options: ['Monthly', 'Quarterly', 'Yearly'], half: 1 }),
+      F('deductible', 'Eigen risico', 'money', { half: 1 }), F('status', 'Status', 'select', { options: ['Active', 'Stopped'], half: 1 }),
+      F('start', 'Started', 'date', { half: 1 }), F('renews', 'Renews or ends', 'date', { half: 1 }), F('notice', 'Notice period', 'text', { half: 1 }), F('policy', 'Policy number', 'text', { half: 1 }),
+      F('covers', 'What it covers', 'long'), F('url', 'Link', 'url'), F('notes', 'Notes', 'long')],
+    sorts: [['type', 'Type'], ['-amount', 'Priciest'], ['renews', 'Renews first']],
+    hide: r => r.status === 'Stopped', hideLabel: 'Show stopped',
+    sub: r => [r.type !== r.name ? r.type : '', r.company, insMonthly(r) ? eur(insMonthly(r)) + ' a month' : '', num(r.deductible) ? 'eigen risico ' + eur(num(r.deductible)) : ''].filter(Boolean).join(' · '),
+    side: r => r.renews && r.status !== 'Stopped' && r.renews >= today() && diffDays(today(), r.renews) <= 60 ? 'renews ' + shortDate(r.renews) : ''
+  },
+  orders: {
+    one: 'order', many: 'Online orders', facet: 'status', photo: 'photo',
+    fields: [F('name', 'What'), F('shop', 'Shop', 'text', { half: 1 }), F('price', 'Price', 'money', { half: 1 }),
+      F('status', 'Status', 'select', { options: ORDER_STATUS, half: 1 }), F('ordered', 'Ordered on', 'date', { half: 1 }),
+      F('expected', 'Expected', 'date', { half: 1 }), F('received', 'Received on', 'date', { half: 1 }), F('returnBy', 'Return by', 'date', { half: 1 }),
+      F('track', 'Track and trace', 'url'), F('url', 'Product link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
+    sorts: [['expected', 'Arrives first'], ['-ordered', 'Newest'], ['returnBy', 'Return first']],
+    hide: r => ['Kept', 'Returned'].includes(r.status), hideLabel: 'Show kept and returned',
+    sub: r => [r.shop, r.status, eur(num(r.price)), !r.received && r.expected ? 'arrives ' + relDay(r.expected) : ''].filter(Boolean).join(' · '),
+    side: r => r.status === 'Delivered' && r.returnBy ? (r.returnBy < today() ? 'return period over' : 'return by ' + shortDate(r.returnBy)) : r.status === 'Returning' && r.returnBy ? 'send by ' + shortDate(r.returnBy) : '',
+    quick: r => ['Kept', 'Returned'].includes(r.status) ? null : r.status === 'Delivered' ? ({ on: false, label: 'Keep', act: () => save(r, { status: 'Kept' }) }) : ({ on: false, label: 'Received', act: () => save(r, { status: 'Delivered', received: today(), returnBy: r.returnBy || addDays(today(), 14) }) })
+  },
+  vision: {
+    one: 'dream', many: 'Vision board', facet: 'area', photo: 'photo', display: 'cards',
+    fields: [F('name', 'Dream or picture'), F('photo', 'Picture', 'photo'), F('area', 'Life area', 'select', { options: AREAS, half: 1 }), F('by', 'By', 'date', { half: 1 }),
+      F('why', 'Why it matters to me', 'long', { rows: 3 }), F('goal', 'Goal that brings me there', 'rel', { to: 'lgoals', half: 1 }), F('done', 'It came true', 'check', { half: 1 }), F('url', 'Link', 'url')],
+    sorts: [['area', 'Life area'], ['-created', 'Newest']],
+    sub: r => [r.area, r.by ? 'by ' + shortDate(r.by) : '', r.done ? 'came true' : ''].filter(Boolean).join(' · ')
+  },
+  discover: {
+    one: 'exercise', many: 'Self discovery', facet: 'type',
+    fields: [F('name', 'Exercise'), F('type', 'Theme', 'select', { options: DISC_TYPES, half: 1 }), F('status', 'Status', 'select', { options: ['Not started', 'In progress', 'Done'], half: 1 }),
+      F('prompts', 'Questions to answer', 'long', { rows: 5 }), F('answers', 'My answers', 'long', { rows: 10 }), F('insight', 'What I learned', 'long', { rows: 3 }), F('date', 'Done on', 'date', { half: 1 })],
+    sorts: [['status', 'Status'], ['name', 'A to Z']],
+    sub: r => [r.type, r.status || 'Not started', r.insight ? String(r.insight).slice(0, 70) : ''].filter(Boolean).join(' · '),
+    quick: r => ({ on: r.status === 'Done', label: 'Done', act: () => save(r, r.status === 'Done' ? { status: 'In progress' } : { status: 'Done', date: r.date || today() }) })
+  },
+  moodboard: {
+    one: 'inspiratie', ones: 'inspiratie', many: 'Moodboard', facet: 'room', photo: 'photo', display: 'cards',
+    fields: [F('name', 'Wat'), F('photo', 'Foto', 'photo'), F('room', 'Kamer', 'select', { options: ROOMS, half: 1 }), F('style', 'Stijl', 'text', { half: 1 }),
+      F('colours', 'Kleuren en materialen', 'text'), F('item', 'Hoort bij (verhuislijst)', 'rel', { to: 'inventory', half: 1 }), F('fav', 'Favoriet', 'check', { half: 1 }),
+      F('link', 'Link', 'url'), F('why', 'Wat ik er mooi aan vind', 'long', { rows: 3 })],
+    sorts: [['room', 'Kamer'], ['-fav', 'Favorieten'], ['-created', 'Nieuwste']],
+    sub: r => [r.room, r.style, r.colours].filter(Boolean).join(' · ')
+  },
   documents: {
     one: 'document', many: 'Documents', facet: 'category',
     fields: [F('name', 'Document'), F('category', 'Category', 'select', { options: ['Personal', 'Health', 'Household', 'Financial', 'Work', 'Business'], half: 1 }),
@@ -1117,14 +1167,14 @@ function fitTile() {
 const SECTIONS = [
   { key: 'plan', label: 'Plan', icon: P.target, tile: planTile,
     groups: { mind: ['Mind', P.pen], plans: ['Plans', P.star], wish: ['Wishlists', P.heart] },
-    views: [['today', 'My year', P.target], ['week', 'Week', P.calendar], ['care/habits', 'Routines', P.repeat], ['care/journal', 'Journal', P.pen, 'mind'], ['care/mindful', 'Mindfulness', P.moon, 'mind'], ['care/growth', 'Growth', P.target, 'mind'], ['care/trips', 'Trips', P.plane, 'plans'], ['care/docs', 'Documents', P.doc, 'plans'], ['care/ideas', 'Ideas', P.star, 'plans'], ['care/saved', 'Saved links', P.link, 'plans'], ['care/gifts', 'Gifts', P.gift, 'plans'], ['wish/today', 'Overview', P.grid, 'wish'], ['wish/inbox', 'Inbox', P.inbox, 'wish'], ['wish/master', 'Master', P.heart, 'wish'], ['todo', 'To do', P.check]] },
+    views: [['today', 'My year', P.target], ['week', 'Week', P.calendar], ['care/habits', 'Routines', P.repeat], ['care/journal', 'Journal', P.pen, 'mind'], ['care/mindful', 'Mindfulness', P.moon, 'mind'], ['care/growth', 'Growth', P.target, 'mind'], ['care/vision', 'Vision', P.sparkle, 'mind'], ['care/discover', 'Self discovery', P.user, 'mind'], ['care/trips', 'Trips', P.plane, 'plans'], ['care/docs', 'Documents', P.doc, 'plans'], ['care/ideas', 'Ideas', P.star, 'plans'], ['care/saved', 'Saved links', P.link, 'plans'], ['care/gifts', 'Gifts', P.gift, 'plans'], ['wish/today', 'Overview', P.grid, 'wish'], ['wish/inbox', 'Inbox', P.inbox, 'wish'], ['wish/master', 'Master', P.heart, 'wish'], ['wish/orders', 'Orders', P.box, 'wish'], ['todo', 'To do', P.check]] },
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile,
     groups: { food: ['Food', P.book], shop: ['Shop', P.cart] },
     views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['pantry', 'Pantry', P.jar, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['shops', 'Shops', P.house, 'shop'], ['todo', 'To do', P.check]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile,
     groups: { plan: ['Plan', P.target], look: ['Review', P.trend] },
-    views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target, 'plan'], ['debt', 'Debt', P.card, 'plan'], ['forecast', 'Forecast', P.trend, 'plan'], ['year', 'Year', P.calendar, 'look'], ['networth', 'Net worth', P.wallet, 'look'], ['reviews', 'Reviews', P.doc, 'look'], ['todo', 'To do', P.check]] },
-  { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Verhuislijst', P.box], ['repairs', 'Repairs', P.wrench], ['todo', 'To do', P.check]] },
+    views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target, 'plan'], ['debt', 'Debt', P.card, 'plan'], ['insurance', 'Insurance', P.doc, 'plan'], ['forecast', 'Forecast', P.trend, 'plan'], ['year', 'Year', P.calendar, 'look'], ['networth', 'Net worth', P.wallet, 'look'], ['reviews', 'Reviews', P.doc, 'look'], ['todo', 'To do', P.check]] },
+  { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Verhuislijst', P.box], ['mood', 'Moodboard', P.heart], ['repairs', 'Repairs', P.wrench], ['todo', 'To do', P.check]] },
   { key: 'social', label: 'Social', icon: P.phone, tile: socialTile,
     groups: { work: ['Work', P.check], create: ['Create', P.phone], grow: ['Grow', P.trend], library: ['Library', P.book] },
     views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check, 'work'], ['projects', 'Projects', P.list, 'work'], ['ideas', 'Ideas', P.star, 'create'], ['posts', 'Posts', P.phone, 'create'], ['plan', 'Planning', P.calendar, 'create'], ['feed', 'Feed', P.grid, 'create'], ['insights', 'Insights', P.trend, 'grow'], ['goals', 'Goals', P.target, 'grow'], ['collabs', 'Collabs', P.handshake, 'grow'], ['income', 'Income', P.coins, 'grow'], ['tips', 'Tips', P.star, 'library'], ['inspo', 'Inspiration', P.heart, 'library'], ['kit', 'Toolkit', P.list, 'library'], ['brand', 'Brand', P.user, 'library'], ['todo', 'To do', P.check]] },
@@ -1134,7 +1184,7 @@ const SECTIONS = [
 ];
 // a view is "page" for this section, or a full key when it borrows a page from another area
 const vkey = (s, v) => v[0].includes('/') ? v[0] : s.key + '/' + v[0];
-const TODO_ADDS = { plan: ['ideas', 'gifts', 'documents', 'wishes'], body: ['beauty', 'supplements', 'exercises', 'vworkouts', 'fitgear', 'plans'], kitchen: ['recipes', 'ingredients', 'gear'], care: ['beauty', 'supplements', 'ideas', 'gifts', 'courses', 'documents'], social: ['posts', 'cideas', 'stips', 'inspo', 'deals'], wish: ['wishes'], money: ['fbills', 'fdebts', 'fgoals'], home: ['plants', 'inventory', 'chores'], fit: ['exercises', 'vworkouts', 'fitgear', 'plans'] };
+const TODO_ADDS = { plan: ['ideas', 'gifts', 'documents', 'wishes', 'orders', 'vision', 'discover'], body: ['beauty', 'supplements', 'exercises', 'vworkouts', 'fitgear', 'plans'], kitchen: ['recipes', 'ingredients', 'gear'], care: ['beauty', 'supplements', 'ideas', 'gifts', 'courses', 'documents'], social: ['posts', 'cideas', 'stips', 'inspo', 'deals'], wish: ['wishes'], money: ['fbills', 'fdebts', 'fgoals', 'insurance'], home: ['plants', 'inventory', 'chores', 'moodboard'], fit: ['exercises', 'vworkouts', 'fitgear', 'plans'] };
 const PAGES = {
   ...Object.fromEntries(['plan', 'body', 'kitchen', 'care', 'money', 'home', 'wish', 'social', 'fit'].map(sec => [sec + '/todo', { render: host => sectionTodo(host, sec), adds: TODO_ADDS[sec] }])),
   'kitchen/today': { render: kitchenToday, adds: ['meals', 'recipes', 'ingredients', 'mealprep'] },
@@ -1166,6 +1216,11 @@ const PAGES = {
   'care/mindful': { title: 'Mindfulness', segs: [{ kind: 'mindful', top: mindTop }, { kind: 'meditation', label: 'Sessions' }] },
   'care/growth': { title: 'Growth', segs: [{ kind: 'lgoals', top: growthTop }, { kind: 'courses' }, { kind: 'hobbies' }] },
   'care/docs': { title: 'Documents', segs: [{ kind: 'documents' }] },
+  'care/vision': { title: 'Vision', segs: [{ kind: 'vision', top: visionTop }] },
+  'care/discover': { title: 'Self discovery', segs: [{ kind: 'discover', top: discoverTop }] },
+  'wish/orders': { title: 'Online orders', segs: [{ kind: 'orders', top: ordersTop }] },
+  'money/insurance': { title: 'Insurance', segs: [{ kind: 'insurance', top: insuranceTop }] },
+  'home/mood': { title: 'Moodboard', segs: [{ kind: 'moodboard', top: moodTop }] },
   'care/trips': { render: tripsPage, adds: ['stays'] },
   'social/tasks': { title: 'Tasks', segs: [{ kind: 'tasks' }] },
   'social/projects': { title: 'Projects', segs: [{ kind: 'projects' }] },
@@ -4286,6 +4341,8 @@ document.addEventListener('click', async e => {
     case 'tl': { if (d.nl) { nlToggle(d.nl); break; } if (d.nlk) { nlToggle(d.nlk); break; } const t0 = today(), set = tlDone(t0); set.has(d.v) ? set.delete(d.v) : set.add(d.v); tlSave(t0, set); C.render(); break; }
     case 'invbuy': invBuy(d.id); break;
     case 'invstart': invStart(); break;
+    case 'discstart': discStart(); break;
+    case 'affmanage': C.affirmManage?.(); break;
     case 'invhave': openEditor('inventory', null, { status: 'Gekocht', bought: today(), notes: 'Al gekocht voor de verhuizing' }); break;
     case 'movegoal': moveGoalSync(); break;
     case 'nl': nlToggle(d.v); break;
@@ -5281,6 +5338,50 @@ function todayTop() {
       <input class="finp" data-top3pin placeholder="Mijn eigen belangrijkste ding vandaag" value="${esc(pin)}" aria-label="Eigen top 1"></section>
     ${timelineHTML()}
   </div>`;
+}
+
+/* ---------- insurance, online orders, vision, self discovery, moodboard ---------- */
+function insMonthly(r) { const a = num(r.amount); return r.billing === 'Yearly' ? a / 12 : r.billing === 'Quarterly' ? a / 3 : a; }
+function insuranceTop() {
+  const l = recs('insurance').filter(r => r.status !== 'Stopped'), m = l.reduce((n, r) => n + insMonthly(r), 0);
+  const next = l.filter(r => r.renews && r.renews >= today()).sort((a, b) => a.renews.localeCompare(b.renews))[0];
+  const mo = +today().slice(5, 7), zorg = l.find(r => r.type === 'Zorgverzekering');
+  return `<div class="tiles lt3">${fTile('Per month', eur(m).replace(/\.00$/, ''), plural(l.length, 'insurance'))}${fTile('Per year', eur(Math.round(m * 12)).replace(/\.00$/, ''), 'all premiums')}${fTile('Next renewal', next ? esc(shortDate(next.renews)) : 'None', next ? esc(next.name) : 'add a renewal date')}</div>
+  ${mo >= 11 ? `<p class="lnone">${zorg ? `Je zorgverzekering bij ${esc(zorg.company || 'je verzekeraar')} kun je tot 31 december opzeggen. Vergelijk nu, dan zit je 1 januari goed.` : 'Tot 31 december kun je overstappen van zorgverzekering. Voeg de jouwe toe om te vergelijken.'} <a href="https://www.independer.nl/zorgverzekering/intro.aspx" target="_blank" rel="noopener">Vergelijk op Independer</a></p>` : ''}`;
+}
+function ordersTop() {
+  const l = recs('orders'), way = l.filter(r => ['Ordered', 'Shipped'].includes(r.status || 'Ordered')), back = l.filter(r => r.status === 'Delivered' && r.returnBy && r.returnBy >= today());
+  const ret = l.filter(r => r.status === 'Returning'), money = ret.reduce((n, r) => n + num(r.price), 0);
+  return `<div class="tiles lt3">${fTile('On the way', String(way.length), way.length ? esc(way.map(r => r.name).slice(0, 2).join(', ')) : 'nothing ordered')}${fTile('Can still return', String(back.length), back.length ? 'first by ' + esc(shortDate(back.map(r => r.returnBy).sort()[0])) : 'nothing open')}${fTile('Money back', eur(money), plural(ret.length, 'return'))}</div>`;
+}
+function visionTop() {
+  const l = recs('vision'), done = l.filter(r => r.done).length, areas = new Set(l.map(r => r.area).filter(Boolean));
+  let aff = ''; try { aff = C.affirmToday?.() || ''; } catch {}
+  const affHTML = `<div class="banner">${aff ? `<p class="tintent"><span>Affirmatie van vandaag</span><b>${esc(aff)}</b></p>` : quiet('Nog geen affirmaties.')}<button class="btn small" data-act="affmanage">Affirmaties beheren</button></div>`;
+  return affHTML + (l.length ? `<div class="tiles lt3">${fTile('Dreams', String(l.length), areas.size ? `in ${plural(areas.size, 'life area')}` : 'add a life area')}${fTile('Came true', String(done), done ? 'well done' : 'not yet')}${fTile('Linked to a goal', String(l.filter(r => r.goal).length), 'so you work towards it')}</div>` : `<p class="lnone">Zet hier foto's en dromen voor de komende jaren: je nieuwe huis, reizen, gezond leven. Koppel ze aan een doel in My year.</p>`);
+}
+const DISC_START = [
+  ['Mijn sterke punten', 'Strengths', 'Waar vragen mensen mij om hulp bij?\nWanneer verlies ik de tijd omdat ik zo bezig ben?\nWelke drie complimenten krijg ik het vaakst?\nWaar ben ik trots op uit het afgelopen jaar?'],
+  ['Mijn valkuilen', 'Weaknesses', 'Waar loop ik steeds weer tegenaan?\nWat stel ik uit, en waarom?\nWanneer word ik onzeker?\nWat zou ik willen leren of verbeteren?'],
+  ['Beperkende overtuigingen', 'Beliefs', 'Welke zinnen zeg ik tegen mezelf als het tegenzit?\nKlopt dat echt? Wat is het bewijs ertegen?\nWat zou ik doen als ik dit niet geloofde?\nWelke nieuwe zin zet ik ervoor in de plaats?'],
+  ['Mijn kernwaarden', 'Values', 'Kies vijf woorden die voor jou het belangrijkst zijn (bijvoorbeeld vrijheid, rust, creativiteit, gezondheid, familie).\nWaarom juist deze vijf?\nLeef ik daar nu naar? Waar wel en waar niet?'],
+  ['Mijn ideale dag', 'Dreams', 'Beschrijf een gewone dinsdag over vijf jaar, van opstaan tot slapen.\nWaar woon ik, wat doe ik, met wie ben ik?\nWat kan ik nu al doen om dichterbij te komen?'],
+  ['Wat geeft me energie', 'Personality', 'Wat geeft me energie en wat kost me energie?\nWanneer voel ik me het meest mezelf?\nHoe laad ik het beste op: alleen of met anderen?'],
+  ['Mensen om me heen', 'Relationships', 'Bij wie voel ik me goed?\nWie mis ik, en wanneer neem ik contact op?\nWelke grens wil ik beter bewaken?']
+];
+function discoverTop() {
+  const l = recs('discover'), done = l.filter(r => r.status === 'Done').length;
+  const missing = DISC_START.filter(([n]) => !l.some(r => norm(r.name) === norm(n))).length;
+  return `${l.length ? `<div class="tiles lt3">${fTile('Exercises', String(l.length), 'to get to know yourself')}${fTile('Done', String(done), done ? 'nice work' : 'start with one')}${fTile('In progress', String(l.filter(r => r.status === 'In progress').length), 'take your time')}</div>` : ''}${missing ? `<div class="banner">${quiet(l.length ? `Er zijn nog ${missing} startoefeningen die je niet hebt.` : 'Begin met een paar oefeningen met vragen. Je vult ze in wanneer je zin hebt.')}<button class="btn small primary" data-act="discstart">Startoefeningen toevoegen</button></div>` : ''}`;
+}
+async function discStart() {
+  const have = new Set(recs('discover').map(r => norm(r.name))), rows = DISC_START.filter(([n]) => !have.has(norm(n))).map(([name, type, prompts]) => ({ id: C.uuid(), kind: 'discover', data: { name, type, prompts, status: 'Not started', created: Date.now() } }));
+  if (!rows.length) return C.toast('De startoefeningen staan er al in');
+  try { await putMany(rows, null, 'Startoefeningen'); C.toast(`${plural(rows.length, 'oefening', 'oefeningen')} toegevoegd`); } catch { C.toast('Opslaan lukte niet. Probeer het opnieuw.'); }
+}
+function moodTop() {
+  const l = recs('moodboard'), rooms = new Set(l.map(r => r.room).filter(Boolean));
+  return l.length ? `<p class="lnone">${plural(l.length, 'inspiratie', 'inspiraties')} voor ${plural(rooms.size, 'kamer', 'kamers')}. Koppel een foto aan iets op je verhuislijst, dan zie je wat je zoekt als je gaat kopen.</p>` : `<p class="lnone">Verzamel foto's en links voor je nieuwe huis, per kamer. Koppel ze aan je verhuislijst.</p>`;
 }
 
 /* Plan › My year */
