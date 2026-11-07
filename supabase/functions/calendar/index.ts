@@ -24,14 +24,23 @@ const nextDay = (d: string) => { const [y, m, dd] = d.split('-').map(Number); co
 function uidOf(id: string) { let h = 0; for (const c of id) h = (h * 31 + c.charCodeAt(0)) | 0; return `${(h >>> 0).toString(36)}-${id.length}@aslife`; }
 const TZ = ['BEGIN:VTIMEZONE', 'TZID:Europe/Amsterdam', 'BEGIN:DAYLIGHT', 'TZOFFSETFROM:+0100', 'TZOFFSETTO:+0200', 'TZNAME:CEST', 'DTSTART:19700329T020000', 'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU', 'END:DAYLIGHT', 'BEGIN:STANDARD', 'TZOFFSETFROM:+0200', 'TZOFFSETTO:+0100', 'TZNAME:CET', 'DTSTART:19701025T030000', 'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU', 'END:STANDARD', 'END:VTIMEZONE'];
 
+// the app's "Test verbinding" button reads this from the browser, so it may be read from any page
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS' };
+const say = (msg: string, status: number) => new Response(msg, { status, headers: { ...CORS, 'Content-Type': 'text/plain; charset=utf-8' } });
+// a key pasted with a space, a line break or quotes around it still counts
+const clean = (v: string | null | undefined) => String(v ?? '').trim().replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').trim();
+
 Deno.serve(async (req) => {
-  const u = new URL(req.url), t = u.searchParams.get('t') || '', cat = (u.searchParams.get('cat') || 'all').toLowerCase();
-  const tok = Deno.env.get('CAL_TOKEN');
-  if (!tok || t !== tok) return new Response('forbidden', { status: 403 });
-  if (!NAMES[cat]) return new Response('unknown calendar', { status: 404 });
-  const uid = Deno.env.get('SPEND_USER_ID')!;
+  if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
+  const u = new URL(req.url), t = clean(u.searchParams.get('t')), cat = (u.searchParams.get('cat') || 'all').toLowerCase();
+  const tok = clean(Deno.env.get('CAL_TOKEN'));
+  if (!tok) return say('CAL_TOKEN is missing: add it under Edge Functions > Secrets in Supabase', 500);
+  if (t !== tok) return say('forbidden: the key in this link is not the same as CAL_TOKEN in Supabase', 403);
+  if (!NAMES[cat]) return say('unknown calendar', 404);
+  const uid = clean(Deno.env.get('SPEND_USER_ID'));
+  if (!uid) return say('SPEND_USER_ID is missing: add your user id under Edge Functions > Secrets in Supabase', 500);
   const { data, error } = await sb.from('records').select('data,updated_at').eq('user_id', uid).eq('kind', 'calfeed').order('updated_at', { ascending: false }).limit(1);
-  if (error) return new Response('error', { status: 500 });
+  if (error) return say('error reading your calendar: ' + error.message, 500);
   const items: Item[] = (data?.[0]?.data?.items || []).filter((e: Item) => e && e.date && (cat === 'all' || e.cat === cat));
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//A\'s Life//Calendar//NL', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
@@ -47,5 +56,5 @@ Deno.serve(async (req) => {
     lines.push(`SUMMARY:${esc(summary)}`, `DESCRIPTION:${esc([e.sub, `Uit A's Life · ${NAMES[e.cat] || ''}`].filter(Boolean).join('\n'))}`, `CATEGORIES:${esc(NAMES[e.cat] || e.cat)}`, 'END:VEVENT');
   }
   lines.push('END:VCALENDAR');
-  return new Response(lines.map(fold).join('\r\n') + '\r\n', { headers: { 'Content-Type': 'text/calendar; charset=utf-8', 'Cache-Control': 'max-age=900', 'Content-Disposition': `inline; filename="aslife-${cat}.ics"` } });
+  return new Response(lines.map(fold).join('\r\n') + '\r\n', { headers: { ...CORS, 'Content-Type': 'text/calendar; charset=utf-8', 'Cache-Control': 'max-age=900', 'Content-Disposition': `inline; filename="aslife-${cat}.ics"` } });
 });
