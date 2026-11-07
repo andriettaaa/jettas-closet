@@ -109,7 +109,10 @@ const relName = id => { const r = L.byId[id]; return r ? titleOf(r) : ''; };
 const relNames = ids => [].concat(ids || []).map(relName).filter(Boolean);
 
 const SOCIAL_PLATFORMS = ['Instagram', 'TikTok', 'YouTube', 'Pinterest'];
-const SOCIAL_STAGES = ['Idea', 'Planned', 'Filming', 'Editing', 'Scheduled', 'Posted'];
+const SOCIAL_STAGES = ['Idea', 'Planned', 'Scripting', 'Filming', 'Editing', 'Scheduled', 'Posted'];
+// the steps of making a post, each with its own date; a step is done once the stage has moved past it
+const POST_STEPS = [['scriptOn', 'Write the script', 'Filming'], ['filmOn', 'Film', 'Editing'], ['editOn', 'Edit', 'Scheduled'], ['date', 'Post', 'Posted']];
+const stepDone = (r, upto) => SOCIAL_STAGES.indexOf(r.stage) >= SOCIAL_STAGES.indexOf(upto);
 const SOCIAL_FORMATS = ['Short Video', 'Long-form Video', 'Carousel', 'Image Post', 'Story', 'Live', 'BTS Video'];
 const SOCIAL_STYLES = ['Educational', 'Entertaining', 'Inspirational', 'Relatable', 'Storytelling', 'Behind-the-Scenes', 'Informational'];
 const SOCIAL_FUNNEL = ['Awareness', 'Consideration', 'Conversion', 'Loyalty/Advocacy'];
@@ -357,15 +360,18 @@ const KINDS = {
   posts: {
     one: 'post', many: 'Posts', facet: 'stage', photo: 'photo',
     fields: [F('name', 'Title'), F('date', 'Post on', 'date', { half: 1 }), F('time', 'At', 'time', { half: 1 }),
+      F('scriptOn', 'Write the script on', 'date', { half: 1 }), F('filmOn', 'Film on', 'date', { half: 1 }), F('editOn', 'Edit on', 'date', { half: 1 }), F('location', 'Location', 'text', { half: 1 }),
       F('stage', 'Stage', 'select', { options: SOCIAL_STAGES.filter(x => x !== 'Idea'), half: 1 }), F('platforms', 'Platforms', 'multi', { options: SOCIAL_PLATFORMS, half: 1 }),
       F('format', 'Format', 'select', { options: SOCIAL_FORMATS, half: 1 }), F('pillar', 'Pillar', 'rel', { to: 'pillars', half: 1 }),
       F('style', 'Style', 'select', { options: SOCIAL_STYLES, half: 1 }), F('funnel', 'Funnel stage', 'select', { options: SOCIAL_FUNNEL, half: 1 }),
-      F('desc', 'What it is', 'long'), F('caption', 'Caption', 'long'), F('hashtags', 'Hashtags', 'text'),
+      F('desc', 'What it is', 'long'), F('hook', 'Hook (first seconds)', 'text'), F('script', 'Script', 'long', { rows: 8 }), F('shots', 'Shot list', 'long', { rows: 5 }),
+      F('outfit', 'Outfit and props', 'long', { rows: 3 }), F('sound', 'Sound or music', 'text', { half: 1 }), F('cta', 'Call to action', 'text', { half: 1 }),
+      F('caption', 'Caption', 'long'), F('hashtags', 'Hashtags', 'text'),
       F('link', 'Post link', 'url'), F('views', 'Views', 'num', { half: 1 }), F('likes', 'Likes', 'num', { half: 1 }), F('comments', 'Comments', 'num', { half: 1 }), F('shares', 'Shares', 'num', { half: 1 }), F('top', 'Top performer', 'check', { half: 1 }), F('repurpose', 'Repurpose this', 'check', { half: 1 }),
       F('photo', 'Cover', 'photo'), F('video', 'Video', 'video'), F('notes', 'Notes', 'long')],
     sorts: [['date', 'Soonest'], ['-date', 'Newest'], ['name', 'A to Z']],
     hide: r => r.stage === 'Posted', hideLabel: 'Show posted',
-    sub: r => [r.date && `${dayName(r.date)} ${niceDate(r.date)}`, r.time, r.stage, [].concat(r.platforms || []).join(' + ')].filter(Boolean).join(' · '),
+    sub: r => { const nx = r.stage === 'Posted' ? null : POST_STEPS.slice(0, 3).find(([k, , upto]) => r[k] && !stepDone(r, upto)); return [r.date && `${dayName(r.date)} ${niceDate(r.date)}`, r.time, r.stage, nx && `${nx[1].toLowerCase()} ${relDay(r[nx[0]])}`, [].concat(r.platforms || []).join(' + ')].filter(Boolean).join(' · '); },
     quick: r => ({ on: r.stage === 'Posted', label: 'Posted', act: () => save(r, { stage: r.stage === 'Posted' ? 'Scheduled' : 'Posted' }) })
   },
   cideas: {
@@ -2925,6 +2931,8 @@ function socialToday(host) {
   const late = posts.filter(p => p.stage !== 'Posted' && p.date && p.date < t);
   const week = posts.filter(p => p.date >= wk && p.date <= end), posted = week.filter(p => p.stage === 'Posted').length;
   const ideas = recs('cideas').filter(i => !['Dropped', 'Planned'].includes(i.status));
+  const steps = posts.filter(p => p.stage !== 'Posted').flatMap(p => POST_STEPS.slice(0, 3).filter(([k, , upto]) => p[k] && p[k] <= addDays(t, 6) && !stepDone(p, upto)).map(([k, label]) => ({ p, k, label, on: p[k] }))).sort((a, b) => a.on.localeCompare(b.on));
+  const stepRow = x => `<div class="lrow"><button class="lmain" data-act="open" data-id="${x.p.id}"><b>${esc(x.label)}: ${esc(titleOf(x.p))}</b><span>${esc(x.on < t ? 'was ' + relDay(x.on) : relDay(x.on))}${x.p.date ? ' · post ' + esc(relDay(x.p.date)) : ''}</span></button></div>`;
   const goals = recs('sgoals').filter(g => !g.done);
   const deals = recs('deals').filter(d => !['Paid', 'Declined'].includes(d.status)).sort((a, b) => (a.due || '9').localeCompare(b.due || '9'));
   const accs = recs('accounts').filter(a => a.active !== false).sort((a, b) => (num(b.followers) || 0) - (num(a.followers) || 0));
@@ -2938,6 +2946,7 @@ function socialToday(host) {
   <div class="panels">
     ${panel('Tasks', due.length || nextTasks.length ? `${due.length ? `<div class="lrows">${due.map(row).join('')}</div>` : quiet('Nothing due today.')}${nextTasks.length ? `<p class="dsub">Next</p><div class="lrows">${nextTasks.map(row).join('')}</div>` : ''}` : `${quiet('No open tasks with a date.')}<button class="btn small" data-act="new" data-v="tasks">Add a task</button>`, ['social/tasks', 'All tasks'])}
     ${projs.length ? panel('Projects', `<div class="lrows">${projs.slice(0, 5).map(pbar).join('')}</div>`, ['social/projects', 'All projects']) : ''}
+    ${steps.length ? panel('Making your posts', `<div class="lrows">${steps.slice(0, 8).map(stepRow).join('')}</div>`, ['social/posts', 'All posts']) : ''}
     ${panel('Coming up', upcoming.length ? `<div class="lrows">${upcoming.map(row).join('')}</div>` : `${quiet('No posts planned.')}<button class="btn small" data-act="new" data-v="posts">Plan a post</button>`, ['social/posts', 'All posts'])}
     ${late.length ? panel('Past their date', `<div class="lrows">${late.slice(0, 5).map(row).join('')}</div>`, ['social/posts', 'All posts']) : ''}
     ${panel('Goals', goals.length ? `<div class="lrows">${goals.slice(0, 5).map(bar).join('')}</div>` : quiet('Set a goal per platform and track how close you are.'), ['social/goals', 'All goals'])}
