@@ -187,6 +187,10 @@ dl.props dd .chip.link { margin-right: 6px; }
 .tray p { margin: 2px 0 10px; color: var(--muted); font-size: 13.5px; }
 
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
+.todocard { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.todomiss { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; }
+.todomiss span { font-size: 11.5px; line-height: 1; padding: 4px 7px; border-radius: 999px; border: 1px dashed var(--line); color: var(--muted); }
+.todomiss span.on { border-style: solid; border-color: var(--ink); color: var(--ink); }
 @media (max-width: 520px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }
 .card { border: 0; padding: 0; background: var(--surface); border-radius: var(--r); text-align: left; overflow: hidden; position: relative; display: flex; flex-direction: column; box-shadow: var(--shadow); transition: transform .15s ease; min-width: 0; }
 .card:hover { transform: translateY(-2px); }
@@ -583,7 +587,8 @@ const VIEWS = [
   ['outfits', 'Outfits', '<path d="M8 3 4 6l2 4 2-1v12h8V9l2 1 2-4-4-3c-.5 1.5-2 2.5-4 2.5S8.5 4.5 8 3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'],
   ['calendar', 'Calendar', '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
   ['trips', 'Trips', '<rect x="4" y="7.5" width="16" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 7.5V5.8A1.5 1.5 0 0 1 10.5 4.3h3A1.5 1.5 0 0 1 15 5.8v1.7M4 13h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
-  ['stats', 'Stats', '<path d="M5 20V11M12 20V4M19 20v-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>']
+  ['stats', 'Stats', '<path d="M5 20V11M12 20V4M19 20v-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>'],
+  ['todo', 'To do', '<path d="M9 6.5h11M9 12h11M9 17.5h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m3.5 6.5 1.4 1.4 2.4-2.6M3.5 12l1.4 1.4 2.4-2.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5.2" cy="17.5" r="1.4" fill="none" stroke="currentColor" stroke-width="1.6"/>']
 ];
 // Today (the overview of everything), the closet and the areas life.js adds (Kitchen, Life, Social, Money, Home, Fitness). The areas sit in the
 // header; the pages of the open area sit in the bar below it. A new area in life.js shows up in both, and on the overview.
@@ -977,7 +982,7 @@ function render() {
   }
   if (isSecSettings(S.view)) renderSettings(host);
   else if (isLife(S.view)) window.LIFE.render(host, S.view);
-  else ({ overview: renderOverview, settings: renderSettings, closet: renderRail, wishlist: renderRail, outfits: renderOutfits, calendar: renderCalendar, trips: renderTrips, stats: renderStats })[S.view](host);
+  else ({ overview: renderOverview, settings: renderSettings, closet: renderRail, wishlist: renderRail, outfits: renderOutfits, calendar: renderCalendar, trips: renderTrips, stats: renderStats, todo: renderTodo })[S.view](host);
   S.sheetRefresh?.();
 }
 
@@ -1950,7 +1955,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v84';
+const APP_VERSION = 'hangtag-v85';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2185,6 +2190,44 @@ function renderOverview(host) {
   }
 }
 
+/* ---------- To do: pieces in your closet that still miss details ----------
+   Each check names a field from the editor. Bags and accessories need no size or care. Pieces that came in from a video
+   and were never opened in the editor count as "Not checked yet"; notes that say the import was unsure count as "Double-check". */
+const TODO_CHECKS = [
+  ['photo', 'Photo', it => !it.photo],
+  ['sub', 'Type', it => !String(it.sub || '').trim()],
+  ['brand', 'Brand', it => !String(it.brand || '').trim()],
+  ['size', 'Size', it => !String(it.size || '').trim() && !['bags', 'accessories'].includes(catKey(it.cat))],
+  ['colors', 'Colour', it => !(it.colors || []).length],
+  ['material', 'Material', it => !String(it.material || '').trim() && !(it.materials || []).length],
+  ['price', 'Price paid', it => it.price == null || it.price === ''],
+  ['bought', 'Bought on', it => !it.bought],
+  ['seasons', 'Season', it => !(it.seasons || []).length],
+  ['occasions', 'Occasion', it => !(it.occasions || []).length],
+  ['care', 'Care', it => !careTags(it).length && !String(it.careNotes || '').trim() && !['bags', 'accessories'].includes(catKey(it.cat))],
+  ['check', 'Double-check', it => /twijfelgeval|waarschijnlijk/i.test(it.notes || '')],
+  ['new', 'Not checked yet', it => it.source === 'video' && (!it.updated || it.updated === it.created)]
+];
+const todoMissing = it => TODO_CHECKS.filter(c => c[2](it));
+function renderTodo(host) {
+  const T = S.todo = S.todo || { field: pref.get('todoField', 'all'), sort: pref.get('todoSort', 'most') };
+  const pieces = S.items.filter(inCloset).map(it => ({ it, miss: todoMissing(it) })).filter(x => x.miss.length);
+  const count = k => pieces.filter(x => x.miss.some(m => m[0] === k)).length;
+  if (T.field !== 'all' && !count(T.field)) T.field = 'all';
+  const shown = pieces.filter(x => T.field === 'all' || x.miss.some(m => m[0] === T.field));
+  shown.sort(T.sort === 'new' ? (a, b) => (b.it.created || 0) - (a.it.created || 0) : T.sort === 'az' ? (a, b) => String(a.it.name || '').localeCompare(String(b.it.name || '')) : (a, b) => b.miss.length - a.miss.length || (b.it.created || 0) - (a.it.created || 0));
+  const total = S.items.filter(inCloset).length;
+  host.innerHTML = `<div class="viewhead"><h1>To do</h1><span class="sub">${total ? `${pieces.length} of ${total} pieces miss something` : ''}</span></div>
+    ${pieces.length ? `<div class="tools"><select class="pill" id="todoSort" aria-label="Sort">${[['most', 'Most missing first'], ['new', 'Recently added'], ['az', 'Name A to Z']].map(([k, l]) => `<option value="${k}" ${T.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <div class="chips" role="group" aria-label="Missing field"><button class="chip" data-tfield="all" aria-pressed="${T.field === 'all'}">Everything <span class="n">${pieces.length}</span></button>${TODO_CHECKS.map(([k, l]) => { const n = count(k); return n ? `<button class="chip" data-tfield="${k}" aria-pressed="${T.field === k}">${l} <span class="n">${n}</span></button>` : ''; }).join('')}</div>
+    <div class="grid">${shown.map(({ it, miss }) => `<div class="todocard">${itemCard(it)}<p class="todomiss">${miss.map(m => `<span class="${m[0] === T.field ? 'on' : ''}">${m[1]}</span>`).join('')}</p></div>`).join('')}</div>`
+    : `<div class="empty"><p>${total ? 'Every piece in your closet has all its details. Nice.' : 'Add pieces to your closet; anything they still miss shows up here.'}</p></div>`}`;
+  host.onclick = e => {
+    const f = e.target.closest('[data-tfield]'); if (f) { T.field = f.dataset.tfield; pref.set('todoField', T.field); return renderTodo(host); }
+    const it = e.target.closest('[data-item]'); if (it) openEditor(it.dataset.item);
+  };
+  const so = $('#todoSort', host); if (so) so.onchange = () => { T.sort = so.value; pref.set('todoSort', T.sort); renderTodo(host); };
+}
 function renderStats(host) {
   const tab = S.statsTab = S.statsTab || pref.get('statsTab', 'overview');
   host.innerHTML = `<div class="viewhead"><h1>Stats</h1><span class="sub">What your wardrobe really costs, and what it's actually used for</span></div>
