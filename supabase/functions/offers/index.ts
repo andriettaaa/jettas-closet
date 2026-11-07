@@ -481,7 +481,7 @@ Deno.serve(async req => {
       return json({ ok: true, deals: deals.length });
     }
     if (body.action === 'recipes') {
-      const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['recipes', 'ingredients', 'wplans', 'rreviews', 'shops']);
+      const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['recipes', 'ingredients', 'wplans', 'rreviews', 'shops', 'meals']);
       if (error) throw error;
       const ing = new Map(data.filter((r: any) => r.kind === 'ingredients').map((r: any) => [r.id, r.data]));
       // reviews: per recipe how it went, and across all reviews which ingredients you like or not
@@ -500,7 +500,10 @@ Deno.serve(async req => {
         helps: r.data.helps, hasInstructions: !!String(r.data.instructions || '').trim() || undefined, hasPhoto: !!r.data.photo || undefined,
         webPhoto: /^https?:/.test(String(r.data.photo || '')) || undefined
       }));
-      const pantry = [...ing.values()].map((i: any) => clean({ name: i.name, stock: i.stock ? true : undefined, category: i.category, location: i.location, frozen: i.frozen, expires: i.expires, portions: i.portions }));
+      const pantry = [...ing.values()].map((i: any) => clean({ name: i.name, stock: i.stock ? true : undefined, category: i.category, location: i.location, frozen: i.frozen, expires: i.expires, portions: i.portions, staple: i.staple ? true : undefined, low: i.low ? true : undefined }));
+      // evenings she doesn't cook (meal plan: dinner marked not at home), from today on
+      const todayISO = new Date().toISOString().slice(0, 10);
+      const away = data.filter((r: any) => r.kind === 'meals' && r.data?.away && r.data?.slot === 'Dinner' && String(r.data?.date) >= todayISO).map((r: any) => r.data.date).sort();
       // the shops she keeps in Kitchen › Shops: read the deals of every shop with readDeals on (plus Dirk, Aldi and AH)
       const shops = data.filter((r: any) => r.kind === 'shops').map((r: any) => shopOut(r.data));
       // the last plans, so a new week doesn't repeat the same recipes
@@ -508,7 +511,7 @@ Deno.serve(async req => {
         .map((p: any) => ({ start: p.start, dinners: (p.dinners || []).map((d: any) => d.name) }));
       // what you like and don't like, from Kitchen › Settings
       const { data: pr } = await sb.from('prefs').select('data').eq('user_id', uid).maybeSingle();
-      return json({ recipes, pantry, freezer: pantry.filter((i: any) => i.location === 'Vriezer' && i.stock), shops, recent, food: pr?.data?.food || {}, learned });
+      return json({ recipes, away, pantry, freezer: pantry.filter((i: any) => i.location === 'Vriezer' && i.stock), shops, recent, food: pr?.data?.food || {}, learned });
     }
 
     const TARGETS = ['recipes', 'wishes', 'closet', 'beauty', 'supplements', 'gear', 'fitgear', 'inventory', 'ideas', 'cideas', 'stips', 'inspo', 'gifts', 'keep', 'stays', 'trip'];
