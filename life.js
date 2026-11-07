@@ -113,6 +113,7 @@ const SOCIAL_STAGES = ['Idea', 'Planned', 'Scripting', 'Filming', 'Editing', 'Sc
 // the steps of making a post, each with its own date; a step is done once the stage has moved past it
 const POST_STEPS = [['scriptOn', 'Write the script', 'Filming'], ['filmOn', 'Film', 'Editing'], ['editOn', 'Edit', 'Scheduled'], ['date', 'Post', 'Posted']];
 const stepDone = (r, upto) => SOCIAL_STAGES.indexOf(r.stage) >= SOCIAL_STAGES.indexOf(upto);
+const TIP_CATS = ['Poses', 'Filming', 'Lighting', 'Editing', 'Software & apps', 'Branding', 'Hooks & captions', 'Growth & algorithm', 'Trends', 'Gear', 'Collabs & money', 'Other'];
 const SOCIAL_FORMATS = ['Short Video', 'Long-form Video', 'Carousel', 'Image Post', 'Story', 'Live', 'BTS Video'];
 const SOCIAL_STYLES = ['Educational', 'Entertaining', 'Inspirational', 'Relatable', 'Storytelling', 'Behind-the-Scenes', 'Informational'];
 const SOCIAL_FUNNEL = ['Awareness', 'Consideration', 'Conversion', 'Loyalty/Advocacy'];
@@ -384,6 +385,15 @@ const KINDS = {
     sorts: [['-created', 'Newest'], ['name', 'A to Z']],
     hide: r => r.status === 'Dropped' || r.status === 'Planned', hideLabel: 'Show planned and dropped',
     sub: r => [r.type !== 'Post idea' && r.type, r.status, relName(r.pillar), r.format, r.source].filter(Boolean).join(' · ')
+  },
+  stips: {
+    one: 'tip', many: 'Social media tips', facet: 'category', photo: 'photo', display: 'cards',
+    fields: [F('name', 'Tip'), F('category', 'Category', 'select', { options: TIP_CATS, half: 1 }), F('platforms', 'Platforms', 'multi', { options: SOCIAL_PLATFORMS, half: 1 }),
+      F('summary', 'What it is', 'long', { rows: 3 }), F('steps', 'Steps', 'long', { rows: 8 }), F('tools', 'Apps or gear', 'text', { half: 1 }), F('creator', 'From', 'text', { half: 1 }),
+      F('link', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('tried', 'Tried it', 'check', { half: 1 }), F('fav', 'Favourite', 'check', { half: 1 }), F('notes', 'Notes', 'long')],
+    sorts: [['-created', 'Newest'], ['name', 'A to Z'], ['category', 'Category']],
+    sub: r => [r.category, r.creator, r.tried ? 'tried' : ''].filter(Boolean).join(' · '),
+    quick: r => ({ on: !!r.tried, label: 'Tried', act: () => save(r, { tried: !r.tried }) })
   },
   pillars: {
     one: 'pillar', many: 'Content pillars',
@@ -924,7 +934,7 @@ const SECTIONS = [
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
   { key: 'wish', label: 'Wishlists', icon: P.heart, tile: wishTile, views: [['today', 'Overview', P.grid], ['inbox', 'Inbox', P.inbox], ['master', 'Master', P.heart]] },
-  { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['feed', 'Feed', P.grid], ['posts', 'Posts', P.phone], ['ideas', 'Ideas', P.star], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
+  { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['feed', 'Feed', P.grid], ['posts', 'Posts', P.phone], ['ideas', 'Ideas', P.star], ['tips', 'Tips', P.star], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
   { key: 'fit', label: 'Fitness', icon: P.dumbbell, tile: fitTile, views: [['today', 'Overview', P.grid], ['workouts', 'Workouts', P.run], ['library', 'Videos', P.star], ['fgoals', 'Goals', P.target], ['plans', 'Plans', P.list], ['exercises', 'Exercises', P.dumbbell], ['body', 'Body', P.scale], ['gear', 'Gear', P.box]] }
 ];
 const PAGES = {
@@ -951,7 +961,7 @@ const PAGES = {
   'care/trips': { render: tripsPage, adds: ['stays'] },
   'social/tasks': { title: 'Tasks', segs: [{ kind: 'tasks' }] },
   'social/projects': { title: 'Projects', segs: [{ kind: 'projects' }] },
-  'social/today': { render: socialToday, adds: ['tasks', 'projects', 'posts', 'cideas', 'deals', 'sgoals'] },
+  'social/today': { render: socialToday, adds: ['tasks', 'projects', 'posts', 'cideas', 'stips', 'deals', 'sgoals'] },
   'wish/today': { render: wishToday, adds: ['wishes', 'winbox'] },
   'wish/master': { title: 'Master wishlist', segs: [{ key: 'all', label: 'Everything', kind: 'wishes', fill: masterFill, tools: false }, { kind: 'wishes', label: 'Other wishes' }] },
   'wish/inbox': { render: inboxPage, adds: ['winbox'] },
@@ -960,6 +970,7 @@ const PAGES = {
   'social/posts': { title: 'Posts', segs: [{ kind: 'posts' }] },
   'social/feed': { render: socialFeed, adds: ['posts', 'highlights', 'accounts'] },
   'social/ideas': { title: 'Content ideas', segs: [{ kind: 'cideas' }] },
+  'social/tips': { title: 'Tips', segs: [{ kind: 'stips' }] },
   'social/goals': { title: 'Goals', segs: [{ kind: 'sgoals' }, { kind: 'accounts' }] },
   'social/collabs': { title: 'Collabs', segs: [{ kind: 'deals' }] },
   'social/brand': { title: 'Brand', segs: [{ kind: 'pillars' }, { kind: 'accounts' }] },
@@ -1255,7 +1266,7 @@ function emptyList(K, any) {
    times a day, works out what it is (recipe, wish, closet piece, beauty, supplement, gear, home, idea, content,
    gift) and fills in a card. You accept it, send it somewhere else, keep it as a saved link, or skip it. */
 const INBOX_TO = { recipes: ['Recipe', 'kitchen/recipes'], wishes: ['Wish', 'wish/master'], closet: ['Closet wishlist', 'wishlist'], beauty: ['Beauty', 'care/beauty'], supplements: ['Supplement', 'care/supplements'],
-  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], gifts: ['Gift idea', 'care/gifts'], trip: ['Trip idea', 'care/trips'], stays: ['Saved stay', 'care/trips'], keep: ['Saved link', 'care/saved'] };
+  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], stips: ['Social tip', 'social/tips'], gifts: ['Gift idea', 'care/gifts'], trip: ['Trip idea', 'care/trips'], stays: ['Saved stay', 'care/trips'], keep: ['Saved link', 'care/saved'] };
 const INBOX_EXTRA = { stays: () => ({ status: 'Saved' }), wishes: () => ({ status: 'Wish', since: today() }), beauty: () => ({ wish: true }), supplements: () => ({ wish: true }), gear: () => ({ own: false }), fitgear: () => ({ own: false }), inventory: () => ({ status: 'Wishlist' }), cideas: () => ({ status: 'Idea', source: 'Inbox' }), gifts: () => ({ status: 'Idea' }) };
 const inboxOpen = () => recs('inbox').filter(r => ['New', 'Ready'].includes(r.status));
 const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
@@ -1336,7 +1347,7 @@ function inboxRows(r, target, now, made = new Map()) {
   const d = { ...(r.draft || {}) }, name = d.name || r.title || hostOf(r.url) || 'Link';
   const keys = new Set(K.fields.map(f => f.k)), urlKey = K.fields.find(f => f.type === 'url')?.k, photoKey = K.fields.find(f => f.type === 'photo')?.k;
   const data = { created: now, ...(INBOX_EXTRA[target]?.() || {}) };
-  for (const [k, v] of Object.entries(d)) if (keys.has(k) && K.fields.find(f => f.k === k).type !== 'rel' && v !== '' && v != null) data[k] = v;
+  for (const [k, v] of Object.entries(d)) if (keys.has(k) && K.fields.find(f => f.k === k).type !== 'rel' && v !== '' && v != null) data[k] = Array.isArray(v) && K.fields.find(f => f.k === k).type === 'long' ? v.join('\n') : v;
   data.name = name; if (urlKey && !data[urlKey]) data[urlKey] = r.url || d.url || ''; if (photoKey && !data[photoKey] && (d.photo || r.photo)) data[photoKey] = d.photo || r.photo;
   const noteKey = keys.has('notes') ? 'notes' : keys.has('why') ? 'why' : keys.has('desc') ? 'desc' : '';
   if (noteKey && r.note && !String(data[noteKey] || '').includes(r.note)) data[noteKey] = [data[noteKey], r.note].filter(Boolean).join('\n');
