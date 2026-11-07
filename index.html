@@ -624,7 +624,9 @@ const secSettings = sec => [sec + '/settings', 'Settings', GEAR];
 const viewsAll = sec => byOrder(sec === 'closet' ? VIEWS : (SECTIONS.find(x => x.key === sec)?.views || []), NAV().views?.[sec]?.order, v => v[0]);
 const isSecSettings = v => /\/settings$/.test(String(v)) && SECTIONS.some(s => s.key === secOf(v) && !['overview', 'settings'].includes(s.key));
 const viewsShown = sec => { const h = NAV().views?.[sec]?.hidden || []; const vs = viewsAll(sec).filter(v => !h.includes(v[0])); return [...(vs.length ? vs : viewsAll(sec).slice(0, 1)), secSettings(sec)]; };
-const secOf = v => v === 'overview' || v === 'settings' ? v : String(v).includes('/') ? v.split('/')[0] : 'closet';
+// the area a page belongs to: the one whose tabs hold it (Plan and Body borrow pages from older areas), else its prefix
+const OLD_AREAS = { care: 'body', fit: 'body', wish: 'plan' };
+const secOf = v => { if (v === 'overview' || v === 'settings') return v; v = String(v); if (!v.includes('/')) return 'closet'; const own = SECTIONS.find(s => s.views?.some(x => x[0] === v)); if (own) return own.key; const pre = v.split('/')[0]; return SECTIONS.some(s => s.key === pre) ? pre : OLD_AREAS[pre] || pre; };
 const isLife = v => !!window.LIFE?.has(v);
 const okView = v => v === 'overview' || v === 'settings' || VIEWS.some(x => x[0] === v) || isLife(v) || isSecSettings(v);
 const tabsFor = v => ['overview', 'settings'].includes(secOf(v)) ? [] : viewsShown(secOf(v));
@@ -970,15 +972,16 @@ function renderTabs() {
   $('#addBtn').hidden = sec === 'overview' || sec === 'settings' || isSecSettings(S.view);
   $('#addBtn .addlabel').textContent = sec === 'closet' ? 'Add piece' : sec === 'overview' ? 'Add' : window.LIFE.addLabel(S.view);
 }
+const MOVED = { 'inbox/review': 'wish/inbox', 'inbox/saved': 'care/saved', 'wish/saved': 'care/saved', 'care/today': 'body/today', 'fit/today': 'body/today', 'kitchen/quit': 'body/clean', 'care/settings': 'body/settings', 'fit/settings': 'body/settings', 'wish/settings': 'plan/settings', 'care/todo': 'body/todo', 'fit/todo': 'body/todo', 'wish/todo': 'plan/todo' };
 function go(v) {
-  v = ({ 'inbox/review': 'wish/inbox', 'inbox/saved': 'care/saved', 'wish/saved': 'care/saved' })[v] || v; // the inbox moved under Wishlists
+  v = MOVED[v] || v; // pages that moved
   if (!okView(v)) v = 'overview';
   S.view = v; pref.set('view', v); pref.set('view:' + secOf(v), v);
   try { history.replaceState(null, '', '#' + v); } catch {}
   $('#main').innerHTML = ''; render(); window.scrollTo(0, 0);
 }
 // a typed or pasted #page link opens that page without a reload
-window.addEventListener('hashchange', () => { const v = ({ 'inbox/review': 'wish/inbox', 'inbox/saved': 'care/saved', 'wish/saved': 'care/saved' })[(location.hash || '').slice(1)] || (location.hash || '').slice(1), q = /^do=(\w+)/.exec(v); if (q) { try { history.replaceState(null, '', '#' + S.view); } catch {} quickAction(q[1]); return; } if (v && v !== S.view && okView(v)) go(v); });
+window.addEventListener('hashchange', () => { const v = (location.hash || '').slice(1), q = /^do=(\w+)/.exec(v); if (q) { try { history.replaceState(null, '', '#' + S.view); } catch {} quickAction(q[1]); return; } if (v && v !== S.view && okView(v)) go(v); });
 // only the tab buttons: the view container carries data-view too
 document.addEventListener('click', e => { const b = e.target.closest('nav [data-view]'); if (b) go(b.dataset.view); });
 // the ☰ menu: what isn't in the bar you're looking at (hidden sections, or on a phone what's not in the bottom bar), then Settings
@@ -1988,7 +1991,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v100';
+const APP_VERSION = 'hangtag-v101';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2269,6 +2272,7 @@ function renderOverview(host) {
   const hidden = dashHidden(), cards = dashCards().filter(s => !hidden.has(s.key));
   host.innerHTML = `<div class="viewhead dviewhead greet ${G.part}"><h1>${esc(G.hello)}</h1><p class="greetline">${esc(G.line)}</p><span class="sub">${t.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span></div>
     ${affirmBlock()}
+    ${window.LIFE?.todayTop?.() || ''}
     <button class="findbar" data-find>${I.search}<span>Search recipes, notes, pages, settings…</span></button>
     <div class="quickacts">${QUICK.filter(q => q[2]()).map(([k, l]) => `<button class="chip" data-quick="${k}">${esc(l)}</button>`).join('')}</div>
     ${wxStrip()}
@@ -3537,7 +3541,7 @@ function openDay(date, opts = {}) {
 /* ---------- boot ---------- */
 $('#addBtn').addEventListener('click', () => isLife(S.view) ? window.LIFE.add(S.view) : S.view === 'trips' ? openTripEditor(null) : openEditor(null, S.view === 'wishlist' ? { wish: true } : {}));
 S.fv = { closet: newFilter(pref.get('sort:closet', pref.get('sort', 'new'))), wishlist: newFilter(pref.get('sort:wishlist', 'new')) };
-const h0 = (location.hash || '').slice(1), h = ({ 'inbox/review': 'wish/inbox', 'inbox/saved': 'care/saved', 'wish/saved': 'care/saved' })[h0] || h0;
+const h0 = (location.hash || '').slice(1), h = MOVED[h0] || h0;
 // the app opens on the overview; a link with #page still opens that page
 S.view = okView(h) ? h : 'overview';
 
