@@ -1185,13 +1185,13 @@ const SECTIONS = [
     // a third layer inside a group: Body › Health, Train, Beauty
     subs: { body: { health: ['Health', P.moon], train: ['Train', P.run], beauty: ['Beauty', P.drop] } },
     views: [['overview', 'Overview', P.grid], ['week', 'Kalender', P.calendar],
-      ['today', 'My year', P.target, 'mind'], ['care/habits', 'Routines', P.repeat, 'mind'], ['care/journal', 'Journal', P.pen, 'mind'], ['care/mindful', 'Mindfulness', P.moon, 'mind'], ['care/growth', 'Growth', P.target, 'mind'], ['care/vision', 'Vision', P.sparkle, 'mind'], ['care/discover', 'Self discovery', P.user, 'mind'],
+      ['plan/mind', 'Overview', P.grid, 'mind'], ['today', 'My year', P.target, 'mind'], ['care/habits', 'Routines', P.repeat, 'mind'], ['care/journal', 'Journal', P.pen, 'mind'], ['care/mindful', 'Mindfulness', P.moon, 'mind'], ['care/growth', 'Growth', P.target, 'mind'], ['care/vision', 'Vision', P.sparkle, 'mind'], ['care/discover', 'Self discovery', P.user, 'mind'], ['plan/mindstats', 'Analyse', P.trend, 'mind'],
       ['body/today', 'Overview', P.grid, 'body'],
       ['care/health', 'Sleep & health', P.moon, 'body', 'health'], ['care/cycle', 'Cycle', P.moon, 'body', 'health'], ['care/supplements', 'Supplements', P.pill, 'body', 'health'], ['body/clean', 'Clean', P.leaf, 'body', 'health'],
       ['fit/workouts', 'Workouts', P.run, 'body', 'train'], ['fit/library', 'Videos', P.star, 'body', 'train'], ['fit/plans', 'Plans', P.list, 'body', 'train'], ['fit/exercises', 'Exercises', P.dumbbell, 'body', 'train'], ['fit/fgoals', 'Goals', P.target, 'body', 'train'], ['fit/body', 'Body', P.scale, 'body', 'train'], ['fit/gear', 'Gear', P.box, 'body', 'train'],
-      ['care/beauty', 'Products', P.drop, 'body', 'beauty'], ['care/skin', 'Skincare', P.flask, 'body', 'beauty'], ['care/diary', 'Skin diary', P.camera, 'body', 'beauty'], ['care/bdeals', 'Deals', P.tag, 'body', 'beauty'],
-      ['care/trips', 'Trips', P.plane, 'plans'], ['care/docs', 'Documents', P.doc, 'plans'], ['care/ideas', 'Ideas', P.star, 'plans'], ['care/saved', 'Saved links', P.link, 'plans'], ['care/gifts', 'Gifts', P.gift, 'plans'],
-      ['wish/today', 'Overview', P.grid, 'wish'], ['wish/inbox', 'Inbox', P.inbox, 'wish'], ['wish/master', 'Master', P.heart, 'wish'], ['wish/orders', 'Orders', P.box, 'wish'], ['todo', 'To do', P.check]] },
+      ['care/beauty', 'Products', P.drop, 'body', 'beauty'], ['care/skin', 'Skincare', P.flask, 'body', 'beauty'], ['care/diary', 'Skin diary', P.camera, 'body', 'beauty'], ['care/bdeals', 'Deals', P.tag, 'body', 'beauty'], ['body/stats', 'Analyse', P.trend, 'body'],
+      ['plan/plans', 'Overview', P.grid, 'plans'], ['care/trips', 'Trips', P.plane, 'plans'], ['care/docs', 'Documents', P.doc, 'plans'], ['care/ideas', 'Ideas', P.star, 'plans'], ['care/saved', 'Saved links', P.link, 'plans'], ['care/gifts', 'Gifts', P.gift, 'plans'], ['plan/planstats', 'Analyse', P.trend, 'plans'],
+      ['wish/today', 'Overview', P.grid, 'wish'], ['wish/inbox', 'Inbox', P.inbox, 'wish'], ['wish/master', 'Master', P.heart, 'wish'], ['wish/orders', 'Orders', P.box, 'wish'], ['wish/stats', 'Analyse', P.trend, 'wish'], ['todo', 'To do', P.check]] },
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile,
     groups: { food: ['Food', P.book], shop: ['Shop', P.cart] },
     views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['pantry', 'Pantry', P.jar, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['shops', 'Shops', P.house, 'shop'], ['todo', 'To do', P.check]] },
@@ -1217,6 +1217,12 @@ const PAGES = {
   'kitchen/groceries': { title: 'Groceries', segs: [{ key: 'list', label: 'Shopping list', kind: 'ingredients', fill: groceryFill, tools: false }] },
   'kitchen/pantry': { title: 'Pantry', segs: [{ kind: 'ingredients' }, { key: 'freezer', label: 'Freezer', kind: 'ingredients', fill: freezerFill, tools: false }] },
   'kitchen/shops': { title: 'Shops', segs: [{ kind: 'shops', label: 'Your shops' }] },
+  'plan/mind': { render: mindOverview, adds: ['journal', 'meditation', 'lgoals', 'habits'] },
+  'plan/mindstats': { render: mindAnalysis, adds: ['journal'] },
+  'body/stats': { render: bodyAnalysis, adds: ['sleep', 'workouts'] },
+  'plan/plans': { render: plansOverview, adds: ['gifts', 'ideas', 'documents'] },
+  'plan/planstats': { render: plansAnalysis, adds: ['gifts'] },
+  'wish/stats': { render: wishAnalysis, adds: ['wishes', 'orders'] },
   'plan/overview': { render: lifeOverview, adds: ['journal', 'sleep', 'workouts', 'wishes', 'gifts'] },
   'plan/today': { render: planToday, adds: ['habits', 'routines', 'journal', 'lgoals', 'fgoals'] },
   'plan/week': { render: calPage, adds: ['appts', 'workouts', 'meals', 'posts', 'tasks', 'gifts', 'journal'] },
@@ -4407,6 +4413,7 @@ document.addEventListener('click', async e => {
     case 'new': openEditor(d.v, null); break;
     case 'quick': { const r = L.byId[d.id]; KINDS[r?.kind]?.quick?.(r)?.act(); break; }
     case 'go': C.go(d.v); break;
+    case 'anaper': try { localStorage.setItem('anaPeriod', d.v); } catch {} C.render(); break;
     case 'calview': { const c = calLoad(); c.view = d.v; try { localStorage.setItem('calView', d.v); } catch {} C.render(); break; }
     case 'calstep': { const c = calLoad(), n = +d.v; c.date = c.view === 'month' ? (() => { const x = fromISO(c.date); return iso(new Date(x.getFullYear(), x.getMonth() + n, 1)); })() : addDays(c.date, n * (c.view === 'week' ? 7 : c.view === 'agenda' ? 30 : 1)); C.render(); break; }
     case 'calgo': { const c = calLoad(); c.date = d.v; if (!d.keep) c.view = 'day'; C.render(); break; }
@@ -5716,11 +5723,183 @@ document.addEventListener('dragover', e => { const d = e.target.closest?.('[data
 document.addEventListener('dragleave', e => { e.target.closest?.('[data-calday]')?.classList.remove('drop'); });
 document.addEventListener('drop', e => { const d = e.target.closest?.('[data-calday]'); if (!d) return; const id = e.dataTransfer.getData('text/x-cal'); if (!id) return; e.preventDefault(); d.classList.remove('drop'); const ev = L.calMap?.[id]; if (ev && ev.date !== d.dataset.calday) calMove(ev, d.dataset.calday); });
 
+/* ---------- Life: an overview and an analysis per group (Mind, Body, Plans, Wishlists) ----------
+   Analyses look back over a period (7 days, 30 days, 3 months or a year; 30 days to start) and compare it with the
+   period before. Trends as small charts, streaks and rhythm per weekday, and plain-language links between things
+   ("after 7+ hours of sleep your mood is ..."). Charts use one colour per series and always carry a label. */
+const ANA_P = [[7, '7 dagen'], [30, '30 dagen'], [91, '3 maanden'], [365, 'Jaar']];
+const anaDays = () => { let n = 30; try { n = +localStorage.getItem('anaPeriod') || 30; } catch {} return ANA_P.some(p => p[0] === n) ? n : 30; };
+const dayList = (n, end = today()) => Array.from({ length: n }, (_, i) => addDays(end, i - n + 1));
+const avgOf = l => { const v = l.filter(x => x != null && !isNaN(x)); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+const r1 = v => v == null ? null : Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
+const MOOD_V = { Down: 1, Gestrest: 2, Rustig: 3, Blij: 4 }, ENERGY_V = { Laag: 1, 'Oké': 2, Goed: 3, Top: 4 }, JMOOD_V = { Bad: 1, Low: 1.5, Okay: 2.5, Good: 3.5, Great: 4 };
+const moodOn = d => { const n = nlOn(d); if (n?.mood && MOOD_V[n.mood]) return MOOD_V[n.mood]; const j = recs('journal').find(x => x.date === d && JMOOD_V[x.mood]); return j ? JMOOD_V[j.mood] : null; };
+const energyOn = d => ENERGY_V[nlOn(d)?.energy] ?? null;
+const sleepOn = d => num(recs('sleep').find(x => x.date === d)?.hours);
+const stepsOn = d => num(nlOn(d)?.steps);
+const workedOut = d => recs('workouts').some(w => w.date === d && w.done);
+const SKIN_V = { None: 4, 'A little': 3, Some: 2, 'A lot': 1 };
+const skinOn = d => { const l = recs('skinlog').find(x => x.date === d); if (!l) return null; return avgOf(SKIN_SCORES.map(([k]) => SKIN_V[l[k]])); };
+// compare this period with the one before: "+12% vs vorige periode"
+function delta(cur, prev, unit = '', better = 1) {
+  if (cur == null || prev == null || prev === 0) return '';
+  const d = cur - prev, pct = Math.round(d / Math.abs(prev) * 100);
+  if (!pct) return '<span class="adelta">gelijk aan vorige periode</span>';
+  return `<span class="adelta ${d * better > 0 ? 'up' : 'down'}">${d > 0 ? '▲' : '▼'} ${Math.abs(pct)}% vs vorige periode</span>`;
+}
+const aTile = (k, v, sub) => `<div class="tile"><div class="k">${esc(k)}</div><div class="v">${v}</div><div class="h">${sub || ''}</div></div>`;
+// a small line chart: one series, points, a dashed average line, a title per point for hover
+function aLine(days, vals, { label, unit = '', max } = {}) {
+  const pts = vals.map((v, i) => [i, v]).filter(p => p[1] != null);
+  if (pts.length < 2) return quiet('Nog te weinig gegevens voor een grafiek.');
+  const W = 420, H = 150, pad = 24, hi = max ?? Math.max(...pts.map(p => p[1])) * 1.15, lo = 0, x = i => pad + i * (W - pad * 2) / Math.max(1, days.length - 1), y = v => H - pad - (v - lo) / (hi - lo || 1) * (H - pad * 2);
+  const a = avgOf(pts.map(p => p[1]));
+  const path = pts.map((p, i) => `${i ? 'L' : 'M'}${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join(' ');
+  const ticks = [0, Math.floor((days.length - 1) / 2), days.length - 1];
+  return `<svg class="achart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}"><line class="agrid" x1="${pad}" x2="${W - pad}" y1="${y(a)}" y2="${y(a)}"/><text class="atick aavg" x="${pad}" y="12">gemiddeld ${r1(a).toLocaleString('nl-NL')}${esc(unit)} (stippellijn)</text><path class="aline" d="${path}"/>${pts.map(p => `<circle class="adot" cx="${x(p[0])}" cy="${y(p[1])}" r="${days.length > 60 ? 2 : 3.5}"><title>${esc(calDayLabel(days[p[0]]))}: ${r1(p[1])}${esc(unit)}</title></circle>`).join('')}${ticks.map(i => `<text class="atick" x="${x(i)}" y="${H - 6}" text-anchor="${i === 0 ? 'start' : i === days.length - 1 ? 'end' : 'middle'}">${esc(calDayLabel(days[i]))}</text>`).join('')}</svg>`;
+}
+// bars with a value on top: weekdays, weeks, categories
+function aBars(items, { unit = '' } = {}) {
+  if (!items.length || items.every(x => !x[1])) return quiet('Nog niets om te tonen.');
+  const mx = Math.max(...items.map(x => x[1] || 0)) || 1;
+  return `<div class="abars">${items.map(([l, v]) => `<div class="abar" title="${esc(l)}: ${r1(v) ?? 0}${esc(unit)}"><span class="abv">${v ? r1(v) : ''}</span><i style="height:${Math.round((v || 0) / mx * 100)}%"></i><span class="abl">${esc(l)}</span></div>`).join('')}</div>`;
+}
+const WD_NL = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
+const byWeekday = (days, val) => WD_NL.map((w, i) => [w, avgOf(days.filter(d => (fromISO(d).getDay() + 6) % 7 === i).map(val))]);
+const byWeek = (days, val) => { const m = new Map(); for (const d of days) { const k = weekMon(d); m.set(k, (m.get(k) || 0) + (val(d) || 0)); } return [...m.entries()].map(([k, v]) => [calDayLabel(k).replace(/^\w+ /, ''), v]); };
+// "after X your Y is ..." as a sentence, only when there is enough data on both sides
+function link(days, cond, val, a, b, fmt = v => r1(v)) {
+  const yes = days.filter(d => cond(d) === true).map(val).filter(v => v != null), no = days.filter(d => cond(d) === false).map(val).filter(v => v != null);
+  if (yes.length < 3 || no.length < 3) return '';
+  const ay = avgOf(yes), an = avgOf(no); return `<li><b>${esc(a)}</b>: ${fmt(ay)} tegenover ${fmt(an)} ${esc(b)}.</li>`;
+}
+const longest = days => { let best = 0, cur = 0; for (const ok of days) { cur = ok ? cur + 1 : 0; best = Math.max(best, cur); } return best; };
+function anaHead(title, sub) {
+  const n = anaDays();
+  return `<div class="viewhead"><h1>${esc(title)}</h1><span class="sub">${esc(sub)}</span></div><div class="seg anaper" role="group" aria-label="Periode">${ANA_P.map(([k, l]) => `<button data-act="anaper" data-v="${k}" aria-pressed="${n === k}">${l}</button>`).join('')}</div>`;
+}
+const STOPW = new Set('de het een en van in op te dat die is was ik je mijn met voor niet maar ook als bij aan er zo nog wel dan om naar uit heb had heel echt even gewoon want omdat over door this that with have just were what when they them from your about would there their been very really'.split(' '));
+/* Mind */
+function mindAnalysis(host) {
+  const n = anaDays(), days = dayList(n), prev = dayList(n, addDays(days[0], -1));
+  const mood = days.map(moodOn), energy = days.map(energyOn), pm = avgOf(prev.map(moodOn)), pe = avgOf(prev.map(energyOn));
+  const hs = recs('habits').filter(h => !h.paused), sched = (h, d) => !(h.onDays || []).length || h.onDays.includes(wdOf(d));
+  const habitRows = hs.map(h => { const due = days.filter(d => sched(h, d) && d <= today()), done = due.filter(d => daysSet(h).has(d)); return { h, pct: due.length ? Math.round(done.length / due.length * 100) : 0, streak: longest(days.map(d => daysSet(h).has(d))), best: byWeekday(due, d => daysSet(h).has(d) ? 1 : 0).sort((a, b) => (b[1] || 0) - (a[1] || 0))[0]?.[0] }; }).sort((a, b) => b.pct - a.pct);
+  const allPct = avgOf(habitRows.map(x => x.pct)), prevPct = avgOf(hs.map(h => { const due = prev.filter(d => sched(h, d)); return due.length ? due.filter(d => daysSet(h).has(d)).length / due.length * 100 : null; }));
+  const jr = recs('journal').filter(j => j.date >= days[0] && j.date <= days[n - 1]), jp = recs('journal').filter(j => j.date >= prev[0] && j.date <= prev[n - 1]);
+  const med = recs('meditation').filter(m => m.date >= days[0] && m.date <= days[n - 1]), mins = med.reduce((a, m) => a + (num(m.minutes) || 0), 0);
+  const words = new Map(); for (const j of jr) for (const w of String([j.title, j.entry, j.grateful].join(' ')).toLowerCase().match(/[a-zà-ÿ]{4,}/g) || []) if (!STOPW.has(w)) words.set(w, (words.get(w) || 0) + 1);
+  const topWords = [...words.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const goals = recs('lgoals').filter(g => g.status !== 'Completed'), behind = goals.filter(g => g.due && g.due <= addDays(today(), 30) && goalPct(g) < 70);
+  const links = [link(days, d => sleepOn(d) == null ? null : sleepOn(d) >= 7, moodOn, 'Stemming na 7+ uur slaap', 'na minder slaap'), link(days, d => workedOut(d), moodOn, 'Stemming op trainingsdagen', 'op andere dagen'), link(days, d => recs('journal').some(j => j.date === d), moodOn, 'Stemming op dagen dat je schreef', 'op andere dagen'), link(days, d => med.some(m => m.date === d), energyOn, 'Energie op dagen met meditatie', 'zonder')].join('');
+  host.innerHTML = `${anaHead('Mind · analyse', `${calDayLabel(days[0])} tot vandaag`)}
+  <div class="tiles">${aTile('Stemming', avgOf(mood) != null ? r1(avgOf(mood)) + '/4' : '–', delta(avgOf(mood), pm))}${aTile('Energie', avgOf(energy) != null ? r1(avgOf(energy)) + '/4' : '–', delta(avgOf(energy), pe))}${aTile('Routines gelukt', allPct != null ? Math.round(allPct) + '%' : '–', delta(allPct, prevPct))}${aTile('Journal', String(jr.length), delta(jr.length, jp.length) || 'entries')}</div>
+  <div class="panels">
+    ${panel('Stemming per dag', aLine(days, mood, { label: 'Stemming', unit: '/4', max: 4.4 }) + `<p class="lnone">Uit je check-in op Body (Hoe voel je je?) en je journal.</p>`)}
+    ${panel('Energie per dag', aLine(days, energy, { label: 'Energie', unit: '/4', max: 4.4 }))}
+    ${panel('Stemming per weekdag', aBars(byWeekday(days, moodOn), { unit: '/4' }))}
+    ${panel('Routines en gewoontes', habitRows.length ? `<div class="lrows">${habitRows.map(x => `<div class="lrow"><span class="lmain"><b>${esc(x.h.name)}</b><span>langste reeks ${plural(x.streak, 'dag', 'dagen')}${x.best ? ' · beste dag ' + x.best : ''}</span></span><span class="abarh"><i style="width:${x.pct}%"></i></span><b class="lside">${x.pct}%</b></div>`).join('')}</div>` : quiet('Nog geen gewoontes. Voeg ze toe onder Mind › Routines.'), ['care/habits', 'Routines'])}
+    ${panel('Verbanden', links ? `<ul class="alinks">${links}</ul><p class="lnone">Gemiddelden over deze periode, geen oorzaak en gevolg.</p>` : quiet('Nog te weinig dagen met stemming en slaap om iets te zeggen. Vul een paar weken je check-in in.'))}
+    ${panel('Doelen', goals.length ? `<div class="lrows">${goals.slice(0, 8).map(g => `<div class="lrow"><span class="lmain"><b>${esc(g.name || 'Doel')}</b><span>${esc([g.area, g.due ? 'deadline ' + shortDate(g.due) : ''].filter(Boolean).join(' · '))}</span></span><span class="abarh"><i style="width:${goalPct(g)}%"></i></span><b class="lside">${goalPct(g)}%</b></div>`).join('')}</div>${behind.length ? `<p class="lnone">Loopt achter: ${esc(behind.map(g => g.name).join(', '))}.</p>` : ''}` : quiet('Nog geen doelen.'), ['plan/today', 'My year'])}
+    ${panel('Journal en mindfulness', `<p class="dline"><span>Entries</span><b>${jr.length}</b></p><p class="dline"><span>Meditatie</span><b>${plural(med.length, 'keer', 'keer')} · ${mins} min</b></p>${topWords.length ? `<p class="dsub">Woorden die vaak terugkomen</p><div class="lwrap">${topWords.map(([w, c]) => `<span class="chip">${esc(w)} <span class="n">${c}</span></span>`).join('')}</div>` : ''}`)}
+  </div>`;
+}
+/* Body */
+function bodyAnalysis(host) {
+  const n = anaDays(), days = dayList(n), prev = dayList(n, addDays(days[0], -1));
+  const sl = days.map(sleepOn), st = days.map(stepsOn), wo = days.filter(workedOut).length, wop = prev.filter(workedOut).length;
+  const cs = cleanStats(), cleanDays = cs.start && !cs.before ? days.filter(d => d >= cs.start && !cs.logs.some(l => l.type === 'Gebruikt' && l.date === d)).length : null;
+  const wtypes = new Map(); for (const w of recs('workouts').filter(w => w.done && w.date >= days[0])) wtypes.set(w.type || 'Overig', (wtypes.get(w.type || 'Overig') || 0) + 1);
+  const bodyRows = recs('body').filter(b => b.date && num(b.weight) != null).sort((a, b) => a.date.localeCompare(b.date)), bw = days.map(d => num(bodyRows.find(b => b.date === d)?.weight));
+  const prs = new Map(); for (const s of recs('sets')) { const k = s.exercise ? titleOf(L.byId[s.exercise] || {}) : ''; if (!k || num(s.weight) == null) continue; if (!prs.has(k) || num(s.weight) > prs.get(k).w) prs.set(k, { w: num(s.weight), d: s.date }); }
+  const cy = cycleStats(), phaseOf = d => { if (!cy.last) return null; const day = ((diffDays(cy.last, d) % cy.avg) + cy.avg) % cy.avg + 1; return day <= 5 ? 'Menstruatie' : day <= 13 ? 'Folliculair' : day <= 16 ? 'Ovulatie' : 'Luteaal'; };
+  const phases = ['Menstruatie', 'Folliculair', 'Ovulatie', 'Luteaal'].map(p => { const ds = days.filter(d => phaseOf(d) === p); return [p, avgOf(ds.map(moodOn)), avgOf(ds.map(energyOn)), avgOf(ds.map(skinOn))]; });
+  const veg = avgOf(days.map(d => num(nlOn(d)?.veg))), soda = avgOf(days.map(d => num(nlOn(d)?.soda))), water = avgOf(days.map(d => num(waterOn(d)?.glasses)));
+  const links = [link(days, d => sleepOn(d) == null ? null : sleepOn(d) >= 7, energyOn, 'Energie na 7+ uur slaap', 'na minder slaap'), link(days, workedOut, d => sleepOn(addDays(d, 1)), 'Slaap na een trainingsdag', 'na andere dagen', v => r1(v) + ' uur'), link(days, d => stepsOn(d) == null ? null : stepsOn(d) >= 8000, moodOn, 'Stemming op dagen met 8.000+ stappen', 'op andere dagen')].join('');
+  host.innerHTML = `${anaHead('Body · analyse', `${calDayLabel(days[0])} tot vandaag`)}
+  <div class="tiles">${aTile('Slaap', avgOf(sl) != null ? r1(avgOf(sl)) + ' uur' : '–', delta(avgOf(sl), avgOf(prev.map(sleepOn))))}${aTile('Stappen', avgOf(st) != null ? Math.round(avgOf(st)).toLocaleString('nl-NL') : '–', delta(avgOf(st), avgOf(prev.map(stepsOn))) || 'gemiddeld per dag')}${aTile('Trainingen', String(wo), delta(wo, wop) || 'gedaan')}${aTile('Clean', cleanDays != null ? `${cleanDays}/${n}` : '–', cs.start && !cs.before ? eur(cs.saved) + ' bespaard' : 'nog geen stopdatum')}</div>
+  <div class="panels">
+    ${panel('Slaap per nacht', aLine(days, sl, { label: 'Slaap', unit: ' uur', max: 11 }))}
+    ${panel('Stappen per dag', aLine(days, st, { label: 'Stappen' }))}
+    ${panel('Trainingen per week', aBars(byWeek(days, d => workedOut(d) ? 1 : 0)) + (wtypes.size ? `<div class="lwrap">${[...wtypes.entries()].sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="chip">${esc(t)} <span class="n">${c}</span></span>`).join('')}</div>` : ''), ['fit/workouts', 'Workouts'])}
+    ${bodyRows.length ? panel('Gewicht', aLine(days, bw, { label: 'Gewicht', unit: ' kg' }), ['fit/body', 'Body']) : ''}
+    ${prs.size ? panel("Persoonlijke records", `<div class="lrows">${[...prs.entries()].sort((a, b) => b[1].w - a[1].w).slice(0, 8).map(([k, v]) => `<div class="lrow"><span class="lmain"><b>${esc(k)}</b><span>${esc(v.d ? shortDate(v.d) : '')}</span></span><b class="lside">${r1(v.w)} kg</b></div>`).join('')}</div>`) : ''}
+    ${panel('Cyclus, stemming en huid', cy.last ? `<table class="atable"><thead><tr><th>Fase</th><th>Stemming</th><th>Energie</th><th>Huid</th></tr></thead><tbody>${phases.map(([p, m, e, s]) => `<tr><td>${p}</td><td>${m != null ? r1(m) + '/4' : '–'}</td><td>${e != null ? r1(e) + '/4' : '–'}</td><td>${s != null ? r1(s) + '/4' : '–'}</td></tr>`).join('')}</tbody></table><p class="lnone">Huid uit je skin diary: 4 is rustig en helder, 1 is veel puistjes of roodheid.</p>` : quiet('Log je menstruatie onder Health › Cycle, dan zie je hier je fases naast stemming en huid.'), ['care/cycle', 'Cycle'])}
+    ${panel('Eten en drinken', `<p class="dline"><span>Groente</span><b>${veg != null ? Math.round(veg) + ' g per dag' : '–'}</b></p><p class="dline"><span>Water</span><b>${water != null ? r1(water) + ' glazen' : '–'}</b></p><p class="dline"><span>Frisdrank en sap</span><b>${soda != null ? r1(soda) + ' glazen' : '–'}</b></p>`, ['kitchen/today', 'Kitchen'])}
+    ${panel('Verbanden', links ? `<ul class="alinks">${links}</ul><p class="lnone">Gemiddelden over deze periode, geen oorzaak en gevolg.</p>` : quiet('Nog te weinig gegevens. Met je Apple Health-shortcut en de check-in vult dit zich vanzelf.'))}
+  </div>`;
+}
+/* Plans: overview and analysis */
+function plansOverview(host) {
+  const t = today(), trips = tripList().filter(tr => tripEnd(tr) >= t).slice(0, 3);
+  const bdays = recs('gifts').filter(g => g.date && g.date >= t && g.date <= addDays(t, 60)).sort((a, b) => a.date.localeCompare(b.date));
+  const docs = recs('documents').filter(d => d.expires && d.expires <= addDays(t, 90)).sort((a, b) => a.expires.localeCompare(b.expires));
+  host.innerHTML = `${head('Plans')}
+  <div class="quickacts lifeacts"><button class="chip" data-act="new" data-v="gifts">+ Cadeau of verjaardag</button><button class="chip" data-act="new" data-v="ideas">+ Idee</button><button class="chip" data-act="new" data-v="documents">+ Document</button><button class="chip" data-act="go" data-v="care/trips">+ Trip</button></div>
+  <div class="tiles">${aTile('Trips gepland', String(trips.length), trips[0] ? esc(tripName(trips[0])) + ' ' + esc(tripWhen(trips[0])) : 'nog niets')}${aTile('Verjaardagen', String(bdays.length), 'komende 60 dagen')}${aTile('Documenten', String(docs.length), 'verlopen binnen 3 maanden')}${aTile('Ideeën', String(recs('ideas').length), 'om nog te doen')}</div>
+  <div class="panels">
+    ${panel('Komende trips', trips.length ? `<div class="lrows">${trips.map(tr => `<div class="lrow"><span class="lmain"><b>${esc(tripName(tr))}</b><span>${esc(calDayLabel(tr.start))} · ${esc(tripWhen(tr))}</span></span></div>`).join('')}</div>` : quiet('Geen trips gepland.'), ['care/trips', 'Trips'])}
+    ${panel('Verjaardagen en cadeaus', bdays.length ? `<div class="lrows">${bdays.map(g => `<div class="lrow"><button class="lmain" data-act="open" data-id="${g.id}"><b>${esc(g.for || g.name || 'Cadeau')}</b><span>${esc(calDayLabel(g.date))} · ${esc(g.occasion || '')}${g.name ? ' · ' + esc(g.name) : ' · nog geen cadeau'}</span></button></div>`).join('')}</div>` : quiet('Geen verjaardagen in de komende 60 dagen. Zet een datum bij een cadeau.'), ['care/gifts', 'Gifts'])}
+    ${docs.length ? panel('Wat aandacht nodig heeft', `<div class="lrows">${docs.map(d => `<div class="lrow"><button class="lmain" data-act="open" data-id="${d.id}"><b>${esc(d.name)}</b><span>verloopt ${esc(shortDate(d.expires))}</span></button></div>`).join('')}</div>`, ['care/docs', 'Documents']) : ''}
+  </div>`;
+}
+function plansAnalysis(host) {
+  const n = anaDays(), days = dayList(n), from = days[0], t = today(), inP = d => d && d >= from && d <= t;
+  const trips = tripList().filter(tr => inP(tr.start) || inP(tripEnd(tr))), costs = trips.map(tr => [tripName(tr), tripSpent(tr)]);
+  const gifts = recs('gifts').filter(g => inP(g.given || g.date)), perP = new Map(), perO = new Map();
+  for (const g of gifts) { const p = num(g.price) || 0; perP.set(g.for || 'Onbekend', (perP.get(g.for || 'Onbekend') || 0) + p); perO.set(g.occasion || 'Overig', (perO.get(g.occasion || 'Overig') || 0) + p); }
+  const places = new Set(tripList().map(tr => tr.dest?.country || tr.dest?.name).filter(Boolean));
+  host.innerHTML = `${anaHead('Plans · analyse', `${calDayLabel(from)} tot vandaag`)}
+  <div class="tiles">${aTile('Trips', String(trips.length), eur(costs.reduce((a, c) => a + c[1], 0)) + ' uitgegeven')}${aTile('Plekken', String(places.size), 'landen en steden ooit')}${aTile('Cadeaus', String(gifts.length), eur(gifts.reduce((a, g) => a + (num(g.price) || 0), 0)))}</div>
+  <div class="panels">
+    ${panel('Kosten per trip', costs.length ? aBars(costs.map(([l, v]) => [l.slice(0, 14), v])) : quiet('Geen trips in deze periode.'), ['care/trips', 'Trips'])}
+    ${panel('Cadeaus per persoon', perP.size ? aBars([...perP.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([l, v]) => [l.slice(0, 12), v])) : quiet('Geen cadeaus gegeven in deze periode.'))}
+    ${panel('Cadeaus per gelegenheid', perO.size ? `<div class="lrows">${[...perO.entries()].sort((a, b) => b[1] - a[1]).map(([l, v]) => `<div class="lrow"><span class="lmain"><b>${esc(l)}</b></span><b class="lside">${eur(v)}</b></div>`).join('')}</div>` : quiet('Nog niets.'))}
+  </div>`;
+}
+/* Wishlists */
+function wishAnalysis(host) {
+  const n = anaDays(), days = dayList(n), from = days[0], t = today(), inP = d => d && d >= from && d <= t, upd = r => r.updated ? iso(new Date(r.updated)) : '';
+  const ws = recs('wishes'), bought = ws.filter(w => w.status === 'Bought' && inP(w.boughtOn || upd(w))), dropped = ws.filter(w => w.status === 'Dropped' && inP(w.droppedOn || upd(w)));
+  const saved = dropped.reduce((a, w) => a + (num(w.price) || 0), 0), spent = bought.reduce((a, w) => a + (num(w.boughtPrice ?? w.price) || 0), 0);
+  const waits = bought.map(w => w.since ? diffDays(w.since, w.boughtOn || upd(w)) : null).filter(v => v != null && v >= 0), wait = avgOf(waits);
+  const orders = recs('orders').filter(o => inP(o.ordered || o.received || upd(o))), ret = orders.filter(o => o.status === 'Returned'), back = ret.reduce((a, o) => a + (num(o.price) || 0), 0);
+  const perShop = new Map(); for (const o of orders) { const s = o.shop || 'Onbekend', e = perShop.get(s) || { n: 0, r: 0 }; e.n++; if (o.status === 'Returned') e.r++; perShop.set(s, e); }
+  const cats = new Map(); for (const w of bought) cats.set(w.category || 'Overig', (cats.get(w.category || 'Overig') || 0) + (num(w.boughtPrice ?? w.price) || 0));
+  host.innerHTML = `${anaHead('Wishlists · analyse', `${calDayLabel(from)} tot vandaag`)}
+  <div class="tiles">${aTile('Gekocht', String(bought.length), eur(spent))}${aTile('Laten gaan', String(dropped.length), eur(saved) + ' bespaard')}${aTile('Wachttijd', wait != null ? Math.round(wait) + ' dagen' : '–', 'gemiddeld voor je kocht')}${aTile('Retour', `${ret.length}/${orders.length}`, eur(back) + ' terug')}</div>
+  <div class="panels">
+    ${panel('Gekocht tegenover laten gaan', aBars([['Gekocht', bought.length], ['Laten gaan', dropped.length]]))}
+    ${panel('Uitgegeven per wishlist', cats.size ? aBars([...cats.entries()].sort((a, b) => b[1] - a[1]).map(([l, v]) => [l, v])) : quiet('Nog niets gekocht in deze periode.'), ['wish/master', 'Wishlists'])}
+    ${panel('Bestellingen per winkel', perShop.size ? `<div class="lrows">${[...perShop.entries()].sort((a, b) => b[1].n - a[1].n).map(([s, e]) => `<div class="lrow"><span class="lmain"><b>${esc(s)}</b><span>${plural(e.n, 'bestelling', 'bestellingen')}</span></span><b class="lside">${e.r ? e.r + ' retour' : ''}</b></div>`).join('')}</div>` : quiet('Nog geen bestellingen in deze periode.'), ['wish/orders', 'Orders'])}
+  </div>`;
+}
+/* Mind overview */
+function mindOverview(host) {
+  const t = today(), nl = nlOn(t) || {}, hs = recs('habits').filter(h => !h.paused && (!(h.onDays || []).length || h.onDays.includes(wdOf(t)))), done = hs.filter(h => daysSet(h).has(t));
+  const jToday = recs('journal').some(j => j.date === t), goals = recs('lgoals').filter(g => g.status !== 'Completed'), behind = goals.filter(g => g.due && g.due <= addDays(t, 30) && goalPct(g) < 70);
+  const days7 = dayList(7), mood7 = avgOf(days7.map(moodOn));
+  const chip = (k, v) => `<button class="chip ${nl[k] === v ? 'on' : ''}" data-act="nlset" data-v="${k}" data-d="${v}" aria-pressed="${nl[k] === v}">${v}</button>`;
+  host.innerHTML = `${head('Mind')}
+  <div class="quickacts lifeacts"><button class="chip" data-act="new" data-v="journal">+ Journal</button><button class="chip" data-act="new" data-v="meditation">+ Meditatie</button><button class="chip" data-act="new" data-v="lgoals">+ Doel</button><button class="chip" data-act="go" data-v="care/vision">Vision</button></div>
+  <div class="tiles">${aTile('Routines vandaag', `${done.length}/${hs.length}`, hs.length ? 'gedaan' : 'geen voor vandaag')}${aTile('Stemming', mood7 != null ? r1(mood7) + '/4' : '–', 'laatste 7 dagen')}${aTile('Journal', jToday ? 'Geschreven' : 'Nog niet', 'vandaag')}${aTile('Doelen', String(goals.length), behind.length ? behind.length + ' lopen achter' : 'actief')}</div>
+  <div class="panels">
+    ${panel('Hoe voel je je?', `<p class="dsub">Stemming</p><div class="lwrap">${['Down', 'Gestrest', 'Rustig', 'Blij'].map(v => chip('mood', v)).join('')}</div><p class="dsub">Energie</p><div class="lwrap">${['Laag', 'Oké', 'Goed', 'Top'].map(v => chip('energy', v)).join('')}</div>`)}
+    ${panel('Routines vandaag', hs.length ? `<div class="lwrap">${hs.map(h => `<button class="chip ${daysSet(h).has(t) ? 'on' : ''}" data-act="hday" data-id="${h.id}" data-d="${t}" aria-pressed="${daysSet(h).has(t)}">${esc(h.name)}</button>`).join('')}</div>` : quiet('Geen routines voor vandaag.'), ['care/habits', 'Routines'])}
+    ${panel('Wat aandacht nodig heeft', `${!jToday ? '<p class="dline"><span>Journal</span><b>Nog niet geschreven vandaag</b></p>' : ''}${behind.map(g => `<p class="dline"><span>${esc(g.name)}</span><b>${goalPct(g)}% · deadline ${esc(shortDate(g.due))}</b></p>`).join('')}${jToday && !behind.length ? quiet('Alles bij. Mooi zo.') : ''}`)}
+    ${panel('Affirmatie', (() => { const p = pnAffirmToday(L.pnShift || 0); if (p) return pnAffirmHTML(); let a = ''; try { a = C.affirmToday?.() || ''; } catch {} return a ? `<p class="lbig">${esc(a)}</p>` : quiet('Geen affirmatie.'); })(), ['care/vision', 'Vision'])}
+  </div>`;
+}
+
 /* Life › Overview: one look at Mind, Body, Plans and Wishlists (the analyses come per group) */
 function lifeOverview(host) {
   const nt = nextTrip(), gifts = recs('gifts').filter(g => g.status !== 'Given'), orders = recs('orders').filter(o => ['Ordered', 'Shipped'].includes(o.status || 'Ordered'));
   const go = (v, l) => `<button class="chip link" data-act="go" data-v="${v}">${esc(l)}</button>`;
+  const d30 = dayList(30), mood = avgOf(d30.map(moodOn)), sleep = avgOf(d30.map(sleepOn)), wo = d30.filter(workedOut).length;
+  const hs = recs('habits').filter(h => !h.paused), hp = avgOf(hs.map(h => { const due = d30.filter(d => !(h.onDays || []).length || h.onDays.includes(wdOf(d))); return due.length ? due.filter(d => daysSet(h).has(d)).length / due.length * 100 : null; }));
   host.innerHTML = `${head('Life')}
+  <div class="tiles lifenums">${aTile('Stemming', mood != null ? r1(mood) + '/4' : '–', '30 dagen')}${aTile('Slaap', sleep != null ? r1(sleep) + ' uur' : '–', 'gemiddeld')}${aTile('Trainingen', String(wo), '30 dagen')}${aTile('Routines', hp != null ? Math.round(hp) + '%' : '–', 'gelukt')}</div>
+  <div class="lanalinks">${[['plan/mindstats', 'Mind'], ['body/stats', 'Body'], ['plan/planstats', 'Plans'], ['wish/stats', 'Wishlists']].map(([v, l]) => `<button class="chip link" data-act="go" data-v="${v}">Analyse ${l}</button>`).join('')}</div>
   <div class="quickacts lifeacts"><button class="chip" data-act="new" data-v="journal">+ Journal</button><button class="chip" data-act="new" data-v="sleep">+ Slaap</button><button class="chip" data-act="new" data-v="workouts">+ Workout</button><button class="chip" data-act="new" data-v="wishes">+ Wens</button></div>
   <div class="panels">
     ${panel('Mind', planTile(), ['plan/today', 'My year'])}
