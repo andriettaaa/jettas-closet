@@ -2057,6 +2057,29 @@ function awayRow() {
   const days = Array.from({ length: 10 }, (_, k) => addDays(today(), k));
   return `<div class="dday"><span class="rowlbl">Not cooking</span><div class="lwrap">${days.map(d => { const on = !!awayOn(d), dt = fromISO(d); return `<button class="chip ${on ? 'on' : ''}" data-act="away" data-v="${d}" aria-pressed="${on}">${dt.toLocaleDateString('en-GB', { weekday: 'short' })} ${dt.getDate()}</button>`; }).join('')}</div><span class="lnone">Tap the evenings you eat out or get something. The plan cooks fewer dinners.</span></div>`;
 }
+// Sunday prep from the week plan: tick tasks off on this device
+function prepPanel(plan, compact) {
+  const list = plan?.prep || []; if (!list.length) return '';
+  const done = new Set(L.prepDone?.[plan.id] || []), day = plan.prepDay ? fromISO(plan.prepDay).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' }) : 'Sunday';
+  const mins = list.reduce((n, x) => n + (num(x.mins) || 0), 0);
+  return panel(compact ? 'Prep day' : `Prep on ${day}`, `<p class="lnone">${plural(list.length, 'task')}${mins ? `, about ${mins} min` : ''}. Do these once and cook faster all week.</p><div class="lrows">${list.map((x, k) => `<label class="lrow dpick ${done.has(k) ? 'gone' : ''}"><input type="checkbox" data-prep="${plan.id}:${k}" ${done.has(k) ? 'checked' : ''}><span class="lmain"><b>${esc(x.task)}</b><span>${esc([x.for, num(x.mins) ? x.mins + ' min' : ''].filter(Boolean).join(' · '))}</span></span></label>`).join('')}</div>`);
+}
+document.addEventListener('change', e => { const c = e.target; if (!C || !c.matches?.('[data-prep]')) return; const [id, k] = c.dataset.prep.split(':'); const all = (L.prepDone ||= {}), set = new Set(all[id] || []); c.checked ? set.add(+k) : set.delete(+k); all[id] = [...set]; try { localStorage.setItem('prepDone', JSON.stringify(all)); } catch {} C.render(); });
+try { L.prepDone = JSON.parse(localStorage.getItem('prepDone') || '{}'); } catch {}
+// learning to eat breakfast: today's planned breakfast and a tick that counts as a habit in Routines
+const bfHabit = () => recs('habits').find(h => /breakfast|ontbijt/i.test(h.name || ''));
+async function hadBreakfast() {
+  const h = bfHabit();
+  if (h) return toggleDay(h);
+  try { await create('habits', { name: 'Eat breakfast', onDays: [...WEEKDAYS], area: 'Nutrition', why: 'More energy in the morning, fewer cravings later.', days: [today()] }); C.toast('Nice. Breakfast is now a habit in Routines'); } catch { C.toast('Could not save. Try again.'); }
+}
+function breakfastPanel() {
+  const t = today(), m = recs('meals').find(x => x.date === t && x.slot === 'Breakfast' && !x.away), h = bfHabit(), done = h && daysSet(h).has(t);
+  const ideas = (curPlan()?.breakfasts || []).slice(0, 3);
+  const name = m ? relName(m.recipe) || m.what : '';
+  return panel('Breakfast', `${name ? `<p class="lbig">${esc(name)}</p>` : ideas.length ? `<div class="lwrap">${ideas.map(b => `<span class="chip">${esc(b.name)}</span>`).join('')}</div>` : quiet('Something small counts too: a boiled egg, crackers with aged cheese, or toast.')}
+    <div class="dbtns" style="margin-top:8px"><button class="btn small ${done ? '' : 'primary'}" data-act="hadbf">${done ? svg(P.check) + ' Had breakfast' : 'I had breakfast'}</button>${h ? `<span class="lnone">${esc([`${weekDone(h)} of 7 this week`, streak(h)].filter(Boolean).join(' · '))}</span>` : ''}</div>`);
+}
 // after a lunch or dinner: portions left over go to the fridge (3 days) or the freezer, or nowhere
 async function leftover(id, where) {
   const m = L.byId[id]; if (!m) return;
@@ -2129,6 +2152,7 @@ function dealsPage(host) {
   ${!plan && !offers.length ? panel('How this works', `<p class="lnone">Every Wednesday a task reads the deals of Dirk, Aldi, Albert Heijn and every shop under Shops that has its deals switched on, looks through your recipes, pantry and freezer, and puts this week's deals here with a plan: 5 dinners that each last 2 days, 3 office lunches that reheat in a microwave, 3 breakfasts and a few snacks. It reuses the same deal ingredients across recipes, so you buy less and waste less.</p><p class="lnone">It needs the Supabase function <b>offers</b> with the secret <b>OFFERS_TOKEN</b>. Then the first plan shows up after the next Wednesday.</p>`) : ''}
   ${plan?.tips ? `<div class="note dnote">${esc(plan.tips)}</div>` : ''}
   ${offers.length || inFreezer().length ? meatPanel(offers) : ''}
+  ${prepPanel(plan)}
   ${block('dinners', 'Dinners', 'Cook once, eat twice: each one is enough for 2 days.')}
   <div class="mrow2 dmrow">${block('lunches', 'Lunch for the office', 'Make ahead, take along, warm up in the microwave.') || ''}${block('breakfasts', 'Breakfast', 'Quick, or ready the night before.') || ''}</div>
   <div class="mrow2 dmrow">${block('snacks', 'Snacks', 'Something for in between.') || ''}${block('drinks', 'Instead of soda', 'Drinks without added sugar that still taste of something.') || ''}</div>
@@ -2194,7 +2218,9 @@ function kitchenToday(host) {
     ${(() => { const soon = recs('ingredients').filter(useSoon).sort((a, b) => a.expires.localeCompare(b.expires)); if (!soon.length) return ''; const ids = new Set(soon.map(x => x.id)), use = rs.filter(r => (r.ingredients || []).some(id => ids.has(id))).sort((a, b) => (b.ingredients || []).filter(id => ids.has(id)).length - (a.ingredients || []).filter(id => ids.has(id)).length).slice(0, 4);
       return panel('Use soon', `<div class="lrows">${soon.slice(0, 6).map(x => `<div class="lrow"><button class="lmain" data-act="open" data-id="${x.id}"><b>${esc(x.name)}</b><span>${x.expires < t ? 'past its date' : x.expires === t ? 'best before today' : 'best before ' + esc(relDay(x.expires))}</span></button></div>`).join('')}</div>${use.length ? `<p class="dsub">Recipes that use them</p><div class="lwrap">${use.map(r => `<button class="chip" data-act="open" data-id="${r.id}">${esc(r.name)}</button>`).join('')}</div>` : ''}`, ['kitchen/pantry', 'Pantry']); })()}
     ${(() => { const old = inFreezer().filter(i => (freezerAge(i) ?? 0) >= FREEZE_DAYS); return old.length ? panel('Freezer', `<p class="lnone">In the freezer for 3 months or more. Use these first.</p><div class="lwrap">${old.slice(0, 8).map(i => `<button class="chip" data-act="open" data-id="${i.id}">${esc(i.name)}</button>`).join('')}</div>`, ['kitchen/pantry', 'Open freezer']) : ''; })()}
+    ${new Date().getHours() < 14 ? breakfastPanel() : ''}
     ${leftoverPanel()}
+    ${(() => { const pl = curPlan(); return pl?.prepDay === today() ? prepPanel(pl, true) : ''; })()}
     ${toReview.length ? panel('How was it?', `<p class="lnone">A few taps after eating teach the app what you like.</p><div class="lrows">${toReview.map(m => `<div class="lrow"><span class="lmain"><b>${esc(relName(m.recipe))}</b><span>${esc(niceDate(m.date))}${m.slot ? ' · ' + esc(m.slot.toLowerCase()) : ''}</span></span><button class="btn small" data-rvw="${m.recipe}" data-date="${m.date}">Review</button></div>`).join('')}</div>`) : ''}
     ${dp || dn ? panel('Deals this week', `<p class="lbig">${plural(dn, 'deal')} at ${esc([...new Set(liveOffers().map(o => o.store).filter(Boolean))].slice(0, 4).join(', ') || 'your shops')}</p>${(dp?.dinners || []).length ? `<div class="lwrap">${dp.dinners.slice(0, 5).map(m => `<span class="chip">${esc(m.recipe && L.byId[m.recipe] ? titleOf(L.byId[m.recipe]) : m.name || 'Recipe')}</span>`).join('')}</div>` : ''}`, ['kitchen/deals', 'See the plan']) : ''}
     ${panel('Today’s meals', `<div class="lslots">${MEALS.map(s => { const m = meals.filter(x => x.slot === s); return `<div class="lslot"><span class="rowlbl">${s}</span>${m.map(x => `<button class="chip" data-act="open" data-id="${x.id}">${esc(titleOf(x))}</button>`).join('')}<button class="chip ghost" data-act="slot" data-date="${t}" data-slot="${s}" aria-label="Plan ${s.toLowerCase()}">+</button></div>`; }).join('')}</div>`, ['kitchen/meals', 'Meal plan'])}
@@ -3917,6 +3943,7 @@ document.addEventListener('click', async e => {
     case 'wmovewait': moveWaitList(); break;
     case 'dkeep': case 'dplan': case 'dgroc': dealsAct(d.act, d.k, Number(d.i)); break;
     case 'away': toggleAway(d.v); break;
+    case 'hadbf': hadBreakfast(); break;
     case 'office': { const o = new Set(food().office || ['Mon', 'Tue', 'Thu']); o.has(d.v) ? o.delete(d.v) : o.add(d.v); C.savePrefs({ food: { ...food(), office: WEEKDAYS.filter(x => o.has(x)) } }).catch(() => C.toast('Could not save. Try again.')); break; }
     case 'shopday': C.savePrefs({ food: { ...food(), shopDay: food().shopDay === d.v ? '' : d.v } }).catch(() => C.toast('Could not save. Try again.')); break;
     case 'leftover': leftover(d.id, d.v); break;

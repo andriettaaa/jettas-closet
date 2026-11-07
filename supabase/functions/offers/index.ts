@@ -44,7 +44,8 @@ const meal = (m: any) => clean({
   ingredients: (Array.isArray(m?.ingredients) ? m.ingredients : []).map((x: unknown) => str(x, 120)).filter(Boolean).slice(0, 40),
   microwave: m?.microwave === true ? true : undefined, cost: num(m?.cost), time: num(m?.time),
   lines: (Array.isArray(m?.lines) ? m.lines : []).map((x: unknown) => str(x, 160)).filter(Boolean).slice(0, 60),
-  steps: str(m?.steps, 12000), quit: m?.quit === true ? true : undefined
+  steps: str(m?.steps, 12000), quit: m?.quit === true ? true : undefined,
+  dates: (Array.isArray(m?.dates) ? m.dates : []).map(day).filter(Boolean).slice(0, 7)
 });
 // copy a picture from the web into your own storage; on any problem keep the web address
 async function keepPhoto(uid: string, url: string) {
@@ -676,7 +677,9 @@ Deno.serve(async req => {
         quit: (p.quit || []).slice(0, 6).map(meal), quitTips: str(p.quitTips, 1500),
         shared: (p.shared || []).slice(0, 30).map((s: any) => clean({ name: str(s?.name, 120), store: str(s?.store, 40), price: num(s?.price), deal: str(s?.deal, 120), in: (Array.isArray(s?.in) ? s.in : []).map((x: unknown) => str(x, 140)).slice(0, 12) })),
         shopping: (p.shopping || []).slice(0, 80).map((s: any) => clean({ name: str(s?.name, 120), store: str(s?.store, 60), price: num(s?.price), deal: str(s?.deal, 120), qty: str(s?.qty, 40), have: s?.have === true ? true : undefined, market: s?.market === true ? true : undefined, category: str(s?.category, 40), left: str(s?.left, 120) })),
-        tips: str(p.tips, 1200)
+        tips: str(p.tips, 1200),
+        prep: (Array.isArray(p.prep) ? p.prep : []).slice(0, 15).map((x: any) => clean({ task: str(x?.task ?? x, 200), for: str(x?.for, 120), mins: num(x?.mins) })).filter((x: any) => x.task),
+        prepDay: day(p.prepDay)
       });
       for (const k of ['dinners', 'lunches', 'breakfasts', 'snacks', 'drinks']) for (const m of (plan as any)[k] || []) if (m.photo && !m.recipe) m.photo = await keepPhoto(uid, m.photo);
       // out with last week's deals, in with this week's
@@ -692,9 +695,20 @@ Deno.serve(async req => {
       const planId = same?.[0]?.id || crypto.randomUUID();
       const { error: e3 } = await sb.from('records').upsert({ user_id: uid, id: planId, kind: 'wplans', data: { ...plan, created: Date.now() }, updated_at: now });
       if (e3) throw e3;
+      // put the dinners, lunches and breakfasts straight into the meal plan on their dates; last run's own entries for this week make way
+      const { data: ms } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'meals').gte('data->>date', start).lte('data->>date', end);
+      const autoOld = (ms || []).filter((r: any) => r.data?.auto && r.data?.week === start).map((r: any) => r.id);
+      const busy = new Set((ms || []).filter((r: any) => !(r.data?.auto && r.data?.week === start)).map((r: any) => `${r.data?.date}|${r.data?.away ? 'Dinner' : r.data?.slot}`));
+      const mrows: any[] = [];
+      for (const [k, slot] of [['dinners', 'Dinner'], ['lunches', 'Lunch'], ['breakfasts', 'Breakfast']] as const) for (const m of ((plan as any)[k] || []) as any[]) for (const d of m.dates || []) {
+        if (d < start || d > end || busy.has(`${d}|${slot}`)) continue; busy.add(`${d}|${slot}`);
+        mrows.push({ user_id: uid, id: crypto.randomUUID(), kind: 'meals', data: clean({ date: d, slot, recipe: m.recipe, what: m.recipe ? undefined : m.name, auto: true, week: start, created: Date.now() }), updated_at: now });
+      }
+      if (autoOld.length) { const { error } = await sb.from('records').delete().eq('user_id', uid).in('id', autoOld); if (error) throw error; }
+      if (mrows.length) { const { error } = await sb.from('records').insert(mrows); if (error) throw error; }
       const n = (plan.dinners as unknown[] | undefined)?.length || 0;
       await send(uid, { title: 'Deals of the week are in', body: `${offers.length} deals at ${[...new Set(offers.map((o: any) => o.store))].slice(0, 4).join(', ')}${n ? `, and ${n} dinners that use them` : ''}.`, url: './#kitchen/deals', tag: 'deals' });
-      return json({ ok: true, offers: offers.length, plan: planId });
+      return json({ ok: true, offers: offers.length, plan: planId, meals: mrows.length });
     }
     return json({ error: 'unknown action' }, 400);
   } catch (e: any) {

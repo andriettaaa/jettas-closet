@@ -59,6 +59,10 @@ const wdOf = (day: string) => ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][
 function morning(recs: Rec[], today: string, outfit: string) {
   const lines: string[] = [];
   if (outfit) lines.push('Outfit: ' + outfit);
+  const bf = recs.find(r => r.kind === 'meals' && r.date === today && r.slot === 'Breakfast' && !r.away);
+  if (bf) { const rc = bf.recipe && recs.find(r => r.id === bf.recipe); lines.push('Breakfast: ' + (rc?.name || bf.what || 'planned')); }
+  const prep = recs.filter(r => r.kind === 'wplans' && r.prepDay === today && (r.prep || []).length)[0];
+  if (prep) lines.push(`Prep day: ${(prep.prep as any[]).length} ${(prep.prep as any[]).length === 1 ? 'task' : 'tasks'}`);
   const sups = recs.filter(r => r.kind === 'supplements' && !r.finished && ([].concat(r.times?.length ? r.times : ['AM']) as string[]).includes('AM')).map(r => r.name);
   if (sups.length) lines.push('Supplements: ' + listOf(sups));
   const rt = recs.filter(r => r.kind === 'routines' && r.routine === 'Morning' && onDay(r.onDays, wdOf(today)));
