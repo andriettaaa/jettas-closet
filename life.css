@@ -783,3 +783,16 @@ img.nophoto { background: var(--line); }
 .dbar i.over { background: var(--danger); }
 .lgh.gshop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .lgh.gshop h3 { margin: 0; font: inherit; }
+/* stock counters */
+.stepper { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); flex: none; }
+.stepper button { border: 0; background: none; width: 34px; height: 34px; font-size: 18px; line-height: 1; color: var(--ink); border-radius: 999px; cursor: pointer; }
+.stepper button:active { background: var(--surface-2); }
+.stepper b { min-width: 38px; text-align: center; font-family: var(--mono); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.stepper.buyn { transform: scale(.9); }
+.blowrow { align-items: center; margin-bottom: 12px; }
+.lcw { display: grid; gap: 6px; justify-items: center; align-content: start; min-width: 0; }
+.lcw > .lcard { width: 100%; }
+.stepper b.unk { color: var(--muted); }
+.lrow.grow { flex-wrap: wrap; }
+.lrow.grow .lmain { flex: 1 1 140px; min-width: 0; }
+.lrow.grow .gacts { display: flex; align-items: center; gap: 6px; margin-left: auto; }
