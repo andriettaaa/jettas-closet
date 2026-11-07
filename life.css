@@ -712,3 +712,6 @@ html.cooking, html.cooking body { overflow: hidden; }
 .lkit details[open] .outpick { margin-top: 8px; }
 .lbatch { display: flex; gap: 10px; align-items: center; cursor: pointer; }
 .lbatch input { width: 20px; height: 20px; flex: none; accent-color: var(--accent); }
+/* To do per section */
+.ltodo { display: grid; gap: 6px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+.ltodo .lmain { text-align: left; }
