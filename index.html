@@ -1013,6 +1013,9 @@ function derive() {
 const wearCount = it => (Number(it.pastWears) || 0) + (S.wears[it.id] || 0);
 const cpw = it => it.price > 0 ? it.price / Math.max(1, wearCount(it)) : null;
 const inCloset = it => (it.status || 'closet') === 'closet';
+// where a piece is right now; anything but "In de kast" is not at hand for outfits
+const WHERE_TAGS = ['In de kast', 'Opslag', 'Op zolder', 'Kleermaker', 'Stomerij', 'In de was', 'Uitgeleend', 'Bij mijn ouders', 'In de koffer'];
+const atHand = it => !it.where || it.where === 'In de kast';
 const isInbox = it => it.status === 'inbox';
 const inboxItems = () => S.items.filter(isInbox).sort((a, b) => (b.created || 0) - (a.created || 0));
 const outfitWears = o => Object.entries(S.days).filter(([d, v]) => d <= today() && v.outfit === o.id).length;
@@ -1658,7 +1661,7 @@ function suggestCapsule(t) {
   const list = [];
   for (const [key, n] of Object.entries(want)) {
     if (!n) continue;
-    const inCat = S.items.filter(i => inCloset(i) && catKey(i.cat) === key);
+    const inCat = S.items.filter(i => inCloset(i) && (atHand(i) || i.where === 'In de koffer') && catKey(i.cat) === key);
     const already = inCat.filter(i => have.has(i.id)).length;
     list.push(...inCat.filter(i => !have.has(i.id) && fits(i)).sort((a, b) => score(b) - score(a)).slice(0, Math.max(0, n - already)));
   }
@@ -1997,7 +2000,7 @@ const STATS_TABS = [['overview', 'Overview'], ['breakdown', 'Breakdown'], ['mone
 function weatherPick() {
   const t = today(), w = wxDay(t) || wxDay(t, 'alm'); if (!w) return null;
   const hi = w.hi, wet = (w.p ?? 0) >= 50, seasons = hi >= 22 ? ['Summer'] : hi >= 15 ? ['Spring', 'Summer', 'Autumn'] : hi >= 8 ? ['Autumn', 'Spring', 'Winter'] : ['Winter', 'Autumn'];
-  const fits = it => it && inCloset(it) && (!(it.seasons || []).length || it.seasons.some(x => seasons.includes(x)));
+  const fits = it => it && inCloset(it) && atHand(it) && (!(it.seasons || []).length || it.seasons.some(x => seasons.includes(x)));
   const last = {}; for (const [d, v] of Object.entries(S.days)) if (v.outfit && d < t && (!last[v.outfit] || d > last[v.outfit])) last[v.outfit] = d;
   const outfits = S.outfits.filter(o => (o.pieces || []).length && o.pieces.every(p => fits(S.byId[p.id]))).sort((a, b) => (last[a.id] || '').localeCompare(last[b.id] || ''));
   const picks = outfits.map(o => ({ outfit: o.id, ids: o.pieces.map(p => p.id), name: o.name || 'Saved outfit' }));
@@ -2088,7 +2091,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v116';
+const APP_VERSION = 'hangtag-v117';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -3088,7 +3091,7 @@ function openItem(id) {
     $('#itemBody', sh).innerHTML = `<div class="detail">
       <div class="stage">${cur.photo ? pimg(cur.photo, cur.name) : PH}</div>
       <div style="display:grid;gap:14px;align-content:start;min-width:0">
-        <div><h2 style="font-size:24px">${esc(cur.name || 'Untitled piece')}</h2><span class="muted">${cur.brand ? fchip('brand', cur.brand) + ' · ' : ''}${cur.model ? fchip('model', cur.model) + ' · ' : ''}${cur.sub ? fchip('sub', cur.sub) : esc(cur.cat || '')}${inCloset(cur) || wish ? '' : ` · <b>${cur.status === 'sold' ? 'Sold' : 'Donated'}</b>`}</span></div>
+        <div><h2 style="font-size:24px">${esc(cur.name || 'Untitled piece')}</h2><span class="muted">${cur.brand ? fchip('brand', cur.brand) + ' · ' : ''}${cur.model ? fchip('model', cur.model) + ' · ' : ''}${cur.where && cur.where !== 'In de kast' ? `<b class="wheretag">${esc(cur.where)}${cur.where === 'Uitgeleend' && cur.loanTo ? ' aan ' + esc(cur.loanTo) : ''}${cur.whereSince ? ' · sinds ' + esc(fromISO(cur.whereSince).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })) : ''}</b> · ` : ''}${cur.sub ? fchip('sub', cur.sub) : esc(cur.cat || '')}${inCloset(cur) || wish ? '' : ` · <b>${cur.status === 'sold' ? 'Sold' : 'Donated'}</b>`}</span></div>
         ${(() => { if (!cur.model) return ''; const same = S.items.filter(i => i.id !== cur.id && i.model && norm(i.model) === norm(cur.model) && norm(i.brand) === norm(cur.brand) && !isInbox(i)); return same.length ? `<div class="samemodel"><span class="lbl">Same model, other colours (${same.length + 1} in total)</span><div class="samerow">${same.map(i => `<button class="sameit" data-item="${esc(i.id)}" title="${esc(i.name || '')}">${i.photo ? pimg(i.photo, '', 'loading="lazy"') : '<span></span>'}<small>${esc((i.colors || []).join(', ') || i.name || '')}</small></button>`).join('')}</div></div>` : ''; })()}
         <div class="tagrow">${tagrow}</div>
         ${priceLine ? `<p class="priceline">${priceLine}</p>` : ''}
@@ -3214,6 +3217,9 @@ function openEditor(id, opts = {}) {
         <div class="field full"><span class="lbl">Season</span><div class="togglegroup">${optList('seasons', SEASONS, it.seasons).map(s => `<button type="button" class="chip" data-multi="seasons" data-v="${esc(s)}" aria-pressed="${it.seasons.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('seasons', 'multi:seasons')}</div></div>
         <div class="field full"><span class="lbl">Tags</span><div class="togglegroup">${optList('tags', [...new Set(S.items.flatMap(i => i.tags || []))], it.tags).sort(azSort).map(s => `<button type="button" class="chip" data-multi="tags" data-v="${esc(s)}" aria-pressed="${it.tags.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('tags', 'multi:tags')}</div></div>
         <div class="field" ${review || buying ? 'hidden' : ''}><label for="f-status">Status</label><select id="f-status"><option value="closet">In my closet</option><option value="wishlist">On my wishlist</option><option value="passed">Wishlist archive (no longer want it)</option><option value="sold">Sold</option><option value="donated">Donated</option></select></div>
+        <div class="field full" ${wishMode ? 'hidden' : ''}><label for="f-where">Waar is het</label><div class="chips wherechips">${[...new Set([...WHERE_TAGS, ...valuesOf('where')])].map(w => `<button type="button" class="chip" data-where="${esc(w)}" aria-pressed="${(it.where || 'In de kast') === w}">${esc(w)}</button>`).join('')}</div><input id="f-where" value="${esc(it.where || '')}" placeholder="Of typ een eigen plek" autocomplete="off"></div>
+        <div class="field" data-loan ${it.where === 'Uitgeleend' ? '' : 'hidden'}><label for="f-loanto">Uitgeleend aan</label><input id="f-loanto" value="${esc(it.loanTo || '')}" placeholder="Naam" autocomplete="off"></div>
+        <div class="field" data-loan ${it.where === 'Uitgeleend' ? '' : 'hidden'}><label for="f-loanon">Sinds</label><input id="f-loanon" type="date" value="${esc(it.whereSince || today())}"></div>
         <div class="field" id="goneF" hidden><label for="f-gone">Sold or donated on</label><input id="f-gone" type="date" value="${esc(it.goneDate)}"></div>
         <div class="field" id="soldF" hidden><label for="f-sold">Sold for (€)</label><input id="f-sold" inputmode="decimal" value="${money2(it.soldPrice)}" placeholder="optional"></div>
         <div class="field full"><label for="f-link">Shop link</label><input id="f-link" type="url" value="${esc(it.link)}" placeholder="https://"></div>
@@ -3253,6 +3259,7 @@ function openEditor(id, opts = {}) {
   $('#f-brand', sh).addEventListener('input', () => drawSug('model'));
   sh.addEventListener('click', async e => {
     const sg = e.target.closest('[data-sug]'); if (sg) { $(`#f-${sg.dataset.sug}`, sh).value = sg.dataset.v; drawSug(sg.dataset.sug); return; }
+    const wh = e.target.closest('[data-where]'); if (wh) { $('#f-where', sh).value = wh.dataset.where; sh.querySelectorAll('[data-where]').forEach(b => b.setAttribute('aria-pressed', b === wh)); sh.querySelectorAll('[data-loan]').forEach(x => x.hidden = wh.dataset.where !== 'Uitgeleend'); return; }
     const c = e.target.closest('[data-color]'); if (c) { toggleIn(it.colors, c.dataset.color); c.setAttribute('aria-pressed', it.colors.includes(c.dataset.color)); colorNames(); }
     const o1 = e.target.closest('[data-one]'); if (o1) { const k = o1.dataset.one; it[k] = it[k] === o1.dataset.v ? '' : o1.dataset.v; $$(`[data-one="${k}"]`, sh).forEach(b => b.setAttribute('aria-pressed', it[k] === b.dataset.v)); }
     const cd = e.target.closest('[data-cond]'); if (cd) { it.condition = it.condition === cd.dataset.cond ? '' : cd.dataset.cond; $$('[data-cond]', sh).forEach(b => b.setAttribute('aria-pressed', it.condition === b.dataset.cond)); }
@@ -3321,6 +3328,7 @@ function openEditor(id, opts = {}) {
       const status = asWish ? 'wishlist' : review || buying ? 'closet' : $('#f-status', sh).value;
       const doc = {
         name, cat: $('#f-cat', sh).value, sub: $('#f-sub', sh).value.trim(), brand: $('#f-brand', sh).value.trim(), model: $('#f-model', sh).value.trim(),
+        ...(() => { const w = ($('#f-where', sh)?.value || '').trim(), was = it.where || ''; const where = w === 'In de kast' ? '' : w; return { where, whereSince: where ? (where === 'Uitgeleend' ? ($('#f-loanon', sh)?.value || today()) : where !== was ? today() : (it.whereSince || today())) : '', loanTo: where === 'Uitgeleend' ? ($('#f-loanto', sh)?.value || '').trim() : '' }; })(),
         size: $('#f-size', sh).value.trim(), articleNo: $('#f-art', sh).value.trim(), price: num('#f-price'), origPrice: num('#f-orig'),
         bought: $('#f-bought', sh)?.value ?? it.bought ?? '', pastWears: Math.max(0, parseInt($('#f-past', sh)?.value, 10) || 0),
         material: $('#f-material', sh).value.trim(), colors: it.colors, seasons: it.seasons, occasions: it.occasions,
@@ -3589,7 +3597,7 @@ function openOutfit(id) {
 /* ---------- outfit builder ---------- */
 function shuffleOutfit() {
   const season = seasonNow();
-  const pool = S.items.filter(i => inCloset(i) && i.photo && (!(i.seasons || []).length || i.seasons.includes(season)));
+  const pool = S.items.filter(i => inCloset(i) && atHand(i) && i.photo && (!(i.seasons || []).length || i.seasons.includes(season)));
   // by category key, so renamed categories still shuffle; a deleted one just never gets picked
   const pick = key => { const l = pool.filter(i => catKey(i.cat) === key); return l.length ? l[Math.floor(Math.random() * l.length)] : null; };
   const chosen = [];
