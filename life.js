@@ -6111,6 +6111,7 @@ function bodyTile() { const cs = cleanStats(); return (cs.start ? `<p class="dli
 /* ---------- what index.html calls ---------- */
 const sectionOf = view => SECTIONS.find(s => s.views.some(v => vkey(s, v) === view)) || SECTIONS.find(s => view.startsWith(s.key + '/')) || ({ care: SECTIONS.find(s => s.key === 'plan'), fit: SECTIONS.find(s => s.key === 'plan'), body: SECTIONS.find(s => s.key === 'plan'), wish: SECTIONS.find(s => s.key === 'plan') })[view.split('/')[0]];
 return {
+  icons: Object.fromEntries(Object.entries(P).filter(([k]) => !['plus', 'minus', 'left', 'right', 'x', 'check'].includes(k)).map(([k, v]) => [k, G(v)])),
   sections: SECTIONS.map(s => ({ key: s.key, label: s.label, icon: G(s.icon), groups: Object.fromEntries(Object.entries(s.groups || {}).map(([g, [l, ic]]) => [g, [l, G(ic)]])), subs: Object.fromEntries(Object.entries(s.subs || {}).map(([g, o]) => [g, Object.fromEntries(Object.entries(o).map(([k, [l, ic]]) => [k, [l, G(ic)]]))])), views: s.views.map(v => [vkey(s, v), v[1], G(v[2]), v[3] || '', v[4] || '']) })),
   has: view => !!PAGES[view],
   lists: optionLists, fullList: fullOptions, renameIn: renameOption,

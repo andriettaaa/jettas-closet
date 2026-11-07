@@ -553,6 +553,11 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .findhint { margin: 16px 2px; }
 .setname input.setninp { flex: 1; min-width: 0; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); }
 .setnsearch { display: flex; margin: 4px 0 8px; }
+.iconbtnpick { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 10px; width: 40px; height: 40px; display: inline-grid; place-items: center; cursor: pointer; padding: 0; flex: none; }
+.iconbtnpick svg, .iconopt svg { width: 22px; height: 22px; }
+.iconpick { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 8px; margin-top: 8px; }
+.iconopt { aspect-ratio: 1; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 12px; display: grid; place-items: center; cursor: pointer; padding: 0; }
+.iconopt[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink, #fff); border-color: transparent; }
 </style>
 <link rel="stylesheet" href="life.css">
 </head>
@@ -618,8 +623,18 @@ const BOTTOM_DEFAULT = 4;
 const BURGER = '<path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>';
 const SECTIONS = [{ key: 'overview', label: 'Today', icon: SUN }, { key: 'agenda', label: 'Calendar', icon: (window.LIFE?.sections || []).find(s => s.key === 'plan')?.views.find(v => v[0] === 'plan/week')?.[2] || SUN, to: 'plan/week' }, { key: 'closet', label: 'Closet', icon: VIEWS[0][2] }, ...(window.LIFE?.sections || []), { key: 'settings', label: 'Settings', icon: GEAR }];
 // your own names for the menu, from Settings; an empty name brings back the standard one
-SECTIONS.forEach(s => { s.base ||= s.label; });
-function applyNames() { const n = S.prefs.names || {}; for (const s of SECTIONS) s.label = String(n[s.key] || '').trim() || s.base; }
+SECTIONS.forEach(s => { s.base ||= s.label; s.baseIcon ||= s.icon; });
+// all icons you can pick from: the app's own set plus the closet and menu icons
+const ICONS = () => ({ hanger: VIEWS[0][2], ...(window.LIFE?.icons || {}) });
+function applyNames() { const n = S.prefs.names || {}, ic = S.prefs.icons || {}, all = ICONS(); for (const s of SECTIONS) { s.label = String(n[s.key] || '').trim() || s.base; s.icon = all[ic[s.key]] || s.baseIcon; } }
+function pickIcon(key) {
+  const s = SECTIONS.find(x => x.key === key); if (!s) return;
+  const cur = (S.prefs.icons || {})[key], all = ICONS();
+  const sh = sheet({ title: 'Icoon voor ' + s.label, body: `<p class="muted">Kies een icoon. Het menu en Settings gebruiken het op al je apparaten.</p><div class="iconpick">${Object.entries(all).map(([k, v]) => `<button type="button" class="iconopt" data-ipick="${k}" aria-pressed="${cur === k}" aria-label="${esc(k)}">${icon(v)}</button>`).join('')}</div>`,
+    foot: `${cur ? '<button class="btn" data-ireset>Standaard icoon</button>' : ''}<div class="spacer"></div><button class="btn" data-close>Sluiten</button>` });
+  const save = v => { const ic = { ...(S.prefs.icons || {}) }; if (v) ic[key] = v; else delete ic[key]; DB.savePrefs({ icons: ic }).then(() => { closeSheet(); render(); toast(v ? 'Icoon opgeslagen' : 'Standaard icoon terug'); }).catch(err => saveErr(err, 'Could not save. Try again.')); };
+  sh.addEventListener('click', e => { const b = e.target.closest('[data-ipick]'); if (b) return save(b.dataset.ipick); if (e.target.closest('[data-ireset]')) save(''); });
+}
 /* the menu follows your Settings: section order, hidden sections, the phone's bottom bar and the tabs inside each section */
 const NAV = () => S.prefs.nav || {};
 const byOrder = (list, order, key = x => x.key) => { const pos = x => { const i = (order || []).indexOf(key(x)); return i < 0 ? 1000 + list.indexOf(x) : i; }; return [...list].sort((a, b) => pos(a) - pos(b)); };
@@ -2197,9 +2212,9 @@ function renderSettings(host) {
         <label class="settog"><input type="checkbox" data-nbot="${s.key}" ${bottom.includes(s.key) && !hid.includes(s.key) ? 'checked' : ''} ${hid.includes(s.key) ? 'disabled' : ''}> Bottom bar</label>${mv('data-nmove', s.key, i, all.length)}</div>`).join('')}
       <button class="chip link" data-nreset>Back to the standard menu</button>
       <p class="muted">Tabs and choice lists now live in each section, under its own Settings tab.</p></section>
-    <section class="panel setpanel" id="set-names"><h3>Namen</h3><p class="muted">Geef elk onderdeel van het menu je eigen naam. Het menu, de paginatitels en Settings gebruiken die naam op al je apparaten. Leeg laten zet de standaardnaam terug.</p>
+    <section class="panel setpanel" id="set-names"><h3>Namen</h3><p class="muted">Geef elk onderdeel van het menu je eigen naam en tik op een icoon om een ander te kiezen. Het menu, de paginatitels en Settings gebruiken die naam op al je apparaten. Leeg laten zet de standaardnaam terug.</p>
       <label class="setnsearch setname"><input class="setninp" type="search" data-nfind placeholder="Zoek een naam" aria-label="Zoek een naam"></label>
-      ${SECTIONS.map(s => `<div class="setrow setname" data-nrow="${esc(norm(s.base + ' ' + s.label))}"><span class="seti">${icon(s.icon)}</span><input class="setninp" data-nname="${s.key}" value="${esc((S.prefs.names || {})[s.key] || '')}" placeholder="${esc(s.base)}" aria-label="Naam voor ${esc(s.base)}" autocomplete="off">${(S.prefs.names || {})[s.key] ? `<button class="chip link" data-nnreset="${s.key}">Herstel</button>` : ''}</div>`).join('')}
+      ${SECTIONS.map(s => `<div class="setrow setname" data-nrow="${esc(norm(s.base + ' ' + s.label))}"><button type="button" class="seti iconbtnpick" data-ipickfor="${s.key}" aria-label="Kies icoon voor ${esc(s.label)}">${icon(s.icon)}</button><input class="setninp" data-nname="${s.key}" value="${esc((S.prefs.names || {})[s.key] || '')}" placeholder="${esc(s.base)}" aria-label="Naam voor ${esc(s.base)}" autocomplete="off">${(S.prefs.names || {})[s.key] ? `<button class="chip link" data-nnreset="${s.key}">Herstel</button>` : ''}</div>`).join('')}
     </section>
     ${lookPanel()}
     ${notiPanel()}
@@ -2250,6 +2265,7 @@ function renderSettings(host) {
     const vm = t.closest('[data-vmove]'); if (vm) { const ks = viewsAll(SET.tabs).map(v => v[0]), views = { ...(NAV().views || {}) }; views[SET.tabs] = { ...(views[SET.tabs] || {}), order: swap(ks, ks.indexOf(vm.dataset.vmove), +vm.dataset.d) }; return saveNav({ views }); }
     const om = t.closest('[data-omove]'); if (om) { const L = fullList(SET.list); return saveList(SET.list, swap(L.list, +om.dataset.omove, +om.dataset.d), L.hidden); }
     if (t.closest('[data-nreset]')) return DB.savePrefs({ nav: {} });
+    const ipf = t.closest('[data-ipickfor]'); if (ipf) return pickIcon(ipf.dataset.ipickfor);
     const nr = t.closest('[data-nnreset]'); if (nr) { const n = { ...(S.prefs.names || {}) }; delete n[nr.dataset.nnreset]; return DB.savePrefs({ names: n }).then(() => { render(); toast('Standaardnaam terug'); }).catch(err => saveErr(err, 'Could not save. Try again.')); }
     if (t.closest('[data-editcats]')) return openCategories();
     const ud = t.closest('[data-undo]'); if (ud) return undoRun(+ud.dataset.undo);
