@@ -5696,46 +5696,102 @@ const calLoad = () => { const c = L.cal ||= { view: 'month', date: today() }; if
 const inR = (d, a, b) => d && d >= a && d <= b;
 const hmToMin = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
 function calEvents(from, to, all) {
-  const ev = [], add = e => ev.push(e), t = today();
+  const ev = [], t = today(), bad = new Set();
+  // an item with a date the calendar can't read is left out instead of breaking the whole calendar
+  const add = e => { const d = typeof e.date === 'string' ? e.date.slice(0, 10) : ''; if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return; ev.push({ ...e, date: d, time: typeof e.time === 'string' ? e.time : '', title: String(e.title ?? ''), sub: e.sub == null ? '' : String(e.sub) }); };
+  const safe = (area, f) => { try { f(); } catch (err) { console.error('calendar', area, err); bad.add(area); } };
   const sv = (r, patch) => save(r, patch);
   // Life
+  safe('Life', () => {
   for (const a of recs('appts')) if (inR(a.date, from, to)) add({ id: 'appt:' + a.id, cat: 'life', date: a.date, time: a.time, title: a.what || a.type || 'Afspraak', sub: [a.type, a.where || a.location].filter(Boolean).join(' · '), imp: true, done: !!a.done, toggle: () => sv(a, { done: !a.done }), move: d => sv(a, { date: d }), open: a.id });
+  });
+  safe('Life', () => {
   for (const tr of tripList()) { const end = tripEnd(tr); for (let d = tr.start, i = 0; d <= end && i < 60; d = addDays(d, 1), i++) if (inR(d, from, to)) add({ id: 'trip:' + tr.id + ':' + d, cat: 'life', date: d, title: (d === tr.start ? 'Vertrek: ' : d === end ? 'Terug: ' : '') + tripName(tr), imp: d === tr.start, go: 'care/trips' }); }
+  });
+  safe('Life', () => {
   for (const g of recs('lgoals')) if (inR(g.due, from, to) && g.status !== 'Completed') add({ id: 'goal:' + g.id, cat: 'life', date: g.due, title: 'Deadline: ' + (g.name || 'doel'), imp: true, open: g.id, move: d => sv(g, { due: d }) });
+  });
+  safe('Life', () => {
   for (const g of recs('gifts')) if (inR(g.date, from, to)) add({ id: 'gift:' + g.id, cat: 'life', date: g.date, title: `${g.occasion || 'Cadeau'}${g.for ? ': ' + g.for : ''}`, sub: g.name, imp: true, done: g.status === 'Given', toggle: () => sv(g, g.status === 'Given' ? { status: 'Bought' } : { status: 'Given', given: g.date }), open: g.id, move: d => sv(g, { date: d }) });
+  });
+  safe('Life', () => {
   for (const x of recs('documents')) if (inR(x.expires, from, to)) add({ id: 'doc:' + x.id, cat: 'life', date: x.expires, title: 'Verloopt: ' + (x.name || 'document'), imp: true, open: x.id });
+  });
+  safe('Life', () => {
   for (const w of recs('wishes')) if (inR(w.planBuy, from, to) && w.status !== 'Bought') add({ id: 'wish:' + w.id, cat: 'life', date: w.planBuy, title: 'Kopen: ' + (w.name || 'wens'), sub: eur(num(w.price)), open: w.id, move: d => sv(w, { planBuy: d }) });
+  });
+  safe('Life', () => {
   for (const p of recs('projects')) if (inR(p.end, from, to)) add({ id: 'proj:' + p.id, cat: 'social', date: p.end, title: 'Deadline: ' + (p.name || 'project'), imp: true, open: p.id, move: d => sv(p, { end: d }) });
+  });
+  safe('Life', () => {
   const cs = cleanStats(); if (cs.start) for (const n of CAL_MS) { const d = addDays(cs.start, n - 1); if (inR(d, from, to)) add({ id: 'clean:' + n, cat: 'body', date: d, title: `Clean: ${n === 1 ? 'dag 1' : n < 30 ? n + ' dagen' : n < 365 ? Math.round(n / 30) + ' maanden' : '1 jaar'}`, imp: true, go: 'body/clean' }); }
+  });
   // Body
+  safe('Body', () => {
   for (const w of recs('workouts')) if (inR(w.date, from, to) && !w.skipped) add({ id: 'wo:' + w.id, cat: 'body', date: w.date, title: w.name || w.type || 'Workout', done: !!w.done, toggle: () => sv(w, { done: !w.done }), move: d => sv(w, { date: d }), open: w.id });
+  });
+  safe('Body', () => {
   for (const g of recs('fitgoals')) if (inR(g.due, from, to)) add({ id: 'fg:' + g.id, cat: 'body', date: g.due, title: 'Doel: ' + (g.name || 'fitness'), imp: true, open: g.id });
+  });
+  safe('Body', () => {
   const cy = cycleStats(); if (cy.next && inR(cy.next, from, to)) add({ id: 'cycle', cat: 'body', date: cy.next, title: 'Menstruatie verwacht', sub: cy.guessed ? 'schatting' : `cyclus ${cy.avg} dagen`, go: 'care/cycle' });
+  });
+  safe('Body', () => {
   for (const c of recs('cycles')) if (inR(c.start, from, to)) add({ id: 'cyc:' + c.id, cat: 'body', date: c.start, title: 'Menstruatie', open: c.id });
+  });
   // Kitchen
+  safe('Kitchen', () => {
   for (const m of recs('meals')) if (inR(m.date, from, to)) add({ id: 'meal:' + m.id, cat: 'kitchen', date: m.date, title: `${({ Breakfast: 'Ontbijt', Lunch: 'Lunch', Dinner: 'Diner', Snack: 'Snack' })[m.slot] || m.slot || 'Maaltijd'}: ${m.away ? 'uit eten' : relName(m.recipe) || m.what || ''}`, move: d => sv(m, { date: d }), open: m.id });
+  });
+  safe('Kitchen', () => {
   for (const m of recs('mealprep')) if (inR(m.prepDay, from, to)) add({ id: 'prep:' + m.id, cat: 'kitchen', date: m.prepDay, title: 'Meal prep: ' + (titleOf(m) || ''), move: d => sv(m, { prepDay: d }), open: m.id });
+  });
   // Finance
+  safe('Finance', () => {
   try { for (const o of fOccs(from, to)) add({ id: 'bill:' + o.key, cat: 'money', date: o.date, title: `${o.bill.name || 'Rekening'} ${eur(o.amount)}`, sub: o.type, imp: o.amount >= 50 || o.type === 'Bill', done: o.paid, go: 'money/repeats' }); } catch {}
+  });
+  safe('Finance', () => {
   const pd = recs('fset')[0]?.payday; if (inR(pd, from, to)) add({ id: 'pay', cat: 'money', date: pd, title: 'Salaris', imp: true, go: 'money/today' });
+  });
+  safe('Finance', () => {
   for (const i of recs('insurance')) if (inR(i.renews, from, to) && i.status !== 'Stopped') add({ id: 'ins:' + i.id, cat: 'money', date: i.renews, title: 'Verlengt: ' + (i.name || 'verzekering'), imp: true, open: i.id });
+  });
+  safe('Finance', () => {
   for (const b of recs('fbills')) if (inR(b.trialEnds, from, to)) add({ id: 'trial:' + b.id, cat: 'money', date: b.trialEnds, title: 'Proefperiode stopt: ' + (b.name || ''), imp: true, open: b.id });
+  });
+  safe('Finance', () => {
   for (const g of recs('fgoals')) if (inR(g.by, from, to)) add({ id: 'fgoal:' + g.id, cat: 'money', date: g.by, title: 'Spaardoel: ' + (g.name || ''), imp: true, open: g.id });
+  });
   // Social
+  safe('Social', () => {
   try { for (const x of postEvents(from, to)) { const p = x.p, k = x.k; add({ id: 'post:' + p.id + ':' + k + ':' + x.label, cat: 'social', date: x.d, time: k === 'date' ? p.time : '', title: `${x.label}${k === 'collab' ? ' ' : ': '}${p.name || p.brand || ''}`, imp: k === 'collab' || k === 'date', done: x.done, open: p.id, move: k !== 'collab' ? d => sv(p, { [k]: d }) : null }); } } catch {}
+  });
+  safe('Social', () => {
   for (const k of recs('tasks')) if (inR(k.date, from, to) && k.status !== 'Dropped') add({ id: 'task:' + k.id, cat: 'social', date: k.date, title: k.name || 'Taak', done: k.status === 'Done', toggle: () => sv(k, { status: k.status === 'Done' ? 'To do' : 'Done' }), move: d => sv(k, { date: d }), open: k.id });
+  });
   // Home
+  safe('Home', () => {
   for (const c of recs('chores')) { const d = choreDue(c); if (inR(d, from, to)) add({ id: 'chore:' + c.id, cat: 'home', date: d, title: c.name || 'Klusje', done: false, toggle: () => sv(c, { last: t }), move: nd => sv(c, { last: addDays(nd, -(FREQ[c.freq] || 7)) }), open: c.id }); }
+  });
+  safe('Home', () => {
   for (const p of recs('plants')) { const d = plantDue(p); if (d && inR(d < t ? t : d, from, to)) add({ id: 'plant:' + p.id, cat: 'home', date: d < t ? t : d, title: 'Water: ' + (p.name || 'plant'), toggle: () => sv(p, { last: t }), open: p.id }); }
+  });
+  safe('Home', () => {
   for (const r of recs('repairs')) if (inR(r.date, from, to)) add({ id: 'rep:' + r.id, cat: 'home', date: r.date, title: r.name || 'Reparatie', open: r.id, move: d => sv(r, { date: d }) });
+  });
   // Closet
+  safe('Closet', () => {
   for (const x of C.closetDays?.() || []) if (inR(x.date, from, to)) add({ id: 'look:' + x.date, cat: 'closet', date: x.date, title: 'Outfit: ' + (x.name || 'gepland'), go: 'calendar', move: d => C.closetMove?.(x.date, d) });
+  });
   // Orders
+  safe('Orders', () => {
   for (const o of recs('orders')) {
     if (inR(o.expected, from, to) && ['Ordered', 'Shipped'].includes(o.status || 'Ordered')) add({ id: 'ord:' + o.id, cat: 'orders', date: o.expected, title: 'Komt binnen: ' + (o.name || 'pakket'), sub: o.shop, toggle: () => sv(o, { status: 'Delivered', received: t, returnBy: o.returnBy || addDays(t, 14) }), open: o.id });
     if (inR(o.returnBy, from, to) && o.status === 'Delivered') add({ id: 'ret:' + o.id, cat: 'orders', date: o.returnBy, title: 'Laatste retourdag: ' + (o.name || ''), imp: true, toggle: () => sv(o, { status: 'Kept' }), open: o.id });
   }
+  });
   const off = calLoad().off;
+  L.calBad = [...bad];
   return ev.filter(e => all || !off.has(e.cat)).sort((a, b) => a.date.localeCompare(b.date) || (hmToMin(a.time) ?? -1) - (hmToMin(b.time) ?? -1) || (b.imp ? 1 : 0) - (a.imp ? 1 : 0));
 }
 const calCatName = k => CAL_CATS.find(c => c[0] === k)?.[1] || k;
@@ -5748,7 +5804,7 @@ function calRange(c) {
   if (c.view === 'day') return [c.date, c.date];
   return [c.date, addDays(c.date, 30)];
 }
-function calPage(host) {
+function calPageInner(host) {
   const c = calLoad(), [from, to] = calRange(c), ev = calEvents(from, to), t = today();
   L.calMap = Object.fromEntries(ev.map(e => [e.id, e]));
   const byDay = {}; for (const e of ev) (byDay[e.date] ||= []).push(e);
@@ -5779,6 +5835,16 @@ function calPage(host) {
   // the week review (terugblik, focus, zondag reset) lives under the calendar
   const wk = host.querySelector('[data-calweek]');
   if (wk) { try { planWeek(wk); wk.querySelector('.viewhead')?.remove(); const h = document.createElement('h2'); h.className = 'calwh'; h.textContent = 'Deze week'; wk.prepend(h); } catch {} }
+}
+function calPage(host) {
+  try { calPageInner(host); }
+  catch (err) {
+    console.error(err);
+    // a stored view or date that no longer works: start again on this month
+    L.cal = null; try { localStorage.removeItem('calView'); } catch {}
+    try { calPageInner(host); } catch (err2) { console.error(err2); host.innerHTML = `<div class="viewhead"><h1>Calendar</h1></div><div class="note">De Calendar kon niet laden: ${esc(String(err2?.message || err2))}. Stuur een screenshot hiervan naar Claude.</div>`; return; }
+  }
+  if (L.calBad?.length) host.querySelector('.calcats')?.insertAdjacentHTML('afterend', `<div class="note calbad">Een paar items uit ${esc(L.calBad.join(', '))} konden niet in de Calendar. De rest staat er wel.</div>`);
 }
 function calSheet(id) {
   const e = L.calMap?.[id]; if (!e) return;
