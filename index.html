@@ -395,6 +395,11 @@ dl.props dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .gallery span { position: absolute; left: 0; right: 0; bottom: 0; font-family: var(--mono); font-size: 10.5px; color: #fff; background: linear-gradient(transparent, rgba(0,0,0,.6)); padding: 12px 6px 4px; text-align: left; }
 
 .cands { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 6px; }
+.photolink { display: grid; gap: 6px; margin-top: 12px; }
+.photolink label { font-weight: 600; font-size: 14px; }
+.photolink > div { display: flex; gap: 8px; }
+.photolink input { flex: 1; min-width: 0; }
+.photolink p { margin: 0; font-size: 12.5px; }
 .cand { flex: 0 0 76px; aspect-ratio: 3 / 4; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; padding: 0; background: var(--stage); }
 .cand img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .cand[aria-pressed="true"] { outline: 2.5px solid var(--accent); outline-offset: 2px; }
@@ -817,6 +822,8 @@ const DB = {
     applyLocal(table, id, null);
   }
 };
+// a Supabase function, called as you (signed in)
+async function callFn(name, body) { const { data } = await sb.auth.getSession(); const res = await fetch(FN(name), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session?.access_token, apikey: CFG.key }, body: JSON.stringify(body) }); const j = await res.json().catch(() => ({})); if (!res.ok || j.error) throw new Error(j.error || String(res.status)); return j; }
 async function uploadPhoto(blob) {
   const ext = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/png' ? 'png' : 'jpg';
   const path = `${UID}/${uuid()}.${ext}`;
@@ -1044,8 +1051,10 @@ const optList = (key, base, cur = []) => {
   const cfg = S.prefs.optLists?.['closet:' + key], hid = new Set((cfg?.hidden || []).map(norm)), now = [].concat(cur || []);
   const out = [...(cfg?.list || base)].filter(v => !hid.has(norm(v)) || now.includes(v));
   for (const v of [...(S.prefs.custom?.[key] || []), ...now]) if (v && !out.some(b => norm(b) === norm(v)) && (!hid.has(norm(v)) || now.includes(v))) out.push(v);
-  return out;
+  // A to Z, except lists with a natural order (seasons, condition, care steps)
+  return ORDERED.test(key) ? out : out.sort((a, b) => String(a).localeCompare(String(b), 'en', { sensitivity: 'base' }));
 };
+const ORDERED = /^(seasons|condition|care\.)/;
 const ownBtn = (key, chip) => `<button type="button" class="chip ghost" data-addopt="${esc(key)}" data-chip="${esc(chip)}">+ Add your own</button>`;
 // what a new chip looks like, matching the group's own chips so the group's tap handler picks it up
 function chipFor(kind, v, hex) {
@@ -1079,18 +1088,18 @@ document.addEventListener('click', e => {
 });
 // Every property you can tap to filter by; within one property any match counts, across properties all must match
 const FACETS = [
-  { k: 'colors', label: 'Colour', get: it => it.colors || [], order: COLORS.map(c => c[0]) },
+  { k: 'colors', label: 'Colour', get: it => it.colors || [], az: true },
   { k: 'brand', label: 'Brand', get: it => one(it.brand) },
   { k: 'size', label: 'Size', get: it => one(it.size) },
   { k: 'sub', label: 'Type', get: it => one(it.sub) },
-  { k: 'fits', label: 'Fit', get: it => it.fits || [], order: FITS },
-  { k: 'occasions', label: 'Occasion', get: it => it.occasions || [], order: OCCASIONS },
+  { k: 'fits', label: 'Fit', get: it => it.fits || [], az: true },
+  { k: 'occasions', label: 'Occasion', get: it => it.occasions || [], az: true },
   { k: 'seasons', label: 'Season', get: it => it.seasons || [], order: SEASONS },
   { k: 'care', label: 'Care', get: careTags, order: CARE.flatMap(c => c[2]) },
-  { k: 'materials', label: 'Material', get: it => it.materials || [], order: MATERIALS },
+  { k: 'materials', label: 'Material', get: it => it.materials || [], az: true },
   { k: 'condition', label: 'Condition', get: it => one(it.condition), order: CONDITIONS },
-  { k: 'acquired', label: 'New/secondhand', get: it => one(it.acquired), order: ACQUIRED },
-  { k: 'purchasePlace', label: 'Where bought', get: it => one(it.purchasePlace), order: PLACES },
+  { k: 'acquired', label: 'New/secondhand', get: it => one(it.acquired), az: true },
+  { k: 'purchasePlace', label: 'Where bought', get: it => one(it.purchasePlace), az: true },
   { k: 'shop', label: 'Shop', get: it => one(it.shop) },
   { k: 'tags', label: 'Tag', get: it => it.tags || [], az: true }
 ];
@@ -1955,7 +1964,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v90';
+const APP_VERSION = 'hangtag-v91';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2886,7 +2895,20 @@ function openEditor(id, opts = {}) {
       ${HANGER.replace('class="hanger"', 'class="hanger" style="width:64px;height:40px;color:var(--accent)"')}
       <span class="btn primary">Choose a photo</span>
       <p>Lay the piece flat or hang it against a plain wall. On iPhone or iPad you can take the photo right here.</p>
-      <p>Already cut out? Touch and hold the piece in the Photos app, choose Share, then Save Image. Pick that saved image here.</p></label>`;
+      <p>Already cut out? Touch and hold the piece in the Photos app, choose Share, then Save Image. Pick that saved image here.</p></label>
+      <form class="photolink" id="photoLink"><label for="photoUrl">Or use a photo from the web</label><div><input id="photoUrl" type="url" inputmode="url" placeholder="https://… link to the image" autocomplete="off"><button class="btn" type="submit">Use photo</button></div>
+      <p class="muted">On a shop page, touch and hold the product photo (or right-click it), choose Copy image address and paste it here.</p></form>`;
+    $('#photoLink', photoArea).addEventListener('submit', async e => {
+      e.preventDefault(); const u = $('#photoUrl', photoArea).value.trim(), btn = e.target.querySelector('button');
+      if (!/^https?:\/\/\S+$/.test(u)) { toast('Paste a link that starts with https://'); return; }
+      btn.disabled = true; btn.textContent = 'Fetching…';
+      try {
+        const j = await callFn('offers', { action: 'photourl', url: u });
+        const bin = atob(j.data), buf = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        if (!it.link && !$('#f-link', sh).value.trim() && j.page) $('#f-link', sh).value = j.page;
+        await loadPhoto(new Blob([buf], { type: j.type || 'image/jpeg' }));
+      } catch (err) { toast(/not an image|too big/i.test(String(err.message)) ? String(err.message) : "That link didn't give a photo. Copy the image address itself, not the page link."); btn.disabled = false; btn.textContent = 'Use photo'; }
+    });
     const drop = $('#drop', photoArea), file = $('#file', photoArea);
     file.addEventListener('change', () => file.files[0] && loadPhoto(file.files[0]));
     drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
@@ -3429,7 +3451,7 @@ async function start(session) {
   const lifeLoad = window.LIFE?.start({ sb, uid: () => UID, view: () => S.view, go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url, shop: it.shop, planBuy: it.planBuy || '' })),
     undoQuiet, sbWrite, sbWriteMany, obFlush, uploadFile,
     // call one of your Supabase functions as you (signed in)
-    callFn: async (name, body) => { const { data } = await sb.auth.getSession(); const res = await fetch(FN(name), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session?.access_token, apikey: CFG.key }, body: JSON.stringify(body) }); const j = await res.json().catch(() => ({})); if (!res.ok || j.error) throw new Error(j.error || String(res.status)); return j; },
+    callFn,
     // trips are shared with Life › Trips: one trip, planned there and packed here
     trips: () => trips(), saveTrip: t => saveTrip(t), tripDates: t => tripDates(t), tripProgress: t => tripProgress(t),
     tripEdit: id => openTripEditor(id || null, true), tripPack: id => { S.tripUI = { ...(S.tripUI || {}), id, tab: 'pack', home: false }; go('trips'); },
