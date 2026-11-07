@@ -1316,6 +1316,7 @@ async function load() {
   L.missing = false; L.status = 'ok'; L.fresh = true;
   L.all = rows.map(r => ({ ...r.data, id: r.id, kind: r.kind })); index(); cacheSave(); C.render();
   movePostIdeas();
+  setTimeout(() => calFeedSync(), 3000);
 }
 function apply(id, kind, data) {
   const i = L.all.findIndex(r => r.id === id);
@@ -4413,6 +4414,9 @@ document.addEventListener('click', async e => {
     case 'new': openEditor(d.v, null); break;
     case 'quick': { const r = L.byId[d.id]; KINDS[r?.kind]?.quick?.(r)?.act(); break; }
     case 'go': C.go(d.v); break;
+    case 'icalnew': { if (C.prefs().calToken && !confirm('Een nieuwe sleutel maakt je huidige abonnementen ongeldig. Doorgaan?')) break; const tok = (C.uuid() + C.uuid()).replace(/-/g, '').slice(0, 40); C.savePrefs({ calToken: tok }).then(() => { L.calFeedAt = 0; calFeedSync(true).then(() => C.render()); C.toast('Sleutel gemaakt. Zet hem in Supabase als CAL_TOKEN.'); }).catch(() => {}); break; }
+    case 'icalcopy': navigator.clipboard?.writeText(d.v).then(() => C.toast('Gekopieerd')).catch(() => C.toast('Kopiëren lukte niet')); break;
+    case 'icalsync': L.calFeedAt = 0; calFeedSync(true).then(() => { C.toast('Kalender bijgewerkt'); C.render(); }); break;
     case 'anaper': try { localStorage.setItem('anaPeriod', d.v); } catch {} C.render(); break;
     case 'calview': { const c = calLoad(); c.view = d.v; try { localStorage.setItem('calView', d.v); } catch {} C.render(); break; }
     case 'calstep': { const c = calLoad(), n = +d.v; c.date = c.view === 'month' ? (() => { const x = fromISO(c.date); return iso(new Date(x.getFullYear(), x.getMonth() + n, 1)); })() : addDays(c.date, n * (c.view === 'week' ? 7 : c.view === 'agenda' ? 30 : 1)); C.render(); break; }
@@ -5279,7 +5283,7 @@ function secOwn(sec) {
     return wrap(`<section class="panel setpanel"><h3>Your day</h3><p class="muted">The timeline on Today and your bedtime reminder follow this. Office days come from Kitchen › Settings.</p>
       ${tm('wakeOffice', 'Up on office days', 'Kantoordagen')}${tm('wakeHome', 'Up on home days', 'Thuiswerkdagen')}${tm('wakeWeekend', 'Up at the weekend', 'Uitslapen mag')}${tm('workStart', 'Work starts', '')}${tm('workEnd', 'Work ends', '')}
       <div class="fset"><div><b>Hours of sleep</b><span>Bedtime is this many hours before the next alarm.</span></div><input class="finp" type="number" min="6" max="10" step="0.5" data-dayset="sleep" value="${esc(c.sleep)}"></div>
-      <p class="muted">Tonight: bed at ${hm(bedOn(today()))}, up at ${hm(wakeOn(addDays(today(), 1)))}.</p></section>`) + secOwn('wish') + secOwn('care') + secOwn('fit');
+      <p class="muted">Tonight: bed at ${hm(bedOn(today()))}, up at ${hm(wakeOn(addDays(today(), 1)))}.</p></section>`) + secOwn('wish') + secOwn('care') + secOwn('fit') + icalPanel();
   }
   if (sec === 'body') return secOwn('care') + secOwn('fit');
   if (sec === 'care') {
@@ -5602,7 +5606,7 @@ const NL_WD = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
 const calLoad = () => { const c = L.cal ||= { view: 'month', date: today() }; if (!c.off) { try { c.off = new Set(JSON.parse(localStorage.getItem('calOff') || '[]')); } catch { c.off = new Set(); } try { c.view = localStorage.getItem('calView') || c.view; } catch {} } return c; };
 const inR = (d, a, b) => d && d >= a && d <= b;
 const hmToMin = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
-function calEvents(from, to) {
+function calEvents(from, to, all) {
   const ev = [], add = e => ev.push(e), t = today();
   const sv = (r, patch) => save(r, patch);
   // Life
@@ -5643,7 +5647,7 @@ function calEvents(from, to) {
     if (inR(o.returnBy, from, to) && o.status === 'Delivered') add({ id: 'ret:' + o.id, cat: 'orders', date: o.returnBy, title: 'Laatste retourdag: ' + (o.name || ''), imp: true, toggle: () => sv(o, { status: 'Kept' }), open: o.id });
   }
   const off = calLoad().off;
-  return ev.filter(e => !off.has(e.cat)).sort((a, b) => a.date.localeCompare(b.date) || (hmToMin(a.time) ?? -1) - (hmToMin(b.time) ?? -1) || (b.imp ? 1 : 0) - (a.imp ? 1 : 0));
+  return ev.filter(e => all || !off.has(e.cat)).sort((a, b) => a.date.localeCompare(b.date) || (hmToMin(a.time) ?? -1) - (hmToMin(b.time) ?? -1) || (b.imp ? 1 : 0) - (a.imp ? 1 : 0));
 }
 const calCatName = k => CAL_CATS.find(c => c[0] === k)?.[1] || k;
 const calItem = (e, cls = '') => `<button class="calit cal-${e.cat} ${e.imp ? 'imp' : ''} ${e.done ? 'done' : ''} ${cls}" data-cal="${esc(e.id)}" ${e.move ? 'draggable="true"' : ''} title="${esc(calCatName(e.cat) + ': ' + e.title)}">${e.time ? `<i>${esc(e.time.slice(0, 5))}</i>` : ''}${e.imp ? '<span class="calstar" aria-hidden="true">★</span>' : ''}<span>${esc(e.title)}</span></button>`;
@@ -5889,6 +5893,30 @@ function mindOverview(host) {
     ${panel('Wat aandacht nodig heeft', `${!jToday ? '<p class="dline"><span>Journal</span><b>Nog niet geschreven vandaag</b></p>' : ''}${behind.map(g => `<p class="dline"><span>${esc(g.name)}</span><b>${goalPct(g)}% · deadline ${esc(shortDate(g.due))}</b></p>`).join('')}${jToday && !behind.length ? quiet('Alles bij. Mooi zo.') : ''}`)}
     ${panel('Affirmatie', (() => { const p = pnAffirmToday(L.pnShift || 0); if (p) return pnAffirmHTML(); let a = ''; try { a = C.affirmToday?.() || ''; } catch {} return a ? `<p class="lbig">${esc(a)}</p>` : quiet('Geen affirmatie.'); })(), ['care/vision', 'Vision'])}
   </div>`;
+}
+
+
+/* ---------- the calendar in your iPhone: a snapshot for the 'calendar' function, and the subscribe links ---------- */
+async function calFeedSync(force) {
+  if (!C?.uid() || L.status !== 'ok' || !C.prefs().calToken) return;
+  const now = Date.now(); if (!force && L.calFeedAt && now - L.calFeedAt < 10 * 60e3) return;
+  L.calFeedAt = now;
+  let ev; try { ev = calEvents(addDays(today(), -30), addDays(today(), 120), true); } catch { return; }
+  const items = ev.map(e => ({ id: e.id, cat: e.cat, date: e.date, time: e.time || '', title: e.title, sub: e.sub || '', imp: !!e.imp, done: !!e.done }));
+  const cur = recs('calfeed')[0];
+  if (cur && JSON.stringify(cur.items) === JSON.stringify(items)) return;
+  L.batch = true; L.quiet = true;
+  try { await put('calfeed', cur?.id || C.uuid(), { items, at: new Date().toISOString() }); } catch {} finally { L.batch = false; L.quiet = false; }
+}
+setInterval(() => calFeedSync(), 15 * 60e3);
+const icalUrl = cat => { const base = C.fnUrl?.('calendar') || ''; return base.replace(/^https?:/, 'webcal:') + `?t=${encodeURIComponent(C.prefs().calToken || '')}&cat=${cat}`; };
+function icalPanel() {
+  const tok = C.prefs().calToken, feed = recs('calfeed')[0];
+  return `<section class="panel setpanel"><h3>Kalender in je iPhone</h3><p class="muted">Elk onderdeel als eigen agenda in je iPhone, met de kleuren van je brandboard. Je iPhone haalt hem elk uur op; de app werkt hem bij als je hem opent.</p>
+    ${tok ? `<div class="fset"><div><b>Je sleutel</b><span>Zet deze in Supabase als secret CAL_TOKEN.</span></div><button class="btn small" data-act="icalcopy" data-v="${esc(tok)}">Kopieer sleutel</button></div>
+      <div class="lrows">${[...CAL_CATS, ['all', 'Alles samen']].map(([k, l]) => `<div class="lrow"><span class="lmain"><b>${k === 'all' ? '' : `<span class="caldot cal-${k}"></span> `}${esc(l)}</b></span><a class="btn small" href="${esc(icalUrl(k))}">Abonneer</a><button class="chip link" data-act="icalcopy" data-v="${esc(icalUrl(k))}">Kopieer link</button></div>`).join('')}</div>
+      <p class="lnone">${feed?.at ? 'Laatst bijgewerkt ' + esc(new Date(feed.at).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) + ', ' + plural((feed.items || []).length, 'item') + '.' : 'Nog niet bijgewerkt.'} <button class="chip link" data-act="icalsync">Nu bijwerken</button> <button class="chip link" data-act="icalnew">Nieuwe sleutel</button></p>`
+    : `<p class="lnone">Maak eerst een sleutel. Die blijft privé in je eigen database.</p><button class="btn small primary" data-act="icalnew">Maak sleutel</button>`}</section>`;
 }
 
 /* Life › Overview: one look at Mind, Body, Plans and Wishlists (the analyses come per group) */
