@@ -360,6 +360,7 @@ button.lrow.lmain, .lrow > .lmain:only-child { padding-left: 12px; }
 .fenvgrid > * { min-width: 0; }
 .fdupnote { margin-bottom: 12px; justify-content: space-between; }
 .ltotal { margin-bottom: 14px; }
+.ltsugs { margin-top: 6px; } .ltsugs .chip { padding: 4px 10px; font-size: 13px; }
 .lrow input[data-ins] { width: 20px; height: 20px; flex: none; accent-color: var(--accent); }
 @media (max-width: 900px) { .fenvgrid { grid-template-columns: 1fr; } }
 .fseg { margin-bottom: 8px; }

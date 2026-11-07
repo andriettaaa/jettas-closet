@@ -2115,7 +2115,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v128';
+const APP_VERSION = 'hangtag-v129';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -3240,7 +3240,7 @@ function openEditor(id, opts = {}) {
         ${wishMode ? `<div class="field"><label for="f-since">On wishlist since</label><input id="f-since" type="date" value="${esc(it.wishSince)}"></div>`
           : `<div class="field"><label for="f-bought">Bought on</label><input id="f-bought" type="date" value="${esc(it.bought)}"></div>
              <div class="field"><label for="f-past">Worn before adding</label><input id="f-past" type="number" min="0" inputmode="numeric" value="${esc(it.pastWears || '')}" placeholder="0"></div>`}
-        <div class="field"><label for="f-material">Material details</label><input id="f-material" value="${esc(it.material)}" placeholder="e.g. 80% wool, 20% nylon" autocomplete="off"></div>
+        <div class="field"><label for="f-material">Material details</label><input id="f-material" value="${esc(it.material)}" placeholder="e.g. 80% wool, 20% nylon" autocomplete="off">${sugRow('material', [])}</div>
         ${wishMode ? `<div class="field full"><label for="f-why">Why do I want it?</label><textarea id="f-why" placeholder="What makes it worth it">${esc(it.why)}</textarea></div>` : ''}
         <div class="field full"><span class="lbl">Colours · tap all that apply</span><div class="togglegroup" id="f-colors">${optList('colors', COLORS.map(c => c[0]), it.colors).map(n => `<button type="button" class="chip" data-color="${esc(n)}" aria-pressed="${it.colors.includes(n)}"><i class="dot" style="background:${swatchBg(n)}"></i>${esc(n)}</button>`).join('')}${ownBtn('colors', 'color')}</div><span class="muted" id="f-colornames" style="font-size:12.5px"></span></div>
         <div class="field full"><span class="lbl">Fit · tap all that apply</span><div class="togglegroup">${optList('fits', FITS, it.fits).map(s => `<button type="button" class="chip" data-multi="fits" data-v="${esc(s)}" aria-pressed="${it.fits.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('fits', 'multi:fits')}</div></div>
@@ -3254,7 +3254,7 @@ function openEditor(id, opts = {}) {
         <div class="field full"><span class="lbl">Tags</span><div class="togglegroup">${optList('tags', [...new Set(S.items.flatMap(i => i.tags || []))], it.tags).sort(azSort).map(s => `<button type="button" class="chip" data-multi="tags" data-v="${esc(s)}" aria-pressed="${it.tags.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('tags', 'multi:tags')}</div></div>
         <div class="field" ${review || buying ? 'hidden' : ''}><label for="f-status">Status</label><select id="f-status"><option value="closet">In my closet</option><option value="wishlist">On my wishlist</option><option value="passed">Wishlist archive (no longer want it)</option><option value="sold">Sold</option><option value="donated">Donated</option></select></div>
         <div class="field full" ${wishMode ? 'hidden' : ''}><label for="f-where">Waar is het</label><div class="chips wherechips">${[...new Set([...WHERE_TAGS, ...valuesOf('where')])].map(w => `<button type="button" class="chip" data-where="${esc(w)}" aria-pressed="${(it.where || 'In de kast') === w}">${esc(w)}</button>`).join('')}</div><input id="f-where" value="${esc(it.where || '')}" placeholder="Of typ een eigen plek" autocomplete="off"></div>
-        <div class="field" data-loan ${it.where === 'Uitgeleend' ? '' : 'hidden'}><label for="f-loanto">Uitgeleend aan</label><input id="f-loanto" value="${esc(it.loanTo || '')}" placeholder="Naam" autocomplete="off"></div>
+        <div class="field" data-loan ${it.where === 'Uitgeleend' ? '' : 'hidden'}><label for="f-loanto">Uitgeleend aan</label><input id="f-loanto" value="${esc(it.loanTo || '')}" placeholder="Naam" autocomplete="off">${sugRow('loanto', [])}</div>
         <div class="field" data-loan ${it.where === 'Uitgeleend' ? '' : 'hidden'}><label for="f-loanon">Sinds</label><input id="f-loanon" type="date" value="${esc(it.whereSince || today())}"></div>
         <div class="field" id="goneF" hidden><label for="f-gone">Sold or donated on</label><input id="f-gone" type="date" value="${esc(it.goneDate)}"></div>
         <div class="field" id="soldF" hidden><label for="f-sold">Sold for (€)</label><input id="f-sold" inputmode="decimal" value="${money2(it.soldPrice)}" placeholder="optional"></div>
@@ -3283,18 +3283,24 @@ function openEditor(id, opts = {}) {
     brand: () => allBrands().map(b => b.name),
     // models you already have, from the brand you typed (all models when no brand yet)
     model: () => { const b = norm($('#f-brand', sh).value); return [...new Set(S.items.filter(i => i.model && (!b || norm(i.brand) === b)).map(i => i.model))]; },
-    sub: () => [...new Set([...(TYPES[catKey($('#f-cat', sh).value)] || []), ...valuesOf('sub')])], size: () => valuesOf('size'), shop: () => valuesOf('shop')
+    sub: () => [...new Set([...(TYPES[catKey($('#f-cat', sh).value)] || []), ...valuesOf('sub')])], size: () => valuesOf('size'),
+    // every shop you used, here and in the rest of the app (purchases, wishes, beauty)
+    material: () => valuesOf('material'), loanto: () => valuesOf('loanTo'),
+    shop: () => { const m = new Map(); for (const v of [...valuesOf('shop'), ...(window.LIFE?.allShops?.() || [])]) if (!m.has(norm(v))) m.set(norm(v), v); return [...m.values()]; }
   };
+  const sugMax = { sub: 24, brand: 40, model: 18, size: 30, shop: 80, material: 16, loanto: 20 };
   const drawSug = key => {
     const inp = $(`#f-${key}`, sh), t = norm(inp.value);
-    const vals = known[key]().filter(v => norm(v) !== t && (!t || norm(v).includes(t))).sort((a, b) => norm(a).localeCompare(norm(b), undefined, { numeric: true })).slice(0, key === 'sub' ? 18 : 12);
-    $(`[data-sugfor="${key}"]`, sh).innerHTML = vals.map(v => `<button type="button" class="chip" data-sug="${key}" data-v="${esc(v)}">${esc(v)}</button>`).join('');
+    // all of them stay as buttons; only while you type a new one do they narrow down to what matches
+    const all = known[key](), exact = all.some(v => norm(v) === t);
+    const vals = all.filter(v => !t || exact || norm(v).includes(t)).sort((a, b) => norm(a).localeCompare(norm(b), undefined, { numeric: true })).slice(0, sugMax[key] || 24);
+    $(`[data-sugfor="${key}"]`, sh).innerHTML = vals.map(v => `<button type="button" class="chip" data-sug="${key}" data-v="${esc(v)}" aria-pressed="${norm(v) === t}">${esc(v)}</button>`).join('');
   };
   for (const key of Object.keys(known)) { drawSug(key); $(`#f-${key}`, sh).addEventListener('input', () => drawSug(key)); }
   $('#f-cat', sh).addEventListener('change', () => drawSug('sub'));
   $('#f-brand', sh).addEventListener('input', () => drawSug('model'));
   sh.addEventListener('click', async e => {
-    const sg = e.target.closest('[data-sug]'); if (sg) { $(`#f-${sg.dataset.sug}`, sh).value = sg.dataset.v; drawSug(sg.dataset.sug); return; }
+    const sg = e.target.closest('[data-sug]'); if (sg) { const inp = $(`#f-${sg.dataset.sug}`, sh); inp.value = norm(inp.value) === norm(sg.dataset.v) ? '' : sg.dataset.v; drawSug(sg.dataset.sug); if (sg.dataset.sug === 'brand') drawSug('model'); return; }
     const wh = e.target.closest('[data-where]'); if (wh) { $('#f-where', sh).value = wh.dataset.where; sh.querySelectorAll('[data-where]').forEach(b => b.setAttribute('aria-pressed', b === wh)); sh.querySelectorAll('[data-loan]').forEach(x => x.hidden = wh.dataset.where !== 'Uitgeleend'); return; }
     const c = e.target.closest('[data-color]'); if (c) { toggleIn(it.colors, c.dataset.color); c.setAttribute('aria-pressed', it.colors.includes(c.dataset.color)); colorNames(); }
     const o1 = e.target.closest('[data-one]'); if (o1) { const k = o1.dataset.one; it[k] = it[k] === o1.dataset.v ? '' : o1.dataset.v; $$(`[data-one="${k}"]`, sh).forEach(b => b.setAttribute('aria-pressed', it[k] === b.dataset.v)); }
@@ -3660,7 +3666,7 @@ function openBuilder(id, presetPieces, presetName) {
       <div style="min-width:0;display:grid;gap:10px;align-content:start">
         <div class="form">
           <div class="field"><label for="o-name">Name</label><input id="o-name" value="${esc(src?.name || presetName || '')}" placeholder="e.g. Office Friday"></div>
-          <div class="field"><label for="o-occ">Occasion</label><input id="o-occ" list="occList" value="${esc(src?.occasion || '')}" placeholder="Work, weekend, dinner…"><datalist id="occList">${['Work', 'Weekend', 'Dinner', 'Party', 'Travel', 'Sport', 'Date night', 'Lounge'].map(o => `<option value="${o}">`).join('')}</datalist></div>
+          <div class="field"><label for="o-occ">Occasion</label><input id="o-occ" value="${esc(src?.occasion || '')}" placeholder="Work, weekend, dinner…" autocomplete="off"><div class="brandsugs">${[...new Map([...S.outfits.map(o => String(o.occasion || '').trim()).filter(Boolean), 'Work', 'Weekend', 'Dinner', 'Party', 'Travel', 'Sport', 'Date night', 'Lounge'].map(o => [norm(o), o])).values()].map(o => `<button type="button" class="chip" data-occ="${esc(o)}" aria-pressed="${norm(o) === norm(src?.occasion || '')}">${esc(o)}</button>`).join('')}</div></div>
         </div>
         <span class="lbl">Tap a piece to put it on the board</span>
         <div class="chips" id="bcats"></div>
@@ -3730,6 +3736,7 @@ function openBuilder(id, presetPieces, presetName) {
     const nw = clamp(p.w * (e.deltaY < 0 ? 1.05 : 0.95), 8, 110); p.x += (p.w - nw) / 2; p.y += (p.w - nw) / 2 * 0.75; p.w = nw; placeStyle(B.sel);
   }, { passive: false });
   sh.addEventListener('click', e => {
+    const oc = e.target.closest('[data-occ]'); if (oc) { const i = $('#o-occ', sh); i.value = norm(i.value) === norm(oc.dataset.occ) ? '' : oc.dataset.occ; sh.querySelectorAll('[data-occ]').forEach(b => b.setAttribute('aria-pressed', norm(b.dataset.occ) === norm(i.value))); return; }
     const pk = e.target.closest('[data-pick]'); if (pk) return addPiece(pk.dataset.pick);
     const bc = e.target.closest('[data-bcat]'); if (bc) { B.cat = bc.dataset.bcat; drawPicks(); return; }
     const b = e.target.closest('[data-b]')?.dataset.b, p = B.pieces[B.sel]; if (!b || !p) return;
@@ -3784,7 +3791,7 @@ function openDay(date, opts = {}) {
       <div class="seg" role="group"><button data-mode="outfit">Saved outfit</button><button data-mode="pieces">Pick pieces</button></div></div>
       <div id="dayPick"></div>
       <div class="field"><label for="d-place">Where${rec.place ? ` <button type="button" class="chip link" data-place="${esc(rec.place)}">All days at ${esc(rec.place)}</button>` : ''}</label><input id="d-place" list="placeList" value="${esc(rec.place || '')}" placeholder="Work, a dinner, a city" autocomplete="off"><datalist id="placeList">${places().map(([p]) => `<option value="${esc(p)}">`).join('')}</datalist>
-        ${places().length ? `<div class="chips" style="margin-top:6px">${places().slice(0, 8).map(([p]) => `<button type="button" class="chip" data-fillplace="${esc(p)}">${esc(p)}</button>`).join('')}</div>` : ''}</div>
+        ${places().length ? `<div class="chips" style="margin-top:6px">${places().slice(0, 40).map(([p]) => `<button type="button" class="chip" data-fillplace="${esc(p)}" aria-pressed="${norm(p) === norm(rec.place || '')}">${esc(p)}</button>`).join('')}</div>` : ''}</div>
       <div class="field"><label for="d-note">Note</label><input id="d-note" value="${esc(rec.note || '')}" placeholder="How it felt"></div>`,
     foot: `<span class="busy" id="dStatus"></span><div class="spacer"></div>${S.days[date] ? '<button class="btn danger" id="dClear">Clear day</button>' : ''}<button class="btn primary" id="dSave">${future ? 'Save plan' : 'Save'}</button>`,
     onClose: () => D.adds.forEach(a => URL.revokeObjectURL(a.url))
@@ -3816,7 +3823,7 @@ function openDay(date, opts = {}) {
   });
   if (opts.addPhoto && D.photos.length + D.adds.length < 4) file.click();
   sh.addEventListener('click', async e => {
-    const fp = e.target.closest('[data-fillplace]'); if (fp) { $('#d-place', sh).value = fp.dataset.fillplace; return; }
+    const fp = e.target.closest('[data-fillplace]'); if (fp) { const i = $('#d-place', sh); i.value = norm(i.value) === norm(fp.dataset.fillplace) ? '' : fp.dataset.fillplace; sh.querySelectorAll('[data-fillplace]').forEach(b => b.setAttribute('aria-pressed', norm(b.dataset.fillplace) === norm(i.value))); return; }
     const rm = e.target.closest('[data-rmpic]')?.dataset.rmpic;
     if (rm) {
       const i = +rm.slice(1);
@@ -3872,6 +3879,8 @@ async function start(session) {
   // what life.js needs from the closet: the signed-in Supabase client, photos, sheets and settings
   const lifeLoad = window.LIFE?.start({ sb, uid: () => UID, view: () => S.view, outfits: () => S.outfits.map(o => ({ id: o.id, name: o.name || 'Outfit', board: boardHTML(o.pieces) })), go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url, shop: it.shop, planBuy: it.planBuy || '' })),
     undoQuiet, sbWrite, sbWriteMany, obFlush, uploadFile,
+    // what you typed before in the closet (shops, brands), offered as buttons in the rest of the app too
+    closetVals: k => valuesOf(k),
     // planned outfits for the master calendar, and moving one to another day
     // planned and worn days for the calendar; one odd day is skipped instead of hiding all of them
     closetDays: () => Object.entries(S.days || {}).flatMap(([date, r]) => { try { if (!r || !(r.outfit || dayItems(r).length || asList(r.photos).length)) return []; const n = dayItems(r).length; return [{ date: String(date).slice(0, 10), name: (r.outfit && S.outById?.[r.outfit]?.name) || (n ? n + (n === 1 ? ' stuk' : ' stukken') : 'foto') }]; } catch (e) { console.error('closet day', date, e); return []; } }),
