@@ -902,3 +902,7 @@ img.nophoto { background: var(--line); }
 /* second filter row (a recipe category's kinds of dish) */
 .lfacet2 { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
 .lfacet2 .chip.small { padding: 4px 10px; font-size: 13px; }
+/* third menu row (Body › Health, Train, Beauty): small pills under the tabs */
+.subbar.sub2 { gap: 8px; border-top: 0; padding: 6px 2px 8px; margin-top: 0; }
+.subbar.sub2 button { border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; font-size: 13px; background: var(--surface); }
+.subbar.sub2 button[aria-current="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }

@@ -563,7 +563,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
     <button class="iconbtn findbtn" id="findBtn" hidden aria-label="Search everything" title="Search everything (/)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
     <button class="btn primary" id="addBtn" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span class="addlabel">Add piece</span></button>
   </div>
-  <div class="wrap secwrap"><nav class="secbar" id="secBar" aria-label="Areas" hidden></nav><nav class="subbar" id="subBar" aria-label="Pages" hidden></nav></div>
+  <div class="wrap secwrap"><nav class="secbar" id="secBar" aria-label="Areas" hidden></nav><nav class="subbar" id="subBar" aria-label="Pages" hidden></nav><nav class="subbar sub2" id="sub2Bar" aria-label="More pages" hidden></nav></div>
 </header>
 <main class="wrap" id="main"></main>
 <nav class="bottom" id="tabsBottom" aria-label="Sections"></nav>
@@ -1051,10 +1051,19 @@ function renderTabs() {
     if (!t.g || t.vs.length === 1) { const [k, label, path] = t.v || t.vs[0]; return `<button data-view="${k}" aria-current="${S.view === k}">${icon(path)}<span>${label}</span>${k === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`; }
     const [label, path] = groups[t.g]; return `<button data-view="${grpTarget(t)}" data-grp="${t.g}" aria-current="${curGrp === t.g}">${icon(path)}<span>${label}</span></button>`;
   }).join('');
-  const open = row.find(t => t.g && t.g === curGrp && t.vs.length > 1);
+  const open = row.find(t => t.g && t.g === curGrp && t.vs.length > 1), sub2 = $('#sub2Bar');
+  // a group can hold sub-groups (Body › Health, Train, Beauty): they sit as one button in the second row, their pages in a third
+  const subs = SECTIONS.find(x => x.key === sec)?.subs?.[curGrp] || {}, curSub = views.find(v => v[0] === S.view)?.[4] || '';
+  if (curSub) pref.set('sub:' + sec + '/' + curGrp + '/' + curSub, S.view);
+  const subTarget = (g, sg, vs) => { const last = pref.get('sub:' + sec + '/' + g + '/' + sg, ''); return vs.some(v => v[0] === last) ? last : vs[0][0]; };
+  const row2 = [];
+  if (open) for (const v of open.vs) { const sg = subs[v[4]] ? v[4] : ''; if (!sg) row2.push({ v }); else if (!row2.some(t => t.sg === sg)) row2.push({ sg, vs: open.vs.filter(x => x[4] === sg) }); }
   sub.hidden = !open;
-  sub.innerHTML = open ? open.vs.map(([k, label]) => `<button data-view="${k}" aria-current="${S.view === k}">${label}</button>`).join('') : '';
-  for (const b of [bar, sub]) { const c = b.querySelector('[aria-current="true"]'); if (c && (c.offsetLeft < b.scrollLeft || c.offsetLeft + c.offsetWidth > b.scrollLeft + b.clientWidth)) b.scrollLeft = c.offsetLeft - 16; }
+  sub.innerHTML = row2.map(t => t.sg ? `<button data-view="${subTarget(curGrp, t.sg, t.vs)}" aria-current="${curSub === t.sg}">${subs[t.sg][0]}</button>` : `<button data-view="${t.v[0]}" aria-current="${S.view === t.v[0]}">${t.v[1]}</button>`).join('');
+  const openSub = row2.find(t => t.sg && t.sg === curSub);
+  sub2.hidden = !openSub;
+  sub2.innerHTML = openSub ? openSub.vs.map(([k, label]) => `<button data-view="${k}" aria-current="${S.view === k}">${label}</button>`).join('') : '';
+  for (const b of [bar, sub, sub2]) { const c = b.querySelector('[aria-current="true"]'); if (c && (c.offsetLeft < b.scrollLeft || c.offsetLeft + c.offsetWidth > b.scrollLeft + b.clientWidth)) b.scrollLeft = c.offsetLeft - 16; }
   $('#addBtn').hidden = sec === 'overview' || sec === 'settings' || isSecSettings(S.view);
   $('#addBtn .addlabel').textContent = sec === 'closet' ? 'Add piece' : sec === 'overview' ? 'Add' : window.LIFE.addLabel(S.view);
 }
@@ -1087,7 +1096,7 @@ document.addEventListener('click', e => { const b = e.target.closest('nav [data-
 function render() {
   const signedIn = !!UID;
   $('#tabsTop').hidden = $('#tabsBottom').hidden = !signedIn;
-  if (!signedIn) $('#secBar').hidden = $('#subBar').hidden = true;
+  if (!signedIn) $('#secBar').hidden = $('#subBar').hidden = $('#sub2Bar').hidden = true;
   $('#addBtn').hidden = $('#findBtn').hidden = !signedIn;
   if (!signedIn) return;
   renderTabs();
@@ -2077,7 +2086,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v111';
+const APP_VERSION = 'hangtag-v112';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],

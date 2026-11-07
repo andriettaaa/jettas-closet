@@ -1181,8 +1181,17 @@ function fitTile() {
 /* ---------- sections and their pages ---------- */
 const SECTIONS = [
   { key: 'plan', label: 'Life', icon: P.target, tile: () => planTile() + bodyTile(),
-    groups: { mind: ['Mind', P.pen], body: ['Body', P.pulse], train: ['Train', P.run], beauty: ['Beauty', P.drop], plans: ['Plans', P.star], wish: ['Wishlists', P.heart] },
-    views: [['today', 'My year', P.target], ['week', 'Week', P.calendar], ['care/habits', 'Routines', P.repeat], ['care/journal', 'Journal', P.pen, 'mind'], ['care/mindful', 'Mindfulness', P.moon, 'mind'], ['care/growth', 'Growth', P.target, 'mind'], ['care/vision', 'Vision', P.sparkle, 'mind'], ['care/discover', 'Self discovery', P.user, 'mind'], ['body/today', 'Body', P.pulse, 'body'], ['body/clean', 'Clean', P.leaf, 'body'], ['fit/workouts', 'Workouts', P.run, 'train'], ['fit/library', 'Videos', P.star, 'train'], ['fit/plans', 'Plans', P.list, 'train'], ['fit/exercises', 'Exercises', P.dumbbell, 'train'], ['fit/fgoals', 'Goals', P.target, 'train'], ['fit/body', 'Body', P.scale, 'train'], ['fit/gear', 'Gear', P.box, 'train'], ['care/health', 'Sleep & health', P.moon, 'body'], ['care/cycle', 'Cycle', P.moon, 'body'], ['care/supplements', 'Supplements', P.pill, 'body'], ['care/beauty', 'Products', P.drop, 'beauty'], ['care/skin', 'Skincare', P.flask, 'beauty'], ['care/diary', 'Skin diary', P.camera, 'beauty'], ['care/bdeals', 'Deals', P.tag, 'beauty'], ['care/trips', 'Trips', P.plane, 'plans'], ['care/docs', 'Documents', P.doc, 'plans'], ['care/ideas', 'Ideas', P.star, 'plans'], ['care/saved', 'Saved links', P.link, 'plans'], ['care/gifts', 'Gifts', P.gift, 'plans'], ['wish/today', 'Overview', P.grid, 'wish'], ['wish/inbox', 'Inbox', P.inbox, 'wish'], ['wish/master', 'Master', P.heart, 'wish'], ['wish/orders', 'Orders', P.box, 'wish'], ['todo', 'To do', P.check]] },
+    groups: { mind: ['Mind', P.pen], body: ['Body', P.pulse], plans: ['Plans', P.star], wish: ['Wishlists', P.heart] },
+    // a third layer inside a group: Body › Health, Train, Beauty
+    subs: { body: { health: ['Health', P.moon], train: ['Train', P.run], beauty: ['Beauty', P.drop] } },
+    views: [['overview', 'Overview', P.grid], ['week', 'Week', P.calendar],
+      ['today', 'My year', P.target, 'mind'], ['care/habits', 'Routines', P.repeat, 'mind'], ['care/journal', 'Journal', P.pen, 'mind'], ['care/mindful', 'Mindfulness', P.moon, 'mind'], ['care/growth', 'Growth', P.target, 'mind'], ['care/vision', 'Vision', P.sparkle, 'mind'], ['care/discover', 'Self discovery', P.user, 'mind'],
+      ['body/today', 'Overview', P.grid, 'body'],
+      ['care/health', 'Sleep & health', P.moon, 'body', 'health'], ['care/cycle', 'Cycle', P.moon, 'body', 'health'], ['care/supplements', 'Supplements', P.pill, 'body', 'health'], ['body/clean', 'Clean', P.leaf, 'body', 'health'],
+      ['fit/workouts', 'Workouts', P.run, 'body', 'train'], ['fit/library', 'Videos', P.star, 'body', 'train'], ['fit/plans', 'Plans', P.list, 'body', 'train'], ['fit/exercises', 'Exercises', P.dumbbell, 'body', 'train'], ['fit/fgoals', 'Goals', P.target, 'body', 'train'], ['fit/body', 'Body', P.scale, 'body', 'train'], ['fit/gear', 'Gear', P.box, 'body', 'train'],
+      ['care/beauty', 'Products', P.drop, 'body', 'beauty'], ['care/skin', 'Skincare', P.flask, 'body', 'beauty'], ['care/diary', 'Skin diary', P.camera, 'body', 'beauty'], ['care/bdeals', 'Deals', P.tag, 'body', 'beauty'],
+      ['care/trips', 'Trips', P.plane, 'plans'], ['care/docs', 'Documents', P.doc, 'plans'], ['care/ideas', 'Ideas', P.star, 'plans'], ['care/saved', 'Saved links', P.link, 'plans'], ['care/gifts', 'Gifts', P.gift, 'plans'],
+      ['wish/today', 'Overview', P.grid, 'wish'], ['wish/inbox', 'Inbox', P.inbox, 'wish'], ['wish/master', 'Master', P.heart, 'wish'], ['wish/orders', 'Orders', P.box, 'wish'], ['todo', 'To do', P.check]] },
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile,
     groups: { food: ['Food', P.book], shop: ['Shop', P.cart] },
     views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['pantry', 'Pantry', P.jar, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['shops', 'Shops', P.house, 'shop'], ['todo', 'To do', P.check]] },
@@ -1208,6 +1217,7 @@ const PAGES = {
   'kitchen/groceries': { title: 'Groceries', segs: [{ key: 'list', label: 'Shopping list', kind: 'ingredients', fill: groceryFill, tools: false }] },
   'kitchen/pantry': { title: 'Pantry', segs: [{ kind: 'ingredients' }, { key: 'freezer', label: 'Freezer', kind: 'ingredients', fill: freezerFill, tools: false }] },
   'kitchen/shops': { title: 'Shops', segs: [{ kind: 'shops', label: 'Your shops' }] },
+  'plan/overview': { render: lifeOverview, adds: ['journal', 'sleep', 'workouts', 'wishes', 'gifts'] },
   'plan/today': { render: planToday, adds: ['habits', 'routines', 'journal', 'lgoals', 'fgoals'] },
   'plan/week': { render: planWeek, adds: ['journal'] },
   'body/today': { render: bodyToday, adds: ['sleep', 'workouts', 'cleanlog', 'symptoms', 'cycles'] },
@@ -5492,6 +5502,20 @@ function socialPinterest(host) {
   host.querySelectorAll('[data-pnrole]').forEach(el => el.addEventListener('change', () => pnSetRole(el.dataset.pnrole, el.value)));
 }
 
+/* Life › Overview: one look at Mind, Body, Plans and Wishlists (the analyses come per group) */
+function lifeOverview(host) {
+  const nt = nextTrip(), gifts = recs('gifts').filter(g => g.status !== 'Given'), orders = recs('orders').filter(o => ['Ordered', 'Shipped'].includes(o.status || 'Ordered'));
+  const go = (v, l) => `<button class="chip link" data-act="go" data-v="${v}">${esc(l)}</button>`;
+  host.innerHTML = `${head('Life')}
+  <div class="quickacts lifeacts"><button class="chip" data-act="new" data-v="journal">+ Journal</button><button class="chip" data-act="new" data-v="sleep">+ Slaap</button><button class="chip" data-act="new" data-v="workouts">+ Workout</button><button class="chip" data-act="new" data-v="wishes">+ Wens</button></div>
+  <div class="panels">
+    ${panel('Mind', planTile(), ['plan/today', 'My year'])}
+    ${panel('Body', bodyTile() || quiet('Nog niets voor vandaag.'), ['body/today', 'Body'])}
+    ${panel('Plans', `${nt ? `<p class="dline"><span>Volgende trip</span><b>${esc(tripName(nt))}</b></p>` : quiet('Geen trip gepland.')}${gifts.length ? `<p class="dline"><span>Cadeau-ideeën</span><b>${gifts.length}</b></p>` : ''}`, ['care/trips', 'Trips'])}
+    ${panel('Wishlists', `${typeof wishTile === 'function' ? wishTile() : ''}${orders.length ? `<p class="dline"><span>Onderweg</span><b>${plural(orders.length, 'bestelling', 'bestellingen')}</b></p>` : ''}`, ['wish/today', 'Wishlists'])}
+  </div>`;
+}
+
 /* Life › My year */
 function planToday(host) {
   invMigrate();
@@ -5588,7 +5612,7 @@ function bodyTile() { const cs = cleanStats(); return (cs.start ? `<p class="dli
 /* ---------- what index.html calls ---------- */
 const sectionOf = view => SECTIONS.find(s => s.views.some(v => vkey(s, v) === view)) || SECTIONS.find(s => view.startsWith(s.key + '/')) || ({ care: SECTIONS.find(s => s.key === 'plan'), fit: SECTIONS.find(s => s.key === 'plan'), body: SECTIONS.find(s => s.key === 'plan'), wish: SECTIONS.find(s => s.key === 'plan') })[view.split('/')[0]];
 return {
-  sections: SECTIONS.map(s => ({ key: s.key, label: s.label, icon: G(s.icon), groups: Object.fromEntries(Object.entries(s.groups || {}).map(([g, [l, ic]]) => [g, [l, G(ic)]])), views: s.views.map(v => [vkey(s, v), v[1], G(v[2]), v[3] || '']) })),
+  sections: SECTIONS.map(s => ({ key: s.key, label: s.label, icon: G(s.icon), groups: Object.fromEntries(Object.entries(s.groups || {}).map(([g, [l, ic]]) => [g, [l, G(ic)]])), subs: Object.fromEntries(Object.entries(s.subs || {}).map(([g, o]) => [g, Object.fromEntries(Object.entries(o).map(([k, [l, ic]]) => [k, [l, G(ic)]]))])), views: s.views.map(v => [vkey(s, v), v[1], G(v[2]), v[3] || '', v[4] || '']) })),
   has: view => !!PAGES[view],
   lists: optionLists, fullList: fullOptions, renameIn: renameOption,
   search, openFound, settingsPanels,
