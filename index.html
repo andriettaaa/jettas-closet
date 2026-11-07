@@ -2115,7 +2115,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v132';
+const APP_VERSION = 'hangtag-v133';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2235,7 +2235,7 @@ function renderSettings(host) {
     const own = sec === 'closet' ? `<section class="panel setpanel"><h3>To do counts these fields</h3><p class="muted">Turn a field off and pieces no longer show up in To do for missing it.</p>${TODO_CHECKS.map(([k, l]) => `<label class="settog setrow"><input type="checkbox" data-tdreq="${k}" ${todoSkip().has(k) ? '' : 'checked'}> ${esc(l)}</label>`).join('')}</section><section class="panel setpanel"><h3>Closet</h3><p class="muted">Your categories and a backup of your wardrobe.</p>
         <div class="setbtns"><button class="btn small" data-editcats>Edit categories</button><button class="btn small" data-cexport>Download backup (.json)</button><button class="btn small" data-fullbackup>Everything with photos (.zip)</button><button class="btn small" data-cimport>Import from file</button><input type="file" class="vh" data-cimportfile accept=".json,application/json"></div><p class="busy" data-cimportmsg></p></section>`
       : (window.LIFE?.settingsPanels?.(sec) || '') + (sec === 'money' ? spendPanel() : '');
-    const io = sec === 'closet' ? '' : `<section class="panel setpanel"><h3>Import and backup</h3><p class="muted">Bring lists over from Notion or keep a copy of everything.</p><div class="setbtns"><button class="btn small" data-act="import">Import from Notion</button><button class="btn small" data-act="export">Back up all lists</button><button class="btn small" data-fullbackup>Everything with photos (.zip)</button></div><p class="busy" data-fullmsg></p></section>`;
+    const io = sec === 'closet' ? '' : `<section class="panel setpanel"><h3>Import and backup</h3><p class="muted">Bring lists over from a file (Notion, Albo recipes) or keep a copy of everything.</p><div class="setbtns"><button class="btn small" data-act="import">Import a file</button><button class="btn small" data-act="export">Back up all lists</button><button class="btn small" data-fullbackup>Everything with photos (.zip)</button></div><p class="busy" data-fullmsg></p></section>`;
     host.innerHTML = `<div class="viewhead"><h1>${esc(secObj?.label || '')} settings</h1><span class="sub">Only for ${esc(secObj?.label || 'this section')}</span></div>
   <div class="panels setpanels">
     ${own}
