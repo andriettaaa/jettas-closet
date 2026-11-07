@@ -407,7 +407,7 @@ Deno.serve(async req => {
     const uid = Deno.env.get('SPEND_USER_ID')!;
     // the app itself may ask for an Instagram sync, signed in as you
     let viaApp = false;
-    if ((!token || token !== Deno.env.get('OFFERS_TOKEN')) && ['igsync', 'ttstart', 'ttconnect', 'ttsync', 'igpost', 'ttpost'].includes(body.action)) {
+    if ((!token || token !== Deno.env.get('OFFERS_TOKEN')) && ['igsync', 'ttstart', 'ttconnect', 'ttsync', 'igpost', 'ttpost', 'photourl'].includes(body.action)) {
       const jwt = req.headers.get('authorization')?.replace(/^Bearer /, '') || '';
       const { data: u } = await sb.auth.getUser(jwt); viaApp = !!u?.user && u.user.id === uid;
     }
@@ -419,6 +419,20 @@ Deno.serve(async req => {
     if (body.action === 'ttsync') return json(await ttSync(uid));
     if (body.action === 'igpost') return json(await igPost(uid, str(body.id, 60), str(body.container, 60)));
     if (body.action === 'ttpost') return json(await ttPost(uid, str(body.id, 60)));
+    // a photo from the web for the closet editor: the browser may not read other sites' images, so this fetches it
+    // and hands it back (nothing is stored). A page link instead of an image link gets the page's main picture.
+    if (body.action === 'photourl') {
+      const ua = { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36', 'Accept': 'image/avif,image/webp,image/png,image/jpeg,text/html;q=0.8,*/*;q=0.5' };
+      let url = str(body.url, 2000), page = '';
+      if (!/^https?:\/\//.test(url)) return json({ error: 'Paste a link that starts with https://' }, 400);
+      let r = await fetch(url, { headers: ua, redirect: 'follow' });
+      if (r.ok && (r.headers.get('content-type') || '').includes('html')) { page = url; const seen = await peek(url); if (!seen.photo) return json({ error: 'That page has no photo. Copy the image address itself.' }, 400); url = seen.photo; r = await fetch(url, { headers: ua, redirect: 'follow' }); }
+      const type = r.headers.get('content-type') || '';
+      if (!r.ok || !type.startsWith('image/')) return json({ error: 'That link is not an image' }, 400);
+      const buf = new Uint8Array(await r.arrayBuffer()); if (buf.length > 8e6) return json({ error: 'That photo is too big (over 8 MB)' }, 400);
+      let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+      return json({ data: btoa(bin), type, page });
+    }
 
     if (body.action === 'recipes') {
       const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['recipes', 'ingredients', 'wplans', 'rreviews']);
