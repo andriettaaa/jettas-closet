@@ -456,7 +456,7 @@ Deno.serve(async req => {
     if (body.action === 'beautylist') {
       const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['beauty', 'wishes', 'bshops']);
       if (error) throw error;
-      const products = data.filter((r: any) => r.kind === 'beauty').map((r: any) => clean({ id: r.id, name: r.data.name, brand: r.data.brand, type: r.data.type, size: r.data.size, price: r.data.price, fav: r.data.fav || undefined, finished: r.data.finished || undefined, wish: r.data.wish || undefined, qty: r.data.qty, opened: r.data.opened, rating: r.data.rating }));
+      const products = data.filter((r: any) => r.kind === 'beauty').map((r: any) => clean({ id: r.id, name: r.data.name, brand: r.data.brand, type: r.data.type, size: r.data.size, price: r.data.price, fav: r.data.fav || undefined, low: r.data.low || undefined, finished: r.data.finished || undefined, wish: r.data.wish || undefined, qty: r.data.qty, opened: r.data.opened, rating: r.data.rating }));
       const wishes = data.filter((r: any) => r.kind === 'wishes' && /beauty/i.test(String(r.data.category || '')) && !r.data.archived && !['Bought', 'Dropped'].includes(r.data.status)).map((r: any) => clean({ id: r.id, name: r.data.name, brand: r.data.brand, shop: r.data.shop, price: r.data.price, url: r.data.url }));
       const shops = data.filter((r: any) => r.kind === 'bshops').map((r: any) => shopOut(r.data));
       return json({ products, wishes, shops });

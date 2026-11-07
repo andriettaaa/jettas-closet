@@ -241,7 +241,7 @@ const KINDS = {
     fields: [F('name', 'Name'), F('category', 'Category', 'select', { options: Object.values(CAT_NL.ingredients) }),
       F('location', 'Kept in', 'select', { options: ['Koelkast', 'Vriezer', 'Voorraadkast', 'Keukenkast', 'Fruitmand', 'Broodtrommel', 'Kelder / Berging', 'Overig'] }),
       F('stock', 'In stock', 'check', { half: 1 }), F('low', 'Running low', 'check', { half: 1 }), F('list', 'On grocery list', 'check', { half: 1 }),
-      F('expires', 'Best before', 'date', { half: 1 }), F('frozen', 'Frozen on', 'date', { half: 1 }), F('portions', 'Portions', 'num', { half: 1 }), F('helps', 'Helps with', 'multi', { options: HELPS }),
+      F('expires', 'Best before', 'date', { half: 1 }), F('frozen', 'Frozen on', 'date', { half: 1 }), F('portions', 'Portions', 'num', { half: 1 }), F('shop', 'Buy at', 'select', { options: STORES, more: () => shopNames('shops'), half: 1 }), F('helps', 'Helps with', 'multi', { options: HELPS }),
       F('qty', 'Amount', 'text', { half: 1 }), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['category', 'Category'], ['location', 'Where it is']],
     filters: [['all', 'All'], ['in', 'In stock'], ['low', 'Running low'], ['soon', 'Use soon'], ['out', 'Out of stock']],
@@ -348,14 +348,15 @@ const KINDS = {
       F('price', 'Price', 'money', { half: 1 }), F('qty', 'How many', 'num', { half: 1 }),
       F('bought', 'Bought on', 'date', { half: 1 }), F('opened', 'Opened on', 'date', { half: 1 }),
       F('expiry', 'Use before', 'date', { half: 1 }), F('rating', 'Rating', 'rating', { half: 1 }),
-      F('fav', 'Favourite', 'check', { half: 1 }), F('finished', 'Finished', 'check', { half: 1 }), F('wish', 'On my wishlist', 'check', { half: 1 }),
+      F('fav', 'Favourite', 'check', { half: 1 }), F('low', 'Running low', 'check', { half: 1 }), F('finished', 'Finished', 'check', { half: 1 }), F('wish', 'On my wishlist', 'check', { half: 1 }),
       F('acid', 'Counts as an acid', 'check', { half: 1 }),
       F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['brand', 'Brand'], ['-rating', 'Best rated'], ['expiry', 'Use first'], ['-bought', 'Newest']],
     filters: [['all', 'All'], ['own', 'I have'], ['want', 'Wishlist']],
     filter: (r, f) => f === 'own' ? !r.wish : f === 'want' ? !!r.wish : true,
     hide: r => r.finished || r.archived, hideLabel: 'Show finished',
-    sub: r => [r.wish ? 'Wishlist' : '', r.brand, r.type, r.texture, r.am && r.pm ? 'AM + PM' : r.am ? 'AM' : r.pm ? 'PM' : ''].filter(Boolean).join(' · '),
+    quick: r => ({ on: !!r.low, label: 'Running low', act: () => save(r, { low: !r.low }) }),
+    sub: r => [r.low ? 'running low' : '', r.wish ? 'Wishlist' : '', r.brand, r.type, r.texture, r.am && r.pm ? 'AM + PM' : r.am ? 'AM' : r.pm ? 'PM' : ''].filter(Boolean).join(' · '),
     side: r => r.expiry ? (r.expiry < today() ? 'expired' : diffDays(today(), r.expiry) <= 30 ? 'use by ' + shortDate(r.expiry) : '') : ''
   },
   supplements: {
@@ -1940,7 +1941,8 @@ function beautyReviews(r) {
   const vs = recs('breviews').filter(v => v.product === r.id).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const wk = r.opened ? Math.floor(diffDays(r.opened, today()) / 7) : null, has = a => vs.some(v => v.after === a);
   const due = wk == null ? (vs.length ? '' : 'First use') : wk >= 8 && !has('8 weeks') ? '8 weeks' : wk >= 4 && !has('4 weeks') ? '4 weeks' : wk >= 1 && !has('1 week') ? '1 week' : !vs.length ? 'First use' : '';
-  return `<section class="ltipsteps"><div class="lph3"><h3>Reviews</h3><button type="button" class="chip ${due ? 'on' : ''}" data-act="newreview" data-id="${r.id}" data-v="${esc(due || 'Later')}">${due ? `Write your ${esc(due.toLowerCase())} review` : 'Add a review'}</button></div>
+  const lowBtn = `<div class="lwrap blowrow"><button type="button" class="chip ${r.low ? 'on' : ''}" data-act="blowsheet" data-id="${r.id}" aria-pressed="${!!r.low}">${r.low ? svg(P.check) + ' Running low' : 'Running low?'}</button><span class="lnone">${r.low ? 'The weekly task looks for deals on this.' : 'Tap when it is almost empty, and the weekly task looks for deals.'}</span></div>`;
+  return lowBtn + `<section class="ltipsteps"><div class="lph3"><h3>Reviews</h3><button type="button" class="chip ${due ? 'on' : ''}" data-act="newreview" data-id="${r.id}" data-v="${esc(due || 'Later')}">${due ? `Write your ${esc(due.toLowerCase())} review` : 'Add a review'}</button></div>
     ${vs.length ? `<div class="lrows">${vs.map(v => `<div class="lrow"><button class="lmain" data-act="open" data-id="${v.id}"><b>${esc(v.after || 'Review')}${reviewAvg(v) ? ` · ${reviewAvg(v).toFixed(1)} / 5` : ''}</b><span>${esc([v.date && niceDate(v.date), v.again && 'buy again: ' + v.again.toLowerCase(), v.reason].filter(Boolean).join(' · '))}</span></button></div>`).join('')}</div>` : '<p class="lnone">No reviews yet. Rate how your skin reacts, how it feels, and whether you would buy it again.</p>'}</section>`;
 }
 /* Skin diary: photos, how your skin is, what you used and the circumstances, in four views */
@@ -2077,7 +2079,9 @@ function bdealFill(fill) {
       <div class="dbtns">${o.url ? `<a class="btn small primary" href="${esc(o.url)}" target="_blank" rel="noopener">Open deal</a>` : ''}${pr ? `<button class="btn small" data-act="open" data-id="${pr.id}">Your product</button>` : ''}<button class="btn small" data-act="open" data-id="${o.id}">Details</button></div></div></div>`; };
   const shops = recs('bshops'), readN = shops.filter(x => x.readDeals).length;
   const body = groups.map(([k, title]) => { const l = live.filter(o => (o.match || 'Brand you use') === k); return l.length ? `<h3 class="lgh">${esc(title)} · ${l.length}</h3><div class="bdgrid">${l.map(card).join('')}</div>` : ''; }).join('');
-  fill.innerHTML = `${body || quiet('No beauty deals yet. Every week a task checks your beauty shops for deals on your own products, things running low and your wishlist.')}
+  const low = recs('beauty').filter(b => b.low || b.finished);
+  const lowList = low.length ? `<h3 class="lgh">Running low · ${low.length}</h3><div class="lrows">${low.map(b => { const dl = live.filter(o => o.product === b.id).sort((x, y) => (num(x.price) ?? 1e9) - (num(y.price) ?? 1e9))[0]; return `<div class="lrow"><button class="lmain" data-act="open" data-id="${b.id}"><b>${esc(b.name)}</b><span>${esc([b.brand, b.finished ? 'finished' : 'running low', dl ? `deal at ${dl.store}${num(dl.price) ? ' ' + eur(num(dl.price)) : ''}` : 'no deal this week'].filter(Boolean).join(' · '))}</span></button><button class="btn small ghost" data-act="blow" data-id="${b.id}">Got it</button></div>`; }).join('')}</div>` : '';
+  fill.innerHTML = `${lowList}${body || quiet('No beauty deals yet. Every week a task checks your beauty shops for deals on your own products, things running low and your wishlist.')}
     <p class="lnone">${shops.length ? `${plural(readN, 'shop')} checked every week. Add or remove shops under Beauty shops.` : 'Add your beauty shops under Beauty shops so the weekly task knows where to look.'}</p>`;
 }
 function dealsPage(host) {
@@ -2125,7 +2129,7 @@ async function dealsAct(act, k, i) {
   const m = plan[k]?.[i];
   if (act === 'dgroc') {
     const rows = [], seen = new Set();
-    for (const [k, x] of (plan.shopping || []).entries()) { if (!dealPicked(x, k)) continue; const r = ingRow(x.name, { list: true }); if (seen.has(r.id)) continue; seen.add(r.id); rows.push(r); }
+    for (const [k, x] of (plan.shopping || []).entries()) { if (!dealPicked(x, k)) continue; const r = ingRow(x.name, { list: true, ...(x.store ? { shop: x.store } : {}), ...(x.qty ? { qty: x.qty } : {}) }); if (seen.has(r.id)) continue; seen.add(r.id); rows.push(r); }
     if (!rows.length) { C.toast('Nothing to add: you have everything.'); return; }
     try { await putMany(rows, null, `Put ${plural(rows.length, 'thing')} from the deals on the grocery list`); C.toast(`${plural(rows.length, 'thing')} on your grocery list`); } catch { C.toast('Could not save. Try again.'); }
     return;
@@ -2695,12 +2699,18 @@ function groceryFill(fill) {
     fill.innerHTML = `<form class="lqadd" data-qadd><input type="text" placeholder="Add something to buy" aria-label="Add to grocery list" autocomplete="off" enterkeyhint="done"><button class="btn primary" type="submit">Add</button></form><div class="lsugs" data-sugs></div><div data-glist></div>`;
     fill.querySelector('input').addEventListener('input', e => sugs(fill, e.target.value));
   }
-  const items = recs('ingredients').filter(i => i.list);
+  const items = recs('ingredients').filter(i => i.list), mkt = MARKET_DAYS.includes(food().shopDay), mktName = recs('shops').find(r => r.type === 'Market')?.name || 'Market';
+  const shopOf = i => mkt && isProduce(i) ? mktName : i.shop || 'Anywhere';
   const groups = {};
-  for (const i of items) (groups[i.category || 'Other'] ||= []).push(i);
+  for (const i of items) (groups[shopOf(i)] ||= []).push(i);
+  // route: the market first on market days, then the shops in the order of the week plan, then the rest
+  const order = [...(mkt ? [mktName] : []), ...(curPlan()?.shopping || []).map(x => x.store), ...kitchenStores(), ...Object.keys(groups).sort()].filter((v, k, a) => v && a.indexOf(v) === k && groups[v]);
+  if (groups.Anywhere && !order.includes('Anywhere')) order.push('Anywhere');
+  const env = groceryEnv();
   const g = fill.querySelector('[data-glist]');
-  g.innerHTML = items.length ? Object.keys(groups).sort().map(c => `<h3 class="lgh">${esc(c)}</h3><div class="lrows">${groups[c].sort((a, b) => norm(a.name).localeCompare(norm(b.name))).map(i => `<div class="lrow"><button class="lbuy" data-act="buy" data-id="${i.id}" aria-label="Bought ${esc(i.name)}"></button><button class="lmain" data-act="open" data-id="${i.id}"><b>${esc(i.name)}</b>${i.qty || i.location ? `<span>${esc([i.qty, i.location].filter(Boolean).join(' · '))}</span>` : ''}</button><button class="iconbtn lx" data-act="unlist" data-id="${i.id}" aria-label="Take ${esc(i.name)} off the list">${svg(P.x)}</button></div>`).join('')}</div>`).join('')
-    + `<p class="lnone">Tick something off and it moves into your pantry.</p>`
+  const line = i => `<div class="lrow"><button class="lbuy" data-act="buy" data-id="${i.id}" aria-label="Bought ${esc(i.name)}"></button><button class="lmain" data-act="open" data-id="${i.id}"><b>${esc(i.name)}</b>${i.qty || i.category ? `<span>${esc([i.qty, i.category].filter(Boolean).join(' · '))}</span>` : ''}</button>${isMeatFish(i) ? `<button class="btn small" data-act="buyfreeze" data-id="${i.id}" title="Bought, straight into the freezer">Freeze</button>` : ''}<button class="iconbtn lx" data-act="unlist" data-id="${i.id}" aria-label="Take ${esc(i.name)} off the list">${svg(P.x)}</button></div>`;
+  g.innerHTML = items.length ? order.map(c => `<div class="lgh gshop"><h3>${esc(c)} · ${groups[c].length}</h3>${env && c !== 'Anywhere' ? `<button class="chip link" data-act="paid" data-v="${esc(c)}">Paid</button>` : ''}</div><div class="lrows">${groups[c].sort((a, b) => norm(a.category || 'zz').localeCompare(norm(b.category || 'zz')) || norm(a.name).localeCompare(norm(b.name))).map(line).join('')}</div>`).join('')
+    + `<p class="lnone">Tick something off and it moves into your pantry. ${env ? `Tap Paid when you pay at a shop, and it goes into ${esc(env.name)} in Finance.` : ''}</p>`
     : quiet('Your list is empty. Add things above, or use “Add missing to list” on a recipe.');
   sugs(fill, fill.querySelector('.lqadd input').value);
 }
@@ -3669,6 +3679,7 @@ function openEditor(kind, id, preset = {}) {
     if (d.act === 'ttpost') return ttPostNow(d.id);
     if (d.act === 'mkpost') return ideaToPost(d.id);
     if (d.act === 'newreview') { C.closeSheet(); return openEditor('breviews', null, { product: d.id, date: today(), after: d.v }); }
+    if (d.act === 'blowsheet') { const b = L.byId[d.id]; if (!b) return; sh.querySelector('[data-chk="low"]')?.click(); const on = !!D.low; const btn = sh.querySelector('[data-act="blowsheet"]'); if (btn) { btn.classList.toggle('on', on); btn.setAttribute('aria-pressed', on); btn.innerHTML = on ? svg(P.check) + ' Running low' : 'Running low?'; } return save(b, { low: on }).then(() => C.toast(on ? 'On the running low list' : 'Taken off the running low list')); }
     if (d.act === 'mkidea') return postToIdea(d.id);
     if (d.opt) { const f = fdef(d.opt); if (f.type === 'multi') { const a = [].concat(D[d.opt] || []); const i = a.indexOf(d.v); i >= 0 ? a.splice(i, 1) : a.push(d.v); D[d.opt] = a; } else D[d.opt] = D[d.opt] === d.v ? '' : d.v; redraw(d.opt); }
     else if (d.chk) { D[d.chk] = !D[d.chk]; redraw(d.chk); }
@@ -3883,6 +3894,9 @@ document.addEventListener('click', async e => {
     case 'dkeep': case 'dplan': case 'dgroc': dealsAct(d.act, d.k, Number(d.i)); break;
     case 'shopday': C.savePrefs({ food: { ...food(), shopDay: food().shopDay === d.v ? '' : d.v } }).catch(() => C.toast('Could not save. Try again.')); break;
     case 'leftover': leftover(d.id, d.v); break;
+    case 'buyfreeze': { const r = L.byId[d.id]; if (r) save(r, { list: false, stock: true, location: 'Vriezer', frozen: today() }).then(() => C.toast(`${r.name} is in the freezer`)); break; }
+    case 'paid': { const env = groceryEnv(); openEditor('ftx', null, { name: 'Boodschappen ' + d.v, date: today(), category: env?.id, account: fMainAcc()?.id }); break; }
+    case 'blow': { const r = L.byId[d.id]; if (r) save(r, { low: !r.low }).then(() => C.toast(r.low ? 'Taken off the running low list' : 'On the running low list: the weekly task looks for deals')); break; }
     case 'freeze': { const o = L.byId[d.id]; openEditor('ingredients', null, { name: o?.name || '', category: 'Vlees & vis', location: 'Vriezer', stock: true, frozen: today(), notes: o ? [o.store, o.deal, num(o.price) ? eur(num(o.price)) : ''].filter(Boolean).join(' · ') : '' }); break; }
     case 'freezeuse': { const r = L.byId[d.id]; if (!r) break; const n = num(r.portions); if (n > 1) save(r, { portions: n - 1 }); else { save(r, { portions: null, stock: false, frozen: null }); C.toast(`${r.name} is out of the freezer`); } break; }
     case 'butcherlist': { const r = ingRow(d.v, { list: true, notes: myButcher() ? 'Slager: ' + myButcher().name : 'Slager' }); putMany([r], null, `Put ${d.v} on the grocery list`).then(() => C.toast('On your grocery list, for the butcher')).catch(() => C.toast('Could not save. Try again.')); break; }

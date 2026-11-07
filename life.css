@@ -781,3 +781,5 @@ img.nophoto { background: var(--line); }
 .dbar { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin-bottom: 6px; }
 .dbar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
 .dbar i.over { background: var(--danger); }
+.lgh.gshop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lgh.gshop h3 { margin: 0; font: inherit; }
