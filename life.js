@@ -4722,21 +4722,40 @@ async function fromBudgetBackup(j) {
   out.push({ id: fs?.id || await U('settings'), kind: 'fset', data: clean({ payday: st.payday, payAmount: st.v3PayAmount, buffer: st.buffer, cycle: 'Monthly' }) });
   return out;
 }
+/* a file can ask to fill in only (mode "fill", like the Albo recipes): a recipe with the same name as one you
+   already have keeps everything you filled in yourself and only gets what is still empty */
+const isEmptyVal = v => v == null || v === '' || (Array.isArray(v) && !v.length);
+function fillMatch(rows) {
+  const byName = new Map(); for (const k of new Set(rows.map(r => r.kind))) for (const r of recs(k)) { const key = k + '#' + deUml(titleOf(r)); if (!byName.has(key)) byName.set(key, r.id); }
+  let added = 0, filled = 0, same = 0;
+  const out = rows.map(r => {
+    const id = L.byId[r.id] ? r.id : byName.get(r.kind + '#' + deUml(r.data.name || r.data.title || '')) || r.id, have = L.byId[id];
+    if (!have) { added++; return { ...r, id }; }
+    const cur = dataOf(have), data = { ...cur };
+    let n = 0; for (const [k, v] of Object.entries(r.data)) if (isEmptyVal(cur[k]) && !isEmptyVal(v)) { data[k] = v; n++; }
+    n ? filled++ : same++;
+    return n ? { ...r, id, data } : null;
+  }).filter(Boolean);
+  return { rows: out, added, filled, same };
+}
 async function importFile(file) {
-  let rows;
+  let rows, fill = null;
   try {
     const j = JSON.parse(await file.text());
+    if (j && !Array.isArray(j) && j.mode === 'fill') fill = true;
     rows = (isBudgetBackup(j) ? await fromBudgetBackup(j) : Array.isArray(j) ? j : j.records || []).filter(r => r && r.id && KINDS[r.kind] && r.data && typeof r.data === 'object');
   } catch { rows = null; }
   if (!rows?.length) { C.toast('That file has no lists this app can read.'); return; }
   const mt = importMatch(rows); rows = mt.rows;
+  if (fill) { fill = fillMatch(rows); rows = fill.rows; if (!rows.length) { C.toast(`Nothing to add: all ${plural(fill.same, 'record')} are already complete.`); return; } }
   const keep = rows.filter(r => !r.photoData && /^https?:/.test(r.data.photo || '') && L.byId[r.id]?.photo && !/^https?:/.test(L.byId[r.id].photo));
   keep.forEach(r => { r.data.photo = L.byId[r.id].photo; });
   const counts = {}; for (const r of rows) counts[r.kind] = (counts[r.kind] || 0) + 1;
   const fresh = rows.filter(r => !L.byId[r.id]).length;
   const sh = C.sheet({
-    title: 'Import from Notion',
-    body: `<p>This adds ${plural(rows.length, 'record')}${fresh !== rows.length ? `, ${fresh} of them new. The other ${rows.length - fresh} are already here and get the values from the file; what the file leaves out stays as it is` : ''}.${mt.matched ? ` ${plural(mt.matched, 'item')} with the same name as one that is already here ${mt.matched === 1 ? 'is' : 'are'} not added again.` : ''}</p>
+    title: fill ? 'Import and fill in' : 'Import',
+    body: fill ? `<p>${fill.added ? `This adds ${plural(fill.added, 'new record')}.` : ''} ${fill.filled ? `${plural(fill.filled, 'record')} you already have ${fill.filled === 1 ? 'gets' : 'get'} only what is still empty; what you filled in yourself stays.` : ''} ${fill.same ? `${plural(fill.same, 'record')} ${fill.same === 1 ? 'is' : 'are'} already complete and ${fill.same === 1 ? 'stays' : 'stay'} as ${fill.same === 1 ? 'it is' : 'they are'}.` : ''}</p>
+      <div class="lrows">${Object.entries(counts).sort((a, b) => azCmp(KINDS[a[0]].many, KINDS[b[0]].many)).map(([k, n]) => `<div class="lrow"><span class="lmain"><b>${esc(KINDS[k].many)}</b></span><span class="lside">${n}</span></div>`).join('')}</div>` : `<p>This adds ${plural(rows.length, 'record')}${fresh !== rows.length ? `, ${fresh} of them new. The other ${rows.length - fresh} are already here and get the values from the file; what the file leaves out stays as it is` : ''}.${mt.matched ? ` ${plural(mt.matched, 'item')} with the same name as one that is already here ${mt.matched === 1 ? 'is' : 'are'} not added again.` : ''}</p>
       <div class="lrows">${Object.entries(counts).sort((a, b) => azCmp(KINDS[a[0]].many, KINDS[b[0]].many)).map(([k, n]) => `<div class="lrow"><span class="lmain"><b>${esc(KINDS[k].many)}</b></span><span class="lside">${n}</span></div>`).join('')}</div>`,
     foot: `<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-go>Import ${rows.length}</button>`
   });
