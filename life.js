@@ -2629,8 +2629,28 @@ const fSum = (list, k = 'amount') => list.reduce((n, x) => n + (num(x[k]) || 0),
 const fAccs = () => recs('faccounts').filter(a => !a.archived);
 const fEur0 = n => (n < 0 && !masked() ? '−' : '') + money.format(Math.abs(n)).replace(/\.00$/, '');
 const fSigned = n => (n < 0 && !masked() ? '−' : '') + eur(Math.abs(n));
-function fPayday() { let p = fset().payday; if (!p) return null; const t = today(); for (let i = 0; p <= t && i < 600; i++) p = addMonths(p, 1); return p; }
-const fStart = () => { const p = fPayday(); return p ? addMonths(p, -1) : addDays(today(), -30); };
+/* your paydays. The dates you entered for a year win; any other month uses your usual day of the month,
+   where a Saturday moves to the Friday before and a Sunday to the Monday after */
+const fPayDom = () => { const s = fset(); return num(s.payDom) || (s.payday ? fromISO(s.payday).getDate() : null); };
+function fPayGuess(month) {
+  const dom = fPayDom(); if (!dom) return null;
+  const last = new Date(+month.slice(0, 4), +month.slice(5, 7), 0).getDate(), x = fromISO(`${month}-${String(Math.min(dom, last)).padStart(2, '0')}`);
+  if (x.getDay() === 6) x.setDate(x.getDate() - 1); else if (x.getDay() === 0) x.setDate(x.getDate() + 1);
+  return iso(x);
+}
+const fPayList = () => [...new Set((fset().paydates || []).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d || '')))].sort();
+function fPays(from, to) {
+  const byMonth = new Map(fPayList().map(d => [d.slice(0, 7), d])), out = [];
+  if (!byMonth.size && !fPayDom()) return out;
+  for (let m = addMonths(from.slice(0, 7) + '-01', -1), i = 0; m <= to && i < 600; m = addMonths(m, 1), i++) {
+    const d = byMonth.get(m.slice(0, 7)) || fPayGuess(m.slice(0, 7));
+    if (d && d >= from && d <= to) out.push(d);
+  }
+  return out.sort();
+}
+// the next payday after today; on payday itself the new pay period has just started
+function fPayday() { const t = today(); return fPays(addDays(t, 1), addDays(t, 75))[0] || null; }
+const fStart = () => { const t = today(), l = fPays(addDays(t, -75), t); return l.length ? l[l.length - 1] : addDays(today(), -30); };
 function fBalance(a) {
   const cs = recs('fchecks').filter(c => c.account === a.id); if (!cs.length) return null;
   const c = cs.reduce((x, y) => fSeq(y) > fSeq(x) ? y : x), s = fSeq(c), t = today();
@@ -2745,7 +2765,7 @@ function fPace() {
 function fProject(st, n, extra) {
   const pay = num(fset().payAmount) || 0, { pace, days } = fPace(), end = addDays(st.t, n);
   const occs = fOccs(st.start, end).filter(st.counts), paydays = new Set(), plan = plannedWishes(st.t, end);
-  for (let p = st.pay, i = 0; p && p <= end && i < 40; p = addMonths(p, 1), i++) paydays.add(p);
+  if (st.pay) for (const p of fPays(st.pay, end)) paydays.add(p);
   let v = st.inAcc - fSum(occs.filter(o => o.date < st.t)); const pts = [];
   for (let i = 0; i <= n; i++) {
     const d = addDays(st.t, i), ev = [], due = occs.filter(o => o.date === d);
@@ -3032,27 +3052,28 @@ function moneyToday(host) {
   /* coming up and payments */
   const upcoming = fOccs(st.start, addDays(t, 60)).filter(o => !o.paid && !o.skipped).slice(0, 5);
   const wk = weekStart(0), days35 = Array.from({ length: 35 }, (_, i) => addDays(wk, i)), occ35 = fOccs(wk, days35[34]);
-  const pays = s.payday ? days35.filter(d => fromISO(d).getDate() === fromISO(fPayday() || s.payday).getDate() && d >= addDays(fPayday() || s.payday, -1)) : [];
+  const pays = fPays(days35[0], days35[34]);
   const plan35 = plannedWishes(t, days35[34]);
   const outNext = fSum(occ35.filter(o => !o.paid && !o.skipped && o.date >= t)) + fSum(plan35), inNext = pays.filter(d => d >= t).length * (num(s.payAmount) || 0);
   const chip = (amt, ty, paid) => `<span class="mpay ${paid ? 'paid' : ''}" style="--c:${TYPE_COL[ty] || TYPE_COL.Bill}">${fEur0(amt)}</span>`;
   const cal = `<div class="mcal">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<b class="mdow">${d}</b>`).join('')}${days35.map(d => { const os = occ35.filter(o => o.date === d), dd = fromISO(d); const items = [...(pays.includes(d) ? [chip(num(s.payAmount) || 0, 'Pay')] : []), ...os.map(o => chip(o.amount, o.type, o.paid)), ...plan35.filter(p => p.date === d).map(p => chip(p.amount, 'Wish'))]; return `<div class="mday ${d === t ? 'now' : ''} ${d < t ? 'past' : ''}"><span>${dd.getDate() === 1 ? dd.toLocaleDateString('en-GB', { month: 'short' }) + ' 1' : d === t ? shortDate(d) : dd.getDate()}</span>${items.slice(0, 2).join('')}${items.length > 2 ? `<em>+${items.length - 2}</em>` : ''}</div>`; }).join('')}</div>
     <p class="mlegend">${Object.entries(TYPE_COL).map(([k, c]) => `<span><i style="background:${c}"></i>${k}</span>`).join('')}</p>`;
-  /* every day this month */
-  const m0 = t.slice(0, 8) + '01', mDays = new Date(fromISO(t).getFullYear(), fromISO(t).getMonth() + 1, 0).getDate();
-  const perDayMap = new Map(); for (const x of every) if (x.date.startsWith(t.slice(0, 7))) perDayMap.set(x.date, (perDayMap.get(x.date) || 0) + (num(x.amount) || 0));
-  const past = Array.from({ length: fromISO(t).getDate() }, (_, i) => addDays(m0, i)), maxDay = Math.max(1, ...past.map(d => perDayMap.get(d) || 0));
+  /* every day this month, or this pay period when you count from paycheck to paycheck */
+  const perPay = fMode() === 'pay' && !!st.pay, pLabel = perPay ? 'this pay' : 'this month';
+  const m0 = perPay ? st.start : t.slice(0, 8) + '01', mEnd = perPay ? addDays(st.pay, -1) : addDays(addMonths(t.slice(0, 8) + '01', 1), -1), mDays = diffDays(m0, mEnd) + 1;
+  const perDayMap = new Map(); for (const x of every) if (x.date >= m0 && x.date <= mEnd) perDayMap.set(x.date, (perDayMap.get(x.date) || 0) + (num(x.amount) || 0));
+  const past = Array.from({ length: diffDays(m0, t) + 1 }, (_, i) => addDays(m0, i)), maxDay = Math.max(1, ...past.map(d => perDayMap.get(d) || 0));
   const lvl = v => !v ? 0 : Math.min(4, 1 + Math.floor(3 * v / maxDay));
   const zero = past.filter(d => !(perDayMap.get(d) > 0)).length, monthSpend = past.reduce((n, d) => n + (perDayMap.get(d) || 0), 0);
   const lead = (fromISO(m0).getDay() + 6) % 7;
-  const heat = `<div class="mheat">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(d => `<b>${d}</b>`).join('')}${'<span></span>'.repeat(lead)}${Array.from({ length: mDays }, (_, i) => { const d = addDays(m0, i), v = perDayMap.get(d) || 0; return `<button class="mh${d > t ? 'f' : lvl(v)} ${d === t ? 'now' : ''}" data-act="go" data-v="money/spending" title="${esc(shortDate(d))}: ${eur(v)}">${i + 1}</button>`; }).join('')}</div>
+  const heat = `<div class="mheat">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(d => `<b>${d}</b>`).join('')}${'<span></span>'.repeat(lead)}${Array.from({ length: mDays }, (_, i) => { const d = addDays(m0, i), v = perDayMap.get(d) || 0; return `<button class="mh${d > t ? 'f' : lvl(v)} ${d === t ? 'now' : ''}" data-act="go" data-v="money/spending" title="${esc(shortDate(d))}: ${eur(v)}">${fromISO(d).getDate()}</button>`; }).join('')}</div>
     <p class="mlegend2"><span class="mscale">${[0, 1, 2, 3, 4].map(i => `<i class="mh${i}"></i>`).join('')}</span><span>${plural(zero, 'day')} with nothing spent</span></p>`;
   /* where the money went */
-  const monthTx = tx.filter(x => x.date.startsWith(t.slice(0, 7))), groups = new Map();
+  const monthTx = tx.filter(x => x.date >= m0 && x.date <= t), groups = new Map();
   for (const x of monthTx) { const b = x.bill ? L.byId[x.bill.split('@')[0]] : null; const k = x.debt ? 'Debt' : b ? (b.type === 'Subscription' ? 'Subscriptions' : b.type === 'Debt' ? 'Debt' : 'Bills') : (relName(x.category) || 'Other'); groups.set(k, (groups.get(k) || 0) + (num(x.amount) || 0)); }
   const COLS = ['var(--c1)', 'var(--c6)', 'var(--c3)', 'var(--c2)', 'var(--c4)', 'var(--c5)', 'var(--c7)', 'var(--c8)'];
   const parts = [...groups.entries()].sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({ k, v, c: COLS[i % COLS.length] })), mTot = fSum(monthTx);
-  const went = parts.length ? `<div class="mwent"><div class="mdwrap">${fDonut(parts)}<p><b>${fEur0(mTot)}</b><span>this month</span></p></div><div class="mleg">${parts.slice(0, 7).map(p => `<p><i style="background:${p.c}"></i><span>${esc(p.k)}</span><b>${Math.round(100 * p.v / (mTot || 1))}%</b></p>`).join('')}</div></div>` : quiet('Nothing spent this month yet.');
+  const went = parts.length ? `<div class="mwent"><div class="mdwrap">${fDonut(parts)}<p><b>${fEur0(mTot)}</b><span>${pLabel}</span></p></div><div class="mleg">${parts.slice(0, 7).map(p => `<p><i style="background:${p.c}"></i><span>${esc(p.k)}</span><b>${Math.round(100 * p.v / (mTot || 1))}%</b></p>`).join('')}</div></div>` : quiet(`Nothing spent ${pLabel} yet.`);
   /* run to payday and last 7 days */
   const runDays = st.pay ? Array.from({ length: diffDays(st.start, st.pay) }, (_, i) => addDays(st.start, i)) : [];
   const run = st.pay ? `<div class="mdots">${runDays.map(d => `<i class="${d < t ? 'past' : d === t ? 'now' : ''}"></i>`).join('')}<i class="pay" title="Payday"></i></div>
@@ -3091,7 +3112,7 @@ function moneyToday(host) {
   const recent = every.filter(x => x.date <= t).sort((a, b) => (b.date + fSeq(b)).localeCompare(a.date + fSeq(a))).slice(0, 2);
   const chipRow = `<div class="mchips">${recent.map(x => `<button class="chip mrecent" data-act="frepeat" data-id="${x.id}">${esc(x.name || 'Again')} ${eur(num(x.amount))}</button>`).join('')}${chips.map(c => `<button class="chip" data-act="fchip" data-id="${c.id}">${esc(titleOf(c))} ${eur(num(c.amount))}</button>`).join('')}</div>`;
   const pts = fProject(st, 30).pts, low = pts.reduce((m, p) => p.v < m.v ? p : m, pts[0]);
-  const jump = [['m-safe', 'Safe to spend'], ['m-look', 'Worth a look'], ['m-wins', 'Small wins'], ['m-next', 'Next 30 days'], ['m-pay', 'Payments coming'], ['m-days', 'Every day this month'], ['m-went', 'Where the money went'], ['m-net', 'Goals, debt, net worth'], ['m-cats', 'Per category'], ['m-months', 'Month by month'], ['m-big', 'Biggest spending'], ...(allWishes().length || wishBudget() ? [['m-wish', 'Wishlists']] : []), ...(recs('faccounts').some(x => x.type === 'Pot') ? [['m-pots', 'Pots']] : []), ...(recs('fbills').some(b => b.type === 'Subscription' && b.active !== false) ? [['m-subs', 'Subscriptions']] : [])];
+  const jump = [['m-safe', 'Safe to spend'], ['m-look', 'Worth a look'], ['m-wins', 'Small wins'], ['m-next', 'Next 30 days'], ['m-pay', 'Payments coming'], ['m-days', fMode() === 'pay' && st.pay ? 'Every day this pay' : 'Every day this month'], ['m-went', 'Where the money went'], ['m-net', 'Goals, debt, net worth'], ['m-cats', 'Per category'], ['m-months', 'Month by month'], ['m-big', 'Biggest spending'], ...(allWishes().length || wishBudget() ? [['m-wish', 'Wishlists']] : []), ...(recs('faccounts').some(x => x.type === 'Pot') ? [['m-pots', 'Pots']] : []), ...(recs('fbills').some(b => b.type === 'Subscription' && b.active !== false) ? [['m-subs', 'Subscriptions']] : [])];
   host.innerHTML = `<div class="viewhead dviewhead"><h1>${esc(window.APP_GREETING?.().hello || (hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'))}</h1><span class="sub">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span><div class="spacer"></div><button class="btn small" data-act="fcheck">Check my money</button><button class="btn small primary" data-act="new" data-v="ftx">+ Add spending</button></div>
   ${fDupNote()}<nav class="mjump" aria-label="On this page">${jump.map(([id, l]) => `<button class="chip" data-jump="${id}">${l}</button>`).join('')}</nav>
   <div class="mtop">${safe}${MP('Small wins', `${wins.join('')}<p class="lnone">${nWin ? `${nWin} down. That counts.` : 'Start with one.'}</p>`, `<span class="lnone">${nWin} of 3</span>`, 'wins')}</div>
@@ -3099,7 +3120,7 @@ function moneyToday(host) {
   <div class="mrow2">${MP('Next 30 days', `${fChart(pts, st.buf, st.pay)}<p class="mmuted">Lowest point about <b>${fEur0(Math.round(low.v))}</b> on ${esc(shortDate(low.d))}${low.v < st.buf ? ` · ${eur(st.buf - low.v)} below your protected ${fEur0(st.buf)}` : ''}${st.pay ? ` · Payday <b>${esc(shortDate(st.pay))}</b>` : ''}</p>`, '', 'next')}
     ${MP('Coming up', upcoming.length ? `<div class="mlist">${upcoming.map(o => `<button class="mup" data-act="open" data-id="${o.bill.id}"><span class="mdate"><b>${fromISO(o.date).getDate()}</b>${esc(fromISO(o.date).toLocaleDateString('en-GB', { month: 'short' }))}</span><span class="lmain"><b>${esc(o.bill.name)}</b><span>${esc(o.type)} · ${o.date < t ? 'overdue' : esc(relDay(o.date))}</span></span><b>${eur(o.amount)}</b></button>`).join('')}</div>` : quiet('No repeats coming up.'), mLink('All repeats', 'money/repeats'))}</div>
   ${MP('Payments coming', cal, `<span class="lnone">${eur(outNext)} going out · <span class="mgood">+${eur(inNext)}</span> coming in · next 5 weeks</span>`, 'pay')}
-  <div class="mrow2">${MP('Every day this month', heat, `<span class="lnone">${eur(monthSpend / Math.max(1, past.length))} a day so far</span>`, 'days')}${MP('Where the money went', went, mLink('Purchases', 'money/spending'), 'went')}</div>
+  <div class="mrow2">${MP(perPay ? 'Every day this pay' : 'Every day this month', heat, `<span class="lnone">${eur(monthSpend / Math.max(1, past.length))} a day so far</span>`, 'days')}${MP('Where the money went', went, mLink('Purchases', 'money/spending'), 'went')}</div>
   <div class="mrow2">${MP('Run to payday', run, `<span class="lnone">${st.pay ? plural(st.days, 'day') + ' left' : ''}</span>`)}${MP('Last 7 days', last7, `<span class="lnone">${esc(shortDate(w0))} – ${esc(shortDate(t))}</span>`)}</div>
   ${tiles}
   ${MP('Spending per category', bars + chipRow, mLink('Open spending', 'money/spending'), 'cats')}
@@ -4535,6 +4556,7 @@ document.addEventListener('click', async e => {
     case 'fwnew': openEditor('wishes', null, { status: 'Wish', since: today(), wait: WAIT_DAYS * 24, category: 'Other' }); break;
     case 'fcsv': pickCsv(); break;
     case 'fdups': fDups(); break;
+    case 'fpaydates': fPayDates(); break;
     case 'finsmove': insMove(); break;
     case 'fclear': fClear(); break;
     case 'acchist': accHistory(d.id); break;
@@ -4652,7 +4674,7 @@ document.addEventListener('change', e => {
   const t = e.target; if (!C || t.closest('.sheet')) return;
   if (t.matches('[data-envr]')) { const c = L.byId[t.dataset.envr]; if (c) save(c, { budget: Number(t.value) }); }
   if (t.matches('[data-split]')) { const k = t.dataset.split, v = num(t.value); if (k === 'pay') saveFset({ payAmount: v }); else saveFset({ split: { ...(fset().split || {}), [k]: v ?? 0 } }); }
-  if (t.matches('[data-fset]')) { const k = t.dataset.fset; saveFset({ [k]: ['payAmount', 'buffer', 'wishBudget'].includes(k) ? num(t.value) : t.value }); }
+  if (t.matches('[data-fset]')) { const k = t.dataset.fset; saveFset({ [k]: ['payAmount', 'buffer', 'wishBudget', 'payDom'].includes(k) ? num(t.value) : t.value }); }
   if (t.matches('[data-accsafe]')) { const a = L.byId[t.dataset.accsafe]; if (a) save(a, { safe: t.checked }); }
 });
 document.addEventListener('change', e => {
@@ -4672,6 +4694,8 @@ document.addEventListener('submit', e => {
 const fMode = () => fset().envMode === 'month' ? 'month' : 'pay';
 function fWindow(mode = fMode(), back = 0) {
   if (mode === 'month') { const m = addMonths(today().slice(0, 7) + '-01', -back); return { start: m, end: addDays(addMonths(m, 1), -1) }; }
+  const t = today(), l = [...fPays(addDays(t, -40 * (back + 2)), t), ...(fPayday() ? [fPayday()] : [])], i = l.length - 2 - back;
+  if (i >= 0) return { start: l[i], end: addDays(l[i + 1], -1) };
   const s = addMonths(fStart(), -back); return { start: s, end: addDays(addMonths(s, 1), -1) };
 }
 const fCatSpent = (id, w) => fSum(recs('ftx').filter(x => x.category === id && !x.bill && !x.debt && !x.transfer && x.date >= w.start && x.date <= w.end && x.date <= today()));
@@ -4719,7 +4743,7 @@ function fComingFill(fill) {
 function fCalFill(fill) {
   const off = L.calOff || 0, m0 = addMonths(today().slice(0, 7) + '-01', off), first = fromISO(m0), lead = (first.getDay() + 6) % 7;
   const start = addDays(m0, -lead), days = Array.from({ length: 42 }, (_, i) => addDays(start, i)), occ = fOccs(days[0], days[41]), t = today(), s = fset(), planC = plannedWishes(days[0], days[41]);
-  let pay = s.payday; const pays = []; if (pay) { for (let i = 0; pay > days[0] && i < 60; i++) pay = addMonths(pay, -1); for (let i = 0; pay <= days[41] && i < 60; i++) { if (pay >= days[0]) pays.push(pay); pay = addMonths(pay, 1); } }
+  const pays = fPays(days[0], days[41]);
   const chip = (txt, c, paid) => `<span class="mpay ${paid ? 'paid' : ''}" style="--c:${c}">${esc(txt)}</span>`;
   fill.innerHTML = MP(fromISO(m0).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }), `<div class="mcal">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<b class="mdow">${d}</b>`).join('')}${days.map(d => { const os = occ.filter(o => o.date === d); const items = [...(pays.includes(d) ? [chip('Payday', TYPE_COL.Pay)] : []), ...os.map(o => chip(`${o.bill.name} ${fEur0(o.amount)}`, TYPE_COL[o.type] || TYPE_COL.Bill, o.paid)), ...planC.filter(p => p.date === d).map(p => chip(`${p.name} ${fEur0(p.amount)}`, TYPE_COL.Wish))]; return `<div class="mday ${d === t ? 'now' : ''} ${d.slice(0, 7) !== m0.slice(0, 7) ? 'past' : ''}"><span>${fromISO(d).getDate()}</span>${items.slice(0, 3).join('')}${items.length > 3 ? `<em>+${items.length - 3}</em>` : ''}</div>`; }).join('')}</div>`,
     `<span class="mbtns"><button class="iconbtn small" data-act="calmove" data-v="-1" aria-label="Previous month">${svg(P.left)}</button><button class="chip link" data-act="calmove" data-v="0">Today</button><button class="iconbtn small" data-act="calmove" data-v="1" aria-label="Next month">${svg(P.right)}</button></span>`);
@@ -4792,7 +4816,8 @@ function fSettings() {
       ${fld('How often you’re paid', 'Safe to spend covers the time until your next payday.', `<select class="finp" data-fset="cycle"><option value="Monthly">Once a month</option></select>`)}
       ${fld('Plan everyday spending', fMode() === 'month' ? 'Per month: each category is a budget for the calendar month.' : 'Per paycheck: each category is an envelope that fills on payday.', `<select class="finp" data-fset="envMode"><option value="pay" ${fMode() === 'pay' ? 'selected' : ''}>Per paycheck (envelopes)</option><option value="month" ${fMode() === 'month' ? 'selected' : ''}>Per month</option></select>`)}
       ${fld('Usual pay', 'Used to plan the paydays ahead and to split your pay.', `<input class="finp" type="number" inputmode="decimal" step="0.01" data-fset="payAmount" value="${s.payAmount ?? ''}">`)}
-      ${fld('Next payday', '', `<input class="finp" type="date" data-fset="payday" value="${esc(s.payday || '')}">`)}
+      ${fld('Usual payday', 'The day of the month you are paid. On a Saturday the app counts the Friday before, on a Sunday the Monday after.', `<input class="finp" type="number" inputmode="numeric" min="1" max="31" step="1" data-fset="payDom" value="${fPayDom() ?? ''}" placeholder="24">`)}
+      ${fld('Paydates for the year', (() => { const y = today().slice(0, 4), n = fPayList().filter(d => d.startsWith(y)).length, nx = fPayday(); return `${n ? `${plural(n, 'date')} entered for ${y}.` : 'Enter the real dates once a year, for holidays and weekends.'}${nx ? ` Next payday: ${esc(niceDate(nx))}.` : ''}`; })(), `<button class="btn small" data-act="fpaydates">Enter paydates</button>`)}
       ${fld('Safety buffer', 'Kept back from safe to spend, for surprises.', `<input class="finp" type="number" inputmode="decimal" step="1" data-fset="buffer" value="${s.buffer ?? 100}">`)}
       ${wishBudgetField()}`)}
     ${MP('Your accounts', `${accs.length ? `<div class="lrows facclist">${accs.map(accRow).join('')}</div>` : quiet('Add your bank accounts to see balances and safe to spend.')}<p class="lnone">Counts: the account is part of safe to spend. Add the IBAN to an account so bank imports land on it by themselves.</p><div class="dbtns"><button class="btn small" data-act="fcheck">Update balances</button><button class="btn small" data-act="fmove">⇄ Move money</button></div>`, '<button class="chip link" data-act="new" data-v="faccounts">+ Add an account</button>')}
@@ -4953,6 +4978,24 @@ function fClear() {
     catch (e) { console.error(e); msg.textContent = ''; go.disabled = false; C.toast('Could not delete everything. Reload and try again.'); return; }
     const gone = new Set(ids); L.all = L.all.filter(r => !gone.has(r.id)); index(); cacheSave(); C.closeSheet(); C.render();
     C.undoPush?.(`Cleared all finance data (${plural(ids.length, 'record')})`, () => putMany(old, null, 'restore'), true);
+  };
+}
+/* the real paydates for a year, entered once: each month starts with what the app expects (your usual day,
+   moved off the weekend) and you change the ones that differ, like a payday before a holiday */
+function fPayDates(year = +today().slice(0, 4)) {
+  const have = new Map(fPayList().map(d => [d.slice(0, 7), d])), ys = [year - 1, year, year + 1].filter(y => y >= +today().slice(0, 4) - 1);
+  const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
+  const wd = d => d ? fromISO(d).toLocaleDateString('en-GB', { weekday: 'short' }) : '';
+  const sh = C.sheet({ title: `Paydates ${year}`, body: `<div class="seg fseg" role="group" aria-label="Year">${ys.map(y => `<button data-py="${y}" aria-pressed="${y === year}">${y}</button>`).join('')}</div>
+    <p class="lnone">${fPayDom() ? `Filled in from your usual payday, day ${fPayDom()} of the month. Change the dates that are different.` : 'Set your usual payday first, or fill in each date.'} Dates you save here always win.</p>
+    <div class="lrows fpaylist">${months.map(m => { const d = have.get(m) || fPayGuess(m) || ''; return `<label class="lrow"><span class="lmain"><b>${esc(fromISO(m + '-01').toLocaleDateString('en-GB', { month: 'long' }))}</b><span data-wd>${esc(wd(d))}${have.has(m) ? '' : d ? ' · expected' : ''}</span></span><input class="finp" type="date" data-pm="${m}" value="${d}" min="${m}-01" max="${addDays(addMonths(m + '-01', 1), -1)}"></label>`; }).join('')}</div>`,
+    foot: '<div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-go>Save</button>' });
+  sh.addEventListener('click', e => { const b = e.target.closest('[data-py]'); if (b) { C.closeSheet(); fPayDates(+b.dataset.py); } });
+  sh.addEventListener('input', e => { const i = e.target.closest('[data-pm]'); if (i) i.closest('.lrow').querySelector('[data-wd]').textContent = wd(i.value); });
+  sh.querySelector('[data-go]').onclick = async () => {
+    const mine = [...sh.querySelectorAll('[data-pm]')].map(i => i.value).filter(Boolean);
+    const keep = fPayList().filter(d => !months.includes(d.slice(0, 7)) && d >= addMonths(today(), -24));
+    await saveFset({ paydates: [...keep, ...mine].sort() }); C.closeSheet(); C.toast(`Saved ${plural(mine.length, 'payday')} for ${year}`);
   };
 }
 async function saveFset(patch) { const r = recs('fset')[0]; try { r ? await put('fset', r.id, { ...dataOf(r), ...patch }) : await create('fset', patch); } catch {} }
@@ -5810,7 +5853,7 @@ function calEvents(from, to, all) {
   try { for (const o of fOccs(from, to)) add({ id: 'bill:' + o.key, cat: 'money', date: o.date, title: `${o.bill.name || 'Rekening'} ${eur(o.amount)}`, sub: o.type, imp: o.amount >= 50 || o.type === 'Bill' || o.type === 'Insurance', done: o.paid, go: 'money/repeats' }); } catch {}
   });
   safe('Finance', () => {
-  const pd = recs('fset')[0]?.payday; if (inR(pd, from, to)) add({ id: 'pay', cat: 'money', date: pd, title: 'Salaris', imp: true, go: 'money/today' });
+  for (const pd of fPays(from, to)) add({ id: 'pay:' + pd, cat: 'money', date: pd, title: 'Salaris', imp: true, go: 'money/today' });
   });
   safe('Finance', () => {
   for (const i of recs('insurance')) if (inR(i.renews, from, to) && i.status !== 'Stopped') add({ id: 'ins:' + i.id, cat: 'money', date: i.renews, title: 'Verlengt: ' + (i.name || 'verzekering'), imp: true, open: i.id });
