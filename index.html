@@ -551,6 +551,8 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .findtx small { font-size: 12px; color: var(--muted); }
 .findtx mark { background: color-mix(in srgb, var(--accent, #e8c547) 35%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
 .findhint { margin: 16px 2px; }
+.setname input.setninp { flex: 1; min-width: 0; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); }
+.setnsearch { display: flex; margin: 4px 0 8px; }
 </style>
 <link rel="stylesheet" href="life.css">
 </head>
@@ -614,7 +616,10 @@ const GEAR = '<circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" 
 // on a phone the bottom bar holds four sections unless you pick others; the rest sit behind ☰
 const BOTTOM_DEFAULT = 4;
 const BURGER = '<path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>';
-const SECTIONS = [{ key: 'overview', label: 'Today', icon: SUN }, { key: 'agenda', label: 'Kalender', icon: (window.LIFE?.sections || []).find(s => s.key === 'plan')?.views.find(v => v[0] === 'plan/week')?.[2] || SUN, to: 'plan/week' }, { key: 'closet', label: 'Closet', icon: VIEWS[0][2] }, ...(window.LIFE?.sections || []), { key: 'settings', label: 'Settings', icon: GEAR }];
+const SECTIONS = [{ key: 'overview', label: 'Today', icon: SUN }, { key: 'agenda', label: 'Calendar', icon: (window.LIFE?.sections || []).find(s => s.key === 'plan')?.views.find(v => v[0] === 'plan/week')?.[2] || SUN, to: 'plan/week' }, { key: 'closet', label: 'Closet', icon: VIEWS[0][2] }, ...(window.LIFE?.sections || []), { key: 'settings', label: 'Settings', icon: GEAR }];
+// your own names for the menu, from Settings; an empty name brings back the standard one
+SECTIONS.forEach(s => { s.base ||= s.label; });
+function applyNames() { const n = S.prefs.names || {}; for (const s of SECTIONS) s.label = String(n[s.key] || '').trim() || s.base; }
 /* the menu follows your Settings: section order, hidden sections, the phone's bottom bar and the tabs inside each section */
 const NAV = () => S.prefs.nav || {};
 const byOrder = (list, order, key = x => x.key) => { const pos = x => { const i = (order || []).indexOf(key(x)); return i < 0 ? 1000 + list.indexOf(x) : i; }; return [...list].sort((a, b) => pos(a) - pos(b)); };
@@ -712,7 +717,7 @@ const pref = {
    Lists and settings live in Supabase and match everywhere. A few choices are kept on the device itself (tiles or
    list, hidden amounts, sorting, today's ticks); those are copied into prefs.shared with the time you changed them,
    and every device takes the newest. prefs.devices lists your devices with their last sync. */
-const SYNC_KEYS = [/^fzView$/, /^grocView$/, /^anaPeriod$/, /^calView$/, /^calOff$/, /^lgroup:/, /^ltodo:/, /^hangtag:hidemoney$/, /^hangtag:tol$/, /^hangtag:sort(:|$)/, /^hangtag:todo(Field|Sort|Group|View|OnlyEmpty)$/, /^lview2:/, /^prepDone$/, /^tl:\d{4}-\d{2}-\d{2}$/, /^top3:\d{4}-\d{2}-\d{2}$/, /^reset:/];
+const SYNC_KEYS = [/^repView$/, /^fzView$/, /^grocView$/, /^anaPeriod$/, /^calView$/, /^calOff$/, /^lgroup:/, /^ltodo:/, /^hangtag:hidemoney$/, /^hangtag:tol$/, /^hangtag:sort(:|$)/, /^hangtag:todo(Field|Sort|Group|View|OnlyEmpty)$/, /^lview2:/, /^prepDone$/, /^tl:\d{4}-\d{2}-\d{2}$/, /^top3:\d{4}-\d{2}-\d{2}$/, /^reset:/];
 const isSyncKey = k => SYNC_KEYS.some(r => r.test(k));
 const SMETA = pref.get('smeta', {});
 let syncQuiet = false, syncTimer = 0;
@@ -1098,6 +1103,7 @@ document.addEventListener('click', e => { const b = e.target.closest('nav [data-
 
 /* ---------- main render ---------- */
 function render() {
+  applyNames();
   const signedIn = !!UID;
   $('#tabsTop').hidden = $('#tabsBottom').hidden = !signedIn;
   if (!signedIn) $('#secBar').hidden = $('#subBar').hidden = $('#sub2Bar').hidden = true;
@@ -2091,7 +2097,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v121';
+const APP_VERSION = 'hangtag-v122';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2191,6 +2197,10 @@ function renderSettings(host) {
         <label class="settog"><input type="checkbox" data-nbot="${s.key}" ${bottom.includes(s.key) && !hid.includes(s.key) ? 'checked' : ''} ${hid.includes(s.key) ? 'disabled' : ''}> Bottom bar</label>${mv('data-nmove', s.key, i, all.length)}</div>`).join('')}
       <button class="chip link" data-nreset>Back to the standard menu</button>
       <p class="muted">Tabs and choice lists now live in each section, under its own Settings tab.</p></section>
+    <section class="panel setpanel" id="set-names"><h3>Namen</h3><p class="muted">Geef elk onderdeel van het menu je eigen naam. Het menu, de paginatitels en Settings gebruiken die naam op al je apparaten. Leeg laten zet de standaardnaam terug.</p>
+      <label class="setnsearch setname"><input class="setninp" type="search" data-nfind placeholder="Zoek een naam" aria-label="Zoek een naam"></label>
+      ${SECTIONS.map(s => `<div class="setrow setname" data-nrow="${esc(norm(s.base + ' ' + s.label))}"><span class="seti">${icon(s.icon)}</span><input class="setninp" data-nname="${s.key}" value="${esc((S.prefs.names || {})[s.key] || '')}" placeholder="${esc(s.base)}" aria-label="Naam voor ${esc(s.base)}" autocomplete="off">${(S.prefs.names || {})[s.key] ? `<button class="chip link" data-nnreset="${s.key}">Herstel</button>` : ''}</div>`).join('')}
+    </section>
     ${lookPanel()}
     ${notiPanel()}
     <section class="panel setpanel" id="set-account"><h3>Account and app</h3><p class="muted">Signed in as ${esc(EMAIL || 'you')}. Your data lives in your own Supabase project.</p>
@@ -2226,6 +2236,12 @@ function renderSettings(host) {
   host.dataset.swired = '1';
   const saveNav = patch => DB.savePrefs({ nav: { ...NAV(), ...patch } }).catch(err => saveErr(err, 'Could not save. Try again.'));
   const swap = (arr, i, d) => { const j = i + d; if (j < 0 || j >= arr.length) return arr; [arr[i], arr[j]] = [arr[j], arr[i]]; return arr; };
+  host.addEventListener('change', e => {
+    const ni = e.target.closest?.('[data-nname]'); if (!ni) return;
+    const n = { ...(S.prefs.names || {}) }, v = ni.value.trim().slice(0, 30); if (v) n[ni.dataset.nname] = v; else delete n[ni.dataset.nname];
+    DB.savePrefs({ names: n }).then(() => { render(); toast(v ? 'Naam opgeslagen' : 'Standaardnaam terug'); }).catch(err => saveErr(err, 'Could not save. Try again.'));
+  });
+  host.addEventListener('input', e => { const f = e.target.closest?.('[data-nfind]'); if (!f) return; const q = norm(f.value); host.querySelectorAll('[data-nrow]').forEach(r => { r.hidden = !!q && !r.dataset.nrow.includes(q); }); });
   host.addEventListener('click', e => {
     const t = e.target;
     if (t.closest('[data-syncnow]')) return syncNow();
@@ -2234,6 +2250,7 @@ function renderSettings(host) {
     const vm = t.closest('[data-vmove]'); if (vm) { const ks = viewsAll(SET.tabs).map(v => v[0]), views = { ...(NAV().views || {}) }; views[SET.tabs] = { ...(views[SET.tabs] || {}), order: swap(ks, ks.indexOf(vm.dataset.vmove), +vm.dataset.d) }; return saveNav({ views }); }
     const om = t.closest('[data-omove]'); if (om) { const L = fullList(SET.list); return saveList(SET.list, swap(L.list, +om.dataset.omove, +om.dataset.d), L.hidden); }
     if (t.closest('[data-nreset]')) return DB.savePrefs({ nav: {} });
+    const nr = t.closest('[data-nnreset]'); if (nr) { const n = { ...(S.prefs.names || {}) }; delete n[nr.dataset.nnreset]; return DB.savePrefs({ names: n }).then(() => { render(); toast('Standaardnaam terug'); }).catch(err => saveErr(err, 'Could not save. Try again.')); }
     if (t.closest('[data-editcats]')) return openCategories();
     const ud = t.closest('[data-undo]'); if (ud) return undoRun(+ud.dataset.undo);
     if (t.closest('[data-signout]')) return sb.auth.signOut();
