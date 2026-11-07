@@ -98,6 +98,20 @@ const STORES = ['Dirk', 'Aldi', 'Albert Heijn'];
 const UNITS = ['stuks', 'gram', 'ml', 'portie'];
 const CLEAN_TRIGGERS = ['Na het eten', 'Stress', 'Verveling', 'Sociaal', 'Ochtend', 'Anders'];
 const CLEAN_HELPS = ['Snack of kauwgom', 'Thee', 'Wandeling', 'Ademhaling', 'Iemand appen', 'Journalen', 'Content bedenken', 'Douchen', 'Iets anders'];
+// what kind of dish a recipe is, per category: the suggestions in the editor and the second filter row
+const DISH_TYPES = {
+  Baking: ['Koekjes', 'Taart', 'Gebak', 'Brood', 'Cake', 'Muffins & cupcakes', 'Brownies & repen', 'Broodjes & bollen', 'Scones', 'Hartige taart & quiche', 'Pie & crumble'],
+  Dessert: ['IJs', 'Pudding & mousse', 'Cheesecake', 'Tiramisu & trifle', 'Fruitdessert', 'Pannenkoeken & wafels', 'Chocolade'],
+  Breakfast: ['Brood & toast', 'Eieren', 'Pap & oats', 'Yoghurt & granola', 'Pannenkoeken', 'Smoothie', 'Warm & hartig'],
+  Lunch: ['Broodje & wrap', 'Tosti', 'Salade', 'Soep', 'Bowl', 'Restjes'],
+  Dinner: ['Pasta', 'Rijst', 'Noedels & wok', 'Curry', 'Stoof & stamppot', 'Ovenschotel', 'Soep', 'Salade', 'Vis', 'Vlees', 'Vegetarisch', 'Burger & wrap', 'Pizza', 'Bowl'],
+  Snack: ['Hartig', 'Zoet', 'Dip', 'Fruit & groente', 'Energieballetjes', 'Noten'],
+  'Side Dish': ['Groente', 'Aardappel', 'Rijst & granen', 'Salade', 'Brood'],
+  Appetizer: ['Borrelhapjes', 'Dips', 'Bladerdeeg', 'Tapas'],
+  Soup: ['Heldere soep', 'Gebonden soep', 'Maaltijdsoep', 'Koude soep'],
+  Drink: ['Smoothie', 'Thee & koffie', 'Limonade', 'Mocktail', 'Cocktail', 'Warme drank'],
+  'Sauce & Condiment': ['Saus', 'Dressing', 'Pesto', 'Dip', 'Kruidenmix', 'Sambal & chili', 'Jam']
+};
 const CUISINES = ['Asian', 'Italian & Mediterranean', 'Surinamese & Indonesian', 'Dutch comfort', 'New to me', 'Other'];
 const NUTRI = ['Lots of veg', 'Protein-rich', 'Filling', 'Light'];
 const GOOD_LABELS = [...NUTRI, 'Meal prep', 'Freezes well', 'Office lunch', 'Microwave'];
@@ -245,9 +259,10 @@ const WEEK = [['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu
 const KINDS = {
   /* kitchen */
   recipes: {
-    one: 'recipe', many: 'Recipes', display: 'cards', photo: 'photo', facet: 'category',
+    one: 'recipe', many: 'Recipes', display: 'cards', photo: 'photo', facet: 'category', facet2: 'dish',
     fields: [F('name', 'Name'), F('photo', 'Photo', 'photo'),
       F('category', 'Category', 'select', { options: ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Side Dish', 'Appetizer', 'Soup', 'Dessert', 'Baking', 'Drink', 'Sauce & Condiment'] }),
+      F('dish', 'Soort', 'select', { options: [...new Set(Object.values(DISH_TYPES).flat())], dep: 'category', depOpts: DISH_TYPES }),
       F('rating', 'Rating', 'rating'), F('fav', 'Favourite', 'check', { half: 1 }), F('totry', 'Still to try', 'check', { half: 1 }),
       F('cuisine', 'Cuisine', 'select', { options: CUISINES, half: 1 }), F('good', 'Good to know', 'multi', { options: GOOD_LABELS }),
       F('vegG', 'Vegetables per portion (g)', 'num', { half: 1 }),
@@ -258,7 +273,7 @@ const KINDS = {
     sorts: [['name', 'A to Z'], ['-rating', 'Best rated'], ['-created', 'Newest'], ['time', 'Quickest']],
     filters: [['all', 'All'], ['fav', 'Favourites'], ['try', 'Still to try'], ['quick', '30 min or less'], ['prep', 'Meal prep'], ['freeze', 'Freezes well'], ['office', 'Office lunch'], ['now', 'Can make now']],
     filter: (r, f) => f === 'fav' ? !!r.fav : f === 'try' ? !!r.totry : f === 'quick' ? totalTime(r) > 0 && totalTime(r) <= 30 : f === 'prep' ? [].concat(r.good || []).includes('Meal prep') : f === 'freeze' ? [].concat(r.good || []).includes('Freezes well') : f === 'office' ? [].concat(r.good || []).includes('Office lunch') || r.category === 'Lunch' : f === 'now' ? canMakeNow(r) : true,
-    sub: r => [r.cuisine, r.category, mins(totalTime(r)), [].concat(r.good || []).filter(g => NUTRI.includes(g)).join(', '), stars(r.rating)].filter(Boolean).join(' · ')
+    sub: r => [r.cuisine, r.dish || r.category, mins(totalTime(r)), [].concat(r.good || []).filter(g => NUTRI.includes(g)).join(', '), stars(r.rating)].filter(Boolean).join(' · ')
   },
   ingredients: {
     one: 'ingredient', many: 'Pantry', facet: 'category',
@@ -1465,6 +1480,7 @@ function filtered(page, seg) {
   if (K.hide && !u.all) list = list.filter(r => !K.hide(r));
   if (K.filter && f) list = list.filter(r => K.filter(r, f));
   if (fk && fv) list = list.filter(r => [].concat(r[fk] || []).includes(fv));
+  if (K.facet2 && fv && u.facet2) list = list.filter(r => [].concat(r[K.facet2] || []).includes(u.facet2));
   if (q) list = list.filter(r => norm([titleOf(r), K.sub?.(r), r.brand, r.notes, ...relNames(r.ingredients)].join(' ')).includes(q));
   return sortList(list, K, u.sort[seg.key] || K.sorts?.[0]?.[0] || 'name');
 }
@@ -1500,6 +1516,10 @@ function fillList(host, page) {
       + (opts.length > 1 ? opts.map(v => `<button class="chip" data-act="facet" data-v="${esc(v)}" aria-pressed="${u.facet === v}">${esc(v)}<span class="n">${counts[v]}</span></button>`).join('') : '')
       + (K.hide && all.some(K.hide) ? `<button class="chip ghost" data-act="showall" aria-pressed="${u.all}">${esc(u.all ? 'Hide ' + K.hideLabel.slice(5) : K.hideLabel)}</button>` : '');
     fh.hidden = !fh.innerHTML;
+    // the second row (a recipe category's kinds of dish) sits under the scrolling chips, on its own line
+    let f2 = host.querySelector('[data-facets2]'); if (!f2) { f2 = document.createElement('div'); f2.dataset.facets2 = ''; fh.after(f2); }
+    f2.innerHTML = (() => { if (!K.facet2 || !u.facet) return ''; const c2 = {}; for (const r of all) if ([].concat(r[K.facet] || []).includes(u.facet)) for (const v of [].concat(r[K.facet2] || [])) c2[v] = (c2[v] || 0) + 1; const o2 = Object.keys(c2).sort((a, b) => c2[b] - c2[a] || a.localeCompare(b)); return o2.length ? `<div class="lfacet2" role="group" aria-label="Soort">${o2.map(v => `<button class="chip small" data-act="facet2" data-v="${esc(v)}" aria-pressed="${u.facet2 === v}">${esc(v)}<span class="n">${c2[v]}</span></button>`).join('')}</div>` : ''; })();
+    f2.hidden = !f2.innerHTML;
   }
   if (seg.fill) { seg.fill(fill, page); return; }
   const top = seg.top ? seg.top() : '';
@@ -3900,10 +3920,18 @@ const dataTools = () => `<div class="ltools"><button class="chip link" data-act=
 /* ---------- editing a record ---------- */
 // choice lists follow Settings: your own order, hidden options left out unless this record already uses one
 const optCfg = (kind, k) => (C?.prefs?.() || {}).optLists?.[kind + '.' + k] || {};
-function optsFor(kind, f, cur) {
+function optsFor(kind, f, cur, D) {
   const cfg = optCfg(kind, f.k), hid = new Set((cfg.hidden || []).map(norm)), now = [].concat(cur || []).map(norm);
   const out = [], seen = new Set();
   const add = (v, force) => { if (v && !seen.has(norm(v)) && (force || !hid.has(norm(v)) || now.includes(norm(v)))) { seen.add(norm(v)); out.push(v); } };
+  // a field that depends on another (a recipe's kind of dish on its category): only the suggestions for that choice
+  const dv = f.dep && D ? D[f.dep] : '';
+  if (f.dep && dv) {
+    (f.depOpts?.[dv] || []).forEach(v => add(v));
+    for (const r of recs(kind)) if (r[f.dep] === dv) [].concat(r[f.k] || []).forEach(v => add(v));
+    [].concat(cur || []).forEach(v => add(v, true));
+    return out;
+  }
   (cfg.list || f.options || []).forEach(v => add(v));
   (f.more?.() || []).forEach(v => add(v));
   for (const r of recs(kind)) [].concat(r[f.k] || []).forEach(v => add(v));
@@ -3948,7 +3976,8 @@ function fieldInner(kind, f, D) {
     case 'check': return `<button type="button" class="chip lcheck" data-chk="${f.k}" aria-pressed="${!!v}">${v ? svg(P.check) : ''}${esc(f.label)}</button>`;
     case 'rating': return span + `<div class="lrating">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-rate="${f.k}" data-v="${n}" aria-label="${n} of 5" aria-pressed="${(v || 0) >= n}">${svg(P.star)}</button>`).join('')}</div>`;
     case 'select': case 'multi': {
-      const sel = [].concat(v || []), opts = sortOpts(kind, f, optsFor(kind, f, v));
+      if (f.dep && !D?.[f.dep] && !v) return span + `<p class="lnone">${esc(f.depHint || 'Kies eerst een categorie.')}</p>`;
+      const sel = [].concat(v || []), opts = f.dep && D?.[f.dep] ? optsFor(kind, f, v, D) : sortOpts(kind, f, optsFor(kind, f, v, D));
       const add = `<input class="laddopt" data-addopt="${f.k}" placeholder="+ Add" aria-label="Add your own ${esc(f.label.toLowerCase())}" enterkeyhint="done">`;
       // many options: a dropdown, with what you picked shown as chips you can tap away
       if (opts.length > CHIP_MAX) return span + `<div class="lwrap">${f.type === 'multi' ? sel.map(o => `<button type="button" class="chip on" data-opt="${f.k}" data-v="${esc(o)}" aria-pressed="true">${esc(o)} ×</button>`).join('') : ''}</div>
@@ -4080,6 +4109,7 @@ function openEditor(kind, id, preset = {}) {
     const pl = e.target.closest('[data-picklook]'); if (pl) { D.look = pl.dataset.picklook; drawPostKit(); return; }
     if (e.target.closest('[data-lookx]')) { delete D.look; drawPostKit(); return; }
     if (kind === 'posts' && e.target.closest('[data-opt="format"], [data-relpick="pillar"], [data-relx="pillar"]')) setTimeout(drawPostKit);
+    const dop = e.target.closest('[data-opt]'); if (dop) for (const df of (KINDS[kind]?.fields || []).filter(x => x.dep === dop.dataset.opt)) setTimeout(() => { const ok = (df.depOpts?.[D[df.dep]] || []).includes(D[df.k]) || recs(kind).some(r => r[df.dep] === D[df.dep] && r[df.k] === D[df.k]); if (D[df.k] && !ok) delete D[df.k]; redraw(df.k); });
   });
   sh.addEventListener('click', e => {
     const ts = e.target.closest('[data-tstep], [data-tstepreset]');
@@ -4292,7 +4322,8 @@ document.addEventListener('click', async e => {
     case 'quick': { const r = L.byId[d.id]; KINDS[r?.kind]?.quick?.(r)?.act(); break; }
     case 'go': C.go(d.v); break;
     case 'seg': u.seg = d.v; u.facet = ''; C.render(); break;
-    case 'facet': u.facet = u.facet === d.v ? '' : d.v; C.render(); break;
+    case 'facet': u.facet = u.facet === d.v ? '' : d.v; u.facet2 = ''; C.render(); break;
+    case 'facet2': u.facet2 = u.facet2 === d.v ? '' : d.v; C.render(); break;
     case 'filter': u.filter[curSeg(page).key] = d.v; C.render(); break;
     case 'showall': u.all = !u.all; C.render(); break;
     case 'lview': { const K = KINDS[curSeg(page).kind]; setViewMode(K, d.v); const host = b.closest('#viewHost'); if (host) host.dataset.sig = ''; C.render(); break; }

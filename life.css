@@ -899,3 +899,6 @@ img.nophoto { background: var(--line); }
 .pnafftxt b { font-size: 16px; line-height: 1.3; overflow-wrap: anywhere; }
 .pnrole { width: auto; max-width: 48%; flex: 0 0 auto; }
 @media (max-width: 420px) { .pnrole { max-width: 52%; font-size: 14px; } }
+/* second filter row (a recipe category's kinds of dish) */
+.lfacet2 { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.lfacet2 .chip.small { padding: 4px 10px; font-size: 13px; }
