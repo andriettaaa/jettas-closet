@@ -4611,15 +4611,10 @@ function fEveryList() {
 function fEnvFill(fill) {
   const mode = fMode(), w = fWindow(mode), cats = recs('fcats').sort((a, b) => (a.nospend ? 1 : 0) - (b.nospend ? 1 : 0) || (num(b.budget) || 0) - (num(a.budget) || 0) || norm(a.name).localeCompare(norm(b.name)));
   const planned = fSum(cats.filter(c => !c.nospend), 'budget'), spent = fSum(recs('ftx').filter(x => fEveryday(x) && x.date >= w.start && x.date <= w.end && x.date <= today()));
-  const tags = {}; for (const x of recs('ftx')) for (const t of fTags(x)) tags[t.toLowerCase()] = (tags[t.toLowerCase()] || 0) + 1;
   const days = Math.max(0, diffDays(today(), w.end) + 1);
   fill.innerHTML = `<div class="tiles lt3">${fTile('Spent', eur(spent), `everyday spending this ${mode === 'month' ? 'month' : 'pay'}`)}${fTile('Planned', fEur0(planned), `in ${plural(cats.filter(c => !c.nospend).length, 'envelope')}, per ${mode === 'month' ? 'month' : 'paycheck'}`)}${spent > planned ? fTile('Over plan', eur(spent - planned), `${plural(days, 'day')} to ${mode === 'month' ? 'month end' : 'payday'}`, 'mneg') : fTile('Left in the plan', eur(planned - spent), `${plural(days, 'day')} to ${mode === 'month' ? 'month end' : 'payday'}`)}</div>
   <div class="fenvgrid">
     ${MP('Your envelopes', `<div class="seg fseg" role="group"><button data-act="envmode" data-v="month" aria-pressed="${mode === 'month'}">Per month</button><button data-act="envmode" data-v="pay" aria-pressed="${mode === 'pay'}">Per paycheck</button></div><p class="lnone">${esc(shortDate(w.start))} – ${esc(shortDate(w.end))}</p>${cats.map(c => fEnvRow(c, w)).join('') || quiet('Add a category for each kind of everyday spending.')}`, '<button class="chip link" data-act="new" data-v="fcats">+ Category</button>')}
-    ${MP('Every purchase', `<div class="seg fseg" role="group">${[['out', 'Purchases'], ['in', 'Money in'], ['both', 'Both']].map(([k, l]) => `<button data-act="everymode" data-v="${k}" aria-pressed="${(L.everyMode || 'out') === k}">${l}</button>`).join('')}</div>
-      <label class="search fsearch">${svg(P.search)}<input type="search" data-everyq placeholder="Search, like “coffee”, “12.50” or “#holiday”" value="${esc(L.everyQ || '')}" aria-label="Search purchases"></label>
-      ${Object.keys(tags).length ? `<div class="lwrap">${Object.entries(tags).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([t]) => `<button class="chip" data-act="everytag" data-v="${esc(t)}" aria-pressed="${norm(L.everyQ) === t}">${esc(t)}</button>`).join('')}</div>` : ''}
-      <div data-everylist>${fEveryList()}</div>`)}
   </div>`;
 }
 /* repeats */

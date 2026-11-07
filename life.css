@@ -356,12 +356,13 @@ button.lrow.lmain, .lrow > .lmain:only-child { padding-left: 12px; }
 @media (max-width: 420px) { .hgrid { grid-template-columns: minmax(0, 1fr) repeat(7, 28px); gap: 4px; } .hcell { width: 28px; height: 28px; } }
 .hweek { margin-bottom: 12px; }
 /* finance: envelopes, every purchase, challenges, split my pay, settings */
-.fenvgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
+.fenvgrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: stretch; }
 @media (max-width: 900px) { .fenvgrid { grid-template-columns: 1fr; } }
+.fenvgrid > * { min-width: 0; }
 .fseg { margin-bottom: 8px; }
-.fenv { padding: 12px 0; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+.fenv { padding: 12px 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
 .fenv:last-child { border-bottom: 0; }
-.fenvh { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.fenvh { display: flex; align-items: center; gap: 4px 8px; min-width: 0; flex-wrap: wrap; }
 .fenvn { border: 0; background: none; padding: 0; font: inherit; font-weight: 600; font-size: 15px; color: inherit; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .fenvv { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; font-size: 14px; }
 .fenvv b { color: var(--ink); font-weight: 600; }
@@ -371,7 +372,7 @@ button.lrow.lmain, .lrow > .lmain:only-child { padding-left: 12px; }
 .fbar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
 .fbar.over i { background: var(--danger); }
 .fenvc { display: flex; align-items: center; gap: 8px; }
-.fenvc input[type=range] { flex: 1; min-width: 60px; accent-color: var(--accent); }
+.fenvc input[type=range] { flex: 1; min-width: 40px; accent-color: var(--accent); }
 .fenvc .fzero { font-size: 12px; color: var(--muted); }
 .fenvl { font-size: 13px; color: var(--muted); white-space: nowrap; min-width: 84px; text-align: right; }
 .fsearch { display: flex; margin: 4px 0 10px; }
@@ -412,7 +413,7 @@ header.top .brand { flex: none; white-space: nowrap; }
 .fcomemain b, .fcomemain span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mup > b { white-space: nowrap; }
 .mup .btn { flex: none; }
-@media (max-width: 560px) { .tiles.lt3 .tile .v { font-size: clamp(17px, 5.2vw, 26px); overflow-wrap: anywhere; } .mup { gap: 8px; } .mup .mdate { width: 40px; } .mup .btn.small { padding: 6px 10px; font-size: 12.5px; } .fenvl { min-width: 0; font-size: 12px; } }
+@media (max-width: 560px) { .tiles.lt3 .tile { container-type: inline-size; } .tiles.lt3 .tile .v { font-size: clamp(13px, 17cqi, 26px); white-space: nowrap; letter-spacing: -0.03em; } .mup { gap: 8px; } .mup .mdate { width: 40px; } .mup .btn.small { padding: 6px 10px; font-size: 12.5px; } .fenvl { min-width: 0; font-size: 12px; } }
 .mpanel, .mlist, .mup { min-width: 0; } .fcomemain { flex: 1 1 0; }
 /* feed planner: an Instagram profile you can rearrange */
 .igphone { max-width: 520px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 18px 0 0; overflow: hidden; }
