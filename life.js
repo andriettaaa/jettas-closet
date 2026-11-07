@@ -291,7 +291,7 @@ const KINDS = {
   /* kitchen */
   recipes: {
     one: 'recipe', many: 'Recipes', display: 'cards', photo: 'photo', facet: 'category', facet2: 'dish',
-    fields: [F('name', 'Name'), F('photo', 'Photo', 'photo'),
+    fields: [F('name', 'Name'), F('photo', 'Photo', 'photo'), F('summary', 'Short description', 'long', { rows: 2 }),
       F('category', 'Category', 'select', { options: ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Side Dish', 'Appetizer', 'Soup', 'Dessert', 'Baking', 'Drink', 'Sauce & Condiment'] }),
       F('dish', 'Soort', 'select', { options: [...new Set(Object.values(DISH_TYPES).flat())], dep: 'category', depOpts: DISH_TYPES }),
       F('rating', 'Rating', 'rating'), F('fav', 'Favourite', 'check', { half: 1 }), F('totry', 'Still to try', 'check', { half: 1 }),
@@ -299,8 +299,9 @@ const KINDS = {
       F('vegG', 'Vegetables per portion (g)', 'num', { half: 1 }),
       F('prep', 'Prep time', 'num', { unit: 'min', half: 1 }), F('cook', 'Cook time', 'num', { unit: 'min', half: 1 }),
       F('servings', 'Servings', 'num', { half: 1 }), F('protein', 'Protein', 'text', { half: 1 }),
-      F('link', 'Recipe link', 'url'), F('ingredients', 'Ingredients', 'rel', { to: 'ingredients', multi: 1 }), F('helps', 'Helps with', 'multi', { options: HELPS }), F('feel', 'Feels like', 'multi', { options: FEELS }),
-      F('instructions', 'Instructions', 'long'), F('notes', 'Notes', 'long')],
+      F('link', 'Recipe link', 'url'), F('ilines', 'Ingredients and amounts', 'ilines'), F('steps', 'Steps', 'steplist'),
+      F('ingredients', 'Linked to your pantry', 'rel', { to: 'ingredients', multi: 1 }), F('helps', 'Helps with', 'multi', { options: HELPS }), F('feel', 'Feels like', 'multi', { options: FEELS }),
+      F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['-rating', 'Best rated'], ['-created', 'Newest'], ['time', 'Quickest']],
     filters: [['all', 'All'], ['fav', 'Favourites'], ['try', 'Still to try'], ['quick', '30 min or less'], ['prep', 'Meal prep'], ['freeze', 'Freezes well'], ['office', 'Office lunch'], ['now', 'Can make now']],
     filter: (r, f) => f === 'fav' ? !!r.fav : f === 'try' ? !!r.totry : f === 'quick' ? totalTime(r) > 0 && totalTime(r) <= 30 : f === 'prep' ? [].concat(r.good || []).includes('Meal prep') : f === 'freeze' ? [].concat(r.good || []).includes('Freezes well') : f === 'office' ? [].concat(r.good || []).includes('Office lunch') || r.category === 'Lunch' : f === 'now' ? canMakeNow(r) : true,
@@ -3228,8 +3229,9 @@ function openRecipe(r) {
     body: `<div class="lrecipe">${r.photo ? `<img referrerpolicy="no-referrer" class="lrimg" src="${esc(C.photoURL(r.photo))}" alt="" onerror="this.remove()">` : ''}
       <div class="lrbody">
         <p class="lmeta">${esc([r.category, mins(totalTime(r)), r.servings ? plural(r.servings, 'serving') : '', r.protein ? r.protein + ' protein' : ''].filter(Boolean).join(' · '))}${r.rating ? ` <span class="lstars">${stars(r.rating)}</span>` : ''}</p>
+        ${r.summary ? `<p class="lrsum">${esc(r.summary)}</p>` : ''}
         ${r.link ? `<a class="btn small" href="${esc(r.link)}" target="_blank" rel="noopener">${svg(P.link)} Open the recipe</a>` : ''}
-        ${pr.lines.length ? `<div class="lrhead"><h3>Ingredients</h3><span class="lserv" role="group" aria-label="Servings"><button class="iconbtn small" data-serv="-1" aria-label="Fewer servings">${svg(P.minus)}</button><b data-servn>${plural(base, 'serving')}</b><button class="iconbtn small" data-serv="1" aria-label="More servings">${svg(P.plus)}</button></span></div><ul class="rlines" data-rlines>${linesHTML(pr.lines, 1)}</ul>` : ''}
+        ${pr.lines.length ? `<div class="lrhead"><h3>Ingredients</h3><span class="lserv" role="group" aria-label="Servings"><button class="iconbtn small" data-serv="-1" aria-label="Fewer servings">${svg(P.minus)}</button><b data-servn>${plural(base, 'serving')}</b><button class="iconbtn small" data-serv="1" aria-label="More servings">${svg(P.plus)}</button></span></div><ul class="rlines" data-rlines>${linesHTML(pr.lines, 1, pr.secs)}</ul>` : ''}
         ${ings.length ? `<p class="dsub">From your pantry</p><div class="lwrap">${ings.map(i => `<span class="chip ${i.stock ? 'on' : ''}">${i.stock ? '✓ ' : ''}${esc(i.name)}${i.list ? ' (on list)' : ''}</span>`).join('')}</div>` : ''}
         ${pr.steps.length ? `<h3>Method</h3><ol class="rsteps">${pr.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}
         ${r.notes ? `<h3>Notes</h3><p class="lpre">${esc(r.notes)}</p>` : ''}
@@ -3237,7 +3239,7 @@ function openRecipe(r) {
     foot: `${missing.length ? `<button class="btn" data-miss>Add ${missing.length} missing to list</button>` : ''}<button class="btn" data-plan>Plan it</button><div class="spacer"></div><button class="btn" data-edit>Edit</button>${pr.steps.length || pr.lines.length ? '<button class="btn primary" data-cook>Start cooking</button>' : ''}`
   });
   sh.querySelector('[data-edit]').onclick = () => openEditor('recipes', r.id);
-  sh.querySelectorAll('[data-serv]').forEach(b => b.onclick = () => { serv = Math.max(1, Math.min(40, serv + Number(b.dataset.serv))); sh.querySelector('[data-servn]').textContent = plural(serv, 'serving'); sh.querySelector('[data-rlines]').innerHTML = linesHTML(pr.lines, serv / base); });
+  sh.querySelectorAll('[data-serv]').forEach(b => b.onclick = () => { serv = Math.max(1, Math.min(40, serv + Number(b.dataset.serv))); sh.querySelector('[data-servn]').textContent = plural(serv, 'serving'); sh.querySelector('[data-rlines]').innerHTML = linesHTML(pr.lines, serv / base, pr.secs); });
   const ck = sh.querySelector('[data-cook]'); if (ck) ck.onclick = () => { C.closeSheet(); cookMode(r, serv / base); };
   sh.querySelector('[data-plan]').onclick = () => planRecipe(r);
   const m = sh.querySelector('[data-miss]');
@@ -3248,6 +3250,17 @@ function openRecipe(r) {
    Recipes keep "Ingrediënten:" lines and "Bereiding:" steps in their instructions (that is how imports and the
    weekly fill write them). Amounts scale with the number of servings; cook mode shows one step per screen. */
 function parseRecipe(r) {
+  if (Array.isArray(r.ilines) && r.ilines.length || Array.isArray(r.steps) && r.steps.length) {
+    const old = Array.isArray(r.ilines) && r.ilines.length && Array.isArray(r.steps) && r.steps.length ? null : parseText(r), lines = [], secs = [];
+    let sec = '';
+    if (Array.isArray(r.ilines) && r.ilines.length) for (const x of r.ilines) { if (x.h != null) { sec = String(x.h).trim(); continue; } const l = ilineText(x); if (l) { lines.push(l); secs.push(sec); } }
+    else if (old) lines.push(...old.lines);
+    const steps = Array.isArray(r.steps) && r.steps.length ? r.steps.map(x => String(x).trim()).filter(Boolean) : old?.steps || [];
+    return { lines, steps, secs };
+  }
+  return parseText(r);
+}
+function parseText(r) {
   const t = String(r.instructions || '').replace(/\r/g, ''), lines = [], steps = [];
   const parts = t.split(/\n\s*(?=(?:Bereiding|Method|Instructions|Steps|Werkwijze)\s*:)/i);
   let ingPart = '', stepPart = t;
@@ -3267,7 +3280,53 @@ function scaleLine(line, f) {
   const a = fmtQty(val(m[1]) * f), b = m[2] ? '–' + fmtQty(val(m[2]) * f) : '';
   return a + b + line.slice(m[0].length);
 }
-const linesHTML = (lines, f) => lines.map(l => `<li>${esc(scaleLine(l, f))}</li>`).join('');
+// ingredient lines; with parts (Sauce, Topping) each part gets its own small heading
+const linesHTML = (lines, f, secs = []) => lines.map((l, i) => `${secs[i] && secs[i] !== secs[i - 1] ? `<li class="rsec">${esc(secs[i])}</li>` : ''}<li>${esc(scaleLine(l, f))}</li>`).join('');
+/* ---------- recipe ingredients with amounts ----------
+   Each line: an amount, a unit, the ingredient, a note (chopped, leftover) and the part of the recipe it belongs to.
+   A line that names something in your pantry links to it, so "Can make now" and the grocery list keep working. */
+const RUNITS = ['', 'g', 'kg', 'ml', 'dl', 'l', 'el', 'tl', 'kopje', 'stuk', 'teentje', 'snufje', 'scheutje', 'handje', 'blik', 'pak', 'zakje', 'bosje', 'plak', 'naar smaak'];
+const ilineText = x => { const n = String(x.n || '').trim(); if (!n) return ''; return [String(x.q ?? '').trim(), x.u && x.u !== 'naar smaak' ? x.u : '', n].filter(Boolean).join(' ') + (x.u === 'naar smaak' ? ', naar smaak' : '') + (x.note ? ', ' + String(x.note).trim() : ''); };
+// an old text line ("200 g kip, in blokjes") split into its parts
+function ilineParse(l) {
+  const m = String(l).trim().match(/^((?:\d+\s*\/\s*\d+|\d+(?:[.,]\d+)?(?:\s*[½⅓⅔¼¾⅛])?|[½⅓⅔¼¾⅛])(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?)?\s*(.*)$/), q = (m?.[1] || '').trim();
+  let rest = (m?.[2] || '').trim(), u = '';
+  const um = rest.match(/^(gram|grams|gr|g|kilo|kg|ml|dl|liter|l|eetlepels?|el|tbsp|theelepels?|tl|tsp|kopjes?|cups?|stuks?|teentjes?|cloves?|snufje|pinch|scheutje|handje|handful|blikken|blik|can|pak|zakjes?|bosjes?|plakjes?|plakken|plak)\.?\s+(.+)$/i);
+  if (um) { const w = um[1].toLowerCase(); u = /^(gram|grams|gr|g)$/.test(w) ? 'g' : /^(kilo|kg)$/.test(w) ? 'kg' : /^(liter|l)$/.test(w) ? 'l' : /^(eetlepels?|el|tbsp)$/.test(w) ? 'el' : /^(theelepels?|tl|tsp)$/.test(w) ? 'tl' : /^(kopjes?|cups?)$/.test(w) ? 'kopje' : /^(stuks?)$/.test(w) ? 'stuk' : /^(teentjes?|cloves?)$/.test(w) ? 'teentje' : /^(pinch)$/.test(w) ? 'snufje' : /^(handful)$/.test(w) ? 'handje' : /^(blikken|blik|can)$/.test(w) ? 'blik' : /^zakjes?$/.test(w) ? 'zakje' : /^bosjes?$/.test(w) ? 'bosje' : /^(plakjes?|plakken|plak)$/.test(w) ? 'plak' : w; rest = um[2]; }
+  const c = rest.indexOf(','), n = (c > 0 ? rest.slice(0, c) : rest).trim(), note = c > 0 ? rest.slice(c + 1).trim() : '';
+  return { q, u, n, note };
+}
+const pantryHit = n => { const k = deUml(n || ''); if (!k) return null; return recs('ingredients').find(i => deUml(i.name) === k) || recs('ingredients').find(i => k.split(' ').includes(deUml(i.name)) && deUml(i.name).length > 3) || null; };
+function ilinesEditor(D) {
+  const rows = Array.isArray(D.ilines) ? D.ilines : [];
+  return `<div class="ilines">${rows.map((x, i) => x.h != null
+    ? `<div class="ilrow ilhead"><input data-il="${i}" data-ik="h" value="${esc(x.h)}" placeholder="Part, like Sauce or Topping" aria-label="Part name"><button type="button" class="iconbtn small" data-ilx="${i}" aria-label="Remove part">${svg(P.x)}</button></div>`
+    : `<div class="ilrow"><input class="ilq" data-il="${i}" data-ik="q" value="${esc(x.q ?? '')}" inputmode="decimal" placeholder="200" aria-label="Amount"><select class="ilu" data-il="${i}" data-ik="u" aria-label="Unit">${RUNITS.map(u => `<option value="${u}" ${u === (x.u || '') ? 'selected' : ''}>${u || '–'}</option>`).join('')}</select><input class="iln" data-il="${i}" data-ik="n" value="${esc(x.n || '')}" list="ilnames" placeholder="Ingredient" aria-label="Ingredient"><input class="ilnote" data-il="${i}" data-ik="note" value="${esc(x.note || '')}" placeholder="Note, like chopped" aria-label="Note"><button type="button" class="iconbtn small" data-ilx="${i}" aria-label="Remove ingredient">${svg(P.x)}</button>${x.ing && L.byId[x.ing] ? '<span class="ilpan" title="In your pantry">✓</span>' : ''}</div>`).join('')}</div>
+    <datalist id="ilnames">${[...new Set([...recs('ingredients').map(i => i.name), ...recs('recipes').flatMap(r => [].concat(r.ilines || []).map(x => x.n))].filter(Boolean).map(v => String(v).trim()))].sort(azCmp).map(v => `<option value="${esc(v)}">`).join('')}</datalist>
+    <div class="dbtns"><button type="button" class="btn small" data-iladd>+ Ingredient</button><button type="button" class="btn small ghost" data-iladdh>+ Part</button></div>`;
+}
+function stepsEditor(D) {
+  const st = Array.isArray(D.steps) ? D.steps : [];
+  return `<ol class="stlist">${st.map((x, i) => `<li><textarea data-st="${i}" rows="2" aria-label="Step ${i + 1}">${esc(x)}</textarea><button type="button" class="iconbtn small" data-stx="${i}" aria-label="Remove step ${i + 1}">${svg(P.x)}</button></li>`).join('')}</ol><div class="dbtns"><button type="button" class="btn small" data-stadd>+ Step</button></div>`;
+}
+// an older recipe keeps its lines and steps as text; the editor turns them into rows once, so you can change amounts
+function recipeToRows(D) {
+  if ((!Array.isArray(D.ilines) || !D.ilines.length) && D.instructions) { const pr = parseText(D); if (pr.lines.length) D.ilines = pr.lines.map(ilineParse); if ((!Array.isArray(D.steps) || !D.steps.length) && pr.steps.length) D.steps = pr.steps; }
+  else if ((!Array.isArray(D.steps) || !D.steps.length) && D.instructions) { const pr = parseText(D); D.steps = pr.steps.length ? pr.steps : []; }
+}
+// before saving: drop empty rows, link pantry items, and keep the text version for older parts of the app
+function recipeBeforeSave(out) {
+  const il = [].concat(out.ilines || []).filter(x => x && (x.h != null ? String(x.h).trim() : String(x.n || '').trim())).map(x => x.h != null ? { h: String(x.h).trim() } : (() => { const y = { q: String(x.q ?? '').trim(), u: x.u || '', n: String(x.n).trim(), note: String(x.note || '').trim() }; const hit = pantryHit(y.n); if (hit) y.ing = hit.id; for (const k of Object.keys(y)) if (y[k] === '') delete y[k]; return y; })());
+  const st = [].concat(out.steps || []).map(x => String(x).trim()).filter(Boolean);
+  if (il.length) out.ilines = il; else delete out.ilines;
+  if (st.length) out.steps = st; else delete out.steps;
+  if (il.length || st.length) {
+    const pr = parseRecipe(out);
+    out.instructions = [pr.lines.length ? 'Ingrediënten:\n' + pr.lines.map(l => '- ' + l).join('\n') : '', pr.steps.length ? 'Bereiding:\n' + pr.steps.map((x, i) => `${i + 1}. ${x}`).join('\n') : ''].filter(Boolean).join('\n\n');
+    const ids = new Set([].concat(out.ingredients || [])); for (const x of il) if (x.ing) ids.add(x.ing); if (ids.size) out.ingredients = [...ids];
+  }
+  return out;
+}
 // the words that name an ingredient, to find it back in a step
 const lineWords = l => norm(l).replace(/[\d½⅓⅔¼¾⅛.,/()–-]+/g, ' ').split(/\s+/).filter(w => w.length > 3 && !/^(gram|grams|cups?|tbsp|tsp|tablespoons?|teaspoons?|eetlepels?|theelepels?|ounces?|pound|pinch|snufje|handful|handje|stuks?|blik|teentjes?|cloves?|large|small|grote|kleine|fresh|verse|chopped|gehakt|finely|fijn|sliced|optional|ongeveer|about|plus|more|extra|taste|naar|smaak)$/.test(w));
 // "10 minutes", "5-7 min", "1 uur", "30 seconden" in a step become timers
@@ -4156,6 +4215,8 @@ function fieldInner(kind, f, D) {
   const span = `<span class="lflabel">${esc(f.label)}</span>`;
   switch (f.type) {
     case 'long': return lab + `<textarea id="${id}" data-k="${f.k}" rows="${f.rows || 4}">${esc(v || '')}</textarea>`;
+    case 'ilines': return span + ilinesEditor(D);
+    case 'steplist': return span + stepsEditor(D);
     case 'num': case 'money': return lab + `<input id="${id}" type="number" inputmode="decimal" step="any" data-k="${f.k}" data-num value="${v ?? ''}">`;
     case 'date': return lab + `<input id="${id}" type="date" data-k="${f.k}" value="${esc(v || '')}">`;
     case 'time': return lab + `<input id="${id}" type="time" data-k="${f.k}" value="${esc(v || '')}">`;
@@ -4215,6 +4276,7 @@ function openEditor(kind, id, preset = {}) {
   const D = r ? JSON.parse(JSON.stringify(dataOf(r))) : { created: Date.now(), ...preset };
   if (kind === 'skinlog' && !r) { const wd = wdOf(); D.used = D.used || [...new Set([...skinSlot(wd, false), ...skinSlot(wd, true)].map(b => b.id))]; D.time = D.time || (new Date().getHours() < 15 ? 'Morning' : 'Evening'); const cy = cycleStats(); if (cy.last && !cy.guessed && cy.day) D.cycle = D.cycle ?? cy.day; }
   if (kind === 'beauty' && r) { if (!Array.isArray(D.amDays)) D.amDays = amDaysOf(r); if (!Array.isArray(D.pmDays)) D.pmDays = pmDaysOf(r); }
+  if (kind === 'recipes') recipeToRows(D);
   D._blobs = {}; D._previews = {}; // one picked photo per photo field (a product photo and a receipt, say)
   if (!r) for (const f of K.fields) if (f.type === 'date' && D[f.k] === undefined && ['date', 'start'].includes(f.k)) D[f.k] = today();
   const sh = C.sheet({
@@ -4250,6 +4312,8 @@ function openEditor(kind, id, preset = {}) {
     const t = e.target;
     if (t.dataset.k) { D[t.dataset.k] = t.dataset.num !== undefined ? num(t.value) : t.value; if (t.dataset.photourl !== undefined) { delete D._blobs[t.dataset.k]; photoPreview(t); } }
     if (t.dataset.relq) relOpts(t.dataset.relq, t.value);
+    if (t.dataset.il !== undefined) { const x = D.ilines[+t.dataset.il]; if (x) x[t.dataset.ik] = t.value; }
+    if (t.dataset.st !== undefined) D.steps[+t.dataset.st] = t.value;
     // while you type, the buttons narrow down to what matches; a full match shows them all again
     if (t.dataset.sugk) { const q = norm(t.value), bs = [...sh.querySelectorAll(`[data-tsug="${t.dataset.sugk}"]`)], exact = bs.some(b => norm(b.dataset.v) === q); bs.forEach(b => { b.hidden = !!q && !exact && !norm(b.dataset.v).includes(q); b.setAttribute('aria-pressed', norm(b.dataset.v) === q); }); }
   });
@@ -4316,6 +4380,10 @@ function openEditor(kind, id, preset = {}) {
     const dop = e.target.closest('[data-opt]'); if (dop) for (const df of (KINDS[kind]?.fields || []).filter(x => x.dep === dop.dataset.opt)) setTimeout(() => { const ok = (df.depOpts?.[D[df.dep]] || []).includes(D[df.k]) || recs(kind).some(r => r[df.dep] === D[df.dep] && r[df.k] === D[df.k]); if (D[df.k] && !ok) delete D[df.k]; redraw(df.k); });
   });
   sh.addEventListener('click', e => {
+    if (e.target.closest('[data-iladd], [data-iladdh]')) { const h = !!e.target.closest('[data-iladdh]'); D.ilines = [...(D.ilines || []), h ? { h: '' } : { q: '', u: '', n: '', note: '' }]; redraw('ilines'); sh.querySelector(`[data-il="${D.ilines.length - 1}"][data-ik="${h ? 'h' : 'q'}"]`)?.focus(); return; }
+    const ilx = e.target.closest('[data-ilx]'); if (ilx) { D.ilines.splice(+ilx.dataset.ilx, 1); redraw('ilines'); return; }
+    if (e.target.closest('[data-stadd]')) { D.steps = [...(D.steps || []), '']; redraw('steps'); sh.querySelector(`[data-st="${D.steps.length - 1}"]`)?.focus(); return; }
+    const stx = e.target.closest('[data-stx]'); if (stx) { D.steps.splice(+stx.dataset.stx, 1); redraw('steps'); return; }
     const tg = e.target.closest('[data-tsug]'); if (tg) { const k = tg.dataset.tsug; D[k] = norm(D[k] || '') === norm(tg.dataset.v) ? '' : tg.dataset.v; redraw(k); return; }
     const ts = e.target.closest('[data-tstep], [data-tstepreset]');
     if (ts) { const i = Number(ts.dataset.tstep), done = new Set([].concat(D.stepsDone || [])); if (ts.dataset.tstepreset !== undefined) done.clear(); else done.has(i) ? done.delete(i) : done.add(i); D.stepsDone = [...done].sort((a, b) => a - b); drawTipSteps(); if (r) save(L.byId[r.id] || r, { stepsDone: D.stepsDone, ...(D.stepsDone.length && D.stepsDone.length === tipSteps(D).length && !D.tried ? { tried: (D.tried = true) } : {}) }); if (D.tried) redraw('tried'); return; }
@@ -4382,6 +4450,7 @@ function openEditor(kind, id, preset = {}) {
         const out = {}; for (const [k, v] of Object.entries(D)) if (!k.startsWith('_') && v !== '' && v != null && !(Array.isArray(v) && !v.length && !['amDays', 'pmDays'].includes(k))) out[k] = v;
         if (out.name) out.name = String(out.name).trim();
         if (kind === 'ingredients' && !out.type && ingGuess(out.name)) out.type = ingGuess(out.name);
+        if (kind === 'recipes') recipeBeforeSave(out);
         await put(kind, r ? r.id : C.uuid(), out);
         C.closeSheet(); C.toast('Saved');
       } catch (err) { console.error(err); msg.textContent = 'Could not save. Try again.'; b.disabled = false; }
