@@ -953,20 +953,22 @@ function fitTile() {
 
 /* ---------- sections and their pages ---------- */
 const SECTIONS = [
-  { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile, views: [['today', 'Overview', P.grid], ['deals', 'Deals', P.tag], ['quit', 'Stop smoking', P.leaf], ['recipes', 'Recipes', P.book], ['rtodo', 'To do', P.check], ['meals', 'Meal plan', P.calendar], ['groceries', 'Groceries', P.cart], ['pantry', 'Pantry', P.jar], ['gear', 'Gear', P.spoon]] },
-  { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Habits', P.repeat], ['growth', 'Growth', P.target], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['mindful', 'Mindfulness', P.moon], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['trips', 'Trips', P.plane], ['docs', 'Documents', P.doc], ['saved', 'Saved links', P.link]] },
-  { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc]] },
-  { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
-  { key: 'wish', label: 'Wishlists', icon: P.heart, tile: wishTile, views: [['today', 'Overview', P.grid], ['inbox', 'Inbox', P.inbox], ['master', 'Master', P.heart]] },
-  { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['feed', 'Feed', P.grid], ['posts', 'Posts', P.phone], ['plan', 'Planning', P.calendar], ['insights', 'Insights', P.grid], ['ideas', 'Ideas', P.star], ['tips', 'Tips', P.star], ['inspo', 'Inspiration', P.heart], ['kit', 'Toolkit', P.list], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
-  { key: 'fit', label: 'Fitness', icon: P.dumbbell, tile: fitTile, views: [['today', 'Overview', P.grid], ['workouts', 'Workouts', P.run], ['library', 'Videos', P.star], ['fgoals', 'Goals', P.target], ['plans', 'Plans', P.list], ['exercises', 'Exercises', P.dumbbell], ['body', 'Body', P.scale], ['gear', 'Gear', P.box]] }
+  { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile, views: [['today', 'Overview', P.grid], ['deals', 'Deals', P.tag], ['quit', 'Stop smoking', P.leaf], ['recipes', 'Recipes', P.book], ['meals', 'Meal plan', P.calendar], ['groceries', 'Groceries', P.cart], ['pantry', 'Pantry', P.jar], ['gear', 'Gear', P.spoon], ['todo', 'To do', P.check]] },
+  { key: 'care', label: 'Life', icon: P.sparkle, tile: careTile, views: [['today', 'Overview', P.grid], ['habits', 'Habits', P.repeat], ['growth', 'Growth', P.target], ['beauty', 'Beauty', P.drop], ['supplements', 'Supplements', P.pill], ['cycle', 'Cycle', P.moon], ['journal', 'Journal', P.pen], ['health', 'Health', P.pulse], ['mindful', 'Mindfulness', P.moon], ['ideas', 'Ideas', P.star], ['gifts', 'Gifts', P.gift], ['trips', 'Trips', P.plane], ['docs', 'Documents', P.doc], ['saved', 'Saved links', P.link], ['todo', 'To do', P.check]] },
+  { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc], ['todo', 'To do', P.check]] },
+  { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench], ['todo', 'To do', P.check]] },
+  { key: 'wish', label: 'Wishlists', icon: P.heart, tile: wishTile, views: [['today', 'Overview', P.grid], ['inbox', 'Inbox', P.inbox], ['master', 'Master', P.heart], ['todo', 'To do', P.check]] },
+  { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['feed', 'Feed', P.grid], ['posts', 'Posts', P.phone], ['plan', 'Planning', P.calendar], ['insights', 'Insights', P.grid], ['ideas', 'Ideas', P.star], ['tips', 'Tips', P.star], ['inspo', 'Inspiration', P.heart], ['kit', 'Toolkit', P.list], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user], ['todo', 'To do', P.check]] },
+  { key: 'fit', label: 'Fitness', icon: P.dumbbell, tile: fitTile, views: [['today', 'Overview', P.grid], ['workouts', 'Workouts', P.run], ['library', 'Videos', P.star], ['fgoals', 'Goals', P.target], ['plans', 'Plans', P.list], ['exercises', 'Exercises', P.dumbbell], ['body', 'Body', P.scale], ['gear', 'Gear', P.box], ['todo', 'To do', P.check]] }
 ];
+const TODO_ADDS = { kitchen: ['recipes', 'ingredients', 'gear'], care: ['beauty', 'supplements', 'ideas', 'gifts', 'courses', 'documents'], social: ['posts', 'cideas', 'stips', 'inspo', 'deals'], wish: ['wishes'], money: ['fbills', 'fdebts', 'fgoals'], home: ['plants', 'inventory', 'chores'], fit: ['exercises', 'vworkouts', 'fitgear', 'plans'] };
 const PAGES = {
+  ...Object.fromEntries(['kitchen', 'care', 'money', 'home', 'wish', 'social', 'fit'].map(sec => [sec + '/todo', { render: host => sectionTodo(host, sec), adds: TODO_ADDS[sec] }])),
   'kitchen/today': { render: kitchenToday, adds: ['meals', 'recipes', 'ingredients', 'mealprep'] },
   'kitchen/deals': { render: dealsPage, adds: ['recipes'] },
   'kitchen/quit': { render: quitPage, adds: ['recipes', 'ingredients'] },
   'kitchen/recipes': { title: 'Recipes', segs: [{ kind: 'recipes' }] },
-  'kitchen/rtodo': { render: recipesTodo, adds: ['recipes'] },
+
   'kitchen/meals': { title: 'Meal plan', segs: [{ key: 'week', label: 'Week', kind: 'meals', fill: weekFill, tools: false }, { key: 'month', label: 'Month', kind: 'meals', fill: monthFill, tools: false }, { kind: 'mealprep' }] },
   'kitchen/groceries': { title: 'Groceries', segs: [{ key: 'list', label: 'Shopping list', kind: 'ingredients', fill: groceryFill, tools: false }] },
   'kitchen/pantry': { title: 'Pantry', segs: [{ kind: 'ingredients' }] },
@@ -1623,34 +1625,75 @@ function recipeDeals(offers) {
   return recs('recipes').map(r => { const hits = new Map(); for (const id of [].concat(r.ingredients || [])) for (const o of dealsFor(ingName(id), offers)) hits.set(o.id, o); return { r, hits: [...hits.values()] }; })
     .filter(x => x.hits.length).sort((a, b) => b.hits.length - a.hits.length || (b.r.rating || 0) - (a.r.rating || 0));
 }
-/* To do: recipes that still miss details. Each check names a field from the recipe editor; tap a card to fill it in. */
+/* To do, in every section: records that still miss details. Per list the fields that matter, and when a record counts
+   (finished, archived or done records never do). Tap a row to open it and fill it in. */
+const empty = v => v == null || v === '' || (Array.isArray(v) && !v.length);
+const need = (k, label, when) => [k, label, r => (when ? when(r) : true) && empty(r[k])];
 const RTODO = [
-  ['photo', 'Photo', r => !r.photo],
-  ['category', 'Category', r => !r.category],
-  ['time', 'Time', r => !num(r.prep) && !num(r.cook)],
-  ['servings', 'Servings', r => !num(r.servings)],
-  ['ingredients', 'Ingredients', r => ![].concat(r.ingredients || []).length],
-  ['instructions', 'Instructions', r => !String(r.instructions || '').trim()],
-  ['protein', 'Protein', r => !String(r.protein || '').trim()],
-  ['feel', 'Feels like', r => ![].concat(r.feel || []).length],
-  ['rating', 'Rating', r => !num(r.rating)]
+  ['photo', 'Photo', r => !r.photo], ['category', 'Category', r => !r.category], ['time', 'Time', r => !num(r.prep) && !num(r.cook)],
+  ['servings', 'Servings', r => !num(r.servings)], ['ingredients', 'Ingredients', r => ![].concat(r.ingredients || []).length],
+  ['instructions', 'Instructions', r => !String(r.instructions || '').trim()], ['protein', 'Protein', r => !String(r.protein || '').trim()],
+  ['feel', 'Feels like', r => ![].concat(r.feel || []).length], ['rating', 'Rating', r => !num(r.rating)]
 ];
-function recipesTodo(host) {
-  const T = L.rtodo ||= { field: 'all', sort: 'most' };
-  const all = recs('recipes'), list = all.map(r => ({ r, miss: RTODO.filter(c => c[2](r)) })).filter(x => x.miss.length);
-  const count = k => list.filter(x => x.miss.some(m => m[0] === k)).length;
-  if (T.field !== 'all' && !count(T.field)) T.field = 'all';
-  const shown = list.filter(x => T.field === 'all' || x.miss.some(m => m[0] === T.field));
-  shown.sort(T.sort === 'new' ? (a, b) => (b.r.created || 0) - (a.r.created || 0) : T.sort === 'az' ? (a, b) => norm(titleOf(a.r)).localeCompare(norm(titleOf(b.r))) : (a, b) => b.miss.length - a.miss.length || norm(titleOf(a.r)).localeCompare(norm(titleOf(b.r))));
-  host.innerHTML = `<div class="viewhead"><h1>To do</h1><span class="sub">${all.length ? `${list.length} of ${all.length} recipes miss something` : ''}</span></div>
-    ${list.length ? `<div class="tools"><select class="pill" data-rtsort aria-label="Sort">${[['most', 'Most missing first'], ['new', 'Recently added'], ['az', 'Name A to Z']].map(([k, l]) => `<option value="${k}" ${T.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-    <div class="chips" role="group" aria-label="Missing field"><button class="chip" data-rtfield="all" aria-pressed="${T.field === 'all'}">Everything <span class="n">${list.length}</span></button>${RTODO.map(([k, l]) => { const n = count(k); return n ? `<button class="chip" data-rtfield="${k}" aria-pressed="${T.field === k}">${l} <span class="n">${n}</span></button>` : ''; }).join('')}</div>
-    <div class="lgrid">${shown.map(({ r, miss }) => `<div class="todocard">${card(r)}<p class="todomiss">${miss.map(m => `<span class="${m[0] === T.field ? 'on' : ''}">${m[1]}</span>`).join('')}</p></div>`).join('')}</div>`
-    : quiet(all.length ? 'Every recipe has all its details. Nice.' : 'Add recipes; anything they still miss shows up here.')}`;
-  if (!host.dataset.rtwired) {
-    host.dataset.rtwired = '1';
-    host.addEventListener('click', e => { const f = e.target.closest('[data-rtfield]'); if (f) { L.rtodo.field = f.dataset.rtfield; recipesTodo(host); } });
-    host.addEventListener('change', e => { const so = e.target.closest('[data-rtsort]'); if (so) { L.rtodo.sort = so.value; recipesTodo(host); } });
+const TODO = {
+  kitchen: {
+    recipes: { checks: RTODO },
+    ingredients: { checks: [need('category', 'Category'), need('location', 'Kept in')] },
+    gear: { checks: [need('category', 'Category'), need('photo', 'Photo')] }
+  },
+  care: {
+    beauty: { when: r => !r.finished && !r.archived, checks: [need('brand', 'Brand'), need('type', 'Type'), need('photo', 'Photo'), need('am', 'Morning or evening', r => !r.wish && !r.pm && r.type !== 'Fragrance')] },
+    supplements: { when: r => !r.finished, checks: [need('brand', 'Brand'), need('form', 'Form'), need('amount', 'Amount', r => !r.wish), need('times', 'When to take', r => !r.wish), need('photo', 'Photo')] },
+    ideas: { checks: [need('area', 'Area'), need('what', 'What it is'), need('summary', 'Summary'), need('photo', 'Photo')] },
+    gifts: { when: r => r.status !== 'Given', checks: [need('for', 'For'), need('occasion', 'Occasion'), need('price', 'Price')] },
+    courses: { when: r => r.status !== 'Completed', checks: [need('category', 'Category'), need('platform', 'Platform'), need('url', 'Link')] },
+    documents: { checks: [need('category', 'Category'), need('location', 'Where it is')] }
+  },
+  social: {
+    posts: { when: r => r.stage !== 'Posted', checks: [need('date', 'Post date'), need('format', 'Format'), need('platforms', 'Platforms'), need('pillar', 'Pillar'), need('desc', 'What it is'), need('hook', 'Hook')] },
+    cideas: { when: r => !['Dropped', 'Planned'].includes(r.status), checks: [need('pillar', 'Pillar'), need('format', 'Format'), need('desc', 'What it is')] },
+    stips: { checks: [need('category', 'Category'), need('summary', 'What it is'), need('steps', 'Steps')] },
+    inspo: { checks: [need('type', 'Type'), need('photo', 'Picture'), need('why', 'What I like')] },
+    deals: { when: r => !['Paid', 'Declined'].includes(r.status), checks: [need('type', 'Type'), need('fee', 'Fee', r => r.type === 'Paid'), need('contact', 'Contact'), need('deliverables', 'Deliverables'), ['dates', 'Deadline', r => !r.due && !r.postBy]] },
+    pillars: { checks: [need('desc', 'What it covers'), need('perMonth', 'Posts per month')] },
+    accounts: { when: r => r.active !== false, checks: [need('handle', 'Handle'), need('followers', 'Followers')] }
+  },
+  wish: {
+    wishes: { when: r => !r.archived && !['Bought', 'Dropped'].includes(r.status), checks: [need('category', 'Category'), need('price', 'Price'), need('photo', 'Photo'), need('shop', 'Shop'), need('why', 'Why I want it')] }
+  },
+  money: {
+    fbills: { when: r => r.active !== false, checks: [need('amount', 'Amount'), need('category', 'Category'), need('account', 'Account'), need('anchor', 'First date')] },
+    fdebts: { when: r => (num(r.balance) || 0) > 0 || empty(r.balance), checks: [need('balance', 'Balance'), need('payment', 'Monthly payment'), need('apr', 'Interest')] },
+    fgoals: { when: r => !r.done, checks: [need('target', 'Target'), need('by', 'Date')] }
+  },
+  home: {
+    plants: { checks: [need('location', 'Where'), need('every', 'Water every'), need('light', 'Light'), need('photo', 'Photo')] },
+    inventory: { checks: [need('room', 'Room'), need('category', 'Category'), need('photo', 'Photo')] },
+    chores: { checks: [need('space', 'Space'), need('freq', 'How often')] }
+  },
+  fit: {
+    exercises: { checks: [need('muscles', 'Muscles'), ['how', 'Photo or link', r => !r.photo && !r.link]] },
+    vworkouts: { checks: [need('type', 'Type'), need('minutes', 'Minutes'), need('level', 'Level')] },
+    fitgear: { checks: [need('category', 'Category'), need('photo', 'Photo')] },
+    plans: { checks: [need('exercises', 'Exercises')] }
+  }
+};
+function sectionTodo(host, sec) {
+  const cfg = TODO[sec] || {}, T = (L.todo ||= {})[sec] ||= { kind: 'all', sort: 'most' };
+  const all = Object.entries(cfg).flatMap(([kind, c]) => recs(kind).filter(r => !c.when || c.when(r)).map(r => ({ r, kind, miss: c.checks.filter(x => x[2](r)) })).filter(x => x.miss.length));
+  const kinds = Object.keys(cfg).map(k => [k, all.filter(x => x.kind === k).length]).filter(([, n]) => n);
+  if (T.kind !== 'all' && !kinds.some(([k]) => k === T.kind)) T.kind = 'all';
+  const shown = all.filter(x => T.kind === 'all' || x.kind === T.kind).sort(T.sort === 'new' ? (a, b) => (b.r.created || 0) - (a.r.created || 0) : T.sort === 'az' ? (a, b) => norm(titleOf(a.r)).localeCompare(norm(titleOf(b.r))) : (a, b) => b.miss.length - a.miss.length || norm(titleOf(a.r)).localeCompare(norm(titleOf(b.r))));
+  const total = Object.entries(cfg).reduce((n, [k, c]) => n + recs(k).filter(r => !c.when || c.when(r)).length, 0);
+  host.innerHTML = `<div class="viewhead"><h1>To do</h1><span class="sub">${total ? `${all.length} of ${total} miss something` : ''}</span></div>
+    ${all.length ? `<div class="lplanhead"><select class="pill" data-tdsort aria-label="Sort">${[['most', 'Most missing first'], ['new', 'Recently added'], ['az', 'Name A to Z']].map(([k, l]) => `<option value="${k}" ${T.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    ${kinds.length > 1 ? `<div class="chips" role="group" aria-label="List"><button class="chip" data-tdkind="all" aria-pressed="${T.kind === 'all'}">Everything <span class="n">${all.length}</span></button>${kinds.map(([k, n]) => `<button class="chip" data-tdkind="${k}" aria-pressed="${T.kind === k}">${esc(KINDS[k].many)} <span class="n">${n}</span></button>`).join('')}</div>` : ''}
+    <div class="lrows">${shown.slice(0, 300).map(({ r, kind, miss }) => `<div class="ltodo"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(KINDS[kind].many)}${KINDS[kind].sub?.(r) ? ' · ' + esc(KINDS[kind].sub(r)) : ''}</span></button><p class="todomiss">${miss.map(m => `<span>${esc(m[1])}</span>`).join('')}</p></div>`).join('')}</div>${shown.length > 300 ? `<p class="lnone">Showing 300 of ${shown.length}. Pick a list above to see the rest.</p>` : ''}`
+    : quiet(total ? 'Everything here has its details. Nice.' : 'Add things in this section; anything they still miss shows up here.')}`;
+  if (!host.dataset.tdwired) {
+    host.dataset.tdwired = '1';
+    host.addEventListener('click', e => { const k = e.target.closest('[data-tdkind]'); if (k) { L.todo[sec].kind = k.dataset.tdkind; sectionTodo(host, sec); } });
+    host.addEventListener('change', e => { const so = e.target.closest('[data-tdsort]'); if (so) { L.todo[sec].sort = so.value; sectionTodo(host, sec); } });
   }
 }
 /* Planning: every step of every post on a calendar, a week or a month at a time */
