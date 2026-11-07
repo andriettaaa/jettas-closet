@@ -768,3 +768,10 @@ html.cooking, html.cooking body { overflow: hidden; }
 .sdline { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; }
 .sddot { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
 img.nophoto { background: var(--line); }
+/* beauty deals and freezer */
+.bdgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.bdeal img { object-fit: contain; background: #fff; }
+.bdprice { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.bdprice s { color: var(--muted); font-size: 12.5px; }
+.lrow.fzold .lmain span { color: var(--danger); }
+.mfrows .lmain span { white-space: normal; overflow: visible; text-overflow: clip; }
