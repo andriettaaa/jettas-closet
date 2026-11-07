@@ -357,7 +357,7 @@ const KINDS = {
   posts: {
     one: 'post', many: 'Posts', facet: 'stage', photo: 'photo',
     fields: [F('name', 'Title'), F('date', 'Post on', 'date', { half: 1 }), F('time', 'At', 'time', { half: 1 }),
-      F('stage', 'Stage', 'select', { options: SOCIAL_STAGES, half: 1 }), F('platforms', 'Platforms', 'multi', { options: SOCIAL_PLATFORMS, half: 1 }),
+      F('stage', 'Stage', 'select', { options: SOCIAL_STAGES.filter(x => x !== 'Idea'), half: 1 }), F('platforms', 'Platforms', 'multi', { options: SOCIAL_PLATFORMS, half: 1 }),
       F('format', 'Format', 'select', { options: SOCIAL_FORMATS, half: 1 }), F('pillar', 'Pillar', 'rel', { to: 'pillars', half: 1 }),
       F('style', 'Style', 'select', { options: SOCIAL_STYLES, half: 1 }), F('funnel', 'Funnel stage', 'select', { options: SOCIAL_FUNNEL, half: 1 }),
       F('desc', 'What it is', 'long'), F('caption', 'Caption', 'long'), F('hashtags', 'Hashtags', 'text'),
@@ -1002,6 +1002,7 @@ async function load() {
   }
   L.missing = false; L.status = 'ok'; L.fresh = true;
   L.all = rows.map(r => ({ ...r.data, id: r.id, kind: r.kind })); index(); cacheSave(); C.render();
+  movePostIdeas();
 }
 function apply(id, kind, data) {
   const i = L.all.findIndex(r => r.id === id);
@@ -2468,6 +2469,29 @@ async function ttReturn() {
 }
 
 // a planned post with a video (or a photo) can go out from here: live on Instagram, or as a draft to your TikTok inbox
+/* An idea stays in Content ideas until you tap "Make it a post"; a post that is not out yet can go back. The record keeps its
+   id and every field, so nothing is lost either way, and Undo puts it back. */
+async function ideaToPost(id) {
+  const r = L.byId[id]; if (!r || r.kind !== 'cideas') return;
+  const { status, ...d } = dataOf(r);
+  try { C.closeSheet(); await putMany([{ id, kind: 'posts', data: { ...d, stage: 'Planned' } }], null, `Made “${titleOf(r)}” a post, now in Posts`); openEditor('posts', id); } catch (e) { failed(e); }
+}
+async function postToIdea(id) {
+  const r = L.byId[id]; if (!r || r.kind !== 'posts') return;
+  const { stage, ...d } = dataOf(r);
+  try { C.closeSheet(); await putMany([{ id, kind: 'cideas', data: { ...d, status: 'Idea', type: d.type || 'Post idea' } }], null, `Moved “${titleOf(r)}” back to Content ideas`); } catch (e) { failed(e); }
+}
+// posts that were still at the Idea stage move to Content ideas, once
+async function movePostIdeas() {
+  const key = 'hangtag:postideas:' + C.uid();
+  try { if (localStorage.getItem(key)) return; } catch { return; }
+  const list = recs('posts').filter(r => r.stage === 'Idea');
+  try { localStorage.setItem(key, '1'); } catch {}
+  if (!list.length) return;
+  try {
+    await putMany(list.map(r => { const { stage, ...d } = dataOf(r); return { id: r.id, kind: 'cideas', data: { ...d, status: 'Idea', type: d.type || 'Post idea' } }; }), null, `Moved ${plural(list.length, 'post idea')} to Content ideas`);
+  } catch (e) { try { localStorage.removeItem(key); } catch {} failed(e); }
+}
 function postPanel(r) {
   if (!r.video && !r.photo) return '';
   const ig = !r.igId, tt = r.video;
@@ -3047,7 +3071,7 @@ function openEditor(kind, id, preset = {}) {
   if (!r) for (const f of K.fields) if (f.type === 'date' && D[f.k] === undefined && ['date', 'start'].includes(f.k)) D[f.k] = today();
   const sh = C.sheet({
     title: r ? titleOf(r) : 'New ' + K.one,
-    body: `${r && WISHY[kind] ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}">${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
+    body: `${r && WISHY[kind] ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}">${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
     foot: `${r ? '<button class="btn danger" data-del>Delete</button>' : ''}<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save</button>`,
     onClose: () => { Object.values(D._previews).forEach(u => URL.revokeObjectURL(u)); }
   });
@@ -3110,6 +3134,8 @@ function openEditor(kind, id, preset = {}) {
     const d = b.dataset;
     if (d.act === 'igpost') return igPostNow(d.id);
     if (d.act === 'ttpost') return ttPostNow(d.id);
+    if (d.act === 'mkpost') return ideaToPost(d.id);
+    if (d.act === 'mkidea') return postToIdea(d.id);
     if (d.opt) { const f = fdef(d.opt); if (f.type === 'multi') { const a = [].concat(D[d.opt] || []); const i = a.indexOf(d.v); i >= 0 ? a.splice(i, 1) : a.push(d.v); D[d.opt] = a; } else D[d.opt] = D[d.opt] === d.v ? '' : d.v; redraw(d.opt); }
     else if (d.chk) { D[d.chk] = !D[d.chk]; redraw(d.chk); }
     else if (d.rate) { const n = Number(d.v); D[d.rate] = D[d.rate] === n ? 0 : n; redraw(d.rate); }
@@ -3319,6 +3345,8 @@ document.addEventListener('click', async e => {
     case 'quitadd': quitAdd(); break;
     case 'triptab': L.tripTab = d.v; C.render(); break;
     case 'igpost': igPostNow(d.id); break;
+    case 'mkpost': ideaToPost(d.id); break;
+    case 'mkidea': postToIdea(d.id); break;
     case 'ttpost': ttPostNow(d.id); break;
     case 'quitset': quitSet(); break;
     case 'chfree': { const c = C.prefs().chores || {}, f = new Set(c.free || []); f.has(d.v) ? f.delete(d.v) : f.add(d.v); C.savePrefs({ chores: { ...c, free: WDAYS.filter(x => f.has(x)) } }).catch(() => C.toast('Could not save. Try again.')); break; }
