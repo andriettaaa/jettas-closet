@@ -359,6 +359,8 @@ button.lrow.lmain, .lrow > .lmain:only-child { padding-left: 12px; }
 .fenvgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
 .fenvgrid > * { min-width: 0; }
 .fdupnote { margin-bottom: 12px; justify-content: space-between; }
+.ltotal { margin-bottom: 14px; }
+.lrow input[data-ins] { width: 20px; height: 20px; flex: none; accent-color: var(--accent); }
 @media (max-width: 900px) { .fenvgrid { grid-template-columns: 1fr; } }
 .fseg { margin-bottom: 8px; }
 .fenv { padding: 12px 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }

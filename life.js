@@ -781,25 +781,29 @@ const KINDS = {
       F('category', 'Category', 'rel', { to: 'fcats', half: 1 }), F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 }), F('tags', 'Tags', 'multi', { options: ['wishlist', 'verhuizen'] }), F('receipt', 'Receipt photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['-date', 'Newest'], ['-amount', 'Biggest'], ['name', 'A to Z']],
     sub: r => [niceDate(r.date), relName(r.category), relName(r.account), r.bill ? 'bill' : r.debt ? 'debt payment' : '', isWishTx(r) ? 'wishlist' : ''].filter(Boolean).join(' · '),
-    side: r => eur(num(r.amount))
+    side: r => eur(num(r.amount)),
+    total: l => { const t = l.reduce((n, r) => n + (num(r.amount) || 0), 0); return `<div class="tiles lt3 ltotal">${fTile('Spent', eur(t), plural(l.length, 'line'))}${fTile('Average', eur(l.length ? t / l.length : 0), 'per line')}${fTile('Biggest', eur(Math.max(0, ...l.map(r => num(r.amount) || 0))), '')}</div>`; }
   },
   fincome: {
     one: 'payment in', many: 'Money in', facet: 'type',
     fields: [F('name', 'From'), F('amount', 'Amount', 'money', { half: 1 }), F('date', 'Date', 'date', { half: 1 }),
       F('type', 'Type', 'select', { options: ['Pay', 'Other'], half: 1 }), F('account', 'Into', 'rel', { to: 'faccounts', half: 1 }), F('notes', 'Notes', 'long')],
     sorts: [['-date', 'Newest'], ['-amount', 'Biggest']],
-    sub: r => [niceDate(r.date), r.type, relName(r.account)].filter(Boolean).join(' · '), side: r => '+' + eur(num(r.amount))
+    sub: r => [niceDate(r.date), r.type, relName(r.account)].filter(Boolean).join(' · '), side: r => '+' + eur(num(r.amount)),
+    total: l => { const t = l.reduce((n, r) => n + (num(r.amount) || 0), 0); return `<div class="tiles lt3 ltotal">${fTile('Money in', eur(t), plural(l.length, 'line'))}${fTile('Average', eur(l.length ? t / l.length : 0), 'per line')}${fTile('Biggest', eur(Math.max(0, ...l.map(r => num(r.amount) || 0))), '')}</div>`; }
   },
   fbills: {
     one: 'repeat', many: 'Repeats', facet: 'type',
-    fields: [F('name', 'Name'), F('amount', 'Amount', 'money', { half: 1 }), F('type', 'Type', 'select', { options: ['Bill', 'Subscription', 'Debt'], half: 1 }),
+    fields: [F('name', 'Name'), F('amount', 'Amount', 'money', { half: 1 }), F('type', 'Type', 'select', { options: ['Bill', 'Subscription', 'Insurance', 'Debt'], half: 1 }),
       F('cadence', 'How often', 'select', { options: ['Monthly', 'Every N months', 'Yearly', 'Weekly'], half: 1 }), F('every', 'Every how many', 'num', { half: 1 }),
       F('anchor', 'First due', 'date', { half: 1 }), F('ends', 'Ends', 'date', { half: 1 }),
       F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 }), F('category', 'Category', 'rel', { to: 'fcats', half: 1 }),
       F('debt', 'Pays off debt', 'rel', { to: 'fdebts', half: 1 }), F('pot', 'Saved up in pot', 'rel', { to: 'faccounts', half: 1 }), F('trialEnds', 'Free trial ends', 'date', { half: 1 }), F('active', 'Active', 'check', { half: 1 }), F('url', 'Link', 'url'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['-amount', 'Biggest']], hide: r => r.active === false, hideLabel: 'Show stopped',
     sub: r => { const n = fNext(r); return [r.type, fCadence(r), n ? 'next ' + niceDate(n) : 'no next date'].filter(Boolean).join(' · '); },
-    side: r => eur(num(r.amount))
+    side: r => eur(num(r.amount)),
+    // what the repeats you see cost together; stopped ones don't count
+    total: (l, u) => { const a = l.filter(b => b.active !== false), m = a.reduce((n, b) => n + fPerMonth(b), 0); return insMoveNote() + `<div class="tiles lt3 ltotal">${fTile(esc({ Bill: 'Bills', Subscription: 'Subscriptions', Insurance: 'Insurances', Debt: 'Debts' }[u.facet] || 'Repeats'), String(a.length), 'active')}${fTile('Per month', eur(m), 'all together')}${fTile('Per year', eur(12 * m), 'all together')}</div>`; }
   },
   fpaid: {
     one: 'paid bill', many: 'Paid bills',
@@ -1621,7 +1625,7 @@ function fillList(host, page) {
   }
   if (seg.fill) { seg.fill(fill, page); return; }
   // Finance lists say so when something is in there twice, with the button to clean it up
-  const top = (FIN_KINDS.includes(seg.kind) ? fDupNote() : '') + (seg.top ? seg.top() : '');
+  const top = (FIN_KINDS.includes(seg.kind) ? fDupNote() : '') + (seg.top ? seg.top() : '') + (K.total && list.length ? K.total(list, u) : '');
   fill.innerHTML = top + (list.length ? groupedHTML(list, K, l => viewMode(K) === 'table' ? tableHTML(l, K) : listHTML(l, K)) : emptyList(K, all.length));
   drawSel(host, page, list);
 }
@@ -4531,6 +4535,7 @@ document.addEventListener('click', async e => {
     case 'fwnew': openEditor('wishes', null, { status: 'Wish', since: today(), wait: WAIT_DAYS * 24, category: 'Other' }); break;
     case 'fcsv': pickCsv(); break;
     case 'fdups': fDups(); break;
+    case 'finsmove': insMove(); break;
     case 'fclear': fClear(); break;
     case 'acchist': accHistory(d.id); break;
     case 'fmove': moveMoney(); break;
@@ -5607,11 +5612,31 @@ function todayTop() {
 
 /* ---------- insurance, online orders, vision, self discovery, moodboard ---------- */
 function insMonthly(r) { const a = num(r.amount); return r.billing === 'Yearly' ? a / 12 : r.billing === 'Quarterly' ? a / 3 : a; }
+/* insurance premiums you pay as a repeat live in Repeats with the type Insurance. Ones that came in as a Bill
+   are spotted by name (an insurance on this page, its company, or a word like verzekering) and moved in one step you can undo */
+const INS_WORDS = /verzeker|insurance|aansprakelijk|inboedel|opstal|rechtsbijstand|uitvaart|overlijdensrisico|zorgpremie|\b(zilveren kruis|cz|vgz|menzis|dsw|onvz|centraal beheer|interpolis|fbto|ditzo|a\.?s\.?r|nationale.nederlanden|univ[eé]|ohra|allianz|aegon|inshared|promovendum|klaverblad|zekur|anderzorg|zorg en zekerheid|de friesland|ikzorg|ik zorg)\b/i;
+function insLike() {
+  const names = new Set(recs('insurance').flatMap(r => [r.name, r.company]).filter(Boolean).map(v => norm(v)));
+  return recs('fbills').filter(b => b.active !== false && (b.type || 'Bill') === 'Bill' && (INS_WORDS.test(b.name || '') || names.has(norm(b.name || ''))));
+}
+const insMoveNote = () => { const l = insLike(); return l.length ? `<div class="note tnote fdupnote"><span>${l.length === 1 ? `${esc(l[0].name)} lijkt een verzekering` : `${l.length} bills lijken verzekeringen`}. Zet ${l.length === 1 ? 'hem' : 'ze'} onder Insurance.</span><button class="btn small primary" data-act="finsmove">Bekijken</button></div>` : ''; };
+function insMove() {
+  const l = insLike(); if (!l.length) return;
+  const sh = C.sheet({ title: 'Naar Insurance', body: `<p class="lnone">Deze bills lijken verzekeringen. Vink uit wat geen verzekering is.</p><div class="lrows">${l.map(b => `<label class="lrow"><input type="checkbox" checked data-ins="${b.id}"><span class="lmain"><b>${esc(b.name)}</b><span>${esc(fCadence(b))}</span></span><span class="lside">${eur(num(b.amount))}</span></label>`).join('')}</div>`,
+    foot: '<div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-go>Verplaatsen</button>' });
+  sh.querySelector('[data-go]').onclick = async e => {
+    const ids = [...sh.querySelectorAll('[data-ins]:checked')].map(x => x.dataset.ins); if (!ids.length) { C.closeSheet(); return; }
+    e.target.disabled = true;
+    try { await putMany(ids.map(id => ({ id, kind: 'fbills', data: { ...dataOf(L.byId[id]), type: 'Insurance' } })), null, `Moved ${plural(ids.length, 'bill')} to Insurance`); C.closeSheet(); }
+    catch (err) { failed(err); e.target.disabled = false; }
+  };
+}
 function insuranceTop() {
   const l = recs('insurance').filter(r => r.status !== 'Stopped'), m = l.reduce((n, r) => n + insMonthly(r), 0);
+  const rep = recs('fbills').filter(b => b.type === 'Insurance' && b.active !== false), rm = rep.reduce((n, b) => n + fPerMonth(b), 0);
   const next = l.filter(r => r.renews && r.renews >= today()).sort((a, b) => a.renews.localeCompare(b.renews))[0];
   const mo = +today().slice(5, 7), zorg = l.find(r => r.type === 'Zorgverzekering');
-  return `<div class="tiles lt3">${fTile('Per month', eur(m).replace(/\.00$/, ''), plural(l.length, 'insurance'))}${fTile('Per year', eur(Math.round(m * 12)).replace(/\.00$/, ''), 'all premiums')}${fTile('Next renewal', next ? esc(shortDate(next.renews)) : 'None', next ? esc(next.name) : 'add a renewal date')}</div>
+  return `${rep.length ? `<p class="lnone">In Repeats ${rep.length === 1 ? 'staat 1 verzekering' : `staan ${rep.length} verzekeringen`}, samen ${eur(rm)} per maand. ${mLink('Naar Repeats', 'money/repeats')}</p>` : ''}<div class="tiles lt3">${fTile('Per month', eur(m).replace(/\.00$/, ''), plural(l.length, 'insurance'))}${fTile('Per year', eur(Math.round(m * 12)).replace(/\.00$/, ''), 'all premiums')}${fTile('Next renewal', next ? esc(shortDate(next.renews)) : 'None', next ? esc(next.name) : 'add a renewal date')}</div>
   ${mo >= 11 ? `<p class="lnone">${zorg ? `Je zorgverzekering bij ${esc(zorg.company || 'je verzekeraar')} kun je tot 31 december opzeggen. Vergelijk nu, dan zit je 1 januari goed.` : 'Tot 31 december kun je overstappen van zorgverzekering. Voeg de jouwe toe om te vergelijken.'} <a href="https://www.independer.nl/zorgverzekering/intro.aspx" target="_blank" rel="noopener">Vergelijk op Independer</a></p>` : ''}`;
 }
 function ordersTop() {
@@ -5782,7 +5807,7 @@ function calEvents(from, to, all) {
   });
   // Finance
   safe('Finance', () => {
-  try { for (const o of fOccs(from, to)) add({ id: 'bill:' + o.key, cat: 'money', date: o.date, title: `${o.bill.name || 'Rekening'} ${eur(o.amount)}`, sub: o.type, imp: o.amount >= 50 || o.type === 'Bill', done: o.paid, go: 'money/repeats' }); } catch {}
+  try { for (const o of fOccs(from, to)) add({ id: 'bill:' + o.key, cat: 'money', date: o.date, title: `${o.bill.name || 'Rekening'} ${eur(o.amount)}`, sub: o.type, imp: o.amount >= 50 || o.type === 'Bill' || o.type === 'Insurance', done: o.paid, go: 'money/repeats' }); } catch {}
   });
   safe('Finance', () => {
   const pd = recs('fset')[0]?.payday; if (inR(pd, from, to)) add({ id: 'pay', cat: 'money', date: pd, title: 'Salaris', imp: true, go: 'money/today' });
