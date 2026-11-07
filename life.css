@@ -809,6 +809,7 @@ img.nophoto { background: var(--line); }
 .blowrow { align-items: center; margin-bottom: 12px; }
 .lcw { display: grid; gap: 6px; justify-items: center; align-content: start; min-width: 0; }
 .lcw > .lcard { width: 100%; }
+.lcwc { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; max-width: 100%; }
 .stepper b.unk { color: var(--muted); }
 .lrow.grow { flex-wrap: wrap; }
 .lrow.grow .lmain { flex: 1 1 140px; min-width: 0; }
@@ -1111,3 +1112,13 @@ img.nophoto { background: var(--line); }
 /* the shopping day picker, week by week */
 .shoppick { display: grid; gap: 6px; margin-bottom: 14px; }
 .shoppick .chip[disabled] { opacity: .4; }
+
+/* how much is left in an open product */
+.lpct { display: grid; gap: 8px; }
+.lpctr { display: flex; align-items: center; gap: 12px; }
+.lpctr input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
+.lpctr input[type=range]:disabled { opacity: .4; }
+.lpctr b { min-width: 72px; text-align: right; font-variant-numeric: tabular-nums; }
+.leftchip { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 4px 10px; font-variant-numeric: tabular-nums; }
+.leftchip:not(.on) { color: var(--muted); }
+.leftbar { display: inline-block; width: 22px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, currentColor var(--p), color-mix(in srgb, currentColor 25%, transparent) var(--p)); }

@@ -118,6 +118,11 @@ const GOOD_LABELS = [...NUTRI, 'Meal prep', 'Freezes well', 'Office lunch', 'Mic
 // a recipe you can make now: every ingredient in stock or in the freezer
 const canMakeNow = r => { const ids = [].concat(r.ingredients || []); return ids.length > 0 && ids.every(id => { const i = L.byId[id]; return i && (i.stock || (cntOf(i) || 0) > 0); }); };
 const FILL_LEVELS = ['Full', 'Three quarters', 'Half', 'Almost empty'];
+// how much is left in an open product, in percent (0 to 100); the older fill words still read
+const LEFT_STEPS = [[100, 'Vol'], [75, '3/4'], [50, 'Half'], [25, '1/4'], [10, 'Bijna op']];
+const FILL_PCT = { Full: 100, 'Three quarters': 75, Half: 50, 'Almost empty': 10 };
+const LEFT_KINDS = new Set(['ingredients', 'beauty']);
+const leftOf = r => { const n = num(r?.left); return n != null ? Math.max(0, Math.min(100, n)) : r?.fill && r.fill !== 'Full' ? FILL_PCT[r.fill] ?? null : null; };
 const SHOP_TYPES = ['Supermarket', 'Toko', 'Butcher', 'Fishmonger', 'Greengrocer', 'Market', 'Household', 'Drugstore', 'Perfumery', 'Brand store', 'Webshop', 'Other'];
 // the shops you keep in Kitchen › Shops and Beauty › Deals; the weekly tasks read the deals of every shop that has them on
 const shopNames = kind => recs(kind).map(r => r.name).filter(Boolean);
@@ -173,7 +178,7 @@ const QUIT = 'Stop smoking', helpsQuit = r => [].concat(r.helps || []).includes(
 const STAY_SCORES = [['clean', 'Cleanliness'], ['location', 'Location'], ['comfort', 'Comfort and bed'], ['facilities', 'Facilities'], ['staff', 'Staff and service'], ['value', 'Value for money'], ['breakfast', 'Breakfast'], ['wifi', 'Wifi'], ['quiet', 'Quiet']];
 const stayScore = r => { const v = STAY_SCORES.map(([k]) => Number(r[k]) || 0).filter(Boolean); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : Number(r.rating) || 0; };
 const CAT_NL = {
-  ingredients: { 'Fruits & Veg': 'Groente & fruit', 'Fish & Meat': 'Vlees & vis', 'Eggs & Dairy': 'Zuivel & eieren', 'Grains & Legumes': 'Granen & peulvruchten', 'Bread & Bakery': 'Brood & bakkerij', 'Nuts & Seeds': 'Noten & zaden', 'Herbs & Spices': 'Kruiden & specerijen', 'Sauces & Oils': 'Sauzen & olie', 'Tins & Jars': 'Blik & pot', 'Frozen': 'Diepvries', 'Leftovers': 'Restjes', 'Drinks': 'Dranken', 'Snack': 'Snacks', 'Confections': 'Zoetigheid', 'Supplements': 'Supplementen', 'Other': 'Overig' },
+  ingredients: { 'Fruits & Veg': 'Groente & fruit', 'Fish & Meat': 'Vlees & vis', 'Eggs & Dairy': 'Zuivel & eieren', 'Grains & Legumes': 'Granen & peulvruchten', 'Bread & Bakery': 'Brood & bakkerij', 'Nuts & Seeds': 'Noten & zaden', 'Herbs & Spices': 'Kruiden & specerijen', 'Sauces & Oils': 'Sauzen & olie', 'Baking': 'Bakken', 'Spreads': 'Beleg', 'Tins & Jars': 'Blik & pot', 'Frozen': 'Diepvries', 'Leftovers': 'Restjes', 'Drinks': 'Dranken', 'Snack': 'Snacks', 'Confections': 'Zoetigheid', 'Supplements': 'Supplementen', 'Other': 'Overig' },
   gear: { 'Kitchen Appliances': 'Keukenapparaten', 'Cookware & Bakeware': 'Pannen & bakvormen', 'Prep Tools & Essentials': 'Voorbereiden', 'Cooking Tools & Utensils': 'Kookgerei', 'Organizing Essentials': 'Opbergen', 'Cleaning Supplies': 'Schoonmaken' }
 };
 const catNL = (kind, v) => (CAT_NL[kind] || {})[v] || v;
@@ -185,8 +190,10 @@ const ING_TYPES = {
   'Granen & peulvruchten': ['Rijst', 'Pasta', 'Noedels', 'Havermout', 'Meel', 'Couscous & quinoa', 'Bonen', 'Linzen & kikkererwten'],
   'Brood & bakkerij': ['Brood', 'Wraps', 'Crackers', 'Gebak'],
   'Noten & zaden': ['Noten', 'Zaden', 'Notenpasta'],
-  'Kruiden & specerijen': ['Gedroogde kruiden', 'Specerijen', 'Zout & peper', 'Bouillon'],
-  'Sauzen & olie': ['Olie', 'Azijn', 'Sojasaus', 'Pastasaus', 'Sauzen', 'Dressing'],
+  'Kruiden & specerijen': ['Peper', 'Zout', 'Chili', 'Gember', 'Kaneel', 'Kruidnagel', 'Koriander', 'Paprika', 'Kurkuma', 'Nootmuskaat', 'Kardemom', 'Kruidenmix', 'Gedroogde kruiden', 'Specerijen', 'Bouillon & jus'],
+  'Sauzen & olie': ['Olie', 'Azijn', 'Sojasaus', 'Ketjap', 'Vissaus', 'Oestersaus', 'Hoisin', 'Chilisaus', 'Mirin', 'Pastasaus', 'Mosterd', 'Ketchup & mayo', 'Sauzen', 'Dressing'],
+  'Bakken': ['Bloem & meel', 'Maismeel', 'Bakmix', 'Bindmiddel', 'Rijsmiddel', 'Suiker', 'Cacao'],
+  'Beleg': ['Kaas', 'Vleeswaren', 'Kip', 'Vis', 'Smeerbaar', 'Pindakaas', 'Hagelslag', 'Jam', 'Zoet beleg', 'Hartig beleg'],
   'Blik & pot': ['Tomaat in blik', 'Bonen in blik', 'Vis in blik', 'Kokosmelk', 'Soep', 'Groente in pot'],
   'Dranken': ['Koffie', 'Thee', 'Sap', 'Frisdrank', 'Water'],
   'Snacks': ['Chips', 'Koek', 'Repen', 'Noten'],
@@ -341,11 +348,11 @@ const KINDS = {
       F('location', 'Kept in', 'select', { options: ['Koelkast', 'Vriezer', 'Voorraadkast', 'Keukenkast', 'Fruitmand', 'Broodtrommel', 'Kelder / Berging', 'Overig'] }),
       F('stock', 'In stock', 'check', { half: 1 }), F('low', 'Running low', 'check', { half: 1 }), F('list', 'On grocery list', 'check', { half: 1 }),
       F('expires', 'Best before', 'date', { half: 1 }), F('frozen', 'Frozen on', 'date', { half: 1 }), F('portions', 'Portions', 'num', { half: 1 }), F('shop', 'Buy at', 'select', { options: STORES, more: () => shopNames('shops'), half: 1 }), F('amount', 'How much is left', 'num', { half: 1 }), F('unit', 'Counted in', 'select', { options: UNITS, half: 1 }), F('min', 'Minimum to keep', 'num', { half: 1 }), F('staple', 'Basic: always keep in stock', 'check', { half: 1 }), F('helps', 'Helps with', 'multi', { options: HELPS }),
-      F('qty', 'Amount', 'text', { half: 1 }), F('notes', 'Notes', 'long')],
+      F('qty', 'Amount', 'text', { half: 1 }), F('left', 'Open: hoeveel zit er nog in', 'pct'), F('brand', 'Merk', 'text', { half: 1 }), F('variant', 'Variant', 'text', { half: 1 }), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['category', 'Category'], ['location', 'Where it is']],
     filters: [['all', 'All'], ['in', 'In stock'], ['low', 'Running low'], ['soon', 'Use soon'], ['out', 'Out of stock'], ['basic', 'Basics']],
     filter: (r, f) => f === 'basic' ? !!r.staple : f === 'in' ? !!r.stock : f === 'out' ? !r.stock : f === 'low' ? !!r.low : f === 'soon' ? useSoon(r) : true,
-    sub: r => [r.category, r.location, r.frozen ? 'frozen ' + shortDate(r.frozen) : '', num(r.portions) ? plural(num(r.portions), 'portion') : '', r.low ? 'running low' : '', r.expires ? (r.expires < today() ? 'past its date' : 'best before ' + shortDate(r.expires)) : '', r.list ? 'on grocery list' : ''].filter(Boolean).join(' · '),
+    sub: r => [r.brand, r.variant, r.category, r.location, r.frozen ? 'frozen ' + shortDate(r.frozen) : '', num(r.portions) ? plural(num(r.portions), 'portion') : '', r.low ? 'running low' : '', r.expires ? (r.expires < today() ? 'past its date' : 'best before ' + shortDate(r.expires)) : '', r.list ? 'on grocery list' : ''].filter(Boolean).join(' · '),
     quick: r => ({ on: !!r.stock, label: 'In stock', act: () => save(r, { stock: !r.stock, ...(r.staple && r.stock ? { list: true } : {}) }) })
   },
   offers: {
@@ -444,7 +451,7 @@ const KINDS = {
       F('concern', 'Concern', 'multi', { options: ['Hydration', 'Dryness', 'Cleansing', 'Dullness', 'Textural Irregularities', 'Signs of Congestion', 'Dark Circles', 'Uneven Skin Tone', 'Signs of Aging', 'Redness', 'Puffiness', 'Heat Protection', 'Styling Product', 'Hair Growth', 'Fragrance'] }),
       F('texture', 'Texture', 'select', { options: ['Creamy', 'Gel-like', 'Serum', 'Oily', 'Watery', 'Spray', 'Balm', 'Foam', 'Wipes', 'Wax'] }),
       F('step', 'Step in your routine', 'select', { options: SKIN_STEPS }), F('amDays', 'Morning on', 'multi', { options: WEEKDAYS }), F('pmDays', 'Evening on', 'multi', { options: WEEKDAYS }),
-      F('price', 'Price', 'money', { half: 1 }), F('qty', 'How many', 'num', { half: 1 }), F('unit', 'Counted in', 'select', { options: UNITS, half: 1 }), F('min', 'Minimum to keep', 'num', { half: 1 }), F('fill', 'Open one is', 'select', { options: FILL_LEVELS, half: 1 }),
+      F('price', 'Price', 'money', { half: 1 }), F('qty', 'How many', 'num', { half: 1 }), F('unit', 'Counted in', 'select', { options: UNITS, half: 1 }), F('min', 'Minimum to keep', 'num', { half: 1 }), F('left', 'Open: hoeveel zit er nog in', 'pct'),
       F('bought', 'Bought on', 'date', { half: 1 }), F('opened', 'Opened on', 'date', { half: 1 }),
       F('expiry', 'Use before', 'date', { half: 1 }), F('rating', 'Rating', 'rating', { half: 1 }),
       F('fav', 'Favourite', 'check', { half: 1 }), F('low', 'Running low', 'check', { half: 1 }), F('finished', 'Finished', 'check', { half: 1 }), F('wish', 'On my wishlist', 'check', { half: 1 }),
@@ -455,7 +462,7 @@ const KINDS = {
     filter: (r, f) => f === 'own' ? !r.wish : f === 'want' ? !!r.wish : true,
     hide: r => r.finished || r.archived, hideLabel: 'Show finished',
     quick: r => ({ on: !!r.low, label: 'Running low', act: () => save(r, { low: !r.low }) }),
-    sub: r => [r.low ? 'running low' : '', num(r.qty) != null ? `${num(r.qty)} in stock` : '', r.fill && r.fill !== 'Full' ? 'open one ' + r.fill.toLowerCase() : '', r.wish ? 'Wishlist' : '', r.brand, r.type, r.texture, r.am && r.pm ? 'AM + PM' : r.am ? 'AM' : r.pm ? 'PM' : ''].filter(Boolean).join(' · '),
+    sub: r => [r.low ? 'running low' : '', num(r.qty) != null ? `${num(r.qty)} in stock` : '', leftOf(r) != null ? `open, nog ${leftOf(r)}%` : '', r.wish ? 'Wishlist' : '', r.brand, r.type, r.texture, r.am && r.pm ? 'AM + PM' : r.am ? 'AM' : r.pm ? 'PM' : ''].filter(Boolean).join(' · '),
     side: r => r.expiry ? (r.expiry < today() ? 'expired' : diffDays(today(), r.expiry) <= 30 ? 'use by ' + shortDate(r.expiry) : '') : ''
   },
   supplements: {
@@ -1524,7 +1531,27 @@ async function countStep(id, dir) {
 function row(r) {
   const K = KINDS[r.kind], q = K.quick?.(r), side = K.side?.(r);
   const ph = photoOf(r);
-  return `<div class="lrow ${K.hide?.(r) ? 'gone' : ''}">${ph ? `<button class="lthumb" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : ''}<button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b>${(() => { const t = [K.sub?.(r), WISHY[r.kind] ? wishLine(r.kind, r.id) : ''].filter(Boolean).join(' · '); return t ? `<span>${esc(t)}</span>` : ''; })()}</button>${side ? `<span class="lside ${/overdue|expired|today/.test(side) ? 'hot' : ''}">${esc(side)}</span>` : ''}${COUNTED.has(r.kind) ? stepper(r) : q ? tick(q.label, q.on, `data-act="quick" data-id="${r.id}"`) : ''}</div>`;
+  return `<div class="lrow ${K.hide?.(r) ? 'gone' : ''}">${ph ? `<button class="lthumb" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : ''}<button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b>${(() => { const t = [K.sub?.(r), WISHY[r.kind] ? wishLine(r.kind, r.id) : ''].filter(Boolean).join(' · '); return t ? `<span>${esc(t)}</span>` : ''; })()}</button>${side ? `<span class="lside ${/overdue|expired|today/.test(side) ? 'hot' : ''}">${esc(side)}</span>` : ''}${LEFT_KINDS.has(r.kind) ? leftChip(r) : ''}${COUNTED.has(r.kind) ? stepper(r) : q ? tick(q.label, q.on, `data-act="quick" data-id="${r.id}"`) : ''}</div>`;
+}
+function leftChip(r) {
+  const p = leftOf(r);
+  return `<button type="button" class="chip leftchip ${p != null ? 'on' : ''}" data-act="leftsheet" data-id="${r.id}" aria-label="${p != null ? `Open, nog ${p} procent. Aanpassen` : 'Markeer als open'}">${p != null ? `<i class="leftbar" style="--p:${p}%"></i>${p}%` : 'Open?'}</button>`;
+}
+// change how much is left without opening the whole product
+function leftSheet(id) {
+  const r = L.byId[id]; if (!r) return;
+  let p = leftOf(r);
+  const sh = C.sheet({ title: titleOf(r), body: `<p class="muted">Hoeveel zit er nog in het open product?</p><div class="lpct"><div class="lwrap">${[['', 'Dicht'], ...LEFT_STEPS].map(([n, l]) => `<button type="button" class="chip" data-lp="${n}" aria-pressed="${n === '' ? p == null : p === n}">${l}</button>`).join('')}</div>
+    <div class="lpctr"><input type="range" min="0" max="100" step="5" data-lpr value="${p ?? 100}" aria-label="Hoeveel zit er nog in"><b data-lpv>${p == null ? 'Niet open' : p + '%'}</b></div></div>`,
+    foot: `<button class="btn" data-lpused>Op, weggegooid</button><div class="spacer"></div><button class="btn primary" data-close>Klaar</button>` });
+  const show = () => { sh.querySelector('[data-lpv]').textContent = p == null ? 'Niet open' : p + '%'; sh.querySelectorAll('[data-lp]').forEach(b => b.setAttribute('aria-pressed', b.dataset.lp === '' ? p == null : Number(b.dataset.lp) === p)); };
+  const store = () => { const cur = L.byId[id]; if (cur) save(cur, { left: p, fill: '', ...(p != null && p <= 10 && (cntOf(cur) ?? 1) <= 1 ? { low: true } : {}) }); };
+  sh.addEventListener('click', e => {
+    const b = e.target.closest('[data-lp]'); if (b) { p = b.dataset.lp === '' ? null : Number(b.dataset.lp); if (p != null) sh.querySelector('[data-lpr]').value = p; show(); store(); return; }
+    if (e.target.closest('[data-lpused]')) { const cur = L.byId[id]; if (!cur) return; const n = cntOf(cur); save(cur, { left: null, fill: '', ...(n != null ? countPatch(cur, -1) : { stock: false }) }); C.closeSheet(); C.toast('Bijgewerkt: er is er een op'); }
+  });
+  sh.addEventListener('change', e => { if (e.target.matches('[data-lpr]')) { p = Number(e.target.value); show(); store(); } });
+  sh.addEventListener('input', e => { if (e.target.matches('[data-lpr]')) { p = Number(e.target.value); show(); } });
 }
 // a product tile looks like a closet piece: the whole photo on a soft stage, name and price under it
 function prodCard(r, act = 'open') {
@@ -1537,7 +1564,7 @@ function card(r) {
   const K = KINDS[r.kind], ph = photoOf(r);
   return `<button class="lcard" data-act="open" data-id="${r.id}"><div class="lph"><span>${esc(titleOf(r).slice(0, 1))}</span>${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${r.fav ? '<i class="lfav" aria-label="Favourite">★</i>' : ''}</div><div class="meta"><b>${esc(titleOf(r))}</b><span>${esc(K.sub?.(r) || '')}</span></div></button>`;
 }
-const listHTML = (list, K) => !list.length ? '' : viewMode(K) === 'cards' ? `<div class="lgrid">${list.map(r => COUNTED.has(r.kind) ? `<div class="lcw">${card(r)}${stepper(r)}</div>` : card(r)).join('')}</div>` : `<div class="lrows">${list.map(row).join('')}</div>`;
+const listHTML = (list, K) => !list.length ? '' : viewMode(K) === 'cards' ? `<div class="lgrid">${list.map(r => COUNTED.has(r.kind) ? `<div class="lcw">${card(r)}<div class="lcwc">${LEFT_KINDS.has(r.kind) ? leftChip(r) : ''}${stepper(r)}</div></div>` : card(r)).join('')}</div>` : `<div class="lrows">${list.map(row).join('')}</div>`;
 const panel = (title, body, more) => `<section class="panel lpanel"><div class="lph3"><h3>${esc(title)}</h3>${more ? `<button class="chip link" data-act="go" data-v="${more[0]}">${esc(more[1])}</button>` : ''}</div>${body}</section>`;
 const quiet = t => `<p class="lnone">${esc(t)}</p>`;
 
@@ -2276,7 +2303,7 @@ function beautyReviews(r) {
   const vs = recs('breviews').filter(v => v.product === r.id).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const wk = r.opened ? Math.floor(diffDays(r.opened, today()) / 7) : null, has = a => vs.some(v => v.after === a);
   const due = wk == null ? (vs.length ? '' : 'First use') : wk >= 8 && !has('8 weeks') ? '8 weeks' : wk >= 4 && !has('4 weeks') ? '4 weeks' : wk >= 1 && !has('1 week') ? '1 week' : !vs.length ? 'First use' : '';
-  const fillRow = `<div class="lwrap bfill"><span class="lnone">Open one:</span>${FILL_LEVELS.map(f => `<button type="button" class="chip ${r.fill === f ? 'on' : ''}" data-act="bfill" data-id="${r.id}" data-v="${f}" aria-pressed="${r.fill === f}">${f}</button>`).join('')}</div>`;
+  const fillRow = `<div class="lwrap bfill"><span class="lnone">Open one:</span>${leftChip(r)}</div>`;
   const lowBtn = fillRow + `<div class="lwrap blowrow"><span class="lnone">In stock:</span>${stepper(r)}<button type="button" class="chip ${r.low ? 'on' : ''}" data-act="blowsheet" data-id="${r.id}" aria-pressed="${!!r.low}">${r.low ? svg(P.check) + ' Running low' : 'Running low?'}</button><span class="lnone">${r.low ? 'The weekly task looks for deals on this.' : 'Tap when it is almost empty, and the weekly task looks for deals.'}</span></div>`;
   return lowBtn + `<section class="ltipsteps"><div class="lph3"><h3>Reviews</h3><button type="button" class="chip ${due ? 'on' : ''}" data-act="newreview" data-id="${r.id}" data-v="${esc(due || 'Later')}">${due ? `Write your ${esc(due.toLowerCase())} review` : 'Add a review'}</button></div>
     ${vs.length ? `<div class="lrows">${vs.map(v => `<div class="lrow"><button class="lmain" data-act="open" data-id="${v.id}"><b>${esc(v.after || 'Review')}${reviewAvg(v) ? ` · ${reviewAvg(v).toFixed(1)} / 5` : ''}</b><span>${esc([v.date && niceDate(v.date), v.again && 'buy again: ' + v.again.toLowerCase(), v.reason].filter(Boolean).join(' · '))}</span></button></div>`).join('')}</div>` : '<p class="lnone">No reviews yet. Rate how your skin reacts, how it feels, and whether you would buy it again.</p>'}</section>`;
@@ -4474,6 +4501,11 @@ function fieldInner(kind, f, D) {
     case 'time': return lab + `<input id="${id}" type="time" data-k="${f.k}" value="${esc(v || '')}">`;
     case 'url': return lab + `<div class="lurl"><input id="${id}" type="url" inputmode="url" data-k="${f.k}" value="${esc(v || '')}" placeholder="https://">${v ? `<a class="iconbtn" href="${esc(v)}" target="_blank" rel="noopener" aria-label="Open link">${svg(P.link)}</a>` : ''}</div>`;
     case 'check': return `<button type="button" class="chip lcheck" data-chk="${f.k}" aria-pressed="${!!v}">${v ? svg(P.check) : ''}${esc(f.label)}</button>`;
+    case 'pct': {
+      const p = leftOf({ left: v, fill: D.fill });
+      return span + `<div class="lpct"><div class="lwrap">${[['', 'Dicht'], ...LEFT_STEPS].map(([n, l]) => `<button type="button" class="chip" data-pct="${f.k}" data-v="${n}" aria-pressed="${n === '' ? p == null : p === n}">${l}</button>`).join('')}</div>
+        <div class="lpctr"><input type="range" min="0" max="100" step="5" data-pctr="${f.k}" value="${p ?? 100}" ${p == null ? 'disabled' : ''} aria-label="${esc(f.label)}"><b data-pctv="${f.k}">${p == null ? 'Niet open' : p + '%'}</b></div></div>`;
+    }
     case 'rating': return span + `<div class="lrating">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-rate="${f.k}" data-v="${n}" aria-label="${n} of 5" aria-pressed="${(v || 0) >= n}">${svg(P.star)}</button>`).join('')}</div>`;
     case 'select': case 'multi': {
       if (f.dep && !D?.[f.dep] && !v) return span + `<p class="lnone">${esc(f.depHint || 'Kies eerst een categorie.')}</p>`;
@@ -4564,6 +4596,7 @@ function openEditor(kind, id, preset = {}) {
     const t = e.target;
     if (t.dataset.k) { D[t.dataset.k] = t.dataset.num !== undefined ? num(t.value) : t.value; if (t.dataset.photourl !== undefined) { delete D._blobs[t.dataset.k]; photoPreview(t); } }
     if (t.dataset.relq) relOpts(t.dataset.relq, t.value);
+    if (t.dataset.pctr) { D[t.dataset.pctr] = Number(t.value); D.fill = ''; const o = sh.querySelector(`[data-pctv="${t.dataset.pctr}"]`); if (o) o.textContent = t.value + '%'; sh.querySelectorAll(`[data-pct="${t.dataset.pctr}"]`).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === t.value)); }
     if (t.dataset.il !== undefined) { const x = D.ilines[+t.dataset.il]; if (x) x[t.dataset.ik] = t.value; }
     if (t.dataset.st !== undefined) D.steps[+t.dataset.st] = t.value;
     // while you type, the buttons narrow down to what matches; a full match shows them all again
@@ -4676,6 +4709,7 @@ function openEditor(kind, id, preset = {}) {
     if (d.opt) { const f = fdef(d.opt); if (f.type === 'multi') { const a = [].concat(D[d.opt] || []); const i = a.indexOf(d.v); i >= 0 ? a.splice(i, 1) : a.push(d.v); D[d.opt] = a; } else D[d.opt] = D[d.opt] === d.v ? '' : d.v; redraw(d.opt); }
     else if (d.chk) { D[d.chk] = !D[d.chk]; redraw(d.chk); }
     else if (d.rate) { const n = Number(d.v); D[d.rate] = D[d.rate] === n ? 0 : n; redraw(d.rate); }
+    else if (d.pct) { D[d.pct] = d.v === '' ? null : Number(d.v); D.fill = ''; redraw(d.pct); }
     else if (d.relx) { const f = fdef(d.relx); D[d.relx] = f.multi ? [].concat(D[d.relx] || []).filter(x => x !== d.id) : ''; redraw(d.relx); }
     else if (d.relpick) pickRel(d.relpick, d.id);
     else if (d.relnew) { const f = fdef(d.relnew); try { const nid = await create(f.to, { name: d.v }); pickRel(d.relnew, nid); } catch {} }
@@ -4811,18 +4845,26 @@ function rDups() {
 /* a file can ask to fill in only (mode "fill", like the Albo recipes): a recipe with the same name as one you
    already have keeps everything you filled in yourself and only gets what is still empty */
 const isEmptyVal = v => v == null || v === '' || (Array.isArray(v) && !v.length);
+const nameForms = n => { const b = deUml(n); return [...new Set([b, b.replace(/(en|s)$/, ''), b + 'en', b + 's'].filter(Boolean))]; };
 function fillMatch(rows) {
-  const byName = new Map(); for (const k of new Set(rows.map(r => r.kind))) for (const r of recs(k)) for (const key of sameKeys(r)) if (!byName.has(k + '#' + key)) byName.set(k + '#' + key, r.id);
-  let added = 0, filled = 0, same = 0;
+  // a record matches on its name (or a form of it, or one of its other names), and recipes also on the loose name, link or photo
+  const keysOf = (kind, d) => { const names = [d.name || d.title || '', ...[].concat(d.aka || [])]; return [...names.flatMap(n => nameForms(n).map(f => 'f:' + f)), ...(kind === 'recipes' ? sameKeys({ ...d, kind }) : [])]; };
+  const byName = new Map(); for (const k of new Set(rows.map(r => r.kind))) for (const r of recs(k)) for (const key of keysOf(k, { ...r, name: titleOf(r) })) if (!byName.has(k + '#' + key)) byName.set(k + '#' + key, r.id);
+  let added = 0, filled = 0, same = 0; const linked = [], fresh = [];
   const out = rows.map(r => {
-    const id = L.byId[r.id] ? r.id : sameKeys({ ...r.data, kind: r.kind }).map(k => byName.get(r.kind + '#' + k)).find(Boolean) || r.id, have = L.byId[id];
-    if (!have) { added++; return { ...r, id }; }
+    const { aka, ...rd } = r.data;
+    const id = L.byId[r.id] ? r.id : keysOf(r.kind, r.data).map(k => byName.get(r.kind + '#' + k)).find(Boolean) || null;
+    const have = id && L.byId[id];
+    if (!have) { added++; fresh.push(rd.name || rd.title || ''); return { ...r, id: r.id, data: rd }; }
+    linked.push([rd.name || rd.title || '', titleOf(have)]);
     const cur = dataOf(have), data = { ...cur };
-    let n = 0; for (const [k, v] of Object.entries(r.data)) if (isEmptyVal(cur[k]) && !isEmptyVal(v)) { data[k] = v; n++; }
+    let n = 0; for (const [k, v] of Object.entries(rd)) if (k !== 'name' && isEmptyVal(cur[k]) && !isEmptyVal(v)) { data[k] = v; n++; }
+    // a photo from the file only goes on a product that has none yet
+    const pic = r.photoData && isEmptyVal(cur.photo); if (pic) n++;
     n ? filled++ : same++;
-    return n ? { ...r, id, data } : null;
+    return n ? { ...r, id, data, ...(pic ? {} : { photoData: undefined }) } : null;
   }).filter(Boolean);
-  return { rows: out, added, filled, same };
+  return { rows: out, added, filled, same, linked, fresh };
 }
 async function importFile(file) {
   let rows, fill = null;
@@ -4841,6 +4883,8 @@ async function importFile(file) {
   const sh = C.sheet({
     title: fill ? 'Import and fill in' : 'Import',
     body: fill ? `<p>${fill.added ? `This adds ${plural(fill.added, 'new record')}.` : ''} ${fill.filled ? `${plural(fill.filled, 'record')} you already have ${fill.filled === 1 ? 'gets' : 'get'} only what is still empty; what you filled in yourself stays.` : ''} ${fill.same ? `${plural(fill.same, 'record')} ${fill.same === 1 ? 'is' : 'are'} already complete and ${fill.same === 1 ? 'stays' : 'stay'} as ${fill.same === 1 ? 'it is' : 'they are'}.` : ''}</p>
+      ${fill.linked.length ? `<p class="dsub">Gekoppeld aan wat je al hebt</p><p class="lnone">${fill.linked.map(([a, b]) => esc(norm(a) === norm(b) ? b : `${a} → ${b}`)).join(' · ')}</p>` : ''}
+      ${fill.fresh.length ? `<p class="dsub">Nieuw</p><p class="lnone">${fill.fresh.map(esc).join(' · ')}</p>` : ''}
       <div class="lrows">${Object.entries(counts).sort((a, b) => azCmp(KINDS[a[0]].many, KINDS[b[0]].many)).map(([k, n]) => `<div class="lrow"><span class="lmain"><b>${esc(KINDS[k].many)}</b></span><span class="lside">${n}</span></div>`).join('')}</div>` : `<p>This adds ${plural(rows.length, 'record')}${fresh !== rows.length ? `, ${fresh} of them new. The other ${rows.length - fresh} are already here and get the values from the file; what the file leaves out stays as it is` : ''}.${mt.matched ? ` ${plural(mt.matched, 'item')} with the same name as one that is already here ${mt.matched === 1 ? 'is' : 'are'} not added again.` : ''}</p>
       <div class="lrows">${Object.entries(counts).sort((a, b) => azCmp(KINDS[a[0]].many, KINDS[b[0]].many)).map(([k, n]) => `<div class="lrow"><span class="lmain"><b>${esc(KINDS[k].many)}</b></span><span class="lside">${n}</span></div>`).join('')}</div>`,
     foot: `<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-go>Import ${rows.length}</button>`
@@ -4911,6 +4955,7 @@ document.addEventListener('click', async e => {
     case 'new': openEditor(d.v, null); break;
     case 'quick': { const r = L.byId[d.id]; KINDS[r?.kind]?.quick?.(r)?.act(); break; }
     case 'go': C.go(d.v); break;
+    case 'leftsheet': leftSheet(d.id); break;
     case 'ingview': try { localStorage.setItem(d.k, d.v); } catch {} C.render(); break;
     case 'ingtypeadd': openEditor('ingredients', null, { category: d.cat, type: d.type, ...(d.ctx === 'freezer' ? { location: 'Vriezer', stock: true, frozen: today() } : d.ctx === 'grocery' ? { list: true } : { stock: true }) }); break;
     case 'icalnew': { if (C.prefs().calToken && !confirm('Een nieuwe sleutel maakt je huidige abonnementen ongeldig. Doorgaan?')) break; const tok = (C.uuid() + C.uuid()).replace(/-/g, '').slice(0, 40); C.savePrefs({ calToken: tok }).then(() => { L.calFeedAt = 0; calFeedSync(true).then(() => C.render()); C.toast('Sleutel gemaakt. Zet hem in Supabase als CAL_TOKEN.'); }).catch(() => {}); break; }
