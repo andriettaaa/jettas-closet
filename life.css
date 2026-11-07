@@ -363,6 +363,7 @@ button.lrow.lmain, .lrow > .lmain:only-child { padding-left: 12px; }
 .lrow input[data-ins] { width: 20px; height: 20px; flex: none; accent-color: var(--accent); }
 @media (max-width: 900px) { .fenvgrid { grid-template-columns: 1fr; } }
 .fseg { margin-bottom: 8px; }
+.fpaylist .lrow { gap: 10px; } .fpaylist .finp { width: auto; max-width: 170px; flex: none; }
 .fenv { padding: 12px 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
 .fenv:last-child { border-bottom: 0; }
 .fenvh { display: flex; align-items: center; gap: 4px 8px; min-width: 0; flex-wrap: wrap; }
