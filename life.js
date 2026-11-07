@@ -486,10 +486,10 @@ const KINDS = {
   /* home */
   chores: {
     one: 'chore', many: 'Chores', facet: 'space',
-    fields: [F('name', 'Chore'), F('space', 'Room', 'select', { options: [...ROOMS.filter(x => !['Schoonmaak', 'Overig'].includes(x)), 'Hele huis'] }),
+    fields: [F('name', 'Chore'), F('space', 'Rooms', 'multi', { options: [...ROOMS.filter(x => !['Schoonmaak', 'Overig'].includes(x)), 'Hele huis'] }),
       F('freq', 'How often', 'select', { options: Object.keys(FREQ) }), F('last', 'Last done', 'date', { half: 1 }), F('notes', 'Notes', 'long')],
     sorts: [['due', 'Due first'], ['name', 'A to Z']],
-    sub: r => [r.space, r.freq].filter(Boolean).join(' · '),
+    sub: r => [[].concat(r.space || []).join(', '), r.freq].filter(Boolean).join(' · '),
     side: r => { const d = choreDue(r); return d <= today() ? (choreLate(r) ? 'carried over' : 'due today') : 'due ' + relDay(d); },
     quick: r => ({ on: r.last === today(), label: 'Done', act: () => save(r, { last: r.last === today() ? (r.prevLast || '') : today(), prevLast: r.last === today() ? '' : (r.last || '') }) })
   },
@@ -1669,7 +1669,7 @@ const TODO = {
   home: {
     plants: { checks: [need('location', 'Where'), need('every', 'Water every'), need('light', 'Light'), need('photo', 'Photo')] },
     inventory: { checks: [need('room', 'Room'), need('category', 'Category'), need('photo', 'Photo')] },
-    chores: { checks: [need('space', 'Space'), need('freq', 'How often')] }
+    chores: { checks: [need('space', 'Rooms'), need('freq', 'How often')] }
   },
   fit: {
     exercises: { checks: [need('muscles', 'Muscles'), ['how', 'Photo or link', r => !r.photo && !r.link]] },
@@ -2347,7 +2347,7 @@ function moneyToday(host) {
   const chipRow = `<div class="mchips">${recent.map(x => `<button class="chip mrecent" data-act="frepeat" data-id="${x.id}">${esc(x.name || 'Again')} ${eur(num(x.amount))}</button>`).join('')}${chips.map(c => `<button class="chip" data-act="fchip" data-id="${c.id}">${esc(titleOf(c))} ${eur(num(c.amount))}</button>`).join('')}</div>`;
   const pts = fProject(st, 30).pts, low = pts.reduce((m, p) => p.v < m.v ? p : m, pts[0]);
   const jump = [['m-safe', 'Safe to spend'], ['m-look', 'Worth a look'], ['m-wins', 'Small wins'], ['m-next', 'Next 30 days'], ['m-pay', 'Payments coming'], ['m-days', 'Every day this month'], ['m-went', 'Where the money went'], ['m-net', 'Goals, debt, net worth'], ['m-cats', 'Per category'], ['m-months', 'Month by month'], ['m-big', 'Biggest spending'], ...(allWishes().length || wishBudget() ? [['m-wish', 'Wishlists']] : []), ...(recs('faccounts').some(x => x.type === 'Pot') ? [['m-pots', 'Pots']] : []), ...(recs('fbills').some(b => b.type === 'Subscription' && b.active !== false) ? [['m-subs', 'Subscriptions']] : [])];
-  host.innerHTML = `<div class="viewhead dviewhead"><h1>${hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'}</h1><span class="sub">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span><div class="spacer"></div><button class="btn small" data-act="fcheck">Check my money</button><button class="btn small primary" data-act="new" data-v="ftx">+ Add spending</button></div>
+  host.innerHTML = `<div class="viewhead dviewhead"><h1>${esc(window.APP_GREETING?.().hello || (hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'))}</h1><span class="sub">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span><div class="spacer"></div><button class="btn small" data-act="fcheck">Check my money</button><button class="btn small primary" data-act="new" data-v="ftx">+ Add spending</button></div>
   <nav class="mjump" aria-label="On this page">${jump.map(([id, l]) => `<button class="chip" data-jump="${id}">${l}</button>`).join('')}</nav>
   <div class="mtop">${safe}${MP('Small wins', `${wins.join('')}<p class="lnone">${nWin ? `${nWin} down. That counts.` : 'Start with one.'}</p>`, `<span class="lnone">${nWin} of 3</span>`, 'wins')}</div>
   ${MP('Worth a look', st.overdue.length ? `<div class="lrows">${st.overdue.map(o => `<div class="lrow mlook"><span class="lmain"><b>${esc(o.bill.name)} was due ${esc(shortDate(o.date))}</b><span>${esc(o.type)} · ${eur(o.amount)}</span></span><button class="btn small" data-act="fpay" data-v="${o.key}">Mark paid</button><button class="chip link" data-act="fskip" data-v="${o.key}">Skip</button></div>`).join('')}</div>` : quiet('Nothing needs a look.'), `<span class="lnone">${plural(st.overdue.length, 'thing')}</span>`, 'look')}
@@ -4409,6 +4409,7 @@ return {
   start(bridge) { C = bridge; L.all = []; L.byId = {}; L.missing = false; L.status = cacheLoad() ? 'ok' : 'loading'; subscribe(); setTimeout(() => ttReturn(), 0); return load().catch(e => { console.error(e); if (L.status !== 'ok') L.status = 'offline'; C.render(); }); },
   refresh() { if (C?.uid()) load().catch(() => {}); },
   stop() { channel?.unsubscribe(); channel = null; },
+  userName: () => (C && fset()?.name) || '',
   render(host, view) {
     const cfg = PAGES[view];
     if (!C) { host.dataset.sig = ''; host.innerHTML = `<div class="viewhead"><h1>${esc(cfg.title || sectionOf(view)?.label || '')}</h1><span class="sub">Connecting…</span></div>`; return; }

@@ -395,6 +395,17 @@ dl.props dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .gallery span { position: absolute; left: 0; right: 0; bottom: 0; font-family: var(--mono); font-size: 10.5px; color: #fff; background: linear-gradient(transparent, rgba(0,0,0,.6)); padding: 12px 6px 4px; text-align: left; }
 
 .cands { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 6px; }
+.greet { display: grid; gap: 4px; }
+.greet h1 { text-wrap: balance; }
+.greetline { margin: 0; font-size: 16px; color: var(--ink); max-width: 60ch; }
+.affirm { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; margin: 0 0 16px; display: grid; gap: 8px; }
+.affk { margin: 0; font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.affirm blockquote { margin: 0; font-family: var(--display); font-size: clamp(19px, 3.6vw, 24px); font-weight: 700; line-height: 1.25; color: var(--ink); text-wrap: balance; }
+.affbtns { display: flex; flex-wrap: wrap; gap: 6px; }
+.affadd { display: flex; gap: 8px; } .affadd input { flex: 1; min-width: 0; }
+.afflist { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.afflist li { display: flex; gap: 8px; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding: 6px 0; }
+.setname { display: flex; gap: 8px; max-width: 420px; } .setname input { flex: 1; min-width: 0; }
 .photolink { display: grid; gap: 6px; margin-top: 12px; }
 .photolink label { font-weight: 600; font-size: 14px; }
 .photolink > div { display: flex; gap: 8px; }
@@ -1964,7 +1975,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v93';
+const APP_VERSION = 'hangtag-v94';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -1975,6 +1986,7 @@ function lookPanel() {
   const L = { theme: 'auto', accent: 'brown', font: 'house', size: 'm', ...(S.prefs.look || pref.get('look', {})) };
   const row = (k, title, render) => `<div class="setgroup"><p class="dsub">${title}</p><div class="lookopts" role="group" aria-label="${title}">${LOOK_OPTS[k].map(o => `<button data-look="${k}" data-v="${o[0]}" aria-pressed="${L[k] === o[0]}">${render(o)}</button>`).join('')}</div></div>`;
   return `<section class="panel setpanel" id="set-look"><h3>Look</h3><p class="muted">Make the app yours. It changes on every device you're signed in on.</p>
+    <div class="setgroup"><p class="dsub">Your name</p><div class="setname"><input id="set-name" type="text" autocomplete="given-name" value="${esc(myName())}" placeholder="Your first name" aria-label="Your name"><button class="btn small" data-savename>Save</button></div><span class="muted setsub">Used in the greeting on Today.</span></div>
     ${row('theme', 'Light or dark', o => `<b>${o[1]}</b><small>${o[2]}</small>`)}
     ${row('accent', 'Accent colour', o => `<span class="sw" style="background:${o[2]}"></span><small>${o[1]}</small>`)}
     ${row('font', 'Letters', o => `<span class="fs" style="font-family:${o[3]}">${o[1]}</span><small>${o[2]}</small>`)}
@@ -1988,6 +2000,64 @@ async function saveLook(patch) {
 }
 document.addEventListener('click', e => { const b = e.target.closest?.('[data-look]'); if (b) saveLook({ [b.dataset.look]: b.dataset.v }); });
 document.addEventListener('change', e => { if (e.target.matches?.('[data-lookcompact]')) saveLook({ compact: e.target.checked }); });
+document.addEventListener('click', async e => { if (!e.target.closest?.('[data-savename]')) return; const v = $('#set-name')?.value.trim() || ''; try { await DB.savePrefs({ name: v }); toast(v ? `Hi ${v}!` : 'Name removed'); } catch (err) { saveErr(err, 'Could not save. Try again.'); } });
+const myName = () => String(S.prefs.name || window.LIFE?.userName?.() || '').trim();
+/* ---------- Today: a greeting for this moment, and an affirmation ---------- */
+// night from 22:00 to 5:00, then morning, afternoon (from 12:00) and evening (from 17:00)
+function greeting(now = new Date()) {
+  const hr = now.getHours(), wd = now.getDay(), name = myName(), day = now.toLocaleDateString('en-GB', { weekday: 'long' });
+  const part = hr >= 22 || hr < 5 ? 'night' : hr < 12 ? 'morning' : hr < 17 ? 'afternoon' : 'evening';
+  const hello = { night: 'Good night', morning: 'Good morning', afternoon: 'Good afternoon', evening: 'Good evening' }[part] + (name ? `, ${name}` : '');
+  const tomorrow = new Date(now.getTime() + 864e5).toLocaleDateString('en-GB', { weekday: 'long' });
+  const md = `${now.getMonth() + 1}-${now.getDate()}`;
+  const special = { '1-1': 'Happy New Year!', '12-24': 'Cosy Christmas Eve.', '12-25': 'Merry Christmas!', '12-31': 'Last day of the year. Make it a nice one.', '2-14': "Happy Valentine's Day.", '4-27': 'Happy King’s Day!' }[md];
+  const line = special || {
+    night: hr < 5 ? 'It is late. Rest well, the day can wait.' : `Time to wind down. Tomorrow is ${tomorrow}${wd === 5 || wd === 6 ? ', no rush in the morning' : ''}.`,
+    morning: wd === 1 ? 'A fresh week starts today. One step at a time.' : wd === 5 ? 'Happy Friday! Almost weekend.' : wd === 0 || wd === 6 ? `Slow ${day} morning. Enjoy it.` : `Here is your ${day}.`,
+    afternoon: wd === 0 || wd === 6 ? `Enjoy the rest of your ${day}.` : wd === 5 ? 'Friday afternoon. The weekend is close.' : `Halfway through your ${day}. Keep going.`,
+    evening: wd === 0 ? 'Sunday evening. Get ready for a good week.' : wd === 5 ? 'Friday evening. You made it through the week.' : `Time to slow down this ${day} evening.`
+  }[part];
+  return { hello, line, part };
+}
+window.APP_GREETING = greeting;
+const AFFIRM = [
+  'I am allowed to take up space.', 'I trust myself to figure it out.', 'I am proud of how far I have come.', 'My pace is the right pace.',
+  'I create things that matter to me.', 'I deserve rest without earning it.', 'I am becoming who I want to be, one day at a time.',
+  'I choose progress over perfection.', 'My ideas are worth sharing.', 'I can do hard things.', 'I am calm, focused and capable.',
+  'I give myself the kindness I give others.', 'Good things are coming my way.', 'I am enough, exactly as I am today.',
+  'I let go of what I cannot control.', 'I show up for myself.', 'My body carries me through everything. I thank it.',
+  'I am open to new chances.', 'I am learning, and that is enough.', 'I celebrate small wins.', 'I am grateful for this moment.',
+  'My voice matters.', 'I attract people who lift me up.', 'I am confident in my style and my choices.', 'Today I choose joy.',
+  'I am patient with my growth.', 'I make space for what I love.', 'I am safe to be myself.', 'Every day I get a little stronger.',
+  'I trust the timing of my life.', 'I keep my promises to myself.', 'I am creative, and I keep creating.'
+];
+const affirmList = () => [...AFFIRM.filter(a => !(S.prefs.affirm?.hidden || []).includes(a)), ...(S.prefs.affirm?.own || [])];
+function affirmToday(shift = 0) {
+  const l = affirmList(); if (!l.length) return '';
+  const d = new Date(), n = Math.floor((d.getTime() - d.getTimezoneOffset() * 6e4) / 864e5);
+  return l[(((n + shift) % l.length) + l.length) % l.length];
+}
+function affirmBlock() {
+  if (S.prefs.affirm?.off) return '';
+  const a = affirmToday(S.affShift || 0), fav = (S.prefs.affirm?.fav || []).includes(a);
+  return `<section class="affirm" aria-label="Affirmation"><p class="affk">Affirmation</p><blockquote>${esc(a)}</blockquote>
+    <div class="affbtns"><button class="chip" data-affnext>Another one</button><button class="chip" data-afffav aria-pressed="${fav}">${fav ? 'Saved' : 'Save'}</button><button class="chip link" data-affown>Add your own</button><button class="chip link" data-affmanage>Manage</button></div>
+    <form class="affadd" data-affform hidden><input type="text" maxlength="200" placeholder="Write an affirmation in your own words" aria-label="Your affirmation"><button class="btn small primary" type="submit">Add</button></form></section>`;
+}
+async function affirmSave(patch) { try { await DB.savePrefs({ affirm: { ...(S.prefs.affirm || {}), ...patch } }); } catch (err) { saveErr(err, 'Could not save. Try again.'); } }
+function affirmManage() {
+  const A = S.prefs.affirm || {}, own = A.own || [], fav = A.fav || [], hid = A.hidden || [];
+  const sh = sheet({ title: 'Affirmations', body: `<label class="settog"><input type="checkbox" data-affoff ${A.off ? '' : 'checked'}> <b>Show an affirmation on Today</b></label>
+    ${fav.length ? `<p class="dsub">Saved</p><ul class="afflist">${fav.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
+    <p class="dsub">Your own</p>${own.length ? `<ul class="afflist">${own.map((a, i) => `<li><span>${esc(a)}</span><button class="chip link" data-affdel="${i}">Remove</button></li>`).join('')}</ul>` : '<p class="muted">None yet. Tap Add your own on Today.</p>'}
+    <p class="dsub">Built in</p><ul class="afflist">${AFFIRM.map(a => `<li><span ${hid.includes(a) ? 'class="muted" style="text-decoration:line-through"' : ''}>${esc(a)}</span><button class="chip link" data-affhide="${esc(a)}">${hid.includes(a) ? 'Show again' : 'Hide'}</button></li>`).join('')}</ul>`,
+    foot: '<div class="spacer"></div><button class="btn primary" data-close>Done</button>' });
+  sh.addEventListener('change', async e => { if (e.target.matches('[data-affoff]')) { await affirmSave({ off: !e.target.checked }); } });
+  sh.addEventListener('click', async e => {
+    const d = e.target.closest('[data-affdel]'); if (d) { const l = [...own]; l.splice(+d.dataset.affdel, 1); await affirmSave({ own: l }); closeSheet(); affirmManage(); return; }
+    const h = e.target.closest('[data-affhide]'); if (h) { const v = h.dataset.affhide, l = new Set(S.prefs.affirm?.hidden || []); l.has(v) ? l.delete(v) : l.add(v); await affirmSave({ hidden: [...l] }); closeSheet(); affirmManage(); }
+  });
+}
 function renderSettings(host) {
   const master = S.view === 'settings', sec = master ? null : secOf(S.view), secObj = SECTIONS.find(x => x.key === sec);
   const n = NAV(), hid = n.hidden || [], all = navAll(), shownKeys = all.filter(s => !hid.includes(s.key)).map(s => s.key);
@@ -2174,10 +2244,10 @@ function quickAction(k) {
   else if (k === 'outfit') { if (S.view !== 'overview') go('overview'); setTimeout(() => document.querySelector('.wxpick, [data-overday]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); }
 }
 function renderOverview(host) {
-  const t = new Date(), hr = t.getHours();
-  const hello = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
+  const t = new Date(), G = greeting(t);
   const hidden = dashHidden(), cards = dashCards().filter(s => !hidden.has(s.key));
-  host.innerHTML = `<div class="viewhead dviewhead"><h1>${hello}</h1><span class="sub">${t.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span></div>
+  host.innerHTML = `<div class="viewhead dviewhead greet ${G.part}"><h1>${esc(G.hello)}</h1><p class="greetline">${esc(G.line)}</p><span class="sub">${t.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span></div>
+    ${affirmBlock()}
     <button class="findbar" data-find>${I.search}<span>Search recipes, notes, pages, settings…</span></button>
     <div class="quickacts">${QUICK.filter(q => q[2]()).map(([k, l]) => `<button class="chip" data-quick="${k}">${esc(l)}</button>`).join('')}</div>
     ${wxStrip()}
@@ -2197,6 +2267,15 @@ function renderOverview(host) {
       if (e.target.closest('[data-wxwear]')) { const wp = weatherPick(); if (!wp) return; const t = today(), cur = S.days[t] || {};
         DB.put('days', t, { outfit: wp.outfit || null, items: wp.outfit ? cur.items || [] : [...new Set([...(cur.items || []), ...wp.ids])], note: cur.note || '', photos: cur.photos || [], place: cur.place || '' }).then(() => toast('Logged for today')).catch(err => saveErr(err, 'Could not log that. Try again.')); }
       const q = e.target.closest('[data-quick]'); if (q) quickAction(q.dataset.quick);
+      if (e.target.closest('[data-affnext]')) { S.affShift = (S.affShift || 0) + 1; render(); }
+      if (e.target.closest('[data-afffav]')) { const a = affirmToday(S.affShift || 0), l = new Set(S.prefs.affirm?.fav || []); l.has(a) ? l.delete(a) : l.add(a); affirmSave({ fav: [...l] }); }
+      if (e.target.closest('[data-affown]')) { const f = $('[data-affform]', host); f.hidden = !f.hidden; if (!f.hidden) f.querySelector('input').focus(); }
+      if (e.target.closest('[data-affmanage]')) affirmManage();
+    });
+    host.addEventListener('submit', async e => {
+      if (!e.target.matches('[data-affform]')) return; e.preventDefault();
+      const v = e.target.querySelector('input').value.trim(); if (!v) return;
+      const own = [...(S.prefs.affirm?.own || []), v]; await affirmSave({ own }); const l = affirmList(), d = new Date(), n = Math.floor((d.getTime() - d.getTimezoneOffset() * 6e4) / 864e5); S.affShift = ((l.length - 1 - n) % l.length + l.length) % l.length; render(); toast('Added to your affirmations');
     });
   }
 }
