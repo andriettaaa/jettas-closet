@@ -152,6 +152,37 @@ const CAT_NL = {
   gear: { 'Kitchen Appliances': 'Keukenapparaten', 'Cookware & Bakeware': 'Pannen & bakvormen', 'Prep Tools & Essentials': 'Voorbereiden', 'Cooking Tools & Utensils': 'Kookgerei', 'Organizing Essentials': 'Opbergen', 'Cleaning Supplies': 'Schoonmaken' }
 };
 const catNL = (kind, v) => (CAT_NL[kind] || {})[v] || v;
+// a kind of product inside a pantry category (Kip under Vlees & vis)
+const ING_TYPES = {
+  'Vlees & vis': ['Kip', 'Rund', 'Gehakt', 'Varken', 'Kalkoen', 'Lam', 'Worst', 'Spek', 'Vleeswaren', 'Zalm', 'Tonijn', 'Witvis', 'Garnalen', 'Vis'],
+  'Groente & fruit': ['Uien & knoflook', 'Tomaten', 'Paprika', 'Bladgroente', 'Kool & broccoli', 'Wortels', 'Aardappelen', 'Courgette & pompoen', 'Paddenstoelen', 'Verse kruiden', 'Appels & peren', 'Bessen', 'Citrus', 'Bananen', 'Tropisch fruit'],
+  'Zuivel & eieren': ['Melk', 'Yoghurt & kwark', 'Kaas', 'Boter', 'Room', 'Eieren', 'Plantaardig'],
+  'Granen & peulvruchten': ['Rijst', 'Pasta', 'Noedels', 'Havermout', 'Meel', 'Couscous & quinoa', 'Bonen', 'Linzen & kikkererwten'],
+  'Brood & bakkerij': ['Brood', 'Wraps', 'Crackers', 'Gebak'],
+  'Noten & zaden': ['Noten', 'Zaden', 'Notenpasta'],
+  'Kruiden & specerijen': ['Gedroogde kruiden', 'Specerijen', 'Zout & peper', 'Bouillon'],
+  'Sauzen & olie': ['Olie', 'Azijn', 'Sojasaus', 'Pastasaus', 'Sauzen', 'Dressing'],
+  'Blik & pot': ['Tomaat in blik', 'Bonen in blik', 'Vis in blik', 'Kokosmelk', 'Soep', 'Groente in pot'],
+  'Dranken': ['Koffie', 'Thee', 'Sap', 'Frisdrank', 'Water'],
+  'Snacks': ['Chips', 'Koek', 'Repen', 'Noten'],
+  'Zoetigheid': ['Chocolade', 'Snoep', 'Suiker', 'Honing & siroop', 'Bakken']
+};
+for (const [en, nl] of Object.entries(CAT_NL.ingredients)) if (ING_TYPES[nl]) ING_TYPES[en] = ING_TYPES[nl];
+// the kind guessed from a name, so "Kipdrumsticks" lands under Kip without typing it
+const ING_GUESS = [[/kip|chicken|drumstick|vleugel|wings?\b|poulet/, 'Kip'], [/kalkoen|turkey/, 'Kalkoen'], [/gehakt|mince/, 'Gehakt'], [/rund|biefstuk|steak|beef|riblap|sukade|entrecote/, 'Rund'],
+  [/varken|karbonade|pork|speklap|procureur|schnitzel|hamlap/, 'Varken'], [/\blam\b|lams/, 'Lam'], [/worst|chorizo|salami/, 'Worst'], [/spek|bacon|ontbijtspek/, 'Spek'], [/\bham\b|kipfilet beleg|rookvlees|fricandeau/, 'Vleeswaren'],
+  [/zalm|salmon/, 'Zalm'], [/tonijn|tuna/, 'Tonijn'], [/kabeljauw|koolvis|pangasius|tilapia|schol|witvis|heek/, 'Witvis'], [/garnal|gamba|shrimp|prawn/, 'Garnalen'], [/vis\b|makreel|haring|forel/, 'Vis'],
+  [/\bui\b|uien|sjalot|knoflook|garlic|onion/, 'Uien & knoflook'], [/tomaat|tomaten|tomato/, 'Tomaten'], [/paprika|pepper/, 'Paprika'], [/sla\b|spinazie|rucola|andijvie|boerenkool|veldsla/, 'Bladgroente'],
+  [/broccoli|bloemkool|kool\b|spruit/, 'Kool & broccoli'], [/wortel|carrot/, 'Wortels'], [/aardappel|krieler|potato/, 'Aardappelen'], [/courgette|pompoen|zucchini/, 'Courgette & pompoen'], [/champignon|paddenstoel|mushroom/, 'Paddenstoelen'],
+  [/peterselie|koriander|basilicum|bieslook|munt\b|dille/, 'Verse kruiden'], [/appel|peer\b|peren/, 'Appels & peren'], [/aardbei|framboos|frambozen|blauwe bes|bosbes|bessen|berr/, 'Bessen'], [/citroen|limoen|sinaasappel|mandarijn|lemon|lime/, 'Citrus'],
+  [/banaan|bananen/, 'Bananen'], [/mango|ananas|kiwi|passievrucht/, 'Tropisch fruit'],
+  [/melk|milk/, 'Melk'], [/yoghurt|kwark|skyr/, 'Yoghurt & kwark'], [/kaas|cheese|mozzarella|parmezaan|feta|halloumi/, 'Kaas'], [/boter|butter/, 'Boter'], [/room|cream/, 'Room'], [/\beieren\b|\bei\b|\beggs?\b/, 'Eieren'],
+  [/rijst|rice/, 'Rijst'], [/pasta|spaghetti|penne|macaroni|fusilli|tagliatelle|lasagne/, 'Pasta'], [/noedel|noodle|mie\b|udon|ramen/, 'Noedels'], [/havermout|oats|granola/, 'Havermout'], [/bloem|meel|flour/, 'Meel'],
+  [/couscous|quinoa|bulgur/, 'Couscous & quinoa'], [/linzen|kikkererwt|lentil|chickpea/, 'Linzen & kikkererwten'], [/bonen|beans/, 'Bonen'],
+  [/brood|bread|bolletje|baguette/, 'Brood'], [/wrap|tortilla/, 'Wraps'], [/cracker|beschuit|rijstwafel/, 'Crackers'],
+  [/olie|oil/, 'Olie'], [/azijn|vinegar/, 'Azijn'], [/soja|ketjap/, 'Sojasaus'], [/bouillon|stock/, 'Bouillon'], [/koffie|coffee/, 'Koffie'], [/thee\b|tea\b/, 'Thee'], [/chocola/, 'Chocolade']];
+const ingGuess = name => { const n = norm(name || ''); for (const [re, t] of ING_GUESS) if (re.test(n)) return t; return ''; };
+const ingType = r => r.type || ingGuess(r.name) || '';
 const ROOMS = ['Entree', 'Woonkamer', 'Keuken', 'Slaapkamer', 'Werkkamer', 'Badkamer', 'Toilet', 'Wasruimte', 'Balkon', 'Schoonmaak', 'Overig'];
 const PRIO = ['Must-have', 'Binnen 3 maanden', 'Handig', 'Kan later'];
 // the home inventory is a move list in Dutch: an idea, then options to choose from, then ordered and bought
@@ -278,6 +309,7 @@ const KINDS = {
   ingredients: {
     one: 'ingredient', many: 'Pantry', facet: 'category',
     fields: [F('name', 'Name'), F('category', 'Category', 'select', { options: Object.values(CAT_NL.ingredients) }),
+      F('type', 'Soort', 'select', { options: [...new Set(Object.values(ING_TYPES).flat())], dep: 'category', depOpts: ING_TYPES }),
       F('location', 'Kept in', 'select', { options: ['Koelkast', 'Vriezer', 'Voorraadkast', 'Keukenkast', 'Fruitmand', 'Broodtrommel', 'Kelder / Berging', 'Overig'] }),
       F('stock', 'In stock', 'check', { half: 1 }), F('low', 'Running low', 'check', { half: 1 }), F('list', 'On grocery list', 'check', { half: 1 }),
       F('expires', 'Best before', 'date', { half: 1 }), F('frozen', 'Frozen on', 'date', { half: 1 }), F('portions', 'Portions', 'num', { half: 1 }), F('shop', 'Buy at', 'select', { options: STORES, more: () => shopNames('shops'), half: 1 }), F('amount', 'How much is left', 'num', { half: 1 }), F('unit', 'Counted in', 'select', { options: UNITS, half: 1 }), F('min', 'Minimum to keep', 'num', { half: 1 }), F('staple', 'Basic: always keep in stock', 'check', { half: 1 }), F('helps', 'Helps with', 'multi', { options: HELPS }),
@@ -1215,7 +1247,7 @@ const PAGES = {
 
   'kitchen/meals': { title: 'Meal plan', segs: [{ key: 'week', label: 'Week', kind: 'meals', fill: weekFill, tools: false }, { key: 'month', label: 'Month', kind: 'meals', fill: monthFill, tools: false }, { kind: 'mealprep' }] },
   'kitchen/groceries': { title: 'Groceries', segs: [{ key: 'list', label: 'Shopping list', kind: 'ingredients', fill: groceryFill, tools: false }] },
-  'kitchen/pantry': { title: 'Pantry', segs: [{ kind: 'ingredients' }, { key: 'freezer', label: 'Freezer', kind: 'ingredients', fill: freezerFill, tools: false }] },
+  'kitchen/pantry': { title: 'Pantry', segs: [{ kind: 'ingredients' }, { key: 'types', label: 'Per soort', kind: 'ingredients', fill: ingTypesFill, tools: false }, { key: 'freezer', label: 'Freezer', kind: 'ingredients', fill: freezerFill, tools: false }] },
   'kitchen/shops': { title: 'Shops', segs: [{ kind: 'shops', label: 'Your shops' }] },
   'plan/mind': { render: mindOverview, adds: ['journal', 'meditation', 'lgoals', 'habits'] },
   'plan/mindstats': { render: mindAnalysis, adds: ['journal'] },
@@ -2423,6 +2455,36 @@ function meatPanel(offers) {
   const fzl = fz.length ? `<p class="dsub">In your freezer · ${fz.length}</p><div class="lwrap">${fz.slice(0, 12).map(i => `<button class="chip" data-act="open" data-id="${i.id}">${esc(i.name)}${num(i.portions) ? ` · ${num(i.portions)}` : ''}</button>`).join('')}</div>` : '';
   return panel('Meat and fish', body + fzl, ['kitchen/pantry', 'Your freezer']);
 }
+
+/* ---------- pantry per kind of product: a category, then a kind (Kip), then the products (drumsticks, filet) ---------- */
+const ingCat = r => catNL('ingredients', r.category) || 'Overig';
+const ING_CAT_ORDER = Object.values(CAT_NL.ingredients);
+// one view for pantry, freezer and groceries: category, then each kind with what is in stock, freezer portions and what needs attention
+function ingTypeView(items, line, ctx) {
+  if (!items.length) return '';
+  const cats = new Map();
+  for (const r of items) { const c = ingCat(r); if (!cats.has(c)) cats.set(c, new Map()); const t = ingType(r) || 'Zonder soort', m = cats.get(c); m.has(t) ? m.get(t).push(r) : m.set(t, [r]); }
+  const ck = [...cats.keys()].sort((a, b) => ((ING_CAT_ORDER.indexOf(a) + 1) || 99) - ((ING_CAT_ORDER.indexOf(b) + 1) || 99) || a.localeCompare(b));
+  const fz = inFreezer();
+  return ck.map(c => {
+    const m = cats.get(c), tk = [...m.keys()].sort((a, b) => (a === 'Zonder soort') - (b === 'Zonder soort') || a.localeCompare(b));
+    return `<div class="lgh gshop"><h3>${esc(c)} · ${[...m.values()].reduce((n, l) => n + l.length, 0)}</h3></div>` + tk.map(t => {
+      const rs = m.get(t).sort((a, b) => norm(a.name).localeCompare(norm(b.name))), all = recs('ingredients').filter(r => ingCat(r) === c && (ingType(r) || 'Zonder soort') === t);
+      const inS = all.filter(r => r.stock).length, por = fz.filter(r => all.includes(r)).reduce((n, r) => n + (num(r.portions) || 0), 0);
+      const warn = all.filter(r => r.low || useSoon(r) || (r.stock && r.expires && r.expires < today())).length;
+      const facts = [`${inS}/${all.length} op voorraad`, por ? plural(por, 'portie', 'porties') + ' in de vriezer' : '', warn ? `<b class="itwarn">${warn} bijna op of over datum</b>` : ''].filter(Boolean).join(' · ');
+      return `<div class="itype"><div class="itypeh"><span class="itypen"><b>${esc(t)}</b><span>${facts}</span></span>${t === 'Zonder soort' ? '' : `<button class="iconbtn small" data-act="ingtypeadd" data-cat="${esc(c)}" data-type="${esc(t)}" data-ctx="${ctx}" aria-label="${esc(t)} toevoegen">${svg(P.plus)}</button>`}</div><div class="lrows">${rs.map(line).join('')}</div></div>`;
+    }).join('');
+  }).join('');
+}
+const ingViewSeg = (key, val, opts) => `<div class="seg fseg" role="group" aria-label="Weergave">${opts.map(([k, l]) => `<button data-act="ingview" data-k="${key}" data-v="${k}" aria-pressed="${val === k}">${l}</button>`).join('')}</div>`;
+const ingViewOf = (key, def) => { try { return localStorage.getItem(key) || def; } catch { return def; } };
+function ingTypesFill(fill) {
+  const items = recs('ingredients');
+  fill.innerHTML = `<div class="ltools"><button class="btn small primary" data-act="new" data-v="ingredients">+ Ingredient</button></div>
+    ${items.length ? ingTypeView(items, row, 'pantry') : quiet('Your pantry is empty.')}
+    <p class="lnone">De soort raadt de app uit de naam. Open een product om hem aan te passen.</p>`;
+}
 function freezerFill(fill) {
   const t = today(), list = inFreezer().sort((a, b) => (a.frozen || '9').localeCompare(b.frozen || '9'));
   const row = i => { const age = freezerAge(i), old = age != null && age >= FREEZE_DAYS;
@@ -2430,7 +2492,7 @@ function freezerFill(fill) {
   const old = list.filter(i => (freezerAge(i) ?? 0) >= FREEZE_DAYS).length;
   fill.innerHTML = `<div class="ltools"><button class="btn small primary" data-freezer>+ Put something in the freezer</button></div>
     ${old ? `<div class="note">${plural(old, 'thing')} ${old === 1 ? 'has' : 'have'} been in the freezer for 3 months or more. Use ${old === 1 ? 'it' : 'them'} first.</div>` : ''}
-    ${list.length ? `<div class="lrows">${list.map(row).join('')}</div>` : quiet('Your freezer is empty. Meat or fish from a deal goes here with the date you froze it.')}`;
+    ${list.length ? ingViewSeg('fzView', ingViewOf('fzView', 'date'), [['date', 'Per datum'], ['type', 'Per soort']]) + (ingViewOf('fzView', 'date') === 'type' ? ingTypeView(list, row, 'freezer') : `<div class="lrows">${list.map(row).join('')}</div>`) : quiet('Your freezer is empty. Meat or fish from a deal goes here with the date you froze it.')}`;
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-freezer]'); if (!b || !C) return; e.stopImmediatePropagation(); openEditor('ingredients', null, { location: 'Vriezer', stock: true, frozen: today(), category: 'Vlees & vis' }); }, true);
 // beauty deals: what the weekly task found on your own products, things running low and your wishes
@@ -3093,7 +3155,8 @@ function groceryFill(fill) {
   const g = fill.querySelector('[data-glist]');
   const buyN = i => (L.buyN ||= {})[i.id] ?? stepOf(i);
   const line = i => `<div class="lrow grow"><button class="lbuy" data-act="buy" data-id="${i.id}" aria-label="Bought ${esc(i.name)}"></button><button class="lmain" data-act="open" data-id="${i.id}"><b>${esc(i.name)}</b>${i.qty || i.category ? `<span>${esc([i.qty, i.category].filter(Boolean).join(' · '))}</span>` : ''}</button><span class="gacts"><span class="stepper buyn" role="group" aria-label="How many you buy"><button type="button" data-act="buyn" data-id="${i.id}" data-v="-1" aria-label="Fewer">−</button><b>${esc(unitShort(buyN(i), unitOf(i)))}</b><button type="button" data-act="buyn" data-id="${i.id}" data-v="1" aria-label="More">+</button></span>${isMeatFish(i) ? `<button class="btn small" data-act="buyfreeze" data-id="${i.id}" title="Bought, straight into the freezer">Freeze</button>` : ''}<button class="iconbtn lx" data-act="unlist" data-id="${i.id}" aria-label="Take ${esc(i.name)} off the list">${svg(P.x)}</button></span></div>`;
-  g.innerHTML = items.length ? order.map(c => `<div class="lgh gshop"><h3>${esc(c)} · ${groups[c].length}</h3>${env && c !== 'Anywhere' ? `<button class="chip link" data-act="paid" data-v="${esc(c)}">Paid</button>` : ''}</div><div class="lrows">${groups[c].sort((a, b) => norm(a.category || 'zz').localeCompare(norm(b.category || 'zz')) || norm(a.name).localeCompare(norm(b.name))).map(line).join('')}</div>`).join('')
+  const gv = ingViewOf('grocView', 'shop');
+  g.innerHTML = items.length ? ingViewSeg('grocView', gv, [['shop', 'Per winkel'], ['type', 'Per soort']]) + (gv === 'type' ? ingTypeView(items, line, 'grocery') : order.map(c => `<div class="lgh gshop"><h3>${esc(c)} · ${groups[c].length}</h3>${env && c !== 'Anywhere' ? `<button class="chip link" data-act="paid" data-v="${esc(c)}">Paid</button>` : ''}</div><div class="lrows">${groups[c].sort((a, b) => norm(a.category || 'zz').localeCompare(norm(b.category || 'zz')) || norm(a.name).localeCompare(norm(b.name))).map(line).join('')}</div>`).join(''))
     + `<p class="lnone">Tick something off and it moves into your pantry. ${env ? `Tap Paid when you pay at a shop, and it goes into ${esc(env.name)} in Finance.` : ''}</p>`
     : quiet('Your list is empty. Add things above, or use “Add missing to list” on a recipe.');
   sugs(fill, fill.querySelector('.lqadd input').value);
@@ -4269,6 +4332,7 @@ function openEditor(kind, id, preset = {}) {
         if (kind === 'beauty') { D.amDays = [].concat(D.amDays || []); D.pmDays = [].concat(D.pmDays || []); D.am = D.amDays.length > 0; D.pm = D.pmDays.length > 0; }
         const out = {}; for (const [k, v] of Object.entries(D)) if (!k.startsWith('_') && v !== '' && v != null && !(Array.isArray(v) && !v.length && !['amDays', 'pmDays'].includes(k))) out[k] = v;
         if (out.name) out.name = String(out.name).trim();
+        if (kind === 'ingredients' && !out.type && ingGuess(out.name)) out.type = ingGuess(out.name);
         await put(kind, r ? r.id : C.uuid(), out);
         C.closeSheet(); C.toast('Saved');
       } catch (err) { console.error(err); msg.textContent = 'Could not save. Try again.'; b.disabled = false; }
@@ -4414,6 +4478,8 @@ document.addEventListener('click', async e => {
     case 'new': openEditor(d.v, null); break;
     case 'quick': { const r = L.byId[d.id]; KINDS[r?.kind]?.quick?.(r)?.act(); break; }
     case 'go': C.go(d.v); break;
+    case 'ingview': try { localStorage.setItem(d.k, d.v); } catch {} C.render(); break;
+    case 'ingtypeadd': openEditor('ingredients', null, { category: d.cat, type: d.type, ...(d.ctx === 'freezer' ? { location: 'Vriezer', stock: true, frozen: today() } : d.ctx === 'grocery' ? { list: true } : { stock: true }) }); break;
     case 'icalnew': { if (C.prefs().calToken && !confirm('Een nieuwe sleutel maakt je huidige abonnementen ongeldig. Doorgaan?')) break; const tok = (C.uuid() + C.uuid()).replace(/-/g, '').slice(0, 40); C.savePrefs({ calToken: tok }).then(() => { L.calFeedAt = 0; calFeedSync(true).then(() => C.render()); C.toast('Sleutel gemaakt. Zet hem in Supabase als CAL_TOKEN.'); }).catch(() => {}); break; }
     case 'icalcopy': navigator.clipboard?.writeText(d.v).then(() => C.toast('Gekopieerd')).catch(() => C.toast('Kopiëren lukte niet')); break;
     case 'icalsync': L.calFeedAt = 0; calFeedSync(true).then(() => { C.toast('Kalender bijgewerkt'); C.render(); }); break;
