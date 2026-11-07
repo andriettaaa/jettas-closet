@@ -13,7 +13,7 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
 // the same defaults the Settings page shows
 const DEF: Record<string, { on: boolean; time?: string }> = {
   morning: { on: true, time: '07:30' }, evening: { on: true, time: '21:30' }, bills: { on: true, time: '18:00' },
-  payday: { on: true, time: '09:00' }, weekly: { on: true, time: '19:00' }, weekahead: { on: true, time: '19:30' }, reminders: { on: true, time: '10:00' }, content: { on: true, time: '09:00' }, socialweek: { on: true, time: '18:30' },
+  payday: { on: true, time: '09:00' }, weekly: { on: true, time: '19:00' }, weekahead: { on: true, time: '19:30' }, reminders: { on: true, time: '10:00' }, content: { on: true, time: '09:00' }, skindiary: { on: true, time: '10:00' }, socialweek: { on: true, time: '18:30' },
   budget: { on: true }, applepay: { on: true }
 };
 type Rec = Record<string, any> & { id: string; kind: string };
@@ -53,12 +53,15 @@ const catName = (c?: Rec) => c ? [c.emoji, c.name].filter(Boolean).join(' ') : '
 /* ---------- what each notification says ---------- */
 const listOf = (a: string[], n = 4) => a.slice(0, n).join(', ') + (a.length > n ? ` +${a.length - n}` : '');
 const open = (r: Rec) => r.status !== 'Completed';
+// a routine step or skincare product planned on some weekdays only (wd like 'mon')
+const onDay = (days: unknown, wd: string) => { const l = ([] as string[]).concat((days as string[]) || []); return !l.length || l.some(x => x.toLowerCase().slice(0, 3) === wd); };
+const wdOf = (day: string) => ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][fromISO(day).getUTCDay()];
 function morning(recs: Rec[], today: string, outfit: string) {
   const lines: string[] = [];
   if (outfit) lines.push('Outfit: ' + outfit);
   const sups = recs.filter(r => r.kind === 'supplements' && !r.finished && ([].concat(r.times?.length ? r.times : ['AM']) as string[]).includes('AM')).map(r => r.name);
   if (sups.length) lines.push('Supplements: ' + listOf(sups));
-  const rt = recs.filter(r => r.kind === 'routines' && r.routine === 'Morning');
+  const rt = recs.filter(r => r.kind === 'routines' && r.routine === 'Morning' && onDay(r.onDays, wdOf(today)));
   if (rt.length) lines.push(`Morning routine: ${rt.length} ${rt.length === 1 ? "step" : "steps"}`);
   const tasks = recs.filter(r => r.kind === 'tasks' && open(r) && r.date && r.date <= today);
   if (tasks.length) lines.push(`Tasks: ${listOf(tasks.map(t => t.name + (t.date < today ? ' (late)' : '')), 3)}`);
@@ -68,10 +71,10 @@ function morning(recs: Rec[], today: string, outfit: string) {
 }
 function evening(recs: Rec[], wd: string) {
   const lines: string[] = [];
-  const rt = recs.filter(r => r.kind === 'routines' && r.routine === 'Evening').map(r => r.name);
+  const rt = recs.filter(r => r.kind === 'routines' && r.routine === 'Evening' && onDay(r.onDays, wd)).map(r => r.name);
   if (rt.length) lines.push('Routine: ' + listOf(rt, 5));
   const night = recs.find(r => r.kind === 'bsched')?.[wd];
-  const pm = recs.filter(r => r.kind === 'beauty' && r.pm && !r.finished && !r.archived && !r.wish);
+  const pm = recs.filter(r => r.kind === 'beauty' && !r.finished && !r.archived && !r.wish && (Array.isArray(r.pmDays) ? onDay(r.pmDays, wd) && r.pmDays.length : r.pm));
   if (night || pm.length) lines.push(`Skincare: ${night ? night.toLowerCase() : 'evening'}${pm.length ? `, ${pm.length} ${pm.length === 1 ? "product" : "products"}` : ''}`);
   const sups = recs.filter(r => r.kind === 'supplements' && !r.finished && ([].concat(r.times || []) as string[]).includes('PM')).map(r => r.name);
   if (sups.length) lines.push('Supplements: ' + listOf(sups));
@@ -154,6 +157,12 @@ function content(recs: Rec[], today: string) {
   return lines.length ? { title: lines.length === 1 ? 'Content today' : `Content today: ${lines.length} steps`, body: lines.slice(0, 6).join('\n') + (lines.length > 6 ? `\nand ${lines.length - 6} more` : ''), url: './#social/plan', tag: 'content' } : null;
 }
 
+// Sundays: a nudge for the skin diary when the last entry is 6 days old or more
+function skindiary(recs: Rec[], today: string) {
+  const last = recs.filter(r => r.kind === 'skinlog' && r.date).map(r => r.date).sort().pop();
+  if (last && last > addDays(today, -6)) return null;
+  return { title: 'Skin diary', body: last ? 'A week has passed. Take three photos and note how your skin is.' : 'Start your skin diary: three photos and how your skin is today.', url: './#care/diary', tag: 'skindiary' };
+}
 // Sundays: your posts for the coming week, step by step, and collab deadlines
 function socialweek(recs: Rec[], today: string) {
   const from = addDays(today, 1), to = addDays(today, 7), lines: string[] = [];
@@ -204,14 +213,14 @@ async function runUser(uid: string, prefs: any, force = false) {
     const c = { ...DEF[k], ...(cfg[k] || {}) }; if (!c.on || !c.time) return false;
     const t = toMins(c.time); return force || (now.mins >= t && now.mins < t + 60);
   };
-  const slots = ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders', 'content', 'socialweek'].filter(k => due(k) && (!['weekly', 'weekahead', 'socialweek'].includes(k) || now.wd === 'sun' || force));
+  const slots = ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders', 'content', 'socialweek', 'skindiary'].filter(k => due(k) && (!['weekly', 'weekahead', 'socialweek', 'skindiary'].includes(k) || now.wd === 'sun' || force));
   if (!slots.length) return 0;
   const recs = await loadAll(uid);
   let sent = 0;
   for (const k of slots) {
     const msg = k === 'morning' ? morning(recs, now.day, await outfitToday(uid, now.day)) : k === 'evening' ? evening(recs, now.wd)
       : k === 'bills' ? bills(recs, now.day) : k === 'payday' ? payday(recs, now.day) : k === 'weekahead' ? weekahead(recs, prefs, now.day)
-      : k === 'reminders' ? reminders(recs, prefs, now.day) : k === 'content' ? content(recs, now.day) : k === 'socialweek' ? socialweek(recs, now.day) : weekly(recs, now.day);
+      : k === 'reminders' ? reminders(recs, prefs, now.day) : k === 'content' ? content(recs, now.day) : k === 'socialweek' ? socialweek(recs, now.day) : k === 'skindiary' ? skindiary(recs, now.day) : weekly(recs, now.day);
     if (!msg) continue;
     if (!force && !(await claim(uid, k, now.day))) continue;
     if (await send(uid, msg)) sent++;
