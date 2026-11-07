@@ -108,6 +108,7 @@ const WORDS: Record<string, string> = {
   fitgear: 'dumbbell|halter|kettlebell|yogamat|yoga mat|fitnessmat|weerstandsband|resistance band|springtouw|jump rope|foam roller|ab wheel|pull-?up|gewicht|weights|fitness',
   inventory: 'lamp|verlichting|kast|stoel|chair|tafel|table|bank |sofa|kussen|cushion|dekbed|duvet|plaid|deken|vaas|vase|spiegel|mirror|rek|shelf|opberg|storage|mand|basket|gordijn|curtain|vloerkleed|rug|kaars|candle|poster|frame|lijst|plant|pot |handdoek|towel|beddengoed|bedding|matras|mattress|kapstok'
 };
+const TIPWORDS = /\btips?\b|how to|hoe je|tutorial|pose|posing|poseren|filming|filmen|film yourself|lighting|licht|ring ?light|edit(ing)?\b|bewerk|capcut|lightroom|inshot|vsco|canva|premiere|transition|hook|caption|algorit|algorithm|grow(th)?\b|followers|volgers|engagement|branding|personal brand|content ?creat|ugc|b-?roll|aesthetic feed|reels? tips?|tiktok tips?/i;
 const RECIPEWORDS = /recept|recipe|ingredi|ingrédient|tbsp|tsp|eetlepel|theelepel|\bel\b|\btl\b|gram|\bgr\b|bakken|koken|oven|minuten|minutes|dinner|lunch|ontbijt|breakfast|meal ?prep|soup|soep|salad|salade|pasta|curry|bowl/i;
 const isoMin = (v: any) => { const m = String(v || '').match(/P(?:\d+D)?T?(?:(\d+)H)?(?:(\d+)M)?/i); return m && (m[1] || m[2]) ? (Number(m[1] || 0) * 60 + Number(m[2] || 0)) : undefined; };
 const textOf = (v: any): string => !v ? '' : typeof v === 'string' ? v : Array.isArray(v) ? v.map(textOf).filter(Boolean).join('\n') : v.text || v.name || (v.itemListElement ? textOf(v.itemListElement) : '');
@@ -153,7 +154,9 @@ function quickSort(url: string, p: Peek, text: string, note: string): { target: 
   }
   // 2. a social post or video that reads like a recipe
   if (p.social && RECIPEWORDS.test(`${p.title || ''} ${p.desc || ''} ${note} ${text}`)) return { target: 'recipes', why: 'Een post die op een recept lijkt. De sorteerronde vult de ingrediënten en stappen aan.', draft: { name: p.title, photo: p.photo } };
-  // 3. a product: the shop first, then words in the name
+  // 3. a social post with a tip about making content: poses, filming, editing, apps, branding, growth
+  if (p.social && TIPWORDS.test(`${p.title || ''} ${p.desc || ''} ${note} ${text}`)) return { target: 'stips', why: 'Een post met een tip voor social media. De sorteerronde schrijft de stappen uit.', draft: { name: p.title, photo: p.photo, summary: (p.desc || '').slice(0, 300) } };
+  // 4. a product: the shop first, then words in the name
   const prod = p.product, offer = prod ? [].concat(prod.offers || [])[0] as any : null, offer2 = offer?.offers ? [].concat(offer.offers)[0] as any : offer;
   const price = Number(offer2?.price ?? offer2?.lowPrice ?? '') || undefined, cur = String(offer2?.priceCurrency || 'EUR').toUpperCase();
   const brand = typeof prod?.brand === 'string' ? prod.brand : prod?.brand?.name;
@@ -170,7 +173,7 @@ function quickSort(url: string, p: Peek, text: string, note: string): { target: 
     const label: Record<string, string> = { closet: 'kleding', beauty: 'beauty', supplements: 'een supplement', gear: 'keukenspullen', fitgear: 'fitnessspullen', inventory: 'iets voor in huis', wishes: 'een product', gifts: 'een cadeau' };
     return { target, why: `Een product van ${shop}, het lijkt op ${label[target] || 'een product'}.` + (cur !== 'EUR' && price ? ` Prijs is in ${cur}.` : ''), draft };
   }
-  // 4. anything else: keep it as a saved link until you pick a place
+  // 5. anything else: keep it as a saved link until you pick a place
   return { target: 'keep', why: 'Geen recept of product herkend. Kies zelf een plek, of laat het als bewaarde link staan.', draft: { name: p.title, photo: p.photo, notes: (p.desc || '').slice(0, 300) } };
 }
 
@@ -446,7 +449,7 @@ Deno.serve(async req => {
       return json({ recipes, pantry, recent, food: pr?.data?.food || {}, learned });
     }
 
-    const TARGETS = ['recipes', 'wishes', 'closet', 'beauty', 'supplements', 'gear', 'fitgear', 'inventory', 'ideas', 'cideas', 'gifts', 'keep', 'stays', 'trip'];
+    const TARGETS = ['recipes', 'wishes', 'closet', 'beauty', 'supplements', 'gear', 'fitgear', 'inventory', 'ideas', 'cideas', 'stips', 'gifts', 'keep', 'stays', 'trip'];
     const cleanDraft = (d: any) => { const o: Record<string, unknown> = {}; if (d && typeof d === 'object') for (const [k, v] of Object.entries(d).slice(0, 40)) { if (!/^[a-zA-Z]{1,24}$/.test(k)) continue; o[k] = typeof v === 'string' ? v.slice(0, 12000) : Array.isArray(v) ? v.slice(0, 60).map(x => typeof x === 'string' ? x.slice(0, 200) : x) : typeof v === 'number' || typeof v === 'boolean' ? v : undefined; } return clean(o); };
     if (body.action === 'share') {
       const text = str(body.text, 4000), url = str(body.url, 1000) || (text.match(/https?:\/\/\S+/) || [''])[0].replace(/[),.]+$/, '');
@@ -474,7 +477,7 @@ Deno.serve(async req => {
       if (data.extId) { const { data: same } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'inbox').filter('data->>extId', 'eq', data.extId); if (same?.[0]) { if (['Done', 'Skipped'].includes(same[0].data.status)) return json({ ok: true, id: same[0].id, already: true }); id = same[0].id; } }
       const { error } = await sb.from('records').upsert({ user_id: uid, id, kind: 'inbox', data, updated_at: new Date().toISOString() });
       if (error) throw error;
-      const label: Record<string, string> = { stays: 'verblijf', recipes: 'recept', closet: 'kast-wishlist', beauty: 'beauty', supplements: 'supplementen', gear: 'keukenspullen', fitgear: 'fitness', inventory: 'wonen', wishes: 'wishlist', ideas: 'idee', cideas: 'contentidee', gifts: 'cadeau', keep: 'bewaarde link' };
+      const label: Record<string, string> = { stays: 'verblijf', recipes: 'recept', closet: 'kast-wishlist', beauty: 'beauty', supplements: 'supplementen', gear: 'keukenspullen', fitgear: 'fitness', inventory: 'wonen', wishes: 'wishlist', ideas: 'idee', cideas: 'contentidee', stips: 'social media tip', gifts: 'cadeau', keep: 'bewaarde link' };
       return json({ ok: true, id, target, message: target ? `In je inbox, als ${label[target] || target}` : 'In je inbox' });
     }
     if (body.action === 'inbox') {
