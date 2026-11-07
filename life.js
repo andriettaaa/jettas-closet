@@ -399,9 +399,27 @@ const KINDS = {
     sub: r => [r.category, r.creator, r.tried ? (num(r.worked) ? 'worked ' + num(r.worked) + '/5' : 'tried') : ''].filter(Boolean).join(' · '),
     quick: r => ({ on: !!r.tried, label: 'Tried', act: () => save(r, { tried: !r.tried }) })
   },
+  stemplates: {
+    one: 'script template', many: 'Script templates', facet: 'format',
+    fields: [F('name', 'Template'), F('format', 'For', 'select', { options: SOCIAL_FORMATS, half: 1 }), F('length', 'Length', 'text', { half: 1 }),
+      F('body', 'Structure', 'long', { rows: 10 }), F('example', 'Example', 'long', { rows: 4 }), F('notes', 'Notes', 'long')],
+    sorts: [['name', 'A to Z']], sub: r => [r.format, r.length].filter(Boolean).join(' · ')
+  },
+  hashsets: {
+    one: 'hashtag set', many: 'Hashtag sets', facet: 'platform',
+    fields: [F('name', 'Set'), F('platform', 'Platform', 'select', { options: SOCIAL_PLATFORMS, half: 1 }), F('pillar', 'Pillar', 'rel', { to: 'pillars', half: 1 }),
+      F('tags', 'Hashtags', 'long', { rows: 4 }), F('notes', 'Notes', 'long')],
+    sorts: [['name', 'A to Z']], sub: r => [r.platform, `${String(r.tags || '').split(/\s+/).filter(x => x.startsWith('#')).length} hashtags`].filter(Boolean).join(' · ')
+  },
+  inspo: {
+    one: 'inspiration', many: 'Inspiration', facet: 'type', photo: 'photo', display: 'cards',
+    fields: [F('name', 'Title'), F('photo', 'Picture', 'photo'), F('type', 'Type', 'select', { options: ['Creator', 'Post', 'Look', 'Colours', 'Set-up', 'Editing style', 'Other'], half: 1 }),
+      F('creator', 'Creator', 'text', { half: 1 }), F('link', 'Link', 'url'), F('why', 'What I like about it', 'long', { rows: 3 }), F('pillar', 'Pillar', 'rel', { to: 'pillars', half: 1 }), F('notes', 'Notes', 'long')],
+    sorts: [['-created', 'Newest'], ['name', 'A to Z']], sub: r => [r.type, r.creator].filter(Boolean).join(' · ')
+  },
   pillars: {
     one: 'pillar', many: 'Content pillars',
-    fields: [F('name', 'Pillar'), F('desc', 'What it covers', 'long'), F('keywords', 'Keywords and themes', 'text'), F('goal', 'Overall goal', 'long')],
+    fields: [F('name', 'Pillar'), F('desc', 'What it covers', 'long'), F('keywords', 'Keywords and themes', 'text'), F('perMonth', 'Posts per month', 'num', { half: 1 }), F('goal', 'Overall goal', 'long')],
     sorts: [['name', 'A to Z']], sub: r => r.keywords || ''
   },
   accounts: {
@@ -434,8 +452,10 @@ const KINDS = {
     fields: [F('name', 'Brand'), F('status', 'Status', 'select', { options: ['Pitched', 'Talking', 'Confirmed', 'Creating', 'Delivered', 'Paid', 'Declined'], half: 1 }),
       F('type', 'Type', 'select', { options: ['Paid', 'Gifted', 'Affiliate', 'Ambassador', 'Event', 'Other'], half: 1 }),
       F('platforms', 'Platforms', 'multi', { options: SOCIAL_PLATFORMS, half: 1 }), F('due', 'Due', 'date', { half: 1 }),
-      F('fee', 'Fee', 'money', { half: 1 }), F('contact', 'Contact', 'text', { half: 1 }),
-      F('deliverables', 'Deliverables', 'long'), F('url', 'Link', 'url'), F('notes', 'Notes', 'long')],
+      F('fee', 'Fee', 'money', { half: 1 }), F('contact', 'Contact person', 'text', { half: 1 }), F('email', 'Email', 'text', { half: 1 }), F('phone', 'Phone', 'text', { half: 1 }),
+      F('deliverables', 'Deliverables', 'long'), F('agreement', 'What we agreed', 'long'), F('draftBy', 'Draft to brand by', 'date', { half: 1 }), F('postBy', 'Post by', 'date', { half: 1 }),
+      F('rights', 'Usage rights', 'text', { half: 1 }), F('exclusive', 'Exclusivity', 'text', { half: 1 }), F('posts', 'Posts', 'rel', { to: 'posts', multi: 1 }),
+      F('invoiced', 'Invoice sent', 'check', { half: 1 }), F('payBy', 'Payment due', 'date', { half: 1 }), F('url', 'Link', 'url'), F('notes', 'Notes', 'long')],
     sorts: [['due', 'Due first'], ['-due', 'Newest']],
     hide: r => r.status === 'Paid' || r.status === 'Declined', hideLabel: 'Show finished',
     sub: r => [r.status, r.type, r.due && 'due ' + niceDate(r.due), eur(r.fee)].filter(Boolean).join(' · ')
@@ -938,7 +958,7 @@ const SECTIONS = [
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
   { key: 'wish', label: 'Wishlists', icon: P.heart, tile: wishTile, views: [['today', 'Overview', P.grid], ['inbox', 'Inbox', P.inbox], ['master', 'Master', P.heart]] },
-  { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['feed', 'Feed', P.grid], ['posts', 'Posts', P.phone], ['plan', 'Planning', P.calendar], ['ideas', 'Ideas', P.star], ['tips', 'Tips', P.star], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
+  { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['feed', 'Feed', P.grid], ['posts', 'Posts', P.phone], ['plan', 'Planning', P.calendar], ['insights', 'Insights', P.grid], ['ideas', 'Ideas', P.star], ['tips', 'Tips', P.star], ['inspo', 'Inspiration', P.heart], ['kit', 'Toolkit', P.list], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
   { key: 'fit', label: 'Fitness', icon: P.dumbbell, tile: fitTile, views: [['today', 'Overview', P.grid], ['workouts', 'Workouts', P.run], ['library', 'Videos', P.star], ['fgoals', 'Goals', P.target], ['plans', 'Plans', P.list], ['exercises', 'Exercises', P.dumbbell], ['body', 'Body', P.scale], ['gear', 'Gear', P.box]] }
 ];
 const PAGES = {
@@ -979,6 +999,9 @@ const PAGES = {
   'social/goals': { title: 'Goals', segs: [{ kind: 'sgoals' }, { kind: 'accounts' }] },
   'social/collabs': { title: 'Collabs', segs: [{ kind: 'deals' }] },
   'social/brand': { title: 'Brand', segs: [{ kind: 'pillars' }, { kind: 'accounts' }] },
+  'social/kit': { title: 'Toolkit', segs: [{ kind: 'stemplates' }, { kind: 'hashsets' }] },
+  'social/inspo': { title: 'Inspiration', segs: [{ kind: 'inspo' }] },
+  'social/insights': { render: socialInsights, adds: ['posts', 'pillars'] },
   'care/health': { title: 'Health', segs: [{ kind: 'sleep' }, { kind: 'appts' }, { kind: 'symptoms' }, { kind: 'meditation' }, { kind: 'water' }] },
   'money/today': { render: moneyToday, adds: ['ftx', 'fincome', 'fbills', 'fchecks'] },
   'money/spending': { title: 'Spending', segs: [{ key: 'plan', label: 'Your plan', kind: 'ftx', fill: fEnvFill, tools: false }, { kind: 'ftx' }, { kind: 'fincome' }, { key: 'all', label: 'Everything in and out', kind: 'ftx', fill: fAllFill, tools: false }] },
@@ -1271,7 +1294,7 @@ function emptyList(K, any) {
    times a day, works out what it is (recipe, wish, closet piece, beauty, supplement, gear, home, idea, content,
    gift) and fills in a card. You accept it, send it somewhere else, keep it as a saved link, or skip it. */
 const INBOX_TO = { recipes: ['Recipe', 'kitchen/recipes'], wishes: ['Wish', 'wish/master'], closet: ['Closet wishlist', 'wishlist'], beauty: ['Beauty', 'care/beauty'], supplements: ['Supplement', 'care/supplements'],
-  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], stips: ['Social tip', 'social/tips'], gifts: ['Gift idea', 'care/gifts'], trip: ['Trip idea', 'care/trips'], stays: ['Saved stay', 'care/trips'], keep: ['Saved link', 'care/saved'] };
+  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], stips: ['Social tip', 'social/tips'], inspo: ['Inspiration', 'social/inspo'], gifts: ['Gift idea', 'care/gifts'], trip: ['Trip idea', 'care/trips'], stays: ['Saved stay', 'care/trips'], keep: ['Saved link', 'care/saved'] };
 const INBOX_EXTRA = { stays: () => ({ status: 'Saved' }), wishes: () => ({ status: 'Wish', since: today() }), beauty: () => ({ wish: true }), supplements: () => ({ wish: true }), gear: () => ({ own: false }), fitgear: () => ({ own: false }), inventory: () => ({ status: 'Wishlist' }), cideas: () => ({ status: 'Idea', source: 'Inbox' }), gifts: () => ({ status: 'Idea' }) };
 const inboxOpen = () => recs('inbox').filter(r => ['New', 'Ready'].includes(r.status));
 const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
@@ -1637,14 +1660,35 @@ function postEvents(from, to) {
     const d = p[k]; if (!d || d < from || d > to) continue;
     out.push({ p, k, label, d, done: k === 'date' ? p.stage === 'Posted' : stepDone(p, upto) });
   }
+  // collab deadlines sit on the same calendar
+  for (const c of recs('deals').filter(x => x.status !== 'Declined')) for (const [k, label] of DEAL_DATES) {
+    const d = c[k]; if (!d || d < from || d > to) continue;
+    out.push({ p: c, k: 'collab', label, d, done: k === 'payBy' ? c.status === 'Paid' : ['Delivered', 'Paid'].includes(c.status) });
+  }
   return out.sort((a, b) => a.d.localeCompare(b.d) || POST_STEPS.findIndex(x => x[0] === a.k) - POST_STEPS.findIndex(x => x[0] === b.k));
 }
-const STEP_CLS = { scriptOn: 'sscript', filmOn: 'sfilm', editOn: 'sedit', date: 'spost' };
+// one day to script, film or edit several posts in a row
+function batchDay() {
+  const list = recs('posts').filter(p => p.stage !== 'Posted').sort((a, b) => (a.date || '9').localeCompare(b.date || '9'));
+  if (!list.length) { C.toast('Plan a post first, then batch it'); return; }
+  const sh = C.sheet({ title: 'Plan a batch day', body: `<div class="form"><div class="field"><label for="bd-d">Day</label><input id="bd-d" type="date" value="${addDays(today(), 1)}"></div>
+    <div class="field"><label for="bd-s">What you do that day</label><select id="bd-s">${POST_STEPS.slice(0, 3).map(([k, l]) => `<option value="${k}" ${k === 'filmOn' ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div></div>
+    <p class="dsub">Posts</p><div class="lrows" data-bdl>${list.map(p => `<label class="lrow lbatch"><input type="checkbox" value="${p.id}"><span class="lmain"><b>${esc(titleOf(p))}</b><span>${esc([p.stage, p.date && 'post ' + relDay(p.date)].filter(Boolean).join(' · '))}</span></span></label>`).join('')}</div>`,
+    foot: `<span class="busy" data-bdm></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-bdok>Plan</button>` });
+  sh.querySelector('[data-bdok]').onclick = async () => {
+    const day = sh.querySelector('#bd-d').value, k = sh.querySelector('#bd-s').value, ids = [...sh.querySelectorAll('[data-bdl] input:checked')].map(i => i.value);
+    if (!day || !ids.length) { sh.querySelector('[data-bdm]').textContent = 'Pick a day and at least one post.'; return; }
+    const label = POST_STEPS.find(x => x[0] === k)[1].toLowerCase();
+    try { await putMany(ids.map(id => { const r = L.byId[id]; return { id, kind: 'posts', data: { ...dataOf(r), [k]: day } }; }), null, `Batch day ${shortDate(day)}: ${label} ${plural(ids.length, 'post')}`); C.closeSheet(); } catch (e) { failed(e); }
+  };
+}
+const STEP_CLS = { scriptOn: 'sscript', filmOn: 'sfilm', editOn: 'sedit', date: 'spost', collab: 'scollab' };
+const DEAL_DATES = [['draftBy', 'Collab draft'], ['postBy', 'Collab post'], ['due', 'Collab due'], ['payBy', 'Collab payment']];
 function socialPlan(host) {
   const P2 = L.splan ||= { mode: 'week', off: 0 }, t = today();
   const ev = e => `<button class="chip lstep ${STEP_CLS[e.k]} ${e.done ? 'done' : ''}" data-act="open" data-id="${e.p.id}">${e.done ? svg(P.check) : ''}<b>${esc(e.label)}</b> ${esc(titleOf(e.p))}</button>`;
   const seg = `<div class="seg" role="group" aria-label="View"><button data-splan="week" aria-pressed="${P2.mode === 'week'}">Week</button><button data-splan="month" aria-pressed="${P2.mode === 'month'}">Month</button></div>`;
-  const legend = `<p class="lnone llegend">${POST_STEPS.map(([k, l]) => `<span class="lstep ${STEP_CLS[k]}"><i></i>${esc(l)}</span>`).join('')}</p>`;
+  const legend = `<p class="lnone llegend">${[...POST_STEPS, ['collab', 'Collab']].map(([k, l]) => `<span class="lstep ${STEP_CLS[k]}"><i></i>${esc(l)}</span>`).join('')}</p>`;
   let body;
   if (P2.mode === 'week') {
     const start = weekStart(P2.off), days = Array.from({ length: 7 }, (_, i) => addDays(start, i)), es = postEvents(days[0], days[6]);
@@ -1657,14 +1701,56 @@ function socialPlan(host) {
       <div class="mcal">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<b class="mdow">${d}</b>`).join('')}${cells.map(d => { if (!d) return '<span></span>'; const de = es.filter(e => e.d === d);
         return `<div class="mday ${d < t ? 'past' : ''} ${d === t ? 'now' : ''}"><span>${fromISO(d).getDate()}</span>${de.slice(0, 4).map(e => `<button class="mstep ${STEP_CLS[e.k]} ${e.done ? 'done' : ''}" data-act="open" data-id="${e.p.id}" title="${esc(e.label + ': ' + titleOf(e.p))}"><i></i><em>${esc(titleOf(e.p))}</em></button>`).join('')}${de.length > 4 ? `<small>+${de.length - 4}</small>` : ''}</div>`; }).join('')}</div>`;
   }
-  host.innerHTML = `<div class="viewhead"><h1>Planning</h1><span class="sub">Script, film, edit and post</span></div><div class="lplanhead">${seg}${legend}</div>${body}`;
+  host.innerHTML = `<div class="viewhead"><h1>Planning</h1><span class="sub">Script, film, edit and post</span></div><div class="lplanhead">${seg}<button class="btn small" data-batchday>Plan a batch day</button>${legend}</div>${body}`;
   if (!host.dataset.spwired) {
     host.dataset.spwired = '1';
     host.addEventListener('click', e => {
+      if (e.target.closest('[data-batchday]')) { batchDay(); return; }
       const m = e.target.closest('[data-splan]'); if (m) { L.splan.mode = m.dataset.splan; L.splan.off = 0; socialPlan(host); return; }
       const mv = e.target.closest('[data-splanmove]'); if (mv) { L.splan.off = mv.dataset.splanmove === '0' ? 0 : L.splan.off + Number(mv.dataset.splanmove); socialPlan(host); }
     });
   }
+}
+/* Insights: how your posts do (per month, per format and pillar), when they do best, whether your pillars are in balance,
+   and which good posts are ready to use again. Numbers come from the posts themselves (synced or typed in). */
+const reach = p => num(p.views) || 0, engage = p => (num(p.likes) || 0) + (num(p.comments) || 0) + (num(p.shares) || 0);
+const kfmt = n => n >= 1e6 ? (n / 1e6).toFixed(1).replace('.0', '') + 'M' : n >= 1e4 ? Math.round(n / 1e3) + 'K' : n >= 1e3 ? (n / 1e3).toFixed(1).replace('.0', '') + 'K' : String(Math.round(n));
+function avgTable(rows, label) {
+  const max = Math.max(1, ...rows.map(r => r.avg));
+  return `<div class="ltable" role="table" aria-label="${esc(label)}">${rows.map(r => `<div class="ltr" role="row" title="${esc(`${r.k}: ${kfmt(r.avg)} views on average over ${plural(r.n, 'post')}`)}"><span role="cell">${esc(r.k)}</span><span class="lbarwrap" role="cell"><i class="lbar" style="width:${Math.max(2, Math.round(100 * r.avg / max))}%"></i></span><b role="cell">${kfmt(r.avg)}</b><small role="cell">${plural(r.n, 'post')}</small></div>`).join('')}</div>`;
+}
+function groupAvg(list, key) {
+  const m = new Map(); for (const p of list) for (const k of [].concat(key(p) || [])) { if (!k) continue; const e = m.get(k) || { k, n: 0, sum: 0 }; e.n++; e.sum += reach(p); m.set(k, e); }
+  return [...m.values()].map(e => ({ ...e, avg: e.sum / e.n })).sort((a, b) => b.avg - a.avg);
+}
+function socialInsights(host) {
+  const t = today(), posted = recs('posts').filter(p => p.stage === 'Posted' && p.date);
+  const months = Array.from({ length: 6 }, (_, i) => addMonths(t.slice(0, 7) + '-01', i - 5).slice(0, 7));
+  const per = months.map(m => { const l = posted.filter(p => p.date.startsWith(m)); return { m, n: l.length, views: l.reduce((a, p) => a + reach(p), 0), eng: l.reduce((a, p) => a + engage(p), 0) }; });
+  const maxV = Math.max(1, ...per.map(x => x.views)), withViews = posted.filter(p => reach(p) > 0);
+  const W = 600, H = 220, padB = 34, padT = 30, bw = W / per.length;
+  const chart = `<svg class="lchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Views per month">${[0.5, 1].map(f => `<line x1="0" x2="${W}" y1="${padT + (H - padT - padB) * (1 - f)}" y2="${padT + (H - padT - padB) * (1 - f)}" class="lgrid"/>`).join('')}<line x1="0" x2="${W}" y1="${H - padB}" y2="${H - padB}" class="laxis"/>${per.map((x, i) => { const h = Math.round((H - padT - padB) * x.views / maxV), xx = i * bw + bw * 0.22, w = bw * 0.56;
+    return `<g><title>${esc(fromISO(x.m + '-01').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }))}: ${kfmt(x.views)} views, ${kfmt(x.eng)} likes, comments and shares, ${plural(x.n, 'post')}</title><rect x="${i * bw}" y="0" width="${bw}" height="${H}" fill="transparent"/>${h ? `<path class="lbarv" d="M${xx},${H - padB} V${H - padB - h + 4} q0,-4 4,-4 h${w - 8} q4,0 4,4 V${H - padB} Z"/>` : ''}${x.views ? `<text x="${xx + w / 2}" y="${H - padB - h - 6}" text-anchor="middle" class="lval">${kfmt(x.views)}</text>` : ''}<text x="${xx + w / 2}" y="${H - 9}" text-anchor="middle" class="ltick">${esc(fromISO(x.m + '-01').toLocaleDateString('en-GB', { month: 'short' }))}</text></g>`; }).join('')}</svg>`;
+  const top = [...withViews].sort((a, b) => reach(b) - reach(a)).slice(0, 5);
+  const WD = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const byDay = groupAvg(withViews, p => WD[(fromISO(p.date).getDay() + 6) % 7]);
+  const band = h => h < 6 ? 'Night (0 to 6)' : h < 12 ? 'Morning (6 to 12)' : h < 17 ? 'Afternoon (12 to 17)' : h < 21 ? 'Evening (17 to 21)' : 'Late (21 to 24)';
+  const byTime = groupAvg(withViews.filter(p => p.time), p => band(Number(String(p.time).slice(0, 2))));
+  const byFormat = groupAvg(withViews, p => p.format), byPillar = groupAvg(withViews, p => relName(p.pillar));
+  const month = t.slice(0, 7), pillars = recs('pillars'), mine = recs('posts').filter(p => p.date?.startsWith(month));
+  const bal = pillars.map(pl => ({ pl, n: mine.filter(p => p.pillar === pl.id).length, goal: num(pl.perMonth) || 0 }));
+  const reuse = recs('posts').filter(p => p.stage === 'Posted' && p.date && (p.repurpose || p.top) && diffDays(p.date, t) >= 90).sort((a, b) => reach(b) - reach(a));
+  const best = byDay[0], bestT = byTime[0];
+  host.innerHTML = `<div class="viewhead"><h1>Insights</h1><span class="sub">${plural(posted.length, 'post')} out · ${kfmt(posted.reduce((a, p) => a + reach(p), 0))} views in total</span></div>
+  <div class="panels">
+    ${panel('Views per month', posted.length ? `${chart}<p class="lnone">Hover or tap a month for likes, comments and shares.</p>` : quiet('Posts with the stage Posted and a date show up here. Instagram and TikTok posts sync their numbers by themselves.'))}
+    ${panel('Best time to post', withViews.length >= 3 ? `${best ? `<p class="lbig">${esc(best.k)}${bestT ? ', ' + esc(bestT.k.split(' (')[0].toLowerCase()) : ''}</p><p class="lnone">Your posts get the most views on average then. ${withViews.length < 15 ? 'With more posts this gets more reliable.' : ''}</p>` : ''}<p class="dsub">By day</p>${avgTable(byDay, 'Average views by day')}${byTime.length ? `<p class="dsub">By time of day</p>${avgTable(byTime, 'Average views by time of day')}` : quiet('Give your posts a time (At) to see the best time of day.')}` : quiet('Once 3 posts have views, this shows which day and time work best.'))}
+    ${panel('Pillars this month', pillars.length ? `<div class="lrows">${bal.map(x => `<div class="lrow"><button class="lmain" data-act="open" data-id="${x.pl.id}"><b>${esc(titleOf(x.pl))}</b><span>${x.goal ? `${x.n} of ${x.goal} posts` : `${plural(x.n, 'post')} · set a goal per month`}</span>${x.goal ? `<span class="lbarwrap"><i class="lbar ${x.n >= x.goal ? 'full' : ''}" style="width:${Math.min(100, Math.round(100 * x.n / x.goal))}%"></i></span>` : ''}</button></div>`).join('')}</div>` : quiet('Add content pillars under Brand to see if your posts are in balance.'), ['social/brand', 'Pillars'])}
+    ${panel('By format', byFormat.length ? avgTable(byFormat, 'Average views by format') : quiet('Give posts a format to compare them.'))}
+    ${byPillar.length ? panel('By pillar', avgTable(byPillar, 'Average views by pillar')) : ''}
+    ${panel('Top posts', top.length ? `<div class="lrows">${top.map(row).join('')}</div>` : quiet('Your best posts show up here.'), ['social/posts', 'All posts'])}
+    ${panel('Ready to use again', reuse.length ? `<div class="lrows">${reuse.slice(0, 8).map(row).join('')}</div><p class="lnone">Posts marked Top performer or Repurpose this, posted 3 months ago or more.</p>` : quiet('Mark a post Top performer or Repurpose this. After 3 months it shows up here, and you get a reminder.'))}
+  </div>`;
 }
 function dealsPage(host) {
   const plan = curPlan(), offers = liveOffers(), byStore = STORES.map(s => [s, offers.filter(o => o.store === s)]).filter(([, l]) => l.length);
@@ -3135,7 +3221,7 @@ function openEditor(kind, id, preset = {}) {
   if (!r) for (const f of K.fields) if (f.type === 'date' && D[f.k] === undefined && ['date', 'start'].includes(f.k)) D[f.k] = today();
   const sh = C.sheet({
     title: r ? titleOf(r) : 'New ' + K.one,
-    body: `${r && WISHY[kind] ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${kind === 'stips' ? '<div data-tipsteps></div>' : ''}${kind === 'posts' ? '<div data-posttips></div>' : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}">${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
+    body: `${r && WISHY[kind] ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${kind === 'stips' ? '<div data-tipsteps></div>' : ''}${kind === 'posts' ? '<div data-postkit></div><div data-posttips></div>' : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}">${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
     foot: `${r ? '<button class="btn danger" data-del>Delete</button>' : ''}<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save</button>`,
     onClose: () => { Object.values(D._previews).forEach(u => URL.revokeObjectURL(u)); }
   });
@@ -3206,7 +3292,26 @@ function openEditor(kind, id, preset = {}) {
     const sug = recs('stips').filter(x => cats.includes(x.category) && !picked.includes(x)).sort((a, b) => (!!a.tried - !!b.tried) || (num(b.worked) || 0) - (num(a.worked) || 0) || (b.fav ? 1 : 0) - (a.fav ? 1 : 0)).slice(0, 6);
     box.innerHTML = picked.length || sug.length ? `<section class="ltipsteps">${picked.map(x => `<details><summary><b>${esc(titleOf(x))}</b> <span class="lnone">${esc(x.category || '')}</span></summary><ol>${tipSteps(x).map(y => `<li>${esc(y)}</li>`).join('')}</ol></details>`).join('')}${sug.length ? `<p class="dsub">Tips for ${esc(D.stage || 'this post')}</p><div class="lwrap">${sug.map(x => `<button type="button" class="chip" data-tipadd="${x.id}">+ ${esc(titleOf(x))}</button>`).join('')}</div>` : ''}</section>` : '';
   };
-  drawTipSteps(); drawPostTips();
+  // a post: a script template, hashtag sets and the outfit from your closet
+  const drawPostKit = () => {
+    const box = sh.querySelector('[data-postkit]'); if (!box) return;
+    const tpl = recs('stemplates').sort((a, b) => (a.format === D.format ? -1 : 0) - (b.format === D.format ? -1 : 0) || norm(a.name).localeCompare(norm(b.name)));
+    const sets = recs('hashsets').sort((a, b) => (b.pillar === D.pillar) - (a.pillar === D.pillar) || norm(a.name).localeCompare(norm(b.name)));
+    const looks = C.outfits?.() || [], look = looks.find(o => o.id === D.look);
+    box.innerHTML = `<section class="ltipsteps lkit">
+      <div class="lkrow"><span class="lbl">Script template</span>${tpl.length ? `<div class="lwrap">${tpl.slice(0, 8).map(x => `<button type="button" class="chip" data-usetpl="${x.id}">${esc(titleOf(x))}${x.format ? ` <span class="n">${esc(x.format)}</span>` : ''}</button>`).join('')}</div>` : '<span class="lnone">Make templates under Social › Toolkit.</span>'}</div>
+      <div class="lkrow"><span class="lbl">Hashtag sets</span>${sets.length ? `<div class="lwrap">${sets.slice(0, 10).map(x => `<button type="button" class="chip" data-usetags="${x.id}">+ ${esc(titleOf(x))}</button>`).join('')}</div>` : '<span class="lnone">Save hashtag sets under Social › Toolkit.</span>'}</div>
+      <div class="lkrow"><span class="lbl">Outfit</span>${look ? `<div class="lkook"><div class="lkboard">${look.board}</div><b>${esc(look.name)}</b><button type="button" class="chip link" data-lookx>Remove</button></div>` : looks.length ? `<details><summary class="chip">Pick an outfit from your closet</summary><div class="outpick">${looks.map(o => `<button type="button" data-picklook="${o.id}">${o.board}<span>${esc(o.name)}</span></button>`).join('')}</div></details>` : '<span class="lnone">Save outfits in Closet › Outfits to pick one here.</span>'}</div>
+    </section>`;
+  };
+  drawTipSteps(); drawPostTips(); drawPostKit();
+  sh.addEventListener('click', e => {
+    const u = e.target.closest('[data-usetpl]'); if (u) { const x = L.byId[u.dataset.usetpl], cur = String(D.script || '').trim(); D.script = cur ? cur + '\n\n' + (x.body || '') : (x.body || ''); redraw('script'); C.toast(`Template “${titleOf(x)}” is in your script`); return; }
+    const h = e.target.closest('[data-usetags]'); if (h) { const x = L.byId[h.dataset.usetags], have = String(D.hashtags || '').split(/\s+/).filter(Boolean), add = String(x.tags || '').split(/[\s,]+/).filter(Boolean).map(w => w.startsWith('#') ? w : '#' + w); D.hashtags = [...new Set([...have, ...add])].join(' '); redraw('hashtags'); C.toast(`${plural(add.length, 'hashtag')} added`); return; }
+    const pl = e.target.closest('[data-picklook]'); if (pl) { D.look = pl.dataset.picklook; drawPostKit(); return; }
+    if (e.target.closest('[data-lookx]')) { delete D.look; drawPostKit(); return; }
+    if (kind === 'posts' && e.target.closest('[data-opt="format"], [data-relpick="pillar"], [data-relx="pillar"]')) setTimeout(drawPostKit);
+  });
   sh.addEventListener('click', e => {
     const ts = e.target.closest('[data-tstep], [data-tstepreset]');
     if (ts) { const i = Number(ts.dataset.tstep), done = new Set([].concat(D.stepsDone || [])); if (ts.dataset.tstepreset !== undefined) done.clear(); else done.has(i) ? done.delete(i) : done.add(i); D.stepsDone = [...done].sort((a, b) => a - b); drawTipSteps(); if (r) save(L.byId[r.id] || r, { stepsDone: D.stepsDone, ...(D.stepsDone.length && D.stepsDone.length === tipSteps(D).length && !D.tried ? { tried: (D.tried = true) } : {}) }); if (D.tried) redraw('tried'); return; }
