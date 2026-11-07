@@ -113,7 +113,10 @@ const SOCIAL_STAGES = ['Idea', 'Planned', 'Scripting', 'Filming', 'Editing', 'Sc
 // the steps of making a post, each with its own date; a step is done once the stage has moved past it
 const POST_STEPS = [['scriptOn', 'Write the script', 'Filming'], ['filmOn', 'Film', 'Editing'], ['editOn', 'Edit', 'Scheduled'], ['date', 'Post', 'Posted']];
 const stepDone = (r, upto) => SOCIAL_STAGES.indexOf(r.stage) >= SOCIAL_STAGES.indexOf(upto);
-const TIP_CATS = ['Poses', 'Filming', 'Lighting', 'Editing', 'Software & apps', 'Branding', 'Hooks & captions', 'Growth & algorithm', 'Trends', 'Gear', 'Collabs & money', 'Other'];
+const TIP_CATS = ['Poses', 'Outfits & styling', 'Filming', 'Lighting', 'Storytelling & scripts', 'Hooks & captions', 'Editing', 'Software & apps', 'Thumbnails & covers', 'Branding', 'Growth & algorithm', 'Trends', 'Gear', 'Collabs & money', 'Mindset & planning', 'Other'];
+// which tips fit the stage a post is in
+const STAGE_TIPS = { Planned: ['Storytelling & scripts', 'Mindset & planning', 'Trends'], Scripting: ['Storytelling & scripts', 'Hooks & captions'], Filming: ['Poses', 'Outfits & styling', 'Filming', 'Lighting', 'Gear'], Editing: ['Editing', 'Software & apps', 'Thumbnails & covers'], Scheduled: ['Hooks & captions', 'Growth & algorithm', 'Thumbnails & covers'] };
+const tipSteps = r => String(r.steps || '').split('\n').map(x => x.replace(/^\s*(\d+[.)]|[-*•])\s*/, '').trim()).filter(Boolean);
 const SOCIAL_FORMATS = ['Short Video', 'Long-form Video', 'Carousel', 'Image Post', 'Story', 'Live', 'BTS Video'];
 const SOCIAL_STYLES = ['Educational', 'Entertaining', 'Inspirational', 'Relatable', 'Storytelling', 'Behind-the-Scenes', 'Informational'];
 const SOCIAL_FUNNEL = ['Awareness', 'Consideration', 'Conversion', 'Loyalty/Advocacy'];
@@ -362,7 +365,7 @@ const KINDS = {
     one: 'post', many: 'Posts', facet: 'stage', photo: 'photo',
     fields: [F('name', 'Title'), F('date', 'Post on', 'date', { half: 1 }), F('time', 'At', 'time', { half: 1 }),
       F('scriptOn', 'Write the script on', 'date', { half: 1 }), F('filmOn', 'Film on', 'date', { half: 1 }), F('editOn', 'Edit on', 'date', { half: 1 }), F('location', 'Location', 'text', { half: 1 }),
-      F('stage', 'Stage', 'select', { options: SOCIAL_STAGES.filter(x => x !== 'Idea'), half: 1 }), F('platforms', 'Platforms', 'multi', { options: SOCIAL_PLATFORMS, half: 1 }),
+      F('stage', 'Stage', 'select', { options: SOCIAL_STAGES.filter(x => x !== 'Idea'), half: 1 }), F('tips', 'Tips to use', 'rel', { to: 'stips', multi: 1 }), F('platforms', 'Platforms', 'multi', { options: SOCIAL_PLATFORMS, half: 1 }),
       F('format', 'Format', 'select', { options: SOCIAL_FORMATS, half: 1 }), F('pillar', 'Pillar', 'rel', { to: 'pillars', half: 1 }),
       F('style', 'Style', 'select', { options: SOCIAL_STYLES, half: 1 }), F('funnel', 'Funnel stage', 'select', { options: SOCIAL_FUNNEL, half: 1 }),
       F('desc', 'What it is', 'long'), F('hook', 'Hook (first seconds)', 'text'), F('script', 'Script', 'long', { rows: 8 }), F('shots', 'Shot list', 'long', { rows: 5 }),
@@ -390,9 +393,10 @@ const KINDS = {
     one: 'tip', many: 'Social media tips', facet: 'category', photo: 'photo', display: 'cards',
     fields: [F('name', 'Tip'), F('category', 'Category', 'select', { options: TIP_CATS, half: 1 }), F('platforms', 'Platforms', 'multi', { options: SOCIAL_PLATFORMS, half: 1 }),
       F('summary', 'What it is', 'long', { rows: 3 }), F('steps', 'Steps', 'long', { rows: 8 }), F('tools', 'Apps or gear', 'text', { half: 1 }), F('creator', 'From', 'text', { half: 1 }),
-      F('link', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('tried', 'Tried it', 'check', { half: 1 }), F('fav', 'Favourite', 'check', { half: 1 }), F('notes', 'Notes', 'long')],
-    sorts: [['-created', 'Newest'], ['name', 'A to Z'], ['category', 'Category']],
-    sub: r => [r.category, r.creator, r.tried ? 'tried' : ''].filter(Boolean).join(' · '),
+      F('link', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('tried', 'Tried it', 'check', { half: 1 }), F('fav', 'Favourite', 'check', { half: 1 }),
+      F('worked', 'Did it work?', 'rating', { half: 1 }), F('result', 'How it went', 'long', { rows: 2 }), F('notes', 'Notes', 'long')],
+    sorts: [['-created', 'Newest'], ['name', 'A to Z'], ['category', 'Category'], ['-worked', 'Worked best']],
+    sub: r => [r.category, r.creator, r.tried ? (num(r.worked) ? 'worked ' + num(r.worked) + '/5' : 'tried') : ''].filter(Boolean).join(' · '),
     quick: r => ({ on: !!r.tried, label: 'Tried', act: () => save(r, { tried: !r.tried }) })
   },
   pillars: {
@@ -934,7 +938,7 @@ const SECTIONS = [
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile, views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target], ['debt', 'Debt', P.card], ['forecast', 'Forecast', P.trend], ['year', 'Year', P.calendar], ['networth', 'Net worth', P.wallet], ['reviews', 'Reviews', P.doc]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Inventory', P.box], ['repairs', 'Repairs', P.wrench]] },
   { key: 'wish', label: 'Wishlists', icon: P.heart, tile: wishTile, views: [['today', 'Overview', P.grid], ['inbox', 'Inbox', P.inbox], ['master', 'Master', P.heart]] },
-  { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['feed', 'Feed', P.grid], ['posts', 'Posts', P.phone], ['ideas', 'Ideas', P.star], ['tips', 'Tips', P.star], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
+  { key: 'social', label: 'Social', icon: P.phone, tile: socialTile, views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check], ['projects', 'Projects', P.list], ['feed', 'Feed', P.grid], ['posts', 'Posts', P.phone], ['plan', 'Planning', P.calendar], ['ideas', 'Ideas', P.star], ['tips', 'Tips', P.star], ['goals', 'Goals', P.target], ['collabs', 'Collabs', P.handshake], ['brand', 'Brand', P.user]] },
   { key: 'fit', label: 'Fitness', icon: P.dumbbell, tile: fitTile, views: [['today', 'Overview', P.grid], ['workouts', 'Workouts', P.run], ['library', 'Videos', P.star], ['fgoals', 'Goals', P.target], ['plans', 'Plans', P.list], ['exercises', 'Exercises', P.dumbbell], ['body', 'Body', P.scale], ['gear', 'Gear', P.box]] }
 ];
 const PAGES = {
@@ -971,6 +975,7 @@ const PAGES = {
   'social/feed': { render: socialFeed, adds: ['posts', 'highlights', 'accounts'] },
   'social/ideas': { title: 'Content ideas', segs: [{ kind: 'cideas' }] },
   'social/tips': { title: 'Tips', segs: [{ kind: 'stips' }] },
+  'social/plan': { render: socialPlan, adds: ['posts'] },
   'social/goals': { title: 'Goals', segs: [{ kind: 'sgoals' }, { kind: 'accounts' }] },
   'social/collabs': { title: 'Collabs', segs: [{ kind: 'deals' }] },
   'social/brand': { title: 'Brand', segs: [{ kind: 'pillars' }, { kind: 'accounts' }] },
@@ -1623,6 +1628,42 @@ function recipesTodo(host) {
     host.dataset.rtwired = '1';
     host.addEventListener('click', e => { const f = e.target.closest('[data-rtfield]'); if (f) { L.rtodo.field = f.dataset.rtfield; recipesTodo(host); } });
     host.addEventListener('change', e => { const so = e.target.closest('[data-rtsort]'); if (so) { L.rtodo.sort = so.value; recipesTodo(host); } });
+  }
+}
+/* Planning: every step of every post on a calendar, a week or a month at a time */
+function postEvents(from, to) {
+  const out = [];
+  for (const p of recs('posts')) for (const [k, label, upto] of POST_STEPS) {
+    const d = p[k]; if (!d || d < from || d > to) continue;
+    out.push({ p, k, label, d, done: k === 'date' ? p.stage === 'Posted' : stepDone(p, upto) });
+  }
+  return out.sort((a, b) => a.d.localeCompare(b.d) || POST_STEPS.findIndex(x => x[0] === a.k) - POST_STEPS.findIndex(x => x[0] === b.k));
+}
+const STEP_CLS = { scriptOn: 'sscript', filmOn: 'sfilm', editOn: 'sedit', date: 'spost' };
+function socialPlan(host) {
+  const P2 = L.splan ||= { mode: 'week', off: 0 }, t = today();
+  const ev = e => `<button class="chip lstep ${STEP_CLS[e.k]} ${e.done ? 'done' : ''}" data-act="open" data-id="${e.p.id}">${e.done ? svg(P.check) : ''}<b>${esc(e.label)}</b> ${esc(titleOf(e.p))}</button>`;
+  const seg = `<div class="seg" role="group" aria-label="View"><button data-splan="week" aria-pressed="${P2.mode === 'week'}">Week</button><button data-splan="month" aria-pressed="${P2.mode === 'month'}">Month</button></div>`;
+  const legend = `<p class="lnone llegend">${POST_STEPS.map(([k, l]) => `<span class="lstep ${STEP_CLS[k]}"><i></i>${esc(l)}</span>`).join('')}</p>`;
+  let body;
+  if (P2.mode === 'week') {
+    const start = weekStart(P2.off), days = Array.from({ length: 7 }, (_, i) => addDays(start, i)), es = postEvents(days[0], days[6]);
+    body = `<div class="lweeknav"><button class="iconbtn" data-splanmove="-1" aria-label="Previous week">${svg(P.left)}</button><b>${shortDate(days[0])} to ${shortDate(days[6])}</b><button class="iconbtn" data-splanmove="1" aria-label="Next week">${svg(P.right)}</button>${P2.off ? '<button class="chip" data-splanmove="0">This week</button>' : ''}</div>
+      <div class="lweek">${days.map(d => { const de = es.filter(e => e.d === d); return `<div class="lday ${d === t ? 'now' : ''}"><div class="ldh"><b>${dayName(d)}</b><span>${shortDate(d)}</span></div><div class="lwrap">${de.map(ev).join('') || '<span class="lnone">Nothing planned</span>'}</div></div>`; }).join('')}</div>`;
+  } else {
+    const m0 = addMonths(t.slice(0, 7) + '-01', P2.off), first = fromISO(m0), lead = (first.getDay() + 6) % 7, n = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+    const cells = [...Array(lead).fill(''), ...Array.from({ length: n }, (_, i) => addDays(m0, i))], es = postEvents(m0, addDays(m0, n - 1));
+    body = `<div class="lweeknav"><button class="iconbtn" data-splanmove="-1" aria-label="Previous month">${svg(P.left)}</button><b>${esc(first.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }))}</b><button class="iconbtn" data-splanmove="1" aria-label="Next month">${svg(P.right)}</button>${P2.off ? '<button class="chip" data-splanmove="0">This month</button>' : ''}</div>
+      <div class="mcal">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<b class="mdow">${d}</b>`).join('')}${cells.map(d => { if (!d) return '<span></span>'; const de = es.filter(e => e.d === d);
+        return `<div class="mday ${d < t ? 'past' : ''} ${d === t ? 'now' : ''}"><span>${fromISO(d).getDate()}</span>${de.slice(0, 4).map(e => `<button class="mstep ${STEP_CLS[e.k]} ${e.done ? 'done' : ''}" data-act="open" data-id="${e.p.id}" title="${esc(e.label + ': ' + titleOf(e.p))}"><i></i><em>${esc(titleOf(e.p))}</em></button>`).join('')}${de.length > 4 ? `<small>+${de.length - 4}</small>` : ''}</div>`; }).join('')}</div>`;
+  }
+  host.innerHTML = `<div class="viewhead"><h1>Planning</h1><span class="sub">Script, film, edit and post</span></div><div class="lplanhead">${seg}${legend}</div>${body}`;
+  if (!host.dataset.spwired) {
+    host.dataset.spwired = '1';
+    host.addEventListener('click', e => {
+      const m = e.target.closest('[data-splan]'); if (m) { L.splan.mode = m.dataset.splan; L.splan.off = 0; socialPlan(host); return; }
+      const mv = e.target.closest('[data-splanmove]'); if (mv) { L.splan.off = mv.dataset.splanmove === '0' ? 0 : L.splan.off + Number(mv.dataset.splanmove); socialPlan(host); }
+    });
   }
 }
 function dealsPage(host) {
@@ -2943,6 +2984,8 @@ function socialToday(host) {
   const week = posts.filter(p => p.date >= wk && p.date <= end), posted = week.filter(p => p.stage === 'Posted').length;
   const ideas = recs('cideas').filter(i => !['Dropped', 'Planned'].includes(i.status));
   const steps = posts.filter(p => p.stage !== 'Posted').flatMap(p => POST_STEPS.slice(0, 3).filter(([k, , upto]) => p[k] && p[k] <= addDays(t, 6) && !stepDone(p, upto)).map(([k, label]) => ({ p, k, label, on: p[k] }))).sort((a, b) => a.on.localeCompare(b.on));
+  const untried = recs('stips').filter(x => !x.tried).sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  const tod = untried.length ? untried[Math.floor(fromISO(t).getTime() / 864e5) % untried.length] : null;
   const stepRow = x => `<div class="lrow"><button class="lmain" data-act="open" data-id="${x.p.id}"><b>${esc(x.label)}: ${esc(titleOf(x.p))}</b><span>${esc(x.on < t ? 'was ' + relDay(x.on) : relDay(x.on))}${x.p.date ? ' · post ' + esc(relDay(x.p.date)) : ''}</span></button></div>`;
   const goals = recs('sgoals').filter(g => !g.done);
   const deals = recs('deals').filter(d => !['Paid', 'Declined'].includes(d.status)).sort((a, b) => (a.due || '9').localeCompare(b.due || '9'));
@@ -2957,6 +3000,7 @@ function socialToday(host) {
   <div class="panels">
     ${panel('Tasks', due.length || nextTasks.length ? `${due.length ? `<div class="lrows">${due.map(row).join('')}</div>` : quiet('Nothing due today.')}${nextTasks.length ? `<p class="dsub">Next</p><div class="lrows">${nextTasks.map(row).join('')}</div>` : ''}` : `${quiet('No open tasks with a date.')}<button class="btn small" data-act="new" data-v="tasks">Add a task</button>`, ['social/tasks', 'All tasks'])}
     ${projs.length ? panel('Projects', `<div class="lrows">${projs.slice(0, 5).map(pbar).join('')}</div>`, ['social/projects', 'All projects']) : ''}
+    ${tod ? panel('Tip of the day', `<button class="lmain ltod" data-act="open" data-id="${tod.id}"><b>${esc(titleOf(tod))}</b><span>${esc([tod.category, tod.creator].filter(Boolean).join(' · '))}</span>${tod.summary ? `<p>${esc(tod.summary)}</p>` : ''}${tipSteps(tod).length ? `<ol>${tipSteps(tod).slice(0, 3).map(y => `<li>${esc(y)}</li>`).join('')}</ol>${tipSteps(tod).length > 3 ? `<span>and ${plural(tipSteps(tod).length - 3, 'more step')}</span>` : ''}` : ''}</button>`, ['social/tips', 'All tips']) : ''}
     ${steps.length ? panel('Making your posts', `<div class="lrows">${steps.slice(0, 8).map(stepRow).join('')}</div>`, ['social/posts', 'All posts']) : ''}
     ${panel('Coming up', upcoming.length ? `<div class="lrows">${upcoming.map(row).join('')}</div>` : `${quiet('No posts planned.')}<button class="btn small" data-act="new" data-v="posts">Plan a post</button>`, ['social/posts', 'All posts'])}
     ${late.length ? panel('Past their date', `<div class="lrows">${late.slice(0, 5).map(row).join('')}</div>`, ['social/posts', 'All posts']) : ''}
@@ -3091,7 +3135,7 @@ function openEditor(kind, id, preset = {}) {
   if (!r) for (const f of K.fields) if (f.type === 'date' && D[f.k] === undefined && ['date', 'start'].includes(f.k)) D[f.k] = today();
   const sh = C.sheet({
     title: r ? titleOf(r) : 'New ' + K.one,
-    body: `${r && WISHY[kind] ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}">${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
+    body: `${r && WISHY[kind] ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${kind === 'stips' ? '<div data-tipsteps></div>' : ''}${kind === 'posts' ? '<div data-posttips></div>' : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}">${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
     foot: `${r ? '<button class="btn danger" data-del>Delete</button>' : ''}<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save</button>`,
     onClose: () => { Object.values(D._previews).forEach(u => URL.revokeObjectURL(u)); }
   });
@@ -3149,6 +3193,27 @@ function openEditor(kind, id, preset = {}) {
     try { D._blobs[k] = await C.photoToJpeg(file); if (D._previews[k]) URL.revokeObjectURL(D._previews[k]); D._previews[k] = URL.createObjectURL(D._blobs[k]); redraw(k); }
     catch { C.toast('That photo could not be read. Try another one.'); }
   });
+  // a tip: its steps as a list to tick off while you film or edit (saved straight away)
+  const drawTipSteps = () => {
+    const box = sh.querySelector('[data-tipsteps]'); if (!box) return;
+    const st = tipSteps(D), done = new Set([].concat(D.stepsDone || []));
+    box.innerHTML = st.length ? `<section class="ltipsteps"><div class="lph3"><h3>Steps</h3>${done.size ? '<button type="button" class="chip link" data-tstepreset>Start over</button>' : ''}</div><ol>${st.map((x, i) => `<li><button type="button" class="ltstep" data-tstep="${i}" aria-pressed="${done.has(i)}"><i>${done.has(i) ? svg(P.check) : i + 1}</i><span>${esc(x)}</span></button></li>`).join('')}</ol><p class="lnone">${done.size}/${st.length} done</p></section>` : '';
+  };
+  // a post: the tips you picked, with their steps, and tips that fit the stage it is in
+  const drawPostTips = () => {
+    const box = sh.querySelector('[data-posttips]'); if (!box) return;
+    const picked = [].concat(D.tips || []).map(i => L.byId[i]).filter(Boolean), cats = STAGE_TIPS[D.stage] || [];
+    const sug = recs('stips').filter(x => cats.includes(x.category) && !picked.includes(x)).sort((a, b) => (!!a.tried - !!b.tried) || (num(b.worked) || 0) - (num(a.worked) || 0) || (b.fav ? 1 : 0) - (a.fav ? 1 : 0)).slice(0, 6);
+    box.innerHTML = picked.length || sug.length ? `<section class="ltipsteps">${picked.map(x => `<details><summary><b>${esc(titleOf(x))}</b> <span class="lnone">${esc(x.category || '')}</span></summary><ol>${tipSteps(x).map(y => `<li>${esc(y)}</li>`).join('')}</ol></details>`).join('')}${sug.length ? `<p class="dsub">Tips for ${esc(D.stage || 'this post')}</p><div class="lwrap">${sug.map(x => `<button type="button" class="chip" data-tipadd="${x.id}">+ ${esc(titleOf(x))}</button>`).join('')}</div>` : ''}</section>` : '';
+  };
+  drawTipSteps(); drawPostTips();
+  sh.addEventListener('click', e => {
+    const ts = e.target.closest('[data-tstep], [data-tstepreset]');
+    if (ts) { const i = Number(ts.dataset.tstep), done = new Set([].concat(D.stepsDone || [])); if (ts.dataset.tstepreset !== undefined) done.clear(); else done.has(i) ? done.delete(i) : done.add(i); D.stepsDone = [...done].sort((a, b) => a - b); drawTipSteps(); if (r) save(L.byId[r.id] || r, { stepsDone: D.stepsDone, ...(D.stepsDone.length && D.stepsDone.length === tipSteps(D).length && !D.tried ? { tried: (D.tried = true) } : {}) }); if (D.tried) redraw('tried'); return; }
+    const ta = e.target.closest('[data-tipadd]'); if (ta) { D.tips = [...new Set([...[].concat(D.tips || []), ta.dataset.tipadd])]; redraw('tips'); }
+    if (kind === 'posts') setTimeout(drawPostTips);
+  });
+  sh.addEventListener('change', () => { if (kind === 'stips') setTimeout(drawTipSteps); });
   sh.addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
     const d = b.dataset;
