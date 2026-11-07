@@ -430,9 +430,10 @@ Deno.serve(async req => {
       const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['sleep', 'nlog', 'workouts', 'cycles']);
       if (error) throw error;
       const up = async (kind: string, match: (r: any) => boolean, patch: Record<string, unknown>) => { const hit = data.find((r: any) => r.kind === kind && match(r.data || {})); const row = { user_id: uid, id: hit?.id || crypto.randomUUID(), kind, data: { ...(hit?.data || { created: Date.now() }), ...clean(patch) }, updated_at: now }; const { error: e } = await sb.from('records').upsert(row); if (e) throw e; };
-      const hrs = num(body.sleepHours);
+      // sleep may come in hours, minutes or seconds, depending on how the Shortcut adds it up
+      const rawSleep = num(body.sleepHours ?? body.sleep), hrs = rawSleep == null ? null : rawSleep > 1440 ? rawSleep / 3600 : rawSleep > 24 ? rawSleep / 60 : rawSleep;
       if (hrs != null && hrs > 0 && hrs < 16) { await up('sleep', r => r.date === date, { date, hours: Math.round(hrs * 10) / 10, bed: str(body.bed, 5), up: str(body.wake, 5), source: 'Apple Health' }); out.sleep = hrs; }
-      const steps = num(body.steps); if (steps != null) { await up('nlog', r => r.date === date, { date, steps: Math.round(steps) }); out.steps = steps; }
+      const steps = num(String(body.steps ?? '').replace(/[^0-9.,]/g, '').replace(',', '.') || null); if (steps != null) { await up('nlog', r => r.date === date, { date, steps: Math.round(steps) }); out.steps = steps; }
       const TYPES: Record<string, string> = { walking: 'Walk', running: 'Run', cycling: 'Cycling', yoga: 'Yoga', pilates: 'Pilates', hiit: 'HIIT', strength: 'Strength', 'traditional strength training': 'Strength', 'functional strength training': 'Strength', 'high intensity interval training': 'HIIT', dance: 'Cardio', elliptical: 'Cardio', rowing: 'Cardio', flexibility: 'Stretching', 'core training': 'Strength' };
       const wos = (Array.isArray(body.workouts) ? body.workouts : String(body.workouts || '').split('\n').filter(Boolean).map((l: string) => { const [t, m, d] = l.split(/[;,]/).map(x => x.trim()); return { type: t, minutes: m, date: d }; })).slice(0, 10);
       let wn = 0;
