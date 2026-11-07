@@ -1492,7 +1492,7 @@ function selSet(kind) {
 }
 function emptyList(K, any) {
   return any ? quiet('Nothing matches. Try another search or filter.')
-    : `<div class="empty lempty"><h2>No ${esc(K.many.toLowerCase())} yet</h2><p>Add your first ${esc(K.one)} with the + button, or bring everything over from Notion in one go.</p><button class="btn" data-act="import">Import from Notion</button></div>`;
+    : `<div class="empty lempty"><h2>No ${esc(K.many.toLowerCase())} yet</h2><p>Add your first ${esc(K.one)} with the + button. Coming from Notion? Use Import in this section's Settings.</p></div>`;
 }
 
 /* ---------- kitchen ---------- */
@@ -3839,7 +3839,7 @@ function bodyTop() {
 /* ---------- overview helpers ---------- */
 const shuffle = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const head = title => `<div class="viewhead"><h1>${esc(title)}</h1><span class="sub">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span></div>`;
-const dataTools = () => `<div class="ltools"><button class="chip link" data-act="import">Import from Notion</button><button class="chip link" data-act="export">Back up these lists</button></div>`;
+const dataTools = () => `<div class="ltools"><button class="chip link" data-act="export">Back up these lists</button></div>`;
 
 /* ---------- editing a record ---------- */
 // choice lists follow Settings: your own order, hidden options left out unless this record already uses one
