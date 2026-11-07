@@ -585,9 +585,16 @@ header.top .brand { flex: none; white-space: nowrap; }
 .bigact b { font-size: 17px; }
 .bigact small { font-size: 13px; font-weight: 500; opacity: .85; }
 /* overviews on a wide screen (iPad landscape, Mac): blocks stack in two columns without empty gaps under short ones */
+/* every page: blocks stack in columns and close up under short ones; a wide block still spans the full width */
 @media (min-width: 861px) {
-  .panels:has(> .lpanel):not(:has(> .wide)) { display: block; columns: 2; column-gap: 16px; }
-  .panels:has(> .lpanel):not(:has(> .wide)) > * { break-inside: avoid; margin: 0 0 16px; width: 100%; }
+  .panels { display: block; columns: 2; column-gap: 16px; }
+  .panels > * { break-inside: avoid; margin: 0 0 16px; width: 100%; }
+  .panels > .wide, .panels > .secown { column-span: all; }
+  .setpanels { columns: 3 320px; }
+  /* overviews in your own order (Arrange) close up the same way */
+  .ovflow { display: block; columns: 2 420px; column-gap: 16px; }
+  .ovflow > * { break-inside: avoid; margin: 0 0 16px !important; width: 100%; }
+  .ovflow > .ovwide { column-span: all; }
 }
 .mfilter { margin-bottom: 4px; }
 .mgroup { display: grid; gap: 8px; margin-top: 18px; }
