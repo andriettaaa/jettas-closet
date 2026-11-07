@@ -1177,7 +1177,7 @@ const SECTIONS = [
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Verhuislijst', P.box], ['mood', 'Moodboard', P.heart], ['repairs', 'Repairs', P.wrench], ['todo', 'To do', P.check]] },
   { key: 'social', label: 'Social', icon: P.phone, tile: socialTile,
     groups: { work: ['Work', P.check], create: ['Create', P.phone], grow: ['Grow', P.trend], library: ['Library', P.book] },
-    views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check, 'work'], ['projects', 'Projects', P.list, 'work'], ['ideas', 'Ideas', P.star, 'create'], ['posts', 'Posts', P.phone, 'create'], ['plan', 'Planning', P.calendar, 'create'], ['feed', 'Feed', P.grid, 'create'], ['insights', 'Insights', P.trend, 'grow'], ['goals', 'Goals', P.target, 'grow'], ['collabs', 'Collabs', P.handshake, 'grow'], ['income', 'Income', P.coins, 'grow'], ['tips', 'Tips', P.star, 'library'], ['inspo', 'Inspiration', P.heart, 'library'], ['kit', 'Toolkit', P.list, 'library'], ['brand', 'Brand', P.user, 'library'], ['todo', 'To do', P.check]] },
+    views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check, 'work'], ['projects', 'Projects', P.list, 'work'], ['ideas', 'Ideas', P.star, 'create'], ['posts', 'Posts', P.phone, 'create'], ['plan', 'Planning', P.calendar, 'create'], ['feed', 'Feed', P.grid, 'create'], ['insights', 'Insights', P.trend, 'grow'], ['pinterest', 'Pinterest', P.heart, 'grow'], ['goals', 'Goals', P.target, 'grow'], ['collabs', 'Collabs', P.handshake, 'grow'], ['income', 'Income', P.coins, 'grow'], ['tips', 'Tips', P.star, 'library'], ['inspo', 'Inspiration', P.heart, 'library'], ['kit', 'Toolkit', P.list, 'library'], ['brand', 'Brand', P.user, 'library'], ['todo', 'To do', P.check]] },
   { key: 'body', label: 'Body', icon: P.pulse, tile: bodyTile,
     groups: { train: ['Train', P.run], health: ['Health', P.pulse], beauty: ['Beauty', P.drop] },
     views: [['today', 'Overview', P.grid], ['clean', 'Clean', P.leaf], ['fit/workouts', 'Workouts', P.run, 'train'], ['fit/library', 'Videos', P.star, 'train'], ['fit/plans', 'Plans', P.list, 'train'], ['fit/exercises', 'Exercises', P.dumbbell, 'train'], ['fit/fgoals', 'Goals', P.target, 'train'], ['fit/body', 'Body', P.scale, 'train'], ['fit/gear', 'Gear', P.box, 'train'], ['care/health', 'Sleep & health', P.moon, 'health'], ['care/cycle', 'Cycle', P.moon, 'health'], ['care/supplements', 'Supplements', P.pill, 'health'], ['care/beauty', 'Products', P.drop, 'beauty'], ['care/skin', 'Skincare', P.flask, 'beauty'], ['care/diary', 'Skin diary', P.camera, 'beauty'], ['care/bdeals', 'Deals', P.tag, 'beauty'], ['todo', 'To do', P.check]] }
@@ -1241,6 +1241,7 @@ const PAGES = {
   'social/kit': { title: 'Toolkit', segs: [{ kind: 'stemplates' }, { kind: 'hashsets' }] },
   'social/inspo': { title: 'Inspiration', segs: [{ kind: 'inspo' }] },
   'social/insights': { render: socialInsights, adds: ['posts', 'pillars'] },
+  'social/pinterest': { render: socialPinterest, adds: ['posts', 'inspo', 'moodboard'] },
   'care/health': { title: 'Health', segs: [{ kind: 'sleep' }, { kind: 'appts' }, { kind: 'symptoms' }, { kind: 'meditation' }, { kind: 'water' }] },
   'money/today': { render: moneyToday, adds: ['ftx', 'fincome', 'fbills', 'fchecks'] },
   'money/spending': { title: 'Spending', segs: [{ key: 'plan', label: 'Your plan', kind: 'ftx', fill: fEnvFill, tools: false }, { kind: 'ftx' }, { kind: 'fincome' }, { key: 'all', label: 'Everything in and out', kind: 'ftx', fill: fAllFill, tools: false }] },
@@ -2048,6 +2049,7 @@ function socialInsights(host) {
   const reuse = recs('posts').filter(p => p.stage === 'Posted' && p.date && (p.repurpose || p.top) && diffDays(p.date, t) >= 90).sort((a, b) => reach(b) - reach(a));
   const best = byDay[0], bestT = byTime[0];
   host.innerHTML = `<div class="viewhead"><h1>Insights</h1><span class="sub">${plural(posted.length, 'post')} out · ${kfmt(posted.reduce((a, p) => a + reach(p), 0))} views in total</span></div>
+  ${(() => { const a = pnAcc(), st = a?.pnStats; return a?.pnSync && st ? `<section class="panel lpanel"><div class="lph3"><h3>Pinterest, laatste 30 dagen</h3><button class="chip link" data-act="go" data-v="social/pinterest">Pinterest</button></div><div class="tiles">${fTile('Weergaven', kfmt(st.impressions || 0), 'impressies')}${fTile('Saves', kfmt(st.saves || 0), 'bewaard')}${fTile('Klikken', kfmt((st.clicks || 0) + (st.outbound || 0)), 'pin en link')}</div></section>` : ''; })()}
   <div class="panels">
     ${panel('Views per month', posted.length ? `${chart}<p class="lnone">Hover or tap a month for likes, comments and shares.</p>` : quiet('Posts with the stage Posted and a date show up here. Instagram and TikTok posts sync their numbers by themselves.'))}
     ${panel('Best time to post', withViews.length >= 3 ? `${best ? `<p class="lbig">${esc(best.k)}${bestT ? ', ' + esc(bestT.k.split(' (')[0].toLowerCase()) : ''}</p><p class="lnone">Your posts get the most views on average then. ${withViews.length < 15 ? 'With more posts this gets more reliable.' : ''}</p>` : ''}<p class="dsub">By day</p>${avgTable(byDay, 'Average views by day')}${byTime.length ? `<p class="dsub">By time of day</p>${avgTable(byTime, 'Average views by time of day')}` : quiet('Give your posts a time (At) to see the best time of day.')}` : quiet('Once 3 posts have views, this shows which day and time work best.'))}
@@ -3223,6 +3225,8 @@ async function ttConnect() {
 // back from TikTok: hand the code to the function, then show the TikTok feed
 async function ttReturn() {
   const q = new URLSearchParams(location.search), code = q.get('code'), state = q.get('state'); if (!code || !state) return;
+  let pn = ''; try { pn = sessionStorage.getItem('pn:state') || ''; } catch {}
+  if (pn && state === pn) return pnReturn(code);
   let want = ''; try { want = sessionStorage.getItem('tt:state') || ''; sessionStorage.removeItem('tt:state'); } catch {}
   try { history.replaceState(null, '', location.pathname + '#social/feed'); } catch {}
   if (state !== want) { C.toast('That TikTok login did not come from this app. Try Connect TikTok again.'); return; }
@@ -3261,7 +3265,7 @@ async function movePostIdeas() {
 function postPanel(r) {
   if (!r.video && !r.photo) return '';
   const ig = !r.igId, tt = r.video;
-  return `<div class="lpostpub">${ig ? `<button type="button" class="btn small" data-act="igpost" data-id="${r.id}">Post to Instagram now</button>` : '<span class="lnone">On Instagram</span>'}${tt ? `<button type="button" class="btn small" data-act="ttpost" data-id="${r.id}">${r.ttSent ? 'Send to TikTok again' : 'Send to TikTok as draft'}</button>` : ''}${r.ttSent ? `<span class="lnone">Sent to TikTok ${esc(relDay(r.ttSent))}</span>` : ''}</div>`;
+  return `<div class="lpostpub">${ig ? `<button type="button" class="btn small" data-act="igpost" data-id="${r.id}">Post to Instagram now</button>` : '<span class="lnone">On Instagram</span>'}${tt ? `<button type="button" class="btn small" data-act="ttpost" data-id="${r.id}">${r.ttSent ? 'Send to TikTok again' : 'Send to TikTok as draft'}</button>` : ''}${r.ttSent ? `<span class="lnone">Sent to TikTok ${esc(relDay(r.ttSent))}</span>` : ''}${r.photo && pnAcc()?.pnSync ? (r.pnId ? `<a class="lnone" href="https://www.pinterest.com/pin/${esc(r.pnId)}/" target="_blank" rel="noopener">Op Pinterest${r.pnViews != null ? ` · ${kfmt(r.pnViews)} weergaven` : ''}</a>` : `<button type="button" class="btn small" data-act="pnpin" data-id="${r.id}">Pin op Pinterest</button>`) : ''}</div>`;
 }
 async function igPostNow(id) {
   const r = L.byId[id]; if (!r) return;
@@ -4092,6 +4096,7 @@ function openEditor(kind, id, preset = {}) {
     const d = b.dataset;
     if (d.act === 'igpost') return igPostNow(d.id);
     if (d.act === 'ttpost') return ttPostNow(d.id);
+    if (d.act === 'pnpin') return pnPinSheet(d.id);
     if (d.act === 'mkpost') return ideaToPost(d.id);
     if (d.act === 'newreview') { C.closeSheet(); return openEditor('breviews', null, { product: d.id, date: today(), after: d.v }); }
     if (d.act === 'bfill') { const r0 = L.byId[d.id]; if (!r0) return; const p = { fill: d.v, ...(d.v === 'Almost empty' && (num(r0.qty) ?? 1) <= 1 ? { low: true } : {}) }; Object.assign(D, p); sh.querySelectorAll('[data-act="bfill"]').forEach(x => { const on = x.dataset.v === d.v; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on); }); const sel = sh.querySelector('select[data-k="fill"]'); if (sel) sel.value = d.v; if (p.low) { const lb = sh.querySelector('[data-act="blowsheet"]'); if (lb) { lb.classList.add('on'); lb.setAttribute('aria-pressed', 'true'); lb.innerHTML = svg(P.check) + ' Running low'; } const ck = sh.querySelector('[data-chk="low"]'); if (ck) { ck.setAttribute('aria-pressed', 'true'); ck.innerHTML = svg(P.check) + 'Running low'; } } return save(r0, p).then(() => p.low && !r0.low && C.toast(`${r0.name} is running low`)); }
@@ -4364,6 +4369,10 @@ document.addEventListener('click', async e => {
     case 'mkpost': ideaToPost(d.id); break;
     case 'mkidea': postToIdea(d.id); break;
     case 'ttpost': ttPostNow(d.id); break;
+    case 'pnconnect': pnConnect(); break;
+    case 'pnsync': pnSync(); break;
+    case 'pnpin': pnPinSheet(d.id); break;
+    case 'pnnext': L.pnShift = (L.pnShift || 0) + 1; C.render(); break;
     case 'quitset': quitSet(); break;
     case 'chfree': { const c = C.prefs().chores || {}, f = new Set(c.free || []); f.has(d.v) ? f.delete(d.v) : f.add(d.v); C.savePrefs({ chores: { ...c, free: WDAYS.filter(x => f.has(x)) } }).catch(() => C.toast('Could not save. Try again.')); break; }
     case 'potmove': { const b = L.byId[d.v], n = b && fNext(b); if (!b) break; const to = b.account || fMainAcc()?.id; moveMoney({ from: d.id, to, amt: num(b.amount) || '', date: n ? (addDays(n, -1) < today() ? today() : addDays(n, -1)) : today() }); break; }
@@ -5333,6 +5342,7 @@ function todayTop() {
   let pin = ''; try { pin = localStorage.getItem('top3:' + today()) || ''; } catch {}
   return `<div class="ttop">
     ${it?.text ? `<p class="tintent"><span>Focus deze week</span><b>${esc(it.text)}</b></p>` : ''}
+    ${pnAffirmHTML()}
     <section class="panel ttop3"><div class="lph3"><h3>Top 3 voor vandaag</h3>${cs.start ? `<button class="btn small" data-act="crave">Ik heb trek</button>` : ''}</div>
       <ol class="t3">${list.map(x => `<li><span><b>${esc(x.label)}</b><small>${esc(x.sub || '')}</small></span>${x.go ? `<button class="chip link" data-act="go" data-v="${x.go}">Open</button>` : ''}</li>`).join('') || '<li><span><b>Niets dringends</b><small>Kies zelf iets hieronder</small></span></li>'}</ol>
       <input class="finp" data-top3pin placeholder="Mijn eigen belangrijkste ding vandaag" value="${esc(pin)}" aria-label="Eigen top 1"></section>
@@ -5382,6 +5392,76 @@ async function discStart() {
 function moodTop() {
   const l = recs('moodboard'), rooms = new Set(l.map(r => r.room).filter(Boolean));
   return l.length ? `<p class="lnone">${plural(l.length, 'inspiratie', 'inspiraties')} voor ${plural(rooms.size, 'kamer', 'kamers')}. Koppel een foto aan iets op je verhuislijst, dan zie je wat je zoekt als je gaat kopen.</p>` : `<p class="lnone">Verzamel foto's en links voor je nieuwe huis, per kamer. Koppel ze aan je verhuislijst.</p>`;
+}
+
+/* ---------- Pinterest ----------
+   The offers function talks to Pinterest; the app connects, picks what each board is for, shows the stats and pins posts. */
+const pnAcc = () => recs('accounts').find(a => a.platform === 'Pinterest') || null;
+const PN_ROLES = [['', 'Niet gebruiken'], ['mood', 'Moodboard (Home)'], ['inspo', 'Inspiratie (Social)'], ['affirm', 'Affirmaties (Today)']];
+const pnRoleOf = (a, id) => (a?.pnBoards?.affirm === id ? 'affirm' : [].concat(a?.pnBoards?.mood || []).includes(id) ? 'mood' : [].concat(a?.pnBoards?.inspo || []).includes(id) ? 'inspo' : '');
+// the pin of the day from your affirmations board; "Another one" shows the next
+function pnAffirmToday(shift = 0) {
+  const l = (pnAcc()?.pnAffirm || []).filter(p => p.img); if (!l.length) return null;
+  const n = Math.floor(Date.parse(today()) / 864e5) + shift; return l[((n % l.length) + l.length) % l.length];
+}
+function pnAffirmHTML() {
+  const p = pnAffirmToday(L.pnShift || 0); if (!p) return '';
+  return `<section class="panel pnaff"><a href="https://www.pinterest.com/pin/${esc(p.id)}/" target="_blank" rel="noopener" class="pnaffimg"><img referrerpolicy="no-referrer" src="${esc(p.img)}" alt="${esc(p.text || 'Affirmatie van je Pinterest-bord')}" loading="lazy" onerror="this.closest('.pnaff').remove()"></a><div class="pnafftxt"><span>Affirmatie van vandaag</span>${p.text ? `<b>${esc(p.text)}</b>` : ''}<button class="chip link" data-act="pnnext">Een andere</button></div></section>`;
+}
+const pnRedirect = () => location.origin + location.pathname.replace(/index\.html$/, '');
+async function pnConnect() {
+  try {
+    const j = await C.callFn('offers', { action: 'pnstart' }), state = 'pn' + C.uuid().replace(/-/g, '');
+    try { sessionStorage.setItem('pn:state', state); } catch {}
+    location.href = `https://www.pinterest.com/oauth/?client_id=${encodeURIComponent(j.appId)}&redirect_uri=${encodeURIComponent(pnRedirect())}&response_type=code&scope=boards:read,pins:read,pins:write,user_accounts:read&state=${state}`;
+  } catch (e) { C.toast(/not set/.test(e.message) ? 'Zet eerst PINTEREST_APP_ID in Supabase.' : 'Pinterest starten lukte niet: ' + e.message); }
+}
+async function pnReturn(code) {
+  try { sessionStorage.removeItem('pn:state'); history.replaceState(null, '', location.pathname + '#social/pinterest'); } catch {}
+  C.go('social/pinterest'); C.toast('Pinterest koppelen…');
+  try { const j = await C.callFn('offers', { action: 'pnconnect', code, redirect: pnRedirect() }); await load(); C.toast(`Pinterest gekoppeld: ${plural(j.boards || 0, 'bord', 'borden')}. Kies hieronder wat elk bord doet.`); }
+  catch (e) { C.toast('Pinterest koppelen lukte niet: ' + e.message); }
+}
+async function pnSync(quiet) {
+  if (L.pnBusy) return; L.pnBusy = true; if (!quiet) C.toast('Pinterest bijwerken…');
+  try { const j = await C.callFn('offers', { action: 'pnsync' }); await load(); if (!quiet) C.toast(`Pinterest bijgewerkt${j.added ? `: ${plural(j.added, 'nieuwe pin', 'nieuwe pins')}` : ''}${j.affirmations ? ` · ${j.affirmations} affirmaties` : ''}`); }
+  catch (e) { if (!quiet) C.toast('Pinterest bijwerken lukte niet: ' + e.message); }
+  finally { L.pnBusy = false; }
+}
+async function pnSetRole(id, role) {
+  const a = pnAcc(); if (!a) return;
+  const b = { mood: [].concat(a.pnBoards?.mood || []).filter(x => x !== id), inspo: [].concat(a.pnBoards?.inspo || []).filter(x => x !== id), affirm: a.pnBoards?.affirm === id ? '' : (a.pnBoards?.affirm || '') };
+  if (role === 'mood' || role === 'inspo') b[role].push(id); else if (role === 'affirm') b.affirm = id;
+  try { await save(a, { pnBoards: b }); C.toast(role ? 'Opgeslagen. Druk op Bijwerken om de pins op te halen.' : 'Bord wordt niet meer gebruikt'); } catch (e) { failed(e); }
+}
+function pnPinSheet(id) {
+  const r = L.byId[id], a = pnAcc(); if (!r || !a) return;
+  const boards = a.pnBoardList || [];
+  const sh = C.sheet({ title: 'Pin op Pinterest', body: `<p class="lnone">De foto, titel en caption van deze post gaan als pin naar het bord dat je kiest.${a.pnTrial !== false ? ' Zolang je app op Trial access staat, zie alleen jij deze pin.' : ''}</p>
+    <label class="lfield"><span>Bord</span><select class="finp" data-pnboard>${boards.map(b => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('')}</select></label>
+    <label class="lfield"><span>Link (optioneel)</span><input class="finp" data-pnlink type="url" placeholder="https://" value="${esc(r.pnLink || r.link || '')}"></label>
+    <div class="lbar"><button class="btn primary" data-pngo>Pinnen</button></div>` });
+  sh.querySelector('[data-pngo]')?.addEventListener('click', async () => {
+    const board = sh.querySelector('[data-pnboard]').value, link = sh.querySelector('[data-pnlink]').value.trim();
+    C.closeSheet(); C.toast('Pinnen…');
+    try { await C.callFn('offers', { action: 'pnpost', id, board, link }); await load(); C.toast('Gepind op Pinterest'); } catch (e) { C.toast('Pinterest nam hem niet aan: ' + e.message); }
+  });
+}
+function socialPinterest(host) {
+  const a = pnAcc(), st = a?.pnStats, boards = a?.pnBoardList || [], on = !!a?.pnSync;
+  if (on && Date.now() - a.pnSync > 6 * 36e5 && !L.pnTried) { L.pnTried = true; pnSync(true); }
+  const mine = recs('posts').filter(p => p.pnId).sort((x, y) => (num(y.pnViews) || 0) - (num(x.pnViews) || 0));
+  const n = v => v == null ? '–' : kfmt(v);
+  host.innerHTML = `${head('Pinterest')}
+  <div class="ltools">${on ? `<button class="btn small primary" data-act="pnsync">Bijwerken</button>${a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">Open Pinterest</a>` : ''}<span class="lnone">${esc(a.handle || '')} · bijgewerkt ${esc(relDay(iso(new Date(a.pnSync))))}</span>` : '<button class="btn small primary" data-act="pnconnect">Koppel Pinterest</button>'}</div>
+  ${on ? '' : `<div class="banner">${quiet('Koppel je zakelijke Pinterest-account. Daarna kies je per bord of het naar je moodboard, je inspiratie of je affirmaties op Today gaat, zie je je statistieken en pin je posts vanuit de app.')}</div>`}
+  ${on ? `<div class="tiles">${fTile('Weergaven', n(st?.impressions), 'laatste 30 dagen')}${fTile('Saves', n(st?.saves), 'laatste 30 dagen')}${fTile('Pin-klikken', n(st?.clicks), 'laatste 30 dagen')}${fTile('Naar je link', n(st?.outbound), 'uitgaande klikken')}</div>${a.pnStatsError ? `<p class="lnone">Statistieken lukten niet: ${esc(a.pnStatsError)}</p>` : ''}` : ''}
+  <div class="panels">
+    ${on ? panel('Je borden', boards.length ? `<p class="lnone">Kies wat elk bord in de app doet. Eén bord kan je affirmaties voor Today zijn.</p><div class="lrows">${boards.map(b => `<div class="lrow"><span class="lmain"><b>${esc(b.name)}</b><span>${b.pins != null ? plural(b.pins, 'pin') : ''}</span></span><select class="finp pnrole" data-pnrole="${esc(b.id)}" aria-label="Gebruik van ${esc(b.name)}">${PN_ROLES.map(([v, l]) => `<option value="${v}" ${pnRoleOf(a, b.id) === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>`).join('')}</div>` : quiet('Nog geen borden gevonden. Druk op Bijwerken.')) : ''}
+    ${on ? panel('Pins uit de app', mine.length ? `<div class="lrows">${mine.map(p => `<div class="lrow"><button class="lmain" data-act="open" data-id="${p.id}"><b>${esc(titleOf(p))}</b><span>${n(p.pnViews)} weergaven · ${n(p.pnSaves)} saves · ${n(p.pnClicks)} klikken${p.pnPosted ? ' · ' + esc(shortDate(p.pnPosted)) : ''}</span></button></div>`).join('')}</div>` : quiet('Open een post met een foto en kies Pin op Pinterest.'), ['social/posts', 'Posts']) : ''}
+    ${on && a.pnAffirm?.length ? panel('Affirmaties', `<p class="lnone">${plural(a.pnAffirm.length, 'pin')} op je affirmatiebord. Today toont er elke dag een andere.</p>`) : ''}
+  </div>`;
+  host.querySelectorAll('[data-pnrole]').forEach(el => el.addEventListener('change', () => pnSetRole(el.dataset.pnrole, el.value)));
 }
 
 /* Plan › My year */
@@ -5508,6 +5588,7 @@ return {
   stop() { channel?.unsubscribe(); channel = null; },
   userName: () => (C && fset()?.name) || '',
   todayTop: () => { try { return todayTop(); } catch (e) { console.error(e); return ''; } },
+  hasPinAffirm: () => { try { return !!(C && pnAffirmToday()); } catch { return false; } },
   render(host, view) {
     const cfg = PAGES[view];
     if (!C) { host.dataset.sig = ''; host.innerHTML = `<div class="viewhead"><h1>${esc(cfg.title || sectionOf(view)?.label || '')}</h1><span class="sub">Connecting…</span></div>`; return; }
