@@ -562,7 +562,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
     <button class="iconbtn findbtn" id="findBtn" hidden aria-label="Search everything" title="Search everything (/)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
     <button class="btn primary" id="addBtn" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span class="addlabel">Add piece</span></button>
   </div>
-  <div class="wrap secwrap"><nav class="secbar" id="secBar" aria-label="Areas" hidden></nav></div>
+  <div class="wrap secwrap"><nav class="secbar" id="secBar" aria-label="Areas" hidden></nav><nav class="subbar" id="subBar" aria-label="Pages" hidden></nav></div>
 </header>
 <main class="wrap" id="main"></main>
 <nav class="bottom" id="tabsBottom" aria-label="Sections"></nav>
@@ -951,9 +951,21 @@ function renderTabs() {
   const menuBtn = list => `<button data-menu aria-label="More" ${sec === 'settings' || !list.some(s => s.key === sec) ? 'aria-current="page"' : ''}>${icon(BURGER)}<span>More</span></button>`;
   $('#tabsTop').innerHTML = top.map(btn).join('') + menuBtn(top); $('#tabsBottom').innerHTML = bottom.map(btn).join('') + menuBtn(bottom);
   $('#tabsBottom').style.gridTemplateColumns = `repeat(${bottom.length + 1}, minmax(58px, 1fr))`;
-  const bar = $('#secBar');
+  const bar = $('#secBar'), sub = $('#subBar');
   bar.hidden = !views.length;
-  bar.innerHTML = views.map(([k, label, path]) => `<button data-view="${k}" aria-current="${S.view === k}">${icon(path)}<span>${label}</span>${k === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
+  // tabs that share a group sit behind one button; the open group shows its own pages in a second row
+  const groups = SECTIONS.find(x => x.key === sec)?.groups || {}, curGrp = views.find(v => v[0] === S.view)?.[3] || '', row = [];
+  for (const v of views) { const g = groups[v[3]] ? v[3] : ''; if (!g) row.push({ v }); else if (!row.some(t => t.g === g)) row.push({ g, vs: views.filter(x => x[3] === g) }); }
+  if (curGrp) pref.set('grp:' + sec + '/' + curGrp, S.view);
+  const grpTarget = t => { const last = pref.get('grp:' + sec + '/' + t.g, ''); return t.vs.some(v => v[0] === last) ? last : t.vs[0][0]; };
+  bar.innerHTML = row.map(t => {
+    if (!t.g || t.vs.length === 1) { const [k, label, path] = t.v || t.vs[0]; return `<button data-view="${k}" aria-current="${S.view === k}">${icon(path)}<span>${label}</span>${k === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`; }
+    const [label, path] = groups[t.g]; return `<button data-view="${grpTarget(t)}" data-grp="${t.g}" aria-current="${curGrp === t.g}">${icon(path)}<span>${label}</span></button>`;
+  }).join('');
+  const open = row.find(t => t.g && t.g === curGrp && t.vs.length > 1);
+  sub.hidden = !open;
+  sub.innerHTML = open ? open.vs.map(([k, label]) => `<button data-view="${k}" aria-current="${S.view === k}">${label}</button>`).join('') : '';
+  for (const b of [bar, sub]) { const c = b.querySelector('[aria-current="true"]'); if (c && (c.offsetLeft < b.scrollLeft || c.offsetLeft + c.offsetWidth > b.scrollLeft + b.clientWidth)) b.scrollLeft = c.offsetLeft - 16; }
   $('#addBtn').hidden = sec === 'overview' || sec === 'settings' || isSecSettings(S.view);
   $('#addBtn .addlabel').textContent = sec === 'closet' ? 'Add piece' : sec === 'overview' ? 'Add' : window.LIFE.addLabel(S.view);
 }
@@ -985,7 +997,7 @@ document.addEventListener('click', e => { const b = e.target.closest('nav [data-
 function render() {
   const signedIn = !!UID;
   $('#tabsTop').hidden = $('#tabsBottom').hidden = !signedIn;
-  if (!signedIn) $('#secBar').hidden = true;
+  if (!signedIn) $('#secBar').hidden = $('#subBar').hidden = true;
   $('#addBtn').hidden = $('#findBtn').hidden = !signedIn;
   if (!signedIn) return;
   renderTabs();
@@ -1975,7 +1987,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v96';
+const APP_VERSION = 'hangtag-v97';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2095,7 +2107,7 @@ function renderSettings(host) {
   <div class="panels setpanels">
     ${own}
     <section class="panel setpanel" id="set-tabs"><h3>Tabs</h3><p class="muted">Show, hide and order the tabs of ${esc(secObj?.label || 'this section')}. It opens on the first visible tab.</p>
-      ${vs.map((v, i) => `<div class="setrow"><span class="seti">${icon(v[2])}</span><b>${esc(v[1])}</b><div class="spacer"></div><label class="settog"><input type="checkbox" data-vshow="${esc(v[0])}" ${vh.includes(v[0]) ? '' : 'checked'}> Show</label>${mv('data-vmove', v[0], i, vs.length)}</div>`).join('')}</section>
+      ${vs.map((v, i) => `<div class="setrow"><span class="seti">${icon(v[2])}</span><b>${esc(v[1])}</b>${v[3] && secObj?.groups?.[v[3]] ? `<span class="muted setgrp">in ${esc(secObj.groups[v[3]][0])}</span>` : ''}<div class="spacer"></div><label class="settog"><input type="checkbox" data-vshow="${esc(v[0])}" ${vh.includes(v[0]) ? '' : 'checked'}> Show</label>${mv('data-vmove', v[0], i, vs.length)}</div>`).join('')}</section>
     ${items.length ? `<section class="panel setpanel" id="set-lists"><h3>Choice lists</h3><p class="muted">The options you pick from. Rename one and everything that uses it follows.</p>
       <select class="pill" data-listsel aria-label="Choice list">${items.map(i => `<option value="${esc(i.id)}" ${i.id === SET.list ? 'selected' : ''}>${esc(i.label)}</option>`).join('')}</select>
       ${L.list.map((o, i) => `<div class="setrow"><input class="setname" data-oren="${i}" value="${esc(o)}" aria-label="Rename ${esc(o)}"><label class="settog"><input type="checkbox" data-oshow="${i}" ${lh.has(norm(o)) ? '' : 'checked'}> Show</label>${mv('data-omove', i, i, L.list.length)}</div>`).join('') || '<p class="muted">No options yet.</p>'}
