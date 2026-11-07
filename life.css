@@ -985,3 +985,41 @@ img.nophoto { background: var(--line); }
 /* calendar filter chips: on = soft tint with a coloured edge, so every dot stays visible */
 .calcat[aria-pressed="true"] { background: color-mix(in srgb, var(--c) 18%, var(--surface)); color: var(--ink); border: 1px solid color-mix(in srgb, var(--c) 70%, var(--line)); }
 .calcat[aria-pressed="false"] { background: var(--surface); }
+/* ---------- closet To do: groups, table, one by one, select and fill ---------- */
+.tdtools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
+.tdpick { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.tdgroup { margin: 18px 0 8px; }
+.tdgh { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.tdgh h3 { margin: 0; font-size: 17px; }
+.todocard { position: relative; }
+.tdchk { position: absolute; z-index: 2; top: 8px; left: 8px; background: var(--surface); border-radius: 8px; padding: 4px; line-height: 0; box-shadow: var(--shadow); }
+.tdchk input { width: 18px; height: 18px; margin: 0; }
+.tdlist { display: grid; gap: 6px; }
+.tdrow { display: grid; grid-template-columns: auto 52px minmax(0, 1fr); gap: 10px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 8px 10px; }
+.tdrow .tdchk, .tdtable .tdchk { position: static; box-shadow: none; padding: 0; background: none; }
+.tdrow .todomiss { grid-column: 2 / -1; margin: 0; }
+.tdthumb { width: 52px; height: 52px; border: 0; border-radius: 10px; background: var(--stage); padding: 0; overflow: hidden; cursor: pointer; }
+.tdthumb img { width: 100%; height: 100%; object-fit: contain; }
+.tdmain { border: 0; background: none; text-align: left; display: grid; gap: 2px; min-width: 0; cursor: pointer; color: var(--ink); padding: 0; }
+.tdmain span { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tdtablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.tdtable { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13.5px; }
+.tdtable th { text-align: left; font-family: var(--mono); font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 500; padding: 8px 6px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--surface); }
+.tdtable td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; min-width: 110px; }
+.tdtable td:first-child, .tdtable td:nth-child(2) { min-width: 0; width: 1%; }
+.tdtable td.miss .tdin { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.tdtable .tdthumb { width: 40px; height: 40px; }
+.tdin { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 13.5px; background: var(--surface); color: var(--ink); }
+.tdin.hassug::placeholder { color: color-mix(in srgb, var(--accent) 70%, var(--muted)); font-style: italic; }
+.tdsug { margin-top: 4px; font-size: 12px; padding: 3px 8px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tdone { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px; }
+.tdonep { background: var(--stage); border-radius: 14px; aspect-ratio: 3 / 4; display: grid; place-items: center; overflow: hidden; }
+.tdonep img { width: 100%; height: 100%; object-fit: contain; }
+.tdonef { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.tdonef h2 { margin: 0; }
+.tdonef .field { display: grid; gap: 4px; }
+.tdonef .field label { font-size: 13px; color: var(--muted); }
+.tdbar { position: sticky; bottom: 12px; z-index: 30; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 16px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
+.tdbar .tdin { flex: 1 1 160px; width: auto; }
+@media (max-width: 760px) { .tdbar { bottom: 84px; } .tdone { grid-template-columns: minmax(0, 1fr); } .tdonep { aspect-ratio: 4 / 3; } }
+.tdonep:has(> span) { aspect-ratio: auto; min-height: 72px; }
