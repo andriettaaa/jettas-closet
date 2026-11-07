@@ -1620,7 +1620,8 @@ function fillList(host, page) {
     f2.hidden = !f2.innerHTML;
   }
   if (seg.fill) { seg.fill(fill, page); return; }
-  const top = seg.top ? seg.top() : '';
+  // Finance lists say so when something is in there twice, with the button to clean it up
+  const top = (FIN_KINDS.includes(seg.kind) ? fDupNote() : '') + (seg.top ? seg.top() : '');
   fill.innerHTML = top + (list.length ? groupedHTML(list, K, l => viewMode(K) === 'table' ? tableHTML(l, K) : listHTML(l, K)) : emptyList(K, all.length));
   drawSel(host, page, list);
 }
@@ -4402,13 +4403,14 @@ async function importFile(file) {
     rows = (isBudgetBackup(j) ? await fromBudgetBackup(j) : Array.isArray(j) ? j : j.records || []).filter(r => r && r.id && KINDS[r.kind] && r.data && typeof r.data === 'object');
   } catch { rows = null; }
   if (!rows?.length) { C.toast('That file has no lists this app can read.'); return; }
+  const mt = importMatch(rows); rows = mt.rows;
   const keep = rows.filter(r => !r.photoData && /^https?:/.test(r.data.photo || '') && L.byId[r.id]?.photo && !/^https?:/.test(L.byId[r.id].photo));
   keep.forEach(r => { r.data.photo = L.byId[r.id].photo; });
   const counts = {}; for (const r of rows) counts[r.kind] = (counts[r.kind] || 0) + 1;
   const fresh = rows.filter(r => !L.byId[r.id]).length;
   const sh = C.sheet({
     title: 'Import from Notion',
-    body: `<p>This adds ${plural(rows.length, 'record')}${fresh !== rows.length ? `, ${fresh} of them new. The other ${rows.length - fresh} are already here and get the values from the file; what the file leaves out stays as it is` : ''}.</p>
+    body: `<p>This adds ${plural(rows.length, 'record')}${fresh !== rows.length ? `, ${fresh} of them new. The other ${rows.length - fresh} are already here and get the values from the file; what the file leaves out stays as it is` : ''}.${mt.matched ? ` ${plural(mt.matched, 'item')} with the same name as one that is already here ${mt.matched === 1 ? 'is' : 'are'} not added again.` : ''}</p>
       <div class="lrows">${Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<div class="lrow"><span class="lmain"><b>${esc(KINDS[k].many)}</b></span><span class="lside">${n}</span></div>`).join('')}</div>`,
     foot: `<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-go>Import ${rows.length}</button>`
   });
@@ -4799,8 +4801,10 @@ function fSettings() {
 /* ---------- duplicates ----------
    Importing the same money twice (for example the budget backup and the converted file) leaves two copies of
    everything under different ids. This finds them, keeps one, points every link at the one that stays and
-   removes the rest in one step you can undo. Copies that came in with the same import stay: two coffees on
-   the same day are real. */
+   removes the rest in one step you can undo. Purchases and money in that came in with the same import stay:
+   two coffees on the same day are real. Two accounts, envelopes, repeats, debts, chips, rules or goals with
+   the same name are never real, so those always go back to one, even when both came in together (a restore
+   after an undo, or a re-imported export, saves every copy at the same moment). */
 // copies of the same account, envelope, repeat or debt make every total count twice; this spots them on the page itself
 const DUP_LOOK = ['faccounts', 'fcats', 'fdebts', 'fbills', 'fchips', 'frules', 'fgoals'];
 function fDupCount() {
@@ -4809,6 +4813,30 @@ function fDupCount() {
   return n;
 }
 const fDupNote = () => { let n = 0; try { n = fDupCount(); } catch {} return n ? `<div class="note tnote fdupnote"><span>${n === 1 ? 'Er staat 1 item dubbel' : `Er staan ${n} items dubbel`} in Finance, daardoor kloppen de bedragen niet.</span><button class="btn small primary" data-act="fdups">Dubbele opruimen</button></div>` : ''; };
+// lists where two of the same thing can never both be real
+const DUP_ONE = new Set([...DUP_LOOK, 'fset', 'fpaid']);
+// how many other records point at each id: the copy that everything links to is the one to keep
+function refCounts() {
+  const n = {}, walk = v => { if (typeof v === 'string') { if (L.byId[v]) n[v] = (n[v] || 0) + 1; } else if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === 'object') Object.values(v).forEach(walk); };
+  for (const r of L.all) walk(dataOf(r));
+  return n;
+}
+/* an import never adds a second copy of an account, envelope, repeat or debt that is already here:
+   a row with a new id but the same name (and amount, for a repeat) takes the id of the one that is here,
+   and everything in the file that pointed at it follows along */
+function importMatch(rows) {
+  const have = new Map(), map = new Map(), none = new Map();
+  for (const k of DUP_LOOK) for (const r of recs(k)) { const key = k + '#' + dupKey(r, none); if (!have.has(key)) have.set(key, r.id); }
+  for (const r of rows) {
+    if (!DUP_LOOK.includes(r.kind) || L.byId[r.id]) continue;
+    const key = r.kind + '#' + dupKey({ ...r.data, kind: r.kind }, none), hit = have.get(key);
+    if (hit && hit !== r.id) map.set(r.id, hit); else if (!hit) have.set(key, r.id);
+  }
+  if (!map.size) return { rows, matched: 0 };
+  const out = new Map();
+  for (const r of rows) { const id = map.get(r.id) || r.id, data = relink(r.data, map); out.set(id, out.has(id) ? { ...out.get(id), data: { ...out.get(id).data, ...data } } : { ...r, id, data }); }
+  return { rows: [...out.values()], matched: map.size };
+}
 const FIN_KINDS = ['faccounts', 'fcats', 'fdebts', 'fbills', 'fchips', 'frules', 'fset', 'fgoals', 'fchall', 'fgrid', 'fwait', 'ftx', 'fincome', 'fchecks', 'fpaid'];
 const DUP_SKIP = new Set(['created', 'updated', 'ord', 'order', 'bankRef', 'notes', 'category', 'occ']);
 function dupKey(r, map) {
@@ -4842,7 +4870,7 @@ async function findDups() {
     for (const r of data) at[r.id] = r.updated_at || '';
     if (data.length < 1000) break;
   }
-  const map = new Map(), fill = new Map();
+  const map = new Map(), fill = new Map(), refs = refCounts();
   for (let pass = 0; pass < 6; pass++) {
     let found = 0;
     for (const kind of FIN_KINDS) {
@@ -4850,6 +4878,12 @@ async function findDups() {
       for (const r of recs(kind)) { if (map.has(r.id)) continue; const k = dupKey(r, map); groups.has(k) ? groups.get(k).push(r) : groups.set(k, [r]); }
       for (const list of groups.values()) {
         if (list.length < 2) continue;
+        if (DUP_ONE.has(kind)) {
+          // one stays: the copy most things point at, then the one with a bank reference, then the oldest
+          const keep = [...list].sort((x, y) => (refs[y.id] || 0) - (refs[x.id] || 0) || !!y.bankRef - !!x.bankRef || String(at[x.id] || '').localeCompare(String(at[y.id] || '')) || String(x.id).localeCompare(String(y.id)))[0];
+          for (const r of list) if (r !== keep) { map.set(r.id, keep.id); fill.set(keep.id, [...(fill.get(keep.id) || []), r]); found++; }
+          continue;
+        }
         const batches = new Map();
         for (const r of list) { const b = at[r.id] || r.id; batches.has(b) ? batches.get(b).push(r) : batches.set(b, [r]); }
         // keep the biggest single import (the earliest when it's a tie); a line with a bank reference wins
