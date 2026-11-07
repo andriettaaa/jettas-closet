@@ -4187,9 +4187,24 @@ function fieldInner(kind, f, D) {
       return span + `<div class="lwrap">${ids.map(x => `<button type="button" class="chip on" data-relx="${f.k}" data-id="${x}" aria-label="Remove ${esc(relName(x))}">${esc(relName(x))} ×</button>`).join('')}</div>
         ${all.length ? `<div class="lpick"><select class="pill" data-relsel="${f.k}" aria-label="${esc(f.label)}"><option value="">${f.multi ? 'Add…' : ids.length ? 'Change…' : 'Choose…'}</option>${all.filter(x => !ids.includes(x.id)).map(x => `<option value="${x.id}">${esc(titleOf(x))}</option>`).join('')}</select></div>` : ''}${find}`;
     }
-    default: return lab + `<input id="${id}" type="text" data-k="${f.k}" value="${esc(v || '')}">`;
+    default: { const sg = textSugs(kind, f); return lab + `<input id="${id}" type="text" data-k="${f.k}" value="${esc(v || '')}" autocomplete="off"${sg.length ? ` data-sugk="${f.k}"` : ''}>${sg.length ? `<div class="lwrap ltsugs" data-sugs="${f.k}">${sg.map(o => `<button type="button" class="chip" data-tsug="${f.k}" data-v="${esc(o)}" aria-pressed="${norm(o) === norm(v || '')}">${esc(o)}</button>`).join('')}</div>` : ''}`; }
   }
 }
+/* fewer things to type: a text field offers what you wrote there before as buttons. Shops are one list for the
+   whole app (the closet too); a name only offers names you used more than once, so unique titles stay quiet */
+const SUG_SHOP = new Set(['shop', 'store', 'source', 'site', 'seller']);
+const SUG_SKIP = new Set(['policy', 'phone', 'rename', 'url', 'link']);
+function textSugs(kind, f) {
+  if (SUG_SKIP.has(f.k) || !L?.all) return [];
+  const K = KINDS[kind], title = f.k === K.fields[0]?.k, shop = SUG_SHOP.has(f.k), n = new Map();
+  const add = v => { const t = String(v ?? '').trim(); if (!t || t.length > 40) return; const k = norm(t), e = n.get(k); e ? e.n++ : n.set(k, { v: t, n: 1 }); };
+  for (const r of recs(kind)) add(r[f.k]);
+  if (shop) { for (const r of L.all) for (const k of SUG_SHOP) if (r.kind !== kind) add(r[k]); for (const v of C.closetVals?.('shop') || []) add(v); }
+  else if (f.k === 'brand') { for (const r of L.all) if (r.kind !== kind) add(r.brand); for (const v of C.closetVals?.('brand') || []) add(v); }
+  return [...n.values()].filter(e => !title || e.n > 1).sort((a, b) => b.n - a.n || norm(a.v).localeCompare(norm(b.v))).slice(0, 40).map(e => e.v);
+}
+// every shop you used anywhere in the app, for the closet's shop buttons
+const allShops = () => { const out = []; for (const r of L.all || []) for (const k of SUG_SHOP) if (r[k] && String(r[k]).trim().length <= 40) out.push(String(r[k]).trim()); return out; };
 function openEditor(kind, id, preset = {}) {
   const K = KINDS[kind], r = id ? L.byId[id] : null;
   const D = r ? JSON.parse(JSON.stringify(dataOf(r))) : { created: Date.now(), ...preset };
@@ -4230,6 +4245,8 @@ function openEditor(kind, id, preset = {}) {
     const t = e.target;
     if (t.dataset.k) { D[t.dataset.k] = t.dataset.num !== undefined ? num(t.value) : t.value; if (t.dataset.photourl !== undefined) { delete D._blobs[t.dataset.k]; photoPreview(t); } }
     if (t.dataset.relq) relOpts(t.dataset.relq, t.value);
+    // while you type, the buttons narrow down to what matches; a full match shows them all again
+    if (t.dataset.sugk) { const q = norm(t.value), bs = [...sh.querySelectorAll(`[data-tsug="${t.dataset.sugk}"]`)], exact = bs.some(b => norm(b.dataset.v) === q); bs.forEach(b => { b.hidden = !!q && !exact && !norm(b.dataset.v).includes(q); b.setAttribute('aria-pressed', norm(b.dataset.v) === q); }); }
   });
   sh.addEventListener('keydown', e => {
     const t = e.target;
@@ -4294,6 +4311,7 @@ function openEditor(kind, id, preset = {}) {
     const dop = e.target.closest('[data-opt]'); if (dop) for (const df of (KINDS[kind]?.fields || []).filter(x => x.dep === dop.dataset.opt)) setTimeout(() => { const ok = (df.depOpts?.[D[df.dep]] || []).includes(D[df.k]) || recs(kind).some(r => r[df.dep] === D[df.dep] && r[df.k] === D[df.k]); if (D[df.k] && !ok) delete D[df.k]; redraw(df.k); });
   });
   sh.addEventListener('click', e => {
+    const tg = e.target.closest('[data-tsug]'); if (tg) { const k = tg.dataset.tsug; D[k] = norm(D[k] || '') === norm(tg.dataset.v) ? '' : tg.dataset.v; redraw(k); return; }
     const ts = e.target.closest('[data-tstep], [data-tstepreset]');
     if (ts) { const i = Number(ts.dataset.tstep), done = new Set([].concat(D.stepsDone || [])); if (ts.dataset.tstepreset !== undefined) done.clear(); else done.has(i) ? done.delete(i) : done.add(i); D.stepsDone = [...done].sort((a, b) => a - b); drawTipSteps(); if (r) save(L.byId[r.id] || r, { stepsDone: D.stepsDone, ...(D.stepsDone.length && D.stepsDone.length === tipSteps(D).length && !D.tried ? { tried: (D.tried = true) } : {}) }); if (D.tried) redraw('tried'); return; }
     const ta = e.target.closest('[data-tipadd]'); if (ta) { D.tips = [...new Set([...[].concat(D.tips || []), ta.dataset.tipadd])]; redraw('tips'); }
@@ -6294,7 +6312,7 @@ return {
   sections: SECTIONS.map(s => ({ key: s.key, label: s.label, icon: G(s.icon), groups: Object.fromEntries(Object.entries(s.groups || {}).map(([g, [l, ic]]) => [g, [l, G(ic)]])), subs: Object.fromEntries(Object.entries(s.subs || {}).map(([g, o]) => [g, Object.fromEntries(Object.entries(o).map(([k, [l, ic]]) => [k, [l, G(ic)]]))])), views: s.views.map(v => [vkey(s, v), v[1], G(v[2]), v[3] || '', v[4] || '']) })),
   has: view => !!PAGES[view],
   lists: optionLists, fullList: fullOptions, renameIn: renameOption,
-  search, openFound, settingsPanels,
+  search, openFound, settingsPanels, allShops,
   buyWish: (kind, id) => buyWish(kind, id), wishPanel, wishLine,
   canBuyWish: () => fAccs().length > 0,
   newRecord: kind => KINDS[kind] && openEditor(kind, null),
