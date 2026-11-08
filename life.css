@@ -1169,3 +1169,14 @@ img.nophoto { background: var(--line); }
 .buyrow [data-buyx] { grid-column: 2; justify-self: end; }
 .buynewl { width: 100%; margin: 4px 0 0; }
 .buybanner { margin-bottom: 12px; }
+
+/* plan my week */
+.wpdots { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 10px; }
+.wpdot { width: 22px; height: 6px; border-radius: 3px; background: var(--line); }
+.wpdot.past { background: var(--muted, #999); } .wpdot.now { background: var(--accent, #7a4b2a); }
+.wph { margin: 6px 0 10px; font-size: 1.2rem; }
+.wpbody { display: grid; gap: 12px; }
+.wprow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; } .wprow .lmain { flex: 1 1 140px; min-width: 0; }
+.wpnav { display: flex; gap: 8px; margin: 16px 0 8px; position: sticky; bottom: 76px; background: var(--bg); padding: 8px 0; }
+.wpsetrow { display: flex; align-items: center; gap: 6px; } .wpsetrow .settog { flex: 1; }
+.wpsetrow [data-wpmove="-1"], .wpsetrow .iconbtn svg { } .wpsetrow [data-v="-1"] svg { transform: rotate(90deg); } .wpsetrow [data-v="1"] svg { transform: rotate(90deg); }
