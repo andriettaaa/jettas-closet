@@ -2209,7 +2209,13 @@ const TODO = {
     gear: { checks: [need('category', 'Category'), need('photo', 'Photo')] }
   },
   care: {
-    beauty: { when: r => !r.finished && !r.archived, checks: [need('brand', 'Brand'), need('type', 'Type'), need('photo', 'Photo'), need('am', 'Morning or evening', r => !r.wish && !r.pm && r.type !== 'Fragrance')] },
+    // everything a product page can tell, plus what only you know for what you have at home: how many, when bought
+    beauty: { when: r => !r.finished && !r.archived, checks: [need('brand', 'Brand'), need('type', 'Type'), need('photo', 'Photo'), need('size', 'Size'), need('price', 'Price'), need('url', 'Link'), need('about', 'What it does'),
+      need('variant', 'Shade', r => r.type === 'Makeup'), need('qty', 'How many', r => !r.wish), need('bought', 'Bought on', r => !r.wish),
+      need('inci', 'Ingredients', r => ['Face', 'Body', 'Hair'].includes(r.type)), need('texture', 'Texture', r => ['Face', 'Body', 'Hair'].includes(r.type)), need('concern', 'Concern', r => ['Face', 'Body', 'Hair'].includes(r.type)),
+      need('step', 'Step in your routine', r => r.type === 'Face'), need('family', 'Scent family', r => r.type === 'Fragrance'), ['scent', 'Scent notes', r => r.type === 'Fragrance' && !scentOf(r).length],
+      // only products that were never planned: a product you took out of your routine has empty days on purpose
+      ['days', 'Morning or evening', r => !r.wish && ['Face', 'Body'].includes(r.type) && !Array.isArray(r.amDays) && !Array.isArray(r.pmDays) && !r.am && !r.pm]] },
     supplements: { when: r => !r.finished, checks: [need('brand', 'Brand'), need('form', 'Form'), need('amount', 'Amount', r => !r.wish), need('times', 'When to take', r => !r.wish), need('photo', 'Photo')] },
     ideas: { checks: [need('area', 'Area'), need('what', 'What it is'), need('summary', 'Summary'), need('photo', 'Photo')] },
     gifts: { when: r => r.status !== 'Given', checks: [need('for', 'For'), need('occasion', 'Occasion'), need('price', 'Price')] },
@@ -2246,8 +2252,9 @@ const TODO = {
   }
 };
 // the new Plan and Body sections gather the to-dos of the areas they hold
-TODO.plan = { ideas: TODO.care.ideas, gifts: TODO.care.gifts, courses: TODO.care.courses, documents: TODO.care.documents, ...TODO.wish };
 TODO.body = { beauty: TODO.care.beauty, supplements: TODO.care.supplements, ...TODO.fit };
+// Life holds Body, Plans and Wishlists, so its To do shows all of them
+TODO.plan = { ...TODO.body, ideas: TODO.care.ideas, gifts: TODO.care.gifts, courses: TODO.care.courses, documents: TODO.care.documents, ...TODO.wish };
 function sectionTodo(host, sec) {
   const cfg = TODO[sec] || {};
   let saved = {}; try { saved = JSON.parse(localStorage.getItem('ltodo:' + sec) || '{}'); } catch {}
