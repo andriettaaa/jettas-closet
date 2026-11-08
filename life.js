@@ -2194,7 +2194,7 @@ const RTODO = [
   // ingredients count from the list with amounts too (Albo recipes), not only from pantry links
   ['servings', 'Servings', r => !num(r.servings)], ['ingredients', 'Ingredients', r => ![].concat(r.ingredients || []).length && !parseRecipe(r).lines.length],
   ['amounts', 'Amounts', r => { const l = [].concat(r.ilines || []).filter(x => x && x.h == null && x.n); return l.length > 0 && !l.some(x => String(x.q ?? '').trim()); }],
-  ['steps', 'Steps', r => !parseRecipe(r).steps.length],
+  ['steps', 'Steps', r => !parseRecipe(r).steps.length], ['summary', 'Summary', r => !String(r.summary || '').trim()], ['cuisine', 'Cuisine', r => !r.cuisine], ['link', 'Link', r => !r.link],
   // protein is known when you typed it, entered your own value, or the estimate found some
   ['protein', 'Protein', r => !String(r.protein || '').trim() && num(r.nprot) == null && !(nutriOf(r).per.p > 0)],
   // how it felt and how good it was only matter once you cooked it
@@ -2205,8 +2205,9 @@ const hasCooked = r => num(r.cooks) > 0 || !!r.lastCooked || recs('meals').some(
 const TODO = {
   kitchen: {
     recipes: { checks: RTODO },
-    ingredients: { checks: [need('category', 'Category'), need('location', 'Kept in')] },
-    gear: { checks: [need('category', 'Category'), need('photo', 'Photo')] }
+    ingredients: { checks: [need('category', 'Category'), need('location', 'Kept in'), need('photo', 'Photo')] },
+    gear: { checks: [need('category', 'Category'), need('photo', 'Photo'), need('price', 'Price'), need('url', 'Link'), need('bought', 'Bought on', r => !!r.own)] },
+    shops: { checks: [need('type', 'Type'), need('address', 'Address'), need('website', 'Website')] }
   },
   care: {
     // everything a product page can tell, plus what only you know for what you have at home: how many, when bought
@@ -2216,8 +2217,11 @@ const TODO = {
       need('step', 'Step in your routine', r => r.type === 'Face'), need('family', 'Scent family', r => r.type === 'Fragrance'), ['scent', 'Scent notes', r => r.type === 'Fragrance' && !scentOf(r).length],
       // only products that were never planned: a product you took out of your routine has empty days on purpose
       ['days', 'Morning or evening', r => !r.wish && ['Face', 'Body'].includes(r.type) && !Array.isArray(r.amDays) && !Array.isArray(r.pmDays) && !r.am && !r.pm]] },
-    supplements: { when: r => !r.finished, checks: [need('brand', 'Brand'), need('form', 'Form'), need('amount', 'Amount', r => !r.wish), need('times', 'When to take', r => !r.wish), need('photo', 'Photo')] },
-    ideas: { checks: [need('area', 'Area'), need('what', 'What it is'), need('summary', 'Summary'), need('photo', 'Photo')] },
+    supplements: { when: r => !r.finished, checks: [need('brand', 'Brand'), need('form', 'Form'), need('amount', 'Amount', r => !r.wish), need('times', 'When to take', r => !r.wish), need('photo', 'Photo'), need('price', 'Price'), need('url', 'Link'), need('bought', 'Bought on', r => !r.wish), need('expiry', 'Use before', r => !r.wish)] },
+    bshops: { checks: [need('type', 'Type'), need('address', 'Address'), need('website', 'Website')] },
+    appts: { when: r => !r.done, checks: [need('time', 'Time'), need('place', 'Where'), need('provider', 'With')] },
+    stays: { checks: [need('city', 'City'), need('price', 'Price per night'), need('url', 'Link'), need('photo', 'Photo')] },
+    ideas: { checks: [need('area', 'Area'), need('what', 'What it is'), need('summary', 'Summary'), need('photo', 'Photo'), need('url', 'Link')] },
     gifts: { when: r => r.status !== 'Given', checks: [need('for', 'For'), need('occasion', 'Occasion'), need('price', 'Price')] },
     courses: { when: r => r.status !== 'Completed', checks: [need('category', 'Category'), need('platform', 'Platform'), need('url', 'Link')] },
     documents: { checks: [need('category', 'Category'), need('location', 'Where it is')] }
@@ -2241,20 +2245,21 @@ const TODO = {
   },
   home: {
     plants: { checks: [need('location', 'Where'), need('every', 'Water every'), need('light', 'Light'), need('photo', 'Photo')] },
-    inventory: { checks: [need('room', 'Room'), need('category', 'Category'), need('photo', 'Photo')] },
+    inventory: { checks: [need('room', 'Room'), need('category', 'Category'), need('photo', 'Photo'), need('brand', 'Brand'), need('url', 'Link'), need('price', 'Price', r => !INV_WANT.includes(r.status)), need('budget', 'Budget', r => INV_WANT.includes(r.status)), need('shop', 'Shop', r => !INV_WANT.includes(r.status)), need('bought', 'Bought on', r => r.status === 'Gekocht')] },
     chores: { checks: [need('space', 'Rooms'), need('freq', 'How often')] }
   },
   fit: {
-    exercises: { checks: [need('muscles', 'Muscles'), ['how', 'Photo or link', r => !r.photo && !r.link]] },
+    exercises: { checks: [need('muscles', 'Muscles'), need('equipment', 'Equipment'), ['how', 'Photo or link', r => !r.photo && !r.link]] },
+    workouts: { when: r => !r.skipped, checks: [need('minutes', 'Minutes'), need('intensity', 'Intensity', r => r.done)] },
     vworkouts: { checks: [need('type', 'Type'), need('minutes', 'Minutes'), need('level', 'Level')] },
     fitgear: { checks: [need('category', 'Category'), need('photo', 'Photo')] },
     plans: { checks: [need('exercises', 'Exercises')] }
   }
 };
 // the new Plan and Body sections gather the to-dos of the areas they hold
-TODO.body = { beauty: TODO.care.beauty, supplements: TODO.care.supplements, ...TODO.fit };
+TODO.body = { beauty: TODO.care.beauty, supplements: TODO.care.supplements, bshops: TODO.care.bshops, appts: TODO.care.appts, ...TODO.fit };
 // Life holds Body, Plans and Wishlists, so its To do shows all of them
-TODO.plan = { ...TODO.body, ideas: TODO.care.ideas, gifts: TODO.care.gifts, courses: TODO.care.courses, documents: TODO.care.documents, ...TODO.wish };
+TODO.plan = { ...TODO.body, ideas: TODO.care.ideas, gifts: TODO.care.gifts, courses: TODO.care.courses, documents: TODO.care.documents, stays: TODO.care.stays, ...TODO.wish };
 function sectionTodo(host, sec) {
   const cfg = TODO[sec] || {};
   let saved = {}; try { saved = JSON.parse(localStorage.getItem('ltodo:' + sec) || '{}'); } catch {}
@@ -4670,13 +4675,23 @@ function fieldInner(kind, f, D) {
       return span + `<div class="lwrap">${ids.map(x => `<button type="button" class="chip on" data-relx="${f.k}" data-id="${x}" aria-label="Remove ${esc(relName(x))}">${esc(relName(x))} ×</button>`).join('')}</div>
         ${all.length ? `<div class="lpick"><select class="pill" data-relsel="${f.k}" aria-label="${esc(f.label)}"><option value="">${f.multi ? 'Add…' : ids.length ? 'Change…' : 'Choose…'}</option>${all.filter(x => !ids.includes(x.id)).map(x => `<option value="${x.id}">${esc(titleOf(x))}</option>`).join('')}</select></div>` : ''}${find}`;
     }
-    default: { const sg = textSugs(kind, f); return lab + `<input id="${id}" type="text" data-k="${f.k}" value="${esc(v || '')}" autocomplete="off"${sg.length ? ` data-sugk="${f.k}"` : ''}>${sg.length ? `<div class="lwrap ltsugs" data-sugs="${f.k}">${sg.map(o => `<button type="button" class="chip" data-tsug="${f.k}" data-v="${esc(o)}" aria-pressed="${norm(o) === norm(v || '')}">${esc(o)}</button>`).join('')}</div>` : ''}`; }
+    default: { const sg = textSugs(kind, f), kn = !!knownFor(f.k); return lab + `<input id="${id}" type="text" data-k="${f.k}" value="${esc(v || '')}" autocomplete="off"${sg.length || kn ? ` data-sugk="${f.k}"` : ''}>${sg.length || kn ? `<div class="lwrap ltsugs" data-sugs="${f.k}">${sg.map(o => `<button type="button" class="chip" data-tsug="${f.k}" data-v="${esc(o)}" aria-pressed="${norm(o) === norm(v || '')}">${esc(o)}</button>`).join('')}</div>` : ''}`; }
   }
 }
 /* fewer things to type: a text field offers what you wrote there before as buttons. Shops are one list for the
    whole app (the closet too); a name only offers names you used more than once, so unique titles stay quiet */
 const SUG_SHOP = new Set(['shop', 'store', 'source', 'site', 'seller']);
 const SUG_SKIP = new Set(['policy', 'phone', 'rename', 'url', 'link']);
+// brands and shops you never used yet: suggested from a known list while you type, yours once you pick one and save
+const knownFor = k => k === 'brand' ? window.KNOWN?.brands : SUG_SHOP.has(k) ? window.KNOWN?.shops : null;
+function knownMatches(k, q, have) {
+  const list = knownFor(k); if (!list || norm(q).length < 2) return [];
+  const t = norm(q), seen = new Set(have.map(norm)), out = [];
+  for (const pass of [v => norm(v).startsWith(t), v => !norm(v).startsWith(t) && norm(v).includes(t)])
+    for (const v of list) if (pass(v) && !seen.has(norm(v))) { seen.add(norm(v)); out.push(v); }
+  return out.slice(0, 8);
+}
+const knownChips = (k, q, have, attr) => knownMatches(k, q, have).map(v => `<button type="button" class="chip lknown" ${attr}="${k}" data-v="${esc(v)}" title="Suggestion">+ ${esc(v)}</button>`).join('');
 function textSugs(kind, f) {
   if (SUG_SKIP.has(f.k) || !L?.all) return [];
   const K = KINDS[kind], title = f.k === K.fields[0]?.k, shop = SUG_SHOP.has(f.k), n = new Map();
@@ -4734,7 +4749,8 @@ function openEditor(kind, id, preset = {}) {
     if (t.dataset.il !== undefined) { const x = D.ilines[+t.dataset.il]; if (x) x[t.dataset.ik] = t.value; }
     if (t.dataset.st !== undefined) D.steps[+t.dataset.st] = t.value;
     // while you type, the buttons narrow down to what matches; a full match shows them all again
-    if (t.dataset.sugk) { const q = norm(t.value), bs = [...sh.querySelectorAll(`[data-tsug="${t.dataset.sugk}"]`)], exact = bs.some(b => norm(b.dataset.v) === q); bs.forEach(b => { b.hidden = !!q && !exact && !norm(b.dataset.v).includes(q); b.setAttribute('aria-pressed', norm(b.dataset.v) === q); }); }
+    if (t.dataset.sugk) { const box = sh.querySelector(`[data-sugs="${t.dataset.sugk}"]`); box?.querySelectorAll('.lknown').forEach(b => b.remove()); const q = norm(t.value), bs = [...sh.querySelectorAll(`[data-tsug="${t.dataset.sugk}"]`)], exact = bs.some(b => norm(b.dataset.v) === q);
+      if (box && !exact) box.insertAdjacentHTML('beforeend', knownChips(t.dataset.sugk, t.value, bs.map(b => b.dataset.v), 'data-tsug')); bs.forEach(b => { b.hidden = !!q && !exact && !norm(b.dataset.v).includes(q); b.setAttribute('aria-pressed', norm(b.dataset.v) === q); }); }
   });
   sh.addEventListener('keydown', e => {
     const t = e.target;
@@ -7229,7 +7245,7 @@ return {
   icons: Object.fromEntries(Object.entries(P).filter(([k]) => !['plus', 'minus', 'left', 'right', 'x', 'check'].includes(k)).map(([k, v]) => [k, G(v)])),
   sections: SECTIONS.map(s => ({ key: s.key, label: s.label, icon: G(s.icon), groups: Object.fromEntries(Object.entries(s.groups || {}).map(([g, [l, ic]]) => [g, [l, G(ic)]])), subs: Object.fromEntries(Object.entries(s.subs || {}).map(([g, o]) => [g, Object.fromEntries(Object.entries(o).map(([k, [l, ic]]) => [k, [l, G(ic)]]))])), views: s.views.map(v => [vkey(s, v), v[1], G(v[2]), v[3] || '', v[4] || '']) })),
   has: view => !!PAGES[view],
-  lists: optionLists, fullList: fullOptions, renameIn: renameOption,
+  lists: optionLists, fullList: fullOptions, renameIn: renameOption, knownChips,
   search, openFound, settingsPanels, allShops,
   buyWish: (kind, id) => buyWish(kind, id), wishPanel, wishLine,
   canBuyWish: () => fAccs().length > 0,

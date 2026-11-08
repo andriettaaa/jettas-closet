@@ -1,6 +1,6 @@
 // Keeps A’s Life opening offline: the app itself and your photos are cached; sign-in and data always go to Supabase.
-const VERSION = 'hangtag-v143';
-const SHELL = ['./', './index.html', './config.js', './life.js', './life.css', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './logo-mark.png', './logo.png',
+const VERSION = 'hangtag-v144';
+const SHELL = ['./', './index.html', './config.js', './known.js', './life.js', './life.css', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './logo-mark.png', './logo.png',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.js'];
 
 self.addEventListener('install', e => {
