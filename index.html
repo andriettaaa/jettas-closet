@@ -2130,7 +2130,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v155';
+const APP_VERSION = 'hangtag-v156';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2345,6 +2345,7 @@ const NOTI = [
   ['content', 'Content today', 'The posts you script, film, edit or post today, collab deadlines, and good posts to use again', '09:00'],
   ['skindiary', 'Skin diary', 'Sundays: a nudge to add photos when your last entry is a week old', '10:00'],
   ['progress', 'Progress photos', 'Your first training day of the week: photos and measurements', '08:00'],
+  ['period', 'Period coming', 'Two days before your period is due', '08:00'],
   ['freezer', 'Freezer', 'Sundays: what has been in the freezer for 3 months or more', '17:00'],
   ['shopday', 'Shopping day', 'On the day you pick under Kitchen › Deals: your grocery list per shop', '10:00'],
   ['eatbf', 'Breakfast', 'When breakfast is not ticked in your food check yet (an hour later at the weekend)', '09:30'],
@@ -3798,7 +3799,7 @@ async function photoToJpeg(file, max = 1400) {
 }
 function openDay(date, opts = {}) {
   const rec = S.days[date] || {};
-  const D = { outfit: opts.outfit || rec.outfit || null, items: [...(rec.items || [])], cat: 'All', photos: [...(rec.photos || [])], adds: [], removed: [] };
+  const D = { outfit: opts.outfit || rec.outfit || null, items: [...(rec.items || [])], cat: 'All', photos: [...(rec.photos || [])], adds: [], removed: [], feel: rec.feel || 0 };
   D.mode = D.outfit || !D.items.length ? 'outfit' : 'pieces';
   const future = date > today();
   const sh = sheet({
@@ -3812,6 +3813,7 @@ function openDay(date, opts = {}) {
       <div id="dayPick"></div>
       <div class="field"><label for="d-place">Where${rec.place ? ` <button type="button" class="chip link" data-place="${esc(rec.place)}">All days at ${esc(rec.place)}</button>` : ''}</label><input id="d-place" list="placeList" value="${esc(rec.place || '')}" placeholder="Work, a dinner, a city" autocomplete="off"><datalist id="placeList">${places().map(([p]) => `<option value="${esc(p)}">`).join('')}</datalist>
         ${places().length ? `<div class="chips" style="margin-top:6px">${places().slice(0, 40).sort((a, b) => azSort(a[0], b[0])).map(([p]) => `<button type="button" class="chip" data-fillplace="${esc(p)}" aria-pressed="${norm(p) === norm(rec.place || '')}">${esc(p)}</button>`).join('')}</div>` : ''}</div>
+      ${future ? '' : `<div class="field"><label>How you felt in it</label><div class="lemo" id="dFeel">${[[1, '😖', 'Not me'], [2, '😕', 'Meh'], [3, '😐', 'Okay'], [4, '😊', 'Nice'], [5, '🤩', 'Love it']].map(([n, e, l]) => `<button type="button" data-dfeel="${n}" aria-pressed="${D.feel === n}"><span>${e}</span><small>${l}</small></button>`).join('')}</div></div>`}
       <div class="field"><label for="d-note">Note</label><input id="d-note" value="${esc(rec.note || '')}" placeholder="How it felt"></div>`,
     foot: `<span class="busy" id="dStatus"></span><div class="spacer"></div>${S.days[date] ? '<button class="btn danger" id="dClear">Clear day</button>' : ''}<button class="btn primary" id="dSave">${future ? 'Save plan' : 'Save'}</button>`,
     onClose: () => D.adds.forEach(a => URL.revokeObjectURL(a.url))
@@ -3851,6 +3853,7 @@ function openDay(date, opts = {}) {
       else { URL.revokeObjectURL(D.adds[i].url); D.adds.splice(i, 1); }
       drawPics(); return;
     }
+    const fe = e.target.closest('[data-dfeel]'); if (fe) { const n = +fe.dataset.dfeel; D.feel = D.feel === n ? 0 : n; sh.querySelectorAll('[data-dfeel]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.dfeel === D.feel)); return; }
     const m = e.target.closest('[data-mode]'); if (m) { D.mode = m.dataset.mode; draw(); return; }
     const o = e.target.closest('[data-dout]'); if (o) { D.outfit = D.outfit === o.dataset.dout ? null : o.dataset.dout; draw(); return; }
     const c = e.target.closest('[data-dcat]'); if (c) { D.cat = c.dataset.dcat; draw(); return; }
@@ -3871,7 +3874,7 @@ function openDay(date, opts = {}) {
           URL.revokeObjectURL(D.adds.shift().url);
         }
         st.textContent = 'Saving…';
-        await DB.put('days', date, { outfit, items, note: $('#d-note', sh).value.trim(), photos: D.photos, place: $('#d-place', sh).value.trim() });
+        await DB.put('days', date, { outfit, items, note: $('#d-note', sh).value.trim(), photos: D.photos, place: $('#d-place', sh).value.trim(), ...(D.feel ? { feel: D.feel } : {}) });
         D.removed.forEach(deletePhoto);
         closeSheet(); toast(future ? 'Planned' : 'Logged');
       } catch (err) {
@@ -3926,7 +3929,10 @@ async function start(session) {
     // Reports: what you wore, bought and let go between two dates
     closetStats: (from, to) => { const ds = Object.entries(S.days || {}).filter(([d, r]) => d >= from && d <= to && r && dayItems(r).length); const worn = new Set(ds.flatMap(([, r]) => dayItems(r)));
       const day = ms => ms ? new Date(ms).toISOString().slice(0, 10) : ''; const start = S.prefs.closetStart || '2026-11-08', added = S.items.filter(i => !isInbox(i) && i.status !== 'wishlist' && day(i.created) > start && day(i.created) >= from && day(i.created) <= to);
-      return { worn: ds.length, pieces: worn.size, added: added.length, gone: S.items.filter(i => i.passedDate && i.passedDate >= from && i.passedDate <= to).length, spent: added.reduce((n, i) => n + (Number(i.price) || 0), 0) }; },
+      const all = Object.entries(S.days || {}).filter(([d, r]) => d >= from && d <= to && r), feels = all.map(([, r]) => Number(r.feel)).filter(Boolean);
+      const lastBuy = S.items.filter(i => !isInbox(i) && i.status !== 'wishlist' && day(i.created) > start).map(i => day(i.created)).sort().pop() || start;
+      return { worn: ds.length, pieces: worn.size, added: added.length, gone: S.items.filter(i => i.passedDate && i.passedDate >= from && i.passedDate <= to).length, spent: added.reduce((n, i) => n + (Number(i.price) || 0), 0),
+        photos: all.filter(([, r]) => (r.photos || []).length).length, feel: feels.length ? feels.reduce((a, b) => a + b, 0) / feels.length : null, noBuy: Math.max(0, Math.round((Date.now() - Date.parse(lastBuy)) / 864e5)) }; },
     closetPlanDay: async (d, outfitId) => { const cur = S.days?.[d] || {}; if (!outfitId) { if (!cur.outfit) return; const { outfit, ...rest } = cur; return Object.keys(rest).length ? DB.put('days', d, rest) : DB.del('days', d); } await DB.put('days', d, { ...cur, outfit: outfitId }); },
     closetPatch: async (id, patch) => { const it = S.items.find(x => x.id === id); if (!it) return; const { id: _i, ...rest } = it; await DB.put('items', id, { ...rest, ...patch, updated: Date.now() }); },
     closetNew: async (id, data) => { await DB.put('items', id, { status: 'closet', ...data, created: Date.now(), updated: Date.now() }); },

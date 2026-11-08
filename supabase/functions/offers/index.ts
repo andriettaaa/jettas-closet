@@ -714,7 +714,7 @@ Deno.serve(async req => {
       return json({ recipes, away, pantry, freezer: pantry.filter((i: any) => i.location === 'Vriezer' && i.stock), shops, recent, food: pr?.data?.food || {}, learned });
     }
 
-    const TARGETS = ['recipes', 'wishes', 'closet', 'beauty', 'supplements', 'gear', 'fitgear', 'inventory', 'ideas', 'cideas', 'stips', 'inspo', 'gifts', 'keep', 'stays', 'trip', 'vworkouts'];
+    const TARGETS = ['recipes', 'wishes', 'closet', 'beauty', 'supplements', 'gear', 'fitgear', 'inventory', 'ideas', 'cideas', 'stips', 'inspo', 'gifts', 'keep', 'stays', 'trip', 'vworkouts', 'reslinks'];
     const cleanDraft = (d: any) => { const o: Record<string, unknown> = {}; if (d && typeof d === 'object') for (const [k, v] of Object.entries(d).slice(0, 40)) { if (!/^[a-zA-Z]{1,24}$/.test(k)) continue; o[k] = typeof v === 'string' ? v.slice(0, 12000) : Array.isArray(v) ? v.slice(0, 60).map(x => typeof x === 'string' ? x.slice(0, 600) : x) : typeof v === 'number' || typeof v === 'boolean' ? v : undefined; } return clean(o); };
     if (body.action === 'share') {
       const text = str(body.text, 4000), url = str(body.url, 1000) || (text.match(/https?:\/\/\S+/) || [''])[0].replace(/[),.]+$/, '');

@@ -364,6 +364,28 @@ const AREAS = ['Health & Nutrition', 'Fitness', 'Mindset', 'Growth', 'Career', '
 const goalTasks = g => recs('tasks').filter(t => [].concat(t.goal || []).includes(g.id));
 const goalPct = g => { if (g.status === 'Completed') return 100; const ts = goalTasks(g); return ts.length ? Math.round(100 * ts.filter(t => t.status === 'Completed').length / ts.length) : (num(g.progress) || 0); };
 // fitness extra: goals, video library and the week plan
+// emoji scales for check-ins and logs: [value, emoji, label]
+const EMO = {
+  mood: [[1, '😞', 'Bad'], [2, '😕', 'Low'], [3, '😐', 'Okay'], [4, '🙂', 'Good'], [5, '😄', 'Great']],
+  energy: [[1, '🪫', 'Empty'], [2, '😴', 'Tired'], [3, '🙂', 'Okay'], [4, '⚡', 'Good'], [5, '🔥', 'Full']],
+  stress: [[1, '😌', 'Calm'], [2, '🙂', 'Light'], [3, '😐', 'Some'], [4, '😣', 'A lot'], [5, '🤯', 'Too much']],
+  calm: [[1, '🌪️', 'Restless'], [2, '😣', 'Tense'], [3, '😐', 'Okay'], [4, '😌', 'Calm'], [5, '🧘', 'Very calm']],
+  rested: [[1, '🧟', 'Exhausted'], [2, '😴', 'Tired'], [3, '😐', 'Okay'], [4, '🙂', 'Rested'], [5, '🌞', 'Fully rested']],
+  hair: [[1, '🥀', 'Poor'], [2, '😕', 'Meh'], [3, '😐', 'Okay'], [4, '💧', 'Good'], [5, '✨', 'Great']],
+  libido: [[1, '🧊', 'None'], [2, '🙂', 'Low'], [3, '😊', 'Some'], [4, '😏', 'High'], [5, '🔥', 'Very high']],
+  feel: [[1, '😖', 'Not me'], [2, '😕', 'Meh'], [3, '😐', 'Okay'], [4, '😊', 'Nice'], [5, '🤩', 'Love it']]
+};
+const emoOf = (scale, v) => (EMO[scale] || EMO.mood).find(x => x[0] === Math.round(num(v)))?.[1] || '';
+const DRINKS = [['water', 'Water', '💧'], ['soda', 'Soda', '🥤'], ['juice', 'Juice', '🧃'], ['coffee', 'Coffee', '☕'], ['matcha', 'Matcha', '🍵'], ['tea', 'Tea', '🫖'], ['alcohol', 'Alcohol', '🍷']];
+const nailDays = r => { if (!r?.date) return null; const off = r.off || recs('naillog').filter(x => x.date > r.date && x.kind !== 'Care').map(x => x.date).sort()[0]; return off ? diffDays(r.date, off) : null; };
+const FEELINGS = ['Happy', 'Grateful', 'Proud', 'Calm', 'Loved', 'Excited', 'Tired', 'Restless', 'Anxious', 'Irritated', 'Sad', 'Lonely', 'Overwhelmed', 'Bored'];
+const MOOD_FACTORS = ['Work', 'People', 'Sleep', 'Food', 'Cycle', 'Social media', 'Weather', 'Money', 'Training', 'Home', 'Health'];
+const CYCLE_SYM = ['Cramps', 'Headache', 'Bloating', 'Fatigue', 'Acne', 'Tender breasts', 'Back pain', 'Cravings', 'Nausea', 'Diarrhoea', 'Constipation', 'Insomnia'];
+const HAIR_STYLES = ['Wash-and-go', 'Afro or puff', 'Twist-out', 'Braid-out', 'Box braids', 'Knotless braids', 'Twists', 'Cornrows', 'Faux locs', 'Bantu knots', 'Other'];
+const PROTECTIVE = new Set(['Box braids', 'Knotless braids', 'Twists', 'Cornrows', 'Faux locs', 'Bantu knots']);
+const RES_AREAS = ['Skin', 'Training', 'Hair', 'Nails', 'Sleep', 'Cycle', 'Mind', 'Food', 'Money', 'Home', 'Closet', 'Social', 'Other'];
+const ROUTINE_AREAS = ['Body', 'Hair', 'Skin', 'Mind', 'Kitchen', 'Money', 'Home', 'Closet', 'Social', 'Training'];
+const ROUTINE_PAGE = { Body: 'care/sleep', Hair: 'care/hair', Skin: 'care/skin', Mind: 'care/checkin', Kitchen: 'kitchen/foodlog', Money: 'money/impulse', Home: 'home/houselog', Closet: 'closet', Social: 'social/today', Training: 'fit/routine' };
 const PAIN_AREAS = [['Back', 'Back'], ['Neck', 'Neck'], ['Shoulders', 'Shoulders']];
 const TRAIN_MOODS = ['Great', 'Good', 'Okay', 'Tired', 'Bad'];
 const VW_TYPES = ['Pilates', 'Yoga', 'Strength', 'HIIT', 'Cardio', 'Dance', 'Barre', 'Stretching', 'Walk'];
@@ -464,7 +486,8 @@ const KINDS = {
       F('texture', 'Texture I liked', 'multi', { options: TEXTURES }), F('feel', 'It felt', 'multi', { options: FEELS }),
       F('liked', 'Ingredients I liked', 'multi', { options: [] }), F('disliked', 'Ingredients I didn’t like', 'multi', { options: [] }),
       F('effort', 'Effort', 'select', { options: ['Easy', 'OK', 'Too much work'], half: 1 }), F('portion', 'Portion', 'select', { options: ['Too little', 'Just right', 'Too much'], half: 1 }),
-      F('reheat', 'Next day / reheated', 'select', { options: ['Great', 'OK', 'Not good', 'Didn’t try'], half: 1 }), F('notes', 'What I’d change', 'long')],
+      F('reheat', 'Next day / reheated', 'select', { options: ['Great', 'OK', 'Not good', 'Didn’t try'], half: 1 }), F('mins', 'It really took', 'num', { unit: 'min', half: 1 }),
+      F('photo', 'Photo of your dish', 'photo'), F('notes', 'What I’d change', 'long')],
     title: r => relName(r.recipe) || 'Review', sorts: [['-date', 'Newest']],
     sub: r => [r.date && niceDate(r.date), r.score ? `${r.score}/5` : '', r.again ? `again: ${r.again.toLowerCase()}` : ''].filter(Boolean).join(' · ')
   },
@@ -482,7 +505,8 @@ const KINDS = {
   meals: {
     one: 'meal', many: 'Meals',
     fields: [F('date', 'Date', 'date', { half: 1 }), F('slot', 'Meal', 'select', { options: MEALS, half: 1 }),
-      F('recipe', 'Recipe', 'rel', { to: 'recipes' }), F('what', 'Or just write what you eat'), F('away', 'Not eating at home', 'check'), F('leftover', 'Leftovers', 'select', { options: ['None', 'Fridge', 'Freezer'], half: 1 }), F('notes', 'Notes', 'long')],
+      F('recipe', 'Recipe', 'rel', { to: 'recipes' }), F('what', 'Or just write what you eat'), F('away', 'Not eating at home', 'check'), F('leftover', 'Leftovers', 'select', { options: ['None', 'Fridge', 'Freezer'], half: 1 }),
+      F('ate', 'Eaten', 'check', { half: 1 }), F('photo', 'Photo of what you ate', 'photo'), F('notes', 'Notes', 'long')],
     title: r => relName(r.recipe) || r.what || (r.away ? 'Not at home' : '') || r.slot || 'Meal',
     sorts: [['-date', 'Newest']], sub: r => [r.date && niceDate(r.date), r.slot].filter(Boolean).join(' · ')
   },
@@ -560,7 +584,8 @@ const KINDS = {
   nlog: {
     one: 'day', many: 'Food check',
     fields: [F('date', 'Date', 'date', { half: 1 }), F('meals', 'Ate', 'multi', { options: ['Breakfast', 'Lunch', 'Dinner'] }), F('snack', 'Snack', 'check', { half: 1 }), F('nosoda', 'No sugary drinks', 'check', { half: 1 }),
-      F('veg', 'Vegetables (g)', 'num', { half: 1 }), F('fruit', 'Fruit (pieces)', 'num', { half: 1 }), F('soda', 'Soda and juice (glasses)', 'num', { half: 1 }), F('steps', 'Steps', 'num', { half: 1 }),
+      F('veg', 'Vegetables (g)', 'num', { half: 1 }), F('fruit', 'Fruit (pieces)', 'num', { half: 1 }), F('soda', 'Soda (glasses)', 'num', { half: 1 }), F('juice', 'Juice (glasses)', 'num', { half: 1 }),
+      F('coffee', 'Coffee', 'num', { half: 1 }), F('matcha', 'Matcha', 'num', { half: 1 }), F('tea', 'Tea', 'num', { half: 1 }), F('alcohol', 'Alcohol (glasses)', 'num', { half: 1 }), F('steps', 'Steps', 'num', { half: 1 }),
       F('energy', 'Energy', 'select', { options: ['Laag', 'Oké', 'Goed', 'Top'], half: 1 }), F('mood', 'Mood', 'select', { options: ['Down', 'Gestrest', 'Rustig', 'Blij'], half: 1 }), F('notes', 'Notes', 'long')],
     title: r => niceDate(r.date), sorts: [['-date', 'Newest']], sub: r => `${nlScore(r)} of ${NL_MAX}`
   },
@@ -579,7 +604,8 @@ const KINDS = {
   journal: {
     one: 'entry', ones: 'entries', many: 'Journal', facet: 'mood',
     fields: [F('date', 'Date', 'date', { half: 1 }), F('mood', 'Mood', 'select', { options: ['Great', 'Good', 'Okay', 'Low', 'Bad'], half: 1 }),
-      F('title', 'Title'), F('entry', 'What happened', 'long', { rows: 8 }), F('grateful', 'Grateful for', 'long'), F('dump', 'Brain dump', 'long', { rows: 4 })],
+      F('title', 'Title'), F('grateful', '3 things I’m grateful for', 'long'), F('good', 'What went well today?', 'long', { rows: 2 }), F('letgo', 'What do I let go of?', 'long', { rows: 2 }), F('forward', 'What do I look forward to tomorrow?', 'long', { rows: 2 }),
+      F('prompt', 'Today’s question', 'text'), F('answer', 'My answer', 'long', { rows: 3 }), F('entry', 'Free writing', 'long', { rows: 8 }), F('dump', 'Brain dump', 'long', { rows: 4 })],
     title: r => r.title || (r.date ? niceDate(r.date) : 'Entry'), sorts: [['-date', 'Newest']],
     sub: r => [r.title ? niceDate(r.date) : '', r.mood].filter(Boolean).join(' · ')
   },
@@ -588,8 +614,10 @@ const KINDS = {
     fields: [F('date', 'Morning of', 'date', { half: 1 }), F('hours', 'Hours slept', 'num', { half: 1 }),
       F('quality', 'Sleep quality', 'select', { options: ['Excellent', 'Good', 'Fair', 'Poor'] }),
       F('wake', 'Mood on waking', 'select', { options: ['Energized', 'Okay', 'Tired', 'Groggy'] }),
-      F('factors', 'Factors', 'multi', { options: ['Alcohol', 'Caffeine', 'Exercise', 'Late meal', 'Medication', 'Screen time', 'Stress'] }),
-      F('dreams', 'Dreams', 'long')],
+      F('bed', 'Went to bed', 'time', { half: 1 }), F('up', 'Got up', 'time', { half: 1 }), F('rested', 'How rested', 'emo', { scale: EMO.rested }),
+      F('asleep', 'Falling asleep', 'select', { options: ['Fast', 'Normal', 'Slow'], half: 1 }), F('wakeups', 'Woke up (times)', 'num', { half: 1 }),
+      F('factors', 'What played a part', 'multi', { options: ['Alcohol', 'Caffeine', 'Exercise', 'Late meal', 'Medication', 'Screen time', 'Phone in bed', 'Stress', 'Joint', 'Nap', 'Evening routine done'] }),
+      F('nightmare', 'Nightmare', 'check', { half: 1 }), F('dreams', 'Dreams', 'long')],
     title: r => r.date ? niceDate(r.date) : 'Night', sorts: [['-date', 'Newest']],
     sub: r => [r.hours ? r.hours + ' h' : '', r.quality, r.wake].filter(Boolean).join(' · ')
   },
@@ -640,6 +668,8 @@ const KINDS = {
       F('outfit', 'Outfit and props', 'long', { rows: 3 }), F('brands', 'Brands in this post', 'text'), F('ltk', 'LTK link', 'url'), F('sound', 'Sound or music', 'text', { half: 1 }), F('cta', 'Call to action', 'text', { half: 1 }),
       F('caption', 'Caption', 'long'), F('hashtags', 'Hashtags', 'text'),
       F('link', 'Post link', 'url'), F('views', 'Views', 'num', { half: 1 }), F('likes', 'Likes', 'num', { half: 1 }), F('comments', 'Comments', 'num', { half: 1 }), F('shares', 'Shares', 'num', { half: 1 }), F('top', 'Top performer', 'check', { half: 1 }), F('repurpose', 'Repurpose this', 'check', { half: 1 }),
+      F('v24', 'Views after 24 hours', 'num', { half: 1 }), F('l24', 'Likes after 24 hours', 'num', { half: 1 }), F('s24', 'Saves after 24 hours', 'num', { half: 1 }),
+      F('v7', 'Views after 7 days', 'num', { half: 1 }), F('l7', 'Likes after 7 days', 'num', { half: 1 }), F('s7', 'Saves after 7 days', 'num', { half: 1 }), F('learned', 'What worked, what didn’t', 'long', { rows: 2 }),
       F('photo', 'Cover', 'photo'), F('video', 'Video', 'video'), F('notes', 'Notes', 'long')],
     sorts: [['date', 'Soonest'], ['-date', 'Newest'], ['name', 'A to Z']],
     hide: r => r.stage === 'Posted', hideLabel: 'Show posted',
@@ -792,7 +822,8 @@ const KINDS = {
   },
   meditation: {
     one: 'session', many: 'Meditation',
-    fields: [F('date', 'Date', 'date', { half: 1 }), F('minutes', 'Minutes', 'num', { half: 1 }), F('type', 'Type', 'select', { options: ['Meditation', 'Breathwork', 'Yoga nidra', 'Mindfulness', 'Prayer'] }), F('guide', 'From the library', 'rel', { to: 'mindful' }), F('notes', 'How it felt', 'long')],
+    fields: [F('date', 'Date', 'date', { half: 1 }), F('minutes', 'Minutes', 'num', { half: 1 }), F('type', 'Type', 'select', { options: ['Meditation', 'Breathwork', 'Yoga nidra', 'Mindfulness', 'Prayer'] }), F('guide', 'From the library', 'rel', { to: 'mindful' }),
+      F('calmB', 'Before', 'emo', { scale: EMO.calm }), F('calmA', 'After', 'emo', { scale: EMO.calm }), F('url', 'Video or app link', 'url'), F('notes', 'How it felt', 'long')],
     title: r => relName(r.guide) || r.type || 'Session', sorts: [['-date', 'Newest']], sub: r => [niceDate(r.date), r.minutes ? r.minutes + ' min' : ''].filter(Boolean).join(' · ')
   },
   mindful: {
@@ -1016,6 +1047,79 @@ const KINDS = {
     sub: r => { const h = Math.ceil((waitEnd(r) - Date.now()) / 36e5); return [r.status || 'Waiting', !r.status || r.status === 'Waiting' ? (h > 0 ? `decide in ${h} h` : 'waited long enough, still want it?') : ''].filter(Boolean).join(' · '); },
     side: r => eur(num(r.price))
   },
+  hairlog: {
+    one: 'hair entry', ones: 'entries', many: 'Hair diary', facet: 'type', photo: 'front',
+    fields: [F('date', 'Date', 'date', { half: 1 }), F('type', 'What you did', 'select', { options: ['Wash day', 'Refresh', 'Scalp oil', 'Night routine', 'Style in', 'Style out', 'Trim'], half: 1 }),
+      F('steps', 'Products used', 'rel', { to: 'beauty', multi: 1 }), F('style', 'Style', 'select', { options: HAIR_STYLES, half: 1 }), F('minutes', 'Minutes', 'num', { half: 1 }),
+      F('moisture', 'Moisture', 'emo', { scale: EMO.hair }), F('breakage', 'Little breakage', 'emo', { scale: EMO.hair }), F('tangles', 'Easy to detangle', 'emo', { scale: EMO.hair }), F('shine', 'Shine and curl pattern', 'emo', { scale: EMO.hair }),
+      F('scalp', 'Scalp', 'multi', { options: ['Fine', 'Itchy', 'Dry', 'Flaky', 'Sensitive', 'Oily', 'Tender'] }), F('length', 'Length (stretched)', 'num', { unit: 'cm', half: 1 }),
+      F('front', 'Photo front', 'pphoto'), F('back', 'Photo back', 'pphoto'), F('side', 'Photo side', 'pphoto'), F('notes', 'Notes', 'long')],
+    title: r => `${r.type || 'Hair'}${r.style && /Style/.test(r.type || '') ? ': ' + r.style : ''}`, sorts: [['-date', 'Newest']],
+    sub: r => [niceDate(r.date), ...['moisture', 'breakage', 'shine'].map(k => emoOf('hair', r[k])), r.length ? r.length + ' cm' : '', relNames(r.steps).slice(0, 3).join(', ')].filter(Boolean).join(' · ')
+  },
+  naillog: {
+    one: 'nail set', many: 'Nail log', facet: 'kind', photo: 'photo', display: 'cards',
+    fields: [F('date', 'Date', 'date', { half: 1 }), F('kind', 'What', 'select', { options: ['Full set', 'Fill', 'Repair', 'Care', 'Removed'], half: 1 }),
+      F('technique', 'Technique', 'select', { options: ['Biab', 'Gel', 'Polygel', 'Press-ons', 'Tips', 'Natural'], half: 1 }), F('shape', 'Shape', 'select', { options: ['Almond', 'Oval', 'Square', 'Squoval', 'Coffin', 'Stiletto', 'Round'], half: 1 }),
+      F('photo', 'Photo', 'photo'), F('design', 'Design and colour', 'text'), F('minutes', 'Minutes', 'num', { half: 1 }), F('off', 'Removed or broke on', 'date', { half: 1 }),
+      F('inspo', 'From inspiration', 'rel', { to: 'ideas' }), F('notes', 'Notes', 'long')],
+    title: r => r.design || r.kind || 'Nails', sorts: [['-date', 'Newest']],
+    sub: r => [niceDate(r.date), r.technique, r.minutes ? r.minutes + ' min' : '', nailDays(r) != null ? `lasted ${nailDays(r)} days` : ''].filter(Boolean).join(' · ')
+  },
+  cyclelog: {
+    one: 'day', many: 'Cycle diary', facet: 'flow',
+    fields: [F('date', 'Date', 'date', { half: 1 }), F('flow', 'Bleeding', 'select', { options: ['None', 'Spotting', 'Light', 'Medium', 'Heavy'], half: 1 }),
+      F('symptoms', 'Body', 'multi', { options: CYCLE_SYM }), F('feel', 'Mood', 'multi', { options: ['Happy', 'Calm', 'Irritable', 'Anxious', 'Sad', 'Weepy', 'Sensitive', 'Low'] }),
+      F('energy', 'Energy', 'emo', { scale: EMO.energy }), F('libido', 'Desire', 'emo', { scale: EMO.libido }),
+      F('discharge', 'Discharge', 'select', { options: ['Dry', 'Sticky', 'Creamy', 'Watery', 'Egg white'], half: 1 }), F('notes', 'Notes', 'long')],
+    title: r => r.date ? niceDate(r.date) : 'Day', sorts: [['-date', 'Newest']],
+    sub: r => [cycleDayOn(r.date) ? `day ${cycleDayOn(r.date)}` : '', r.flow && r.flow !== 'None' ? '🩸 ' + r.flow.toLowerCase() : '', emoOf('energy', r.energy), [].concat(r.symptoms || []).slice(0, 3).join(', ')].filter(Boolean).join(' · ')
+  },
+  checkin: {
+    one: 'check-in', many: 'Check-ins', facet: 'time',
+    fields: [F('date', 'Date', 'date', { half: 1 }), F('time', 'When', 'select', { options: ['Morning', 'Evening'], half: 1 }),
+      F('mood', 'Mood', 'emo', { scale: EMO.mood }), F('energy', 'Energy', 'emo', { scale: EMO.energy }), F('stress', 'Stress', 'emo', { scale: EMO.stress }),
+      F('feelings', 'I feel', 'multi', { options: FEELINGS }), F('factors', 'What played a part', 'multi', { options: MOOD_FACTORS }),
+      F('craving', 'Urge for a joint (0 = none, 10 = strong)', 'num', { half: 1 }), F('notes', 'Notes', 'long')],
+    title: r => `${r.time || 'Check-in'} ${emoOf('mood', r.mood)}`, sorts: [['-date', 'Newest']],
+    sub: r => [niceDate(r.date), emoOf('mood', r.mood), emoOf('energy', r.energy), emoOf('stress', r.stress), [].concat(r.feelings || []).slice(0, 3).join(', ')].filter(Boolean).join(' · ')
+  },
+  books: {
+    one: 'book', many: 'Books', facet: 'status', photo: 'photo', display: 'cards',
+    fields: [F('name', 'Title'), F('author', 'Author', 'text', { half: 1 }), F('status', 'Status', 'select', { options: ['To read', 'Reading', 'Read'], half: 1 }),
+      F('pages', 'Pages', 'num', { half: 1 }), F('page', 'At page', 'num', { half: 1 }), F('start', 'Started', 'date', { half: 1 }), F('end', 'Finished', 'date', { half: 1 }),
+      F('rating', 'Rating', 'rating'), F('highlights', 'Highlights', 'long', { rows: 4 }), F('lessons', 'What I take with me', 'long', { rows: 3 }), F('photo', 'Cover', 'photo'), F('url', 'Link', 'url')],
+    sorts: [['status', 'By status'], ['-end', 'Finished last'], ['name', 'A to Z']],
+    sub: r => [r.author, r.status, num(r.pages) && num(r.page) ? Math.round(100 * num(r.page) / num(r.pages)) + '%' : '', r.rating ? '★'.repeat(r.rating) : ''].filter(Boolean).join(' · ')
+  },
+  learnlog: {
+    one: 'learning moment', many: 'Learning log', facet: 'type',
+    fields: [F('date', 'Date', 'date', { half: 1 }), F('type', 'Type', 'select', { options: ['Book', 'Course', 'Podcast', 'Video', 'Article'], half: 1 }), F('name', 'What'),
+      F('book', 'Book', 'rel', { to: 'books', half: 1 }), F('course', 'Course', 'rel', { to: 'courses', half: 1 }), F('minutes', 'Minutes', 'num', { half: 1 }), F('lesson', 'My main lesson', 'long'), F('url', 'Link', 'url')],
+    title: r => r.name || relName(r.book) || relName(r.course) || r.type || 'Learning', sorts: [['-date', 'Newest']],
+    sub: r => [niceDate(r.date), r.type, r.minutes ? r.minutes + ' min' : '', r.lesson ? String(r.lesson).slice(0, 60) : ''].filter(Boolean).join(' · ')
+  },
+  impulse: {
+    one: 'impulse', many: 'Impulse log', facet: 'bought',
+    fields: [F('date', 'Date', 'date', { half: 1 }), F('name', 'What I wanted'), F('price', 'Price', 'money', { half: 1 }),
+      F('feeling', 'How I felt', 'select', { options: ['Bored', 'Stressed', 'Happy', 'Tired', 'Sad', 'Rewarding myself', 'FOMO'], half: 1 }),
+      F('source', 'Where it came from', 'select', { options: ['TikTok', 'Instagram', 'Pinterest', 'YouTube', 'In a shop', 'A friend', 'A sale', 'An email'], half: 1 }),
+      F('bought', 'Did I buy it?', 'select', { options: ['Not bought', 'Bought'], half: 1 }), F('after', 'A week later', 'select', { options: ['Happy with it', 'Regret', 'Glad I didn’t', 'Still want it'], half: 1 }),
+      F('url', 'Link', 'url'), F('notes', 'Notes', 'long')],
+    title: r => r.name || 'Impulse', sorts: [['-date', 'Newest']],
+    sub: r => [niceDate(r.date), num(r.price) ? eur(num(r.price)) : '', r.bought === 'Bought' ? '🛍 bought' : '💪 not bought', r.feeling, r.after].filter(Boolean).join(' · ')
+  },
+  houselog: {
+    one: 'cleaning', many: 'Cleaning log', facet: 'room',
+    fields: [F('date', 'Date', 'date', { half: 1 }), F('chore', 'Chore', 'rel', { to: 'chores', half: 1 }), F('name', 'Or what you did'),
+      F('room', 'Room', 'select', { options: ['Kitchen', 'Bathroom', 'Bedroom', 'Living room', 'Hall', 'Laundry', 'Whole house'], half: 1 }), F('minutes', 'Minutes', 'num', { half: 1 }), F('notes', 'Notes', 'long')],
+    title: r => r.name || relName(r.chore) || 'Cleaning', sorts: [['-date', 'Newest']], sub: r => [niceDate(r.date), r.room, r.minutes ? r.minutes + ' min' : ''].filter(Boolean).join(' · ')
+  },
+  reslinks: {
+    one: 'resource', many: 'Resources', facet: 'area',
+    fields: [F('name', 'Title'), F('url', 'Link', 'url'), F('area', 'Resources tab', 'select', { options: RES_AREAS, half: 1 }), F('topic', 'Topic', 'text', { half: 1 }), F('notes', 'What it says', 'long')],
+    sorts: [['area', 'By tab'], ['name', 'A to Z']], sub: r => [r.area, r.topic].filter(Boolean).join(' · ')
+  },
   paincheck: {
     one: 'check', many: 'Daily checks', facet: 'time',
     fields: [F('date', 'Date', 'date', { half: 1 }), F('time', 'Time of day', 'select', { options: ['Morning', 'Evening'], half: 1 }),
@@ -1111,7 +1215,7 @@ const KINDS = {
   },
   routines: {
     one: 'routine step', many: 'Routines', facet: 'routine',
-    fields: [F('name', 'Activity'), F('routine', 'Routine', 'select', { options: ROUTINES, half: 1 }),
+    fields: [F('name', 'Activity'), F('routine', 'Routine', 'select', { options: ROUTINES, half: 1 }), F('area', 'Part of', 'select', { options: ROUTINE_AREAS, half: 1 }),
       F('onDays', 'Days', 'multi', { options: WEEKDAYS }), F('notes', 'Notes', 'long')],
     sorts: [['routine', 'By routine'], ['name', 'A to Z']],
     sub: r => [r.routine, daysLabel(r) || r.freq, r.notes].filter(Boolean).join(' · '),
@@ -1333,7 +1437,8 @@ function careTile() {
 function routineTile() {
   const rn = routineNow(); if (!rn.list.length) return '';
   const done = rn.list.filter(routineDone).length;
-  return `<p class="dsub">${rn.label} routine · ${done} of ${rn.list.length}</p><div class="lwrap">${rn.list.map(r => tick(r.name, routineDone(r), `data-act="quick" data-id="${r.id}"`)).join('')}</div>`;
+  const areas = [...new Set(rn.list.map(r => r.area).filter(a => ROUTINE_PAGE[a]))];
+  return `<p class="dsub">${rn.label === 'Evening' ? '🌙' : '🌅'} ${rn.label} routine · ${done} of ${rn.list.length}</p><div class="lwrap">${rn.list.map(r => tick(r.name, routineDone(r), `data-act="quick" data-id="${r.id}"`)).join('')}</div>${areas.length ? `<div class="lwrap">${areas.map(a => `<button class="chip link small" data-act="go" data-v="${ROUTINE_PAGE[a]}">${esc(a)} ›</button>`).join('')}</div>` : ''}`;
 }
 const tasksDue = () => recs('tasks').filter(x => !taskDone(x) && x.date && x.date <= today()).sort((a, b) => a.date.localeCompare(b.date));
 function homeTile() {
@@ -1380,20 +1485,20 @@ const SECTIONS = [
     // a third layer inside a group: Body › Health, Train, Beauty
     subs: { body: { health: ['Health', P.moon], train: ['Train', P.run], beauty: ['Beauty', P.drop] } },
     views: [['overview', 'Overview', P.grid], ['week', 'Calendar', P.calendar],
-      ['plan/mind', 'Overview', P.grid, 'mind'], ['today', 'My year', P.target, 'mind'], ['care/habits', 'Routines', P.repeat, 'mind'], ['care/journal', 'Journal', P.pen, 'mind'], ['care/mindful', 'Mindfulness', P.moon, 'mind'], ['care/growth', 'Growth', P.target, 'mind'], ['care/vision', 'Vision', P.sparkle, 'mind'], ['care/discover', 'Self discovery', P.user, 'mind'], ['plan/mindstats', 'Analyse', P.trend, 'mind'],
+      ['plan/mind', 'Overview', P.grid, 'mind'], ['today', 'My year', P.target, 'mind'], ['care/checkin', 'Check-in', P.heart, 'mind'], ['care/habits', 'Routines', P.repeat, 'mind'], ['care/journal', 'Journal', P.pen, 'mind'], ['care/mindful', 'Mindfulness', P.moon, 'mind'], ['care/growth', 'Growth', P.target, 'mind'], ['care/learn', 'Learning', P.book, 'mind'], ['care/vision', 'Vision', P.sparkle, 'mind'], ['care/discover', 'Self discovery', P.user, 'mind'], ['plan/mindstats', 'Analyse', P.trend, 'mind'],
       ['body/today', 'Overview', P.grid, 'body'],
-      ['care/health', 'Sleep & health', P.moon, 'body', 'health'], ['care/cycle', 'Cycle', P.moon, 'body', 'health'], ['care/supplements', 'Supplements', P.pill, 'body', 'health'], ['body/clean', 'Clean', P.leaf, 'body', 'health'],
+      ['care/sleep', 'Sleep', P.moon, 'body', 'health'], ['care/health', 'Health', P.pill, 'body', 'health'], ['care/cycle', 'Cycle', P.moon, 'body', 'health'], ['care/supplements', 'Supplements', P.pill, 'body', 'health'], ['body/clean', 'Clean', P.leaf, 'body', 'health'],
       ['fit/routine', 'Routine', P.list, 'body', 'train'], ['fit/log', 'Logbook', P.pen, 'body', 'train'], ['fit/workouts', 'Workouts', P.run, 'body', 'train'], ['fit/library', 'Videos', P.star, 'body', 'train'], ['fit/plans', 'Plans', P.list, 'body', 'train'], ['fit/exercises', 'Exercises', P.dumbbell, 'body', 'train'], ['fit/fgoals', 'Goals', P.target, 'body', 'train'], ['fit/body', 'Body', P.scale, 'body', 'train'], ['fit/stats', 'Analysis', P.trend, 'body', 'train'], ['fit/res', 'Resources', P.book, 'body', 'train'], ['fit/gear', 'Gear', P.box, 'body', 'train'],
-      ['care/beauty', 'Products', P.drop, 'body', 'beauty'], ['care/skin', 'Skincare', P.flask, 'body', 'beauty'], ['care/skinmonth', 'Month', P.calendar, 'body', 'beauty'], ['care/skinstats', 'Skin analysis', P.trend, 'body', 'beauty'], ['care/skinres', 'Resources', P.book, 'body', 'beauty'], ['care/perfume', 'Perfume', P.star, 'body', 'beauty'], ['care/diary', 'Skin diary', P.camera, 'body', 'beauty'], ['care/bdeals', 'Deals', P.tag, 'body', 'beauty'], ['body/stats', 'Analyse', P.trend, 'body'],
+      ['care/beauty', 'Products', P.drop, 'body', 'beauty'], ['care/skin', 'Skincare', P.flask, 'body', 'beauty'], ['care/skinmonth', 'Month', P.calendar, 'body', 'beauty'], ['care/skinstats', 'Skin analysis', P.trend, 'body', 'beauty'], ['care/skinres', 'Resources', P.book, 'body', 'beauty'], ['care/hair', 'Hair', P.drop, 'body', 'beauty'], ['care/nails', 'Nails', P.sparkle, 'body', 'beauty'], ['care/perfume', 'Perfume', P.star, 'body', 'beauty'], ['care/diary', 'Skin diary', P.camera, 'body', 'beauty'], ['care/bdeals', 'Deals', P.tag, 'body', 'beauty'], ['body/stats', 'Analyse', P.trend, 'body'],
       ['plan/plans', 'Overview', P.grid, 'plans'], ['care/trips', 'Trips', P.plane, 'plans'], ['care/docs', 'Documents', P.doc, 'plans'], ['care/ideas', 'Ideas', P.star, 'plans'], ['care/saved', 'Saved links', P.link, 'plans'], ['care/gifts', 'Gifts', P.gift, 'plans'], ['plan/planstats', 'Analyse', P.trend, 'plans'],
       ['wish/today', 'Overview', P.grid, 'wish'], ['wish/inbox', 'Inbox', P.inbox, 'wish'], ['wish/master', 'Master', P.heart, 'wish'], ['wish/orders', 'Orders', P.box, 'wish'], ['wish/stats', 'Analyse', P.trend, 'wish'], ['weekplan', 'Plan my week', P.list], ['reports', 'Reports', P.trend], ['todo', 'To do', P.check]] },
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile,
     groups: { food: ['Food', P.book], shop: ['Shop', P.cart] },
-    views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['pantry', 'Pantry', P.jar, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['shops', 'Shops', P.house, 'shop'], ['stats', 'Analyse', P.trend], ['todo', 'To do', P.check]] },
+    views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['foodlog', 'Food log', P.pen, 'food'], ['cooked', 'Cooking log', P.camera, 'food'], ['pantry', 'Pantry', P.jar, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['shops', 'Shops', P.house, 'shop'], ['stats', 'Analyse', P.trend], ['todo', 'To do', P.check]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile,
     groups: { plan: ['Plan', P.target], look: ['Review', P.trend] },
-    views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target, 'plan'], ['debt', 'Debt', P.card, 'plan'], ['insurance', 'Insurance', P.doc, 'plan'], ['forecast', 'Forecast', P.trend, 'plan'], ['year', 'Year', P.calendar, 'look'], ['networth', 'Net worth', P.wallet, 'look'], ['reviews', 'Reviews', P.doc, 'look'], ['todo', 'To do', P.check]] },
-  { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['plants', 'Plants', P.leaf], ['inventory', 'Verhuislijst', P.box], ['mood', 'Moodboard', P.heart], ['repairs', 'Repairs', P.wrench], ['todo', 'To do', P.check]] },
+    views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['impulse', 'Impulses', P.heart], ['plan', 'Goals', P.target, 'plan'], ['debt', 'Debt', P.card, 'plan'], ['insurance', 'Insurance', P.doc, 'plan'], ['forecast', 'Forecast', P.trend, 'plan'], ['year', 'Year', P.calendar, 'look'], ['networth', 'Net worth', P.wallet, 'look'], ['reviews', 'Reviews', P.doc, 'look'], ['todo', 'To do', P.check]] },
+  { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['houselog', 'Cleaning log', P.pen], ['plants', 'Plants', P.leaf], ['inventory', 'Verhuislijst', P.box], ['mood', 'Moodboard', P.heart], ['repairs', 'Repairs', P.wrench], ['todo', 'To do', P.check]] },
   { key: 'social', label: 'Social', icon: P.phone, tile: socialTile,
     groups: { work: ['Work', P.check], create: ['Create', P.phone], grow: ['Grow', P.trend], library: ['Library', P.book] },
     views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check, 'work'], ['projects', 'Projects', P.list, 'work'], ['ideas', 'Ideas', P.star, 'create'], ['posts', 'Posts', P.phone, 'create'], ['plan', 'Planning', P.calendar, 'create'], ['feed', 'Feed', P.grid, 'create'], ['insights', 'Insights', P.trend, 'grow'], ['pinterest', 'Pinterest', P.heart, 'grow'], ['goals', 'Goals', P.target, 'grow'], ['collabs', 'Collabs', P.handshake, 'grow'], ['income', 'Income', P.coins, 'grow'], ['tips', 'Tips', P.star, 'library'], ['inspo', 'Inspiration', P.heart, 'library'], ['kit', 'Toolkit', P.list, 'library'], ['brand', 'Brand', P.user, 'library'], ['todo', 'To do', P.check]] },
@@ -1407,15 +1512,24 @@ const PAGES = {
   'kitchen/deals': { render: dealsPage, adds: ['recipes'] },
   'kitchen/quit': { render: quitPage, adds: ['recipes', 'ingredients'] },
   'kitchen/recipes': { title: 'Recipes', segs: [{ kind: 'recipes' }] },
-  'kitchen/stats': { render: kitchenAnalysis, adds: ['recipes', 'meals'] },
+  'kitchen/foodlog': { render: foodLog, adds: ['meals', 'nlog', 'rreviews'] },
+  'kitchen/cooked': { title: 'Cooking log', segs: [{ kind: 'rreviews' }] },
+  'care/hair': { render: hairPage, adds: ['hairlog', 'beauty', 'reslinks'] },
+  'care/nails': { render: nailsPage, adds: ['naillog', 'ideas', 'reslinks'] },
+  'care/sleep': { render: sleepPage, adds: ['sleep', 'reslinks'] },
+  'care/checkin': { render: checkinPage, adds: ['checkin', 'journal', 'reslinks'] },
+  'care/learn': { title: 'Learning', segs: [{ kind: 'books', top: learnTop }, { kind: 'learnlog' }, { kind: 'courses' }] },
+  'money/impulse': { title: 'Impulses', segs: [{ kind: 'impulse', top: impulseTop }] },
+  'home/houselog': { title: 'Cleaning log', segs: [{ kind: 'houselog', top: houseTop }] },
+  'kitchen/stats': { render: h => { kitchenAnalysis(h); anaAdd(h, kitchenExtra()); }, adds: ['recipes', 'meals'] },
 
   'kitchen/meals': { title: 'Meal plan', segs: [{ key: 'week', label: 'Week', kind: 'meals', fill: weekFill, tools: false }, { key: 'month', label: 'Month', kind: 'meals', fill: monthFill, tools: false }, { kind: 'mealprep' }] },
   'kitchen/groceries': { title: 'Groceries', segs: [{ key: 'list', label: 'Shopping list', kind: 'ingredients', fill: groceryFill, tools: false }] },
   'kitchen/pantry': { title: 'Pantry', segs: [{ kind: 'ingredients' }, { key: 'types', label: 'Per soort', kind: 'ingredients', fill: ingTypesFill, tools: false }, { key: 'freezer', label: 'Freezer', kind: 'ingredients', fill: freezerFill, tools: false }] },
   'kitchen/shops': { title: 'Shops', segs: [{ kind: 'shops', label: 'Your shops' }] },
   'plan/mind': { render: mindOverview, adds: ['journal', 'meditation', 'lgoals', 'habits'] },
-  'plan/mindstats': { render: mindAnalysis, adds: ['journal'] },
-  'body/stats': { render: bodyAnalysis, adds: ['sleep', 'workouts'] },
+  'plan/mindstats': { render: h => { mindAnalysis(h); anaAdd(h, mindExtra()); }, adds: ['journal', 'checkin'] },
+  'body/stats': { render: h => { bodyAnalysis(h); anaAdd(h, bodyExtra()); }, adds: ['sleep', 'workouts', 'cyclelog', 'hairlog'] },
   'plan/plans': { render: plansOverview, adds: ['gifts', 'ideas', 'documents'] },
   'plan/planstats': { render: plansAnalysis, adds: ['gifts'] },
   'wish/stats': { render: wishAnalysis, adds: ['wishes', 'orders'] },
@@ -1439,8 +1553,8 @@ const PAGES = {
   'care/perfume': { render: fragPage, adds: ['beauty'] },
   'care/diary': { render: skinDiary, adds: ['skinlog'] },
   'care/supplements': { title: 'Supplements', segs: [{ kind: 'supplements' }, { kind: 'suplog' }] },
-  'care/cycle': { title: 'Cycle', segs: [{ kind: 'cycles', label: 'Periods', top: cycleTop }] },
-  'care/journal': { title: 'Journal', segs: [{ kind: 'journal' }] },
+  'care/cycle': { title: 'Cycle', segs: [{ kind: 'cycles', label: 'Periods', top: () => cycleTop() + cycleInsights() }, { kind: 'cyclelog', label: 'Daily diary' }] },
+  'care/journal': { title: 'Journal', segs: [{ kind: 'journal', top: journalTop }] },
   'care/ideas': { title: 'Ideas', segs: [{ kind: 'ideas' }] },
   'care/habits': { title: 'Routines', segs: [{ kind: 'routines' }, { kind: 'habits', top: habitWeek }] },
   'care/gifts': { title: 'Gifts', segs: [{ kind: 'gifts' }] },
@@ -1459,7 +1573,7 @@ const PAGES = {
   'wish/today': { render: wishToday, adds: ['wishes', 'winbox'] },
   'wish/master': { title: 'Master wishlist', segs: [{ key: 'all', label: 'Everything', kind: 'wishes', fill: masterFill, tools: false }, { kind: 'wishes', label: 'Other wishes' }] },
   'wish/inbox': { render: inboxPage, adds: ['winbox'] },
-  'care/saved': { title: 'Saved links', segs: [{ kind: 'inbox', fill: savedFill, tools: false }] },
+  'care/saved': { title: 'Saved links', segs: [{ kind: 'inbox', fill: savedFill, tools: false }, { kind: 'reslinks', label: 'Resources' }] },
   'wish/oldinbox': { title: 'Old wishlist inbox', segs: [{ kind: 'winbox' }] },
   'social/posts': { title: 'Posts', segs: [{ kind: 'posts' }] },
   'social/feed': { render: socialFeed, adds: ['posts', 'highlights', 'accounts'] },
@@ -1471,7 +1585,7 @@ const PAGES = {
   'social/brand': { title: 'Brand', segs: [{ kind: 'pillars' }, { kind: 'accounts' }] },
   'social/kit': { title: 'Toolkit', segs: [{ kind: 'stemplates' }, { kind: 'hashsets' }] },
   'social/inspo': { title: 'Inspiration', segs: [{ kind: 'inspo' }] },
-  'social/insights': { render: socialInsights, adds: ['posts', 'pillars'] },
+  'social/insights': { render: h => { socialInsights(h); anaAdd(h, socialExtra()); }, adds: ['posts', 'pillars'] },
   'social/pinterest': { render: socialPinterest, adds: ['posts', 'inspo', 'moodboard'] },
   'care/health': { title: 'Health', segs: [{ kind: 'sleep' }, { kind: 'appts' }, { kind: 'symptoms' }, { kind: 'meditation' }, { kind: 'water' }] },
   'money/today': { render: moneyToday, adds: ['ftx', 'fincome', 'fbills', 'fchecks'] },
@@ -1904,7 +2018,7 @@ function emptyList(K, any) {
    times a day, works out what it is (recipe, wish, closet piece, beauty, supplement, gear, home, idea, content,
    gift) and fills in a card. You accept it, send it somewhere else, keep it as a saved link, or skip it. */
 const INBOX_TO = { recipes: ['Recipe', 'kitchen/recipes'], wishes: ['Wish', 'wish/master'], closet: ['Closet wishlist', 'wishlist'], beauty: ['Beauty', 'care/beauty'], supplements: ['Supplement', 'care/supplements'],
-  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], stips: ['Social tip', 'social/tips'], vworkouts: ['Workout video', 'fit/library'], inspo: ['Inspiration', 'social/inspo'], gifts: ['Gift idea', 'care/gifts'], trip: ['Trip idea', 'care/trips'], stays: ['Saved stay', 'care/trips'], keep: ['Saved link', 'care/saved'] };
+  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], stips: ['Social tip', 'social/tips'], vworkouts: ['Workout video', 'fit/library'], reslinks: ['Resource', 'care/saved'], inspo: ['Inspiration', 'social/inspo'], gifts: ['Gift idea', 'care/gifts'], trip: ['Trip idea', 'care/trips'], stays: ['Saved stay', 'care/trips'], keep: ['Saved link', 'care/saved'] };
 const INBOX_EXTRA = { stays: () => ({ status: 'Saved' }), wishes: () => ({ status: 'Wish', since: today() }), beauty: () => ({ wish: true }), supplements: () => ({ wish: true }), gear: () => ({ own: false }), fitgear: () => ({ own: false }), inventory: () => ({ status: 'Idee' }), cideas: () => ({ status: 'Idea', source: 'Inbox' }), gifts: () => ({ status: 'Idea' }) };
 const inboxOpen = () => recs('inbox').filter(r => ['New', 'Ready'].includes(r.status));
 const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
@@ -2607,7 +2721,7 @@ try { L.prepDone = JSON.parse(localStorage.getItem('prepDone') || '{}'); } catch
 // the food check: a few taps a day, no calories, just regular meals, veg, fruit, water and a snack
 const NL_MAX = 8, VEG_GOAL = 250;
 // soda and juice: a goal that steps down by one glass every two weeks, from 5 to 1
-const sodaGoal = () => { const c = { from: 5, to: 1, ...(C?.prefs?.().soda || {}) }; if (!c.start) return c.from; return Math.max(c.to, c.from - Math.floor(diffDays(c.start, today()) / 14)); };
+const sodaGoal = () => { const c = { from: 5, to: 1, ...(C?.prefs?.().soda || {}) }; if (!c.start) return c.from; return Math.max(c.to, c.from - Math.floor(diffDays(c.start, today()) / 7)); };
 const nlOn = d => recs('nlog').find(x => x.date === d);
 const waterOn = d => recs('water').find(w => w.date === d);
 const nlScore = (r, d = r?.date) => { if (!r && !waterOn(d)) return 0; const m = [].concat(r?.meals || []); const wg = Number(C?.prefs?.().waterGoal) || 8; return m.length + (r?.snack ? 1 : 0) + ((num(r?.veg) || 0) >= VEG_GOAL ? 1 : 0) + ((num(r?.fruit) || 0) >= 1 ? 1 : 0) + (r?.nosoda ? 1 : 0) + ((waterOn(d)?.glasses || 0) >= wg ? 1 : 0); };
@@ -4696,6 +4810,7 @@ function fieldInner(kind, f, D) {
       return span + `<div class="lpct"><div class="lwrap">${[['', 'Dicht'], ...LEFT_STEPS].map(([n, l]) => `<button type="button" class="chip" data-pct="${f.k}" data-v="${n}" aria-pressed="${n === '' ? p == null : p === n}">${l}</button>`).join('')}</div>
         <div class="lpctr"><input type="range" min="0" max="100" step="5" data-pctr="${f.k}" value="${p ?? 100}" ${p == null ? 'disabled' : ''} aria-label="${esc(f.label)}"><b data-pctv="${f.k}">${p == null ? 'Niet open' : p + '%'}</b></div></div>`;
     }
+    case 'emo': { const sc = f.scale || EMO.mood; return span + `<div class="lemo">${sc.map(([n, e, l]) => `<button type="button" data-rate="${f.k}" data-v="${n}" aria-label="${esc(l)}" title="${esc(l)}" aria-pressed="${v === n}"><span>${e}</span><small>${esc(l)}</small></button>`).join('')}</div>`; }
     case 'rating': return span + `<div class="lrating">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-rate="${f.k}" data-v="${n}" aria-label="${n} of 5" aria-pressed="${(v || 0) >= n}">${svg(P.star)}</button>`).join('')}</div>`;
     case 'select': case 'multi': {
       if (f.dep && !D?.[f.dep] && !v) return span + `<p class="lnone">${esc(f.depHint || 'Kies eerst een categorie.')}</p>`;
@@ -4980,14 +5095,24 @@ function repSections(from, to) {
   const wk = WPCFG().weeks[from] || null, ch = recs('chores').filter(r => inR(r.last, from, to));
   const tasksDone = recs('tasks').filter(t => t.status === 'Done' && inR(t.date, from, to));
   const s = (label, v, opt = {}) => ({ label, v: v == null || isNaN(v) ? null : Math.round(v * 100) / 100, ...opt });
+  const inP = x => inR(x.date, from, to), avgK = (list, k) => avgOf(list.map(x => num(x[k])).filter(v => v != null));
+  const rDone = (pred) => { const rs = recs('routines').filter(pred); const due = rs.flatMap(r => days.filter(d => d <= today() && onDay(r, d)).map(d => daysSet(r).has(d))); return due.length ? 100 * due.filter(Boolean).length / due.length : null; };
+  const hair = recs('hairlog').filter(inP), nails = recs('naillog').filter(inP), cyl = recs('cyclelog').filter(inP), ci = recs('checkin').filter(inP), med = recs('meditation').filter(inP);
+  const imp = recs('impulse').filter(inP), hl = recs('houselog').filter(inP), ideasN = recs('cideas').filter(x => inR(x.created ? iso(new Date(x.created)) : '', from, to));
+  const noSpendN = days.filter(d => d <= today() && !spentOn(d)).length;
   return [
-    { k: 'money', t: 'Money', stats: [s('Spent', sumOf(tx.map(t => t.amount)), { fmt: 'eur', good: 'down' }), s('Groceries', sumOf(tx.filter(t => env && t.category === env.id).map(t => t.amount)), { fmt: 'eur', good: 'down' }),
-      s('Money in', sumOf(recs('fincome').filter(x => inR(x.date, from, to)).map(x => x.amount)), { fmt: 'eur' }), s('Purchases', tx.length), s('Bills paid', recs('fpaid').filter(p => inR(p.paidOn || p.date, from, to)).length)],
+    { k: 'money', t: '💶 Money', stats: [s('Spent', sumOf(tx.map(t => t.amount)), { fmt: 'eur', good: 'down' }), s('Groceries', sumOf(tx.filter(t => env && t.category === env.id).map(t => t.amount)), { fmt: 'eur', good: 'down' }),
+      s('Money in', sumOf(recs('fincome').filter(x => inR(x.date, from, to)).map(x => x.amount)), { fmt: 'eur' }), s('Purchases', tx.length), s('Bills paid', recs('fpaid').filter(p => inR(p.paidOn || p.date, from, to)).length),
+      s('🚫💸 No-spend days', noSpendN, { good: 'up' }), s('💪 Not spent on impulses', sumOf(imp.filter(r => r.bought !== 'Bought').map(r => r.price)), { fmt: 'eur', good: 'up' }), s('🛍 Impulses bought', imp.filter(r => r.bought === 'Bought').length, { good: 'down' }),
+      s('✅ Money check', wk ? 100 * (wk.mcheck || []).length / MONEY_CHECK.length : null, { unit: '%', good: 'up' })],
       chart: [...byCat.entries()].sort((a, b) => b[1] - a[1]).slice(0, 7).map(([l, v]) => [l.replace(/[\p{Extended_Pictographic}\uFE0F]/gu, '').trim().slice(0, 12), Math.round(v)]), chartT: 'Spent per category (€)' },
-    { k: 'food', t: 'Food', stats: [s('Meals planned', meals.filter(m => !m.away).length, { good: 'up' }), s('Home-cooked dinners', meals.filter(m => m.slot === 'Dinner' && (m.recipe || m.what) && !m.away).length, { good: 'up' }),
-      s('Eaten out', meals.filter(m => m.away).length), s('Vegetables a day', avgOf(nl.map(x => num(x.veg))), { unit: 'g', good: 'up' }), s('Fruit a day', avgOf(nl.map(x => num(x.fruit))), { good: 'up' }), s('Soda and juice', sumOf(nl.map(x => x.soda)), { unit: ' glasses', good: 'down' })],
+    { k: 'food', t: '🍽 Food and drinks', stats: [s('Meals planned', meals.filter(m => !m.away).length, { good: 'up' }), s('Home-cooked dinners', meals.filter(m => m.slot === 'Dinner' && (m.recipe || m.what) && !m.away).length, { good: 'up' }),
+      s('Eaten out', meals.filter(m => m.away).length), s('Vegetables a day', avgOf(nl.map(x => num(x.veg))), { unit: 'g', good: 'up' }), s('Fruit a day', avgOf(nl.map(x => num(x.fruit))), { good: 'up' }), s('Soda and juice', sumOf(nl.map(x => (num(x.soda) || 0) + (num(x.juice) || 0))), { unit: ' glasses', good: 'down' }),
+      s('💧 Water a day', avgOf(days.map(d => num(waterOn(d)?.glasses)).filter(v => v != null)), { unit: ' glasses', good: 'up' }), s('☕ Coffee and matcha', sumOf(nl.map(x => (num(x.coffee) || 0) + (num(x.matcha) || 0)))),
+      s('🍷 Alcohol', sumOf(nl.map(x => x.alcohol)), { unit: ' glasses', good: 'down' }), s('📷 Meals with a photo', meals.filter(m => m.photo).length, { good: 'up' }),
+      s('👩🏾‍🍳 Dishes cooked and reviewed', recs('rreviews').filter(inP).length, { good: 'up' })],
       chart: days.map(d => [WD_NL[(fromISO(d).getDay() + 6) % 7] + (days.length > 7 ? fromISO(d).getDate() : ''), num(nlOn(d)?.veg) || 0]).slice(-31), chartT: 'Vegetables (g)' },
-    { k: 'move', t: 'Movement and health', stats: [s('Workouts done', work.filter(w => w.done).length, { good: 'up' }), s('Workouts planned', work.length), s('Minutes moved', sumOf(work.filter(w => w.done).map(w => w.minutes)), { good: 'up' }),
+    { k: 'move', t: '🏋🏾‍♀️ Movement and health', stats: [s('Workouts done', work.filter(w => w.done).length, { good: 'up' }), s('Workouts planned', work.length), s('Minutes moved', sumOf(work.filter(w => w.done).map(w => w.minutes)), { good: 'up' }),
       s('Steps a day', avgOf(nl.map(x => num(x.steps))), { good: 'up' }), s('Sleep a night', avgOf(sleep.map(x => num(x.hours))), { unit: 'h', good: 'up' }), s('Supplements taken', recs('suplog').filter(x => inR(x.date, from, to)).length, { good: 'up' }),
       s('Smoke moments', recs('cleanlog').filter(x => inR(x.date, from, to)).length, { good: 'down' }),
       s('Sets logged', sumOf(work.filter(w => w.done && Array.isArray(w.log)).map(w => w.log.reduce((n, x) => n + (x.sets || []).filter(st => st.done).length, 0))), { good: 'up' }),
@@ -4996,15 +5121,29 @@ function repSections(from, to) {
       ...PAIN_AREAS.map(([k, l]) => s(`${l} pain`, avgOf([...recs('paincheck'), ...work.filter(w => w.done)].filter(x => inR(x.date, from, to)).map(x => num(x['p' + k] ?? x['pb' + k])).filter(v => v != null)), { unit: '/10', good: 'down' })),
       s('Training energy', avgOf(work.filter(w => w.done).map(w => num(w.energy)).filter(v => v != null)), { unit: '/5', good: 'up' })],
       chart: (() => { const out = []; for (let i = 7; i >= 0; i--) { const a = addDays(weekMon(to), -7 * i), b = addDays(a, 6); out.push([shortDate(a).split(' ')[0] + ' ' + shortDate(a).split(' ')[1].slice(0, 3), recs('workouts').filter(w => w.done && inR(w.date, a, b)).length]); } return out; })(), chartT: 'Workouts done per week' },
-    { k: 'skin', t: 'Skin and self-care', stats: [s('Skin score', avgOf(skin.map(x => num(x.score))), { unit: '/10', good: 'up' }), s('Diary entries', skin.length, { good: 'up' }),
-      s('Products running low', recs('beauty').filter(b => b.low && !b.finished && !b.archived).length, { good: 'down' }), s('Techniques planned', days.reduce((n, d) => n + techOn(d, false).length + techOn(d, true).length, 0))] },
-    { k: 'home', t: 'Home and planning', stats: [s('Chores done', ch.length, { good: 'up' }), s('Tasks done', tasksDone.length, { good: 'up' }), s('Habits kept', hDue.length ? 100 * hDue.filter(Boolean).length / hDue.length : null, { unit: '%', good: 'up' }),
-      s('Week checklist', wk && WPCFG().custom.length ? 100 * (WPCFG().checks[from] || []).length / WPCFG().custom.length : null, { unit: '%', good: 'up' })],
+    { k: 'sleep', t: '😴 Sleep and routines', stats: [s('Hours a night', avgOf(sleep.map(sleepHours).filter(v => v != null)), { unit: 'h', good: 'up' }), s('🌞 How rested', avgK(sleep, 'rested'), { unit: '/5', good: 'up' }),
+      s('Nights logged', sleep.length, { good: 'up' }), s('😱 Nightmares', sleep.filter(x => x.nightmare).length, { good: 'down' }),
+      s('🌅 Morning routine', rDone(r => r.routine === 'Morning'), { unit: '%', good: 'up' }), s('🌙 Evening routine', rDone(r => r.routine === 'Evening'), { unit: '%', good: 'up' })] },
+    { k: 'cycle', t: '🌸 Cycle', stats: [s('Diary days', cyl.length, { good: 'up' }), s('🩸 Bleeding days', cyl.filter(x => x.flow && x.flow !== 'None').length), s('Days with cramps', cyl.filter(x => [].concat(x.symptoms || []).includes('Cramps')).length, { good: 'down' }),
+      s('Energy', avgK(cyl, 'energy'), { unit: '/5', good: 'up' }), s('Periods started', recs('cycles').filter(c => inR(c.start, from, to)).length)] },
+    { k: 'skin', t: '✨ Skin, hair and nails', stats: [s('Skin score', avgOf(skin.map(x => num(x.score))), { unit: '/10', good: 'up' }), s('Diary entries', skin.length, { good: 'up' }),
+      s('Products running low', recs('beauty').filter(b => b.low && !b.finished && !b.archived).length, { good: 'down' }), s('Techniques planned', days.reduce((n, d) => n + techOn(d, false).length + techOn(d, true).length, 0)),
+      s('🚿 Wash days', hair.filter(x => x.type === 'Wash day').length), s('💧 Hair moisture', avgK(hair, 'moisture'), { unit: '/5', good: 'up' }), s('🌙 Night routines', hair.filter(x => x.type === 'Night routine').length, { good: 'up' }),
+      s('💅 Nail sets', nails.filter(x => ['Full set', 'Fill'].includes(x.kind)).length), s('⏳ Nails lasted', avgOf(nails.map(nailDays).filter(v => v != null)), { unit: ' days', good: 'up' })] },
+    { k: 'home', t: '🏠 Home and planning', stats: [s('Chores done', ch.length, { good: 'up' }), s('Tasks done', tasksDone.length, { good: 'up' }), s('Habits kept', hDue.length ? 100 * hDue.filter(Boolean).length / hDue.length : null, { unit: '%', good: 'up' }),
+      s('Week checklist', wk && WPCFG().custom.length ? 100 * (WPCFG().checks[from] || []).length / WPCFG().custom.length : null, { unit: '%', good: 'up' }),
+      s('🧽 Minutes cleaned', sumOf(hl.map(x => x.minutes)), { good: 'up' }), s('✨ Daily reset', rDone(r => r.area === 'Home'), { unit: '%', good: 'up' })],
       top3: wk ? (wk.top3 || []).filter(Boolean) : [] },
-    { k: 'looks', t: 'Clothes', stats: cl ? [s('Days dressed', cl.worn), s('Pieces worn', cl.pieces), s('New pieces', cl.added, { good: 'down' }), s('Pieces let go', cl.gone), s('Spent on clothes', cl.spent, { fmt: 'eur', good: 'down' })] : [] },
-    { k: 'content', t: 'Content and social', stats: [s('Posts', posts.length, { good: 'up' }), s('Views', sumOf(posts.map(p => p.views)), { good: 'up' }), s('Likes', sumOf(posts.map(p => p.likes)), { good: 'up' }), s('Comments', sumOf(posts.map(p => p.comments)), { good: 'up' })] },
-    { k: 'mind', t: 'Mind', stats: [s('Mood', avgOf(days.map(moodOn)), { unit: '/5', good: 'up' }), s('Energy', avgOf(days.map(energyOn)), { unit: '/5', good: 'up' }), s('Journal entries', recs('journal').filter(j => inR(j.date, from, to)).length, { good: 'up' }),
-      s('Minutes of meditation', sumOf(recs('meditation').filter(m => inR(m.date, from, to)).map(m => m.minutes)), { good: 'up' })],
+    { k: 'looks', t: '👗 Clothes', stats: cl ? [s('Days dressed', cl.worn), s('Pieces worn', cl.pieces), s('New pieces', cl.added, { good: 'down' }), s('Pieces let go', cl.gone), s('Spent on clothes', cl.spent, { fmt: 'eur', good: 'down' }),
+      s('📸 Outfit photos', cl.photos, { good: 'up' }), s('😊 Feeling in your outfits', cl.feel, { unit: '/5', good: 'up' }), s('🚫🛍 Days without buying clothes', cl.noBuy, { good: 'up' })] : [] },
+    { k: 'content', t: '📱 Content and social', stats: [s('Posts', posts.length, { good: 'up' }), s('Views', sumOf(posts.map(p => p.views)), { good: 'up' }), s('Likes', sumOf(posts.map(p => p.likes)), { good: 'up' }), s('Comments', sumOf(posts.map(p => p.comments)), { good: 'up' }),
+      s('👀 Views after 24 hours', avgK(posts, 'v24'), { good: 'up' }), s('👀 Views after 7 days', avgK(posts, 'v7'), { good: 'up' }), s('💡 Ideas written down', ideasN.length, { good: 'up' }),
+      s('📆 Content routine', rDone(r => r.area === 'Social'), { unit: '%', good: 'up' })] },
+    { k: 'mind', t: '🧠 Mind', stats: [s('Mood', avgOf(days.map(moodOn)), { unit: '/5', good: 'up' }), s('Energy', avgOf(days.map(energyOn)), { unit: '/5', good: 'up' }), s('Journal entries', recs('journal').filter(j => inR(j.date, from, to)).length, { good: 'up' }),
+      s('Minutes of meditation', sumOf(recs('meditation').filter(m => inR(m.date, from, to)).map(m => m.minutes)), { good: 'up' }),
+      s('📝 Check-ins', ci.length, { good: 'up' }), s('😣 Stress', avgK(ci, 'stress'), { unit: '/5', good: 'down' }), s('🌿 Urge for a joint', avgK(ci, 'craving'), { unit: '/10', good: 'down' }),
+      s('🧘 Calmer after meditating', avgOf(med.filter(m => num(m.calmA) != null && num(m.calmB) != null).map(m => num(m.calmA) - num(m.calmB))), { good: 'up' }),
+      s('📚 Minutes learning', sumOf(recs('learnlog').filter(inP).map(x => x.minutes)), { good: 'up' }), s('📖 Books finished', recs('books').filter(b => b.status === 'Read' && inR(b.end, from, to)).length, { good: 'up' })],
       chart: days.map(d => [WD_NL[(fromISO(d).getDay() + 6) % 7] + (days.length > 7 ? fromISO(d).getDate() : ''), moodOn(d) || 0]).slice(-31), chartT: 'Mood per day' }
   ];
 }
@@ -5021,6 +5160,9 @@ function repInsights(secs, prev) {
   if ((get('food', 'Vegetables a day') ?? 250) < 250) tips.push('Plan two dinners with a big portion of vegetables: 250 g a day is the goal.');
   if ((get('move', 'Workouts done') ?? 0) < (WPCFG().moveGoal || 3)) tips.push(`Put your ${WPCFG().moveGoal || 3} workouts on fixed days in Plan my week, short ones on office days.`);
   if ((get('move', 'Sleep a night') ?? 8) < 7) tips.push('Go to bed 30 minutes earlier on two weeknights.');
+  if ((get('sleep', '🌙 Evening routine') ?? 100) < 50) tips.push('Start your evening routine with one step only, like phone away at 22:30, and tick it off for a week.');
+  if ((get('mind', '😣 Stress') ?? 0) >= 3.5) tips.push('Your stress was high: plan two short breathwork sessions and one evening with nothing planned.');
+  if ((get('food', '💧 Water a day') ?? 8) < 6) tips.push('Put a full bottle of water on your desk in the morning and one in the afternoon.');
   if ((get('move', 'Days stretched') ?? 7) < 5) tips.push('Do your 5-minute morning stretch right after you brush your teeth: it helps your back, neck and shoulders most when you do it every day.');
   if (Math.max(...PAIN_AREAS.map(([, l]) => get('move', `${l} pain`) ?? 0)) >= 6) tips.push('Your pain scores are high. Keep stretching, go lighter in the gym, and see your GP or a physiotherapist if it stays like this.');
   if ((get('skin', 'Diary entries') ?? 0) < 1) tips.push('Add one skin diary entry with a photo, so you can see what your routine does.');
@@ -5042,7 +5184,7 @@ async function makeReport(type, from, to, key) {
 }
 // the report of the week that ends today (Sunday) or ended last Sunday, and of the month that ends today or ended last month
 // raise this when the way a report counts changes, so saved reports are made again (your notes stay)
-const REP_V = 3;
+const REP_V = 4;
 async function ensureReports() {
   if (L.repBusy) return; L.repBusy = true;
   try {
@@ -5096,7 +5238,8 @@ const WP_DEFAULT_Q = ['Laundry basket empty?', 'Fridge cleaned out?', 'Plants wa
 const WPCFG = () => ({ off: [], order: WP_STEPS.map(x => x[0]), custom: WP_DEFAULT_Q, checks: {}, done: {}, weeks: {}, bins: [], moveGoal: 3, ...(C?.prefs?.().wplan || {}) });
 const saveWp = patch => C.savePrefs({ wplan: { ...WPCFG(), ...patch } }).catch(() => C.toast('Could not save. Try again.'));
 const wpWeek = () => shopAskWeek();
-const WK = (wk = wpWeek()) => ({ days: {}, top3: ['', '', ''], todo: {}, chores: {}, skip: [], laundry: [], hair: [], extra: '', ...(WPCFG().weeks[wk] || {}) });
+const MONEY_CHECK = ['Looked at every purchase of last week', 'Fixed the categories', 'Linked purchases to what I bought', 'Put money aside for my goals', 'Checked the bills of this week', 'Logged my impulses'];
+const WK = (wk = wpWeek()) => ({ days: {}, top3: ['', '', ''], todo: {}, chores: {}, skip: [], laundry: [], hair: [], mcheck: [], extra: '', ...(WPCFG().weeks[wk] || {}) });
 const saveWk = (patch, wk = wpWeek()) => { const c = WPCFG(), weeks = { ...c.weeks, [wk]: { ...WK(wk), ...patch } }; for (const k of Object.keys(weeks)) if (k < addDays(weekMon(), -35)) delete weeks[k]; return saveWp({ weeks }); };
 const wpDays = (wk = wpWeek()) => [...Array(7).keys()].map(i => addDays(wk, i));
 const wpIn = (d, wk) => d && d >= wk && d <= addDays(wk, 6);
@@ -5352,6 +5495,7 @@ function wpBody(step, wk) {
       ${panel('Last week', cats.length ? `<p class="lnone">You spent ${eur(tot)}.</p><div class="lrows">${cats.map(([c, v]) => `<div class="lrow"><span class="lmain"><b>${esc(c)}</b></span><span class="lside">${eur(v)}</span></div>`).join('')}</div>` : quiet('No purchases last week.'))}
       ${panel('Pots and goals', goals.length || pots.length ? `<div class="lrows">${goals.map(g => { const t = num(g.target) || 0, s = num(g.saved) || 0; return `<div class="lrow wpgoal"><span class="lmain"><b>${esc(titleOf(g))}</b><span>${eur(s)}${t ? ` of ${eur(t)} (${Math.round(100 * s / t)}%)` : ''}</span></span><input class="finp" inputmode="decimal" data-wpsave="${g.id}" placeholder="€ put aside"><button class="btn small" data-wpsavego="${g.id}">Add</button></div>`; }).join('')}${pots.map(a => `<div class="lrow"><span class="lmain"><b>${esc(titleOf(a))}</b><span>${eur(fBalance(a) || 0)} of ${eur(num(a.potGoal))}</span></span></div>`).join('')}</div>` : quiet('No savings goals yet.'))}
       ${panel('Wishlist check', wishReady.length ? `<p class="lnone">The wait is over for these. Still want them?</p><div class="lrows">${wishReady.slice(0, 8).map(r => `<div class="lrow wprow"><span class="lmain"><b>${esc(titleOf(r))}</b><span>${esc([r.brand, num(r.price) ? eur(num(r.price)) : ''].filter(Boolean).join(' · '))}</span></span><span class="wpbtns"><button class="chip ${r.planBuy ? 'on' : ''}" data-wpwish="buy" data-id="${r.id}" aria-pressed="${!!r.planBuy}">${r.planBuy ? `Buying ${esc(wdShort(r.planBuy))} ✓` : 'Buy this week'}</button><button class="chip" data-wpwish="wait" data-id="${r.id}">Wait a week</button><button class="chip" data-wpwish="drop" data-id="${r.id}">Let go</button></span></div>`).join('')}</div>${wishReady.length > 8 ? `<p class="lnone">And ${wishReady.length - 8} more. You see them here once you choose for these.</p>` : ''}` : quiet('Nothing on your wishlist is done waiting.'))}
+      ${panel('✅ Your money check', `<p class="lnone">A few minutes each week keeps your money calm.</p>${MONEY_CHECK.map((x, i) => `<label class="settog setrow"><input type="checkbox" data-wpmc="${i}" ${W.mcheck.includes(i) ? 'checked' : ''}> ${esc(x)}</label>`).join('')}<p class="lnone">🚫💸 ${noSpend().month} no-spend days this month · 💪 ${eur(recs('impulse').filter(r => r.bought !== 'Bought' && wpIn(r.date, addDays(wk, -7))).reduce((n, r) => n + (num(r.price) || 0), 0))} not spent on impulses last week</p>`)}
       ${open.length ? panel('Purchases to link', `<div class="lrows">${open.map(t => `<button class="lrow" data-act="open" data-id="${t.id}"><span class="lmain"><b>${esc(t.name)}</b><span>${esc(niceDate(t.date))}</span></span><span class="lside">${eur(num(t.amount))}</span></button>`).join('')}</div>`) : ''}`;
   }
   if (k === 'move') {
@@ -5504,6 +5648,7 @@ function weekPlanPage(host) {
     if (t.matches('[data-wpcheck]')) { const c2 = WPCFG(), wk2 = WKN(), s2 = new Set(c2.checks[wk2] || []); t.checked ? s2.add(+t.dataset.wpcheck) : s2.delete(+t.dataset.wpcheck); saveWp({ checks: { ...c2.checks, [wk2]: [...s2] } }); }
     if (t.matches('[data-wptop]')) { const W = WK(), top3 = [...W.top3]; top3[+t.dataset.wptop] = t.value.trim(); saveWk({ top3 }); }
     if (t.matches('[data-wpextra]')) saveWk({ extra: t.value.trim() });
+    if (t.matches('[data-wpmc]')) { const W = WK(), s2 = new Set(W.mcheck); t.checked ? s2.add(+t.dataset.wpmc) : s2.delete(+t.dataset.wpmc); saveWk({ mcheck: [...s2] }); }
     if (t.matches('[data-wpgoal]')) saveWp({ moveGoal: Math.max(0, num(t.value) || 0) }).then(again);
     if (t.matches('[data-wpgift]')) { const g = L.byId[t.dataset.wpgift]; if (g) save(g, { status: t.value }); }
     if (t.matches('[data-wpoutfit]')) { try { await C.closetPlanDay?.(t.dataset.wpoutfit, t.value || null); C.toast(t.value ? 'Outfit planned' : 'Outfit cleared'); } catch { C.toast('Could not save. Try again.'); } }
@@ -7373,8 +7518,9 @@ const dayList = (n, end = today()) => Array.from({ length: n }, (_, i) => addDay
 const avgOf = l => { const v = l.filter(x => x != null && !isNaN(x)); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
 const r1 = v => v == null ? null : Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
 const MOOD_V = { Down: 1, Gestrest: 2, Rustig: 3, Blij: 4 }, ENERGY_V = { Laag: 1, 'Oké': 2, Goed: 3, Top: 4 }, JMOOD_V = { Bad: 1, Low: 1.5, Okay: 2.5, Good: 3.5, Great: 4 };
-const moodOn = d => { const n = nlOn(d); if (n?.mood && MOOD_V[n.mood]) return MOOD_V[n.mood]; const j = recs('journal').find(x => x.date === d && JMOOD_V[x.mood]); return j ? JMOOD_V[j.mood] : null; };
-const energyOn = d => ENERGY_V[nlOn(d)?.energy] ?? null;
+const ciAvg = (d, k) => { const v = recs('checkin').filter(x => x.date === d).map(x => num(x[k])).filter(x => x != null); return v.length ? avgOf(v) : null; };
+const moodOn = d => { const c = ciAvg(d, 'mood'); if (c != null) return c; const n = nlOn(d); if (n?.mood && MOOD_V[n.mood]) return MOOD_V[n.mood]; const j = recs('journal').find(x => x.date === d && JMOOD_V[x.mood]); return j ? JMOOD_V[j.mood] : null; };
+const energyOn = d => ciAvg(d, 'energy') ?? ENERGY_V[nlOn(d)?.energy] ?? null;
 const sleepOn = d => num(recs('sleep').find(x => x.date === d)?.hours);
 const stepsOn = d => num(nlOn(d)?.steps);
 const workedOut = d => recs('workouts').some(w => w.date === d && w.done);
@@ -7978,8 +8124,288 @@ function skinResources(host) {
   host.innerHTML = `<div class="viewhead"><h1>Skin resources</h1><span class="sub">Articles and research behind your routine</span></div>
     <div class="lplanhead"><button class="btn small primary" data-act="new" data-v="skinlinks">+ Your own link</button></div>
     <div class="panels">${own.length ? panel('Your links', `<div class="lrows">${own.map(r => `<div class="lrow"><a class="lmain" href="${esc(r.url || '#')}" target="_blank" rel="noopener"><b>${esc(r.name)}</b><span>${esc([r.topic, r.notes].filter(Boolean).join(' · '))}</span></a><button class="chip link" data-act="open" data-id="${r.id}">Edit</button></div>`).join('')}</div>`) : ''}
-    ${SKIN_RES.map(([t, l]) => panel(t, `<div class="lrows">${l.map(([n, src, u, why]) => `<div class="lrow"><a class="lmain" href="${esc(u)}" target="_blank" rel="noopener"><b>${esc(n)}</b><span>${esc(src)} · ${esc(why)}</span></a></div>`).join('')}</div>`)).join('')}</div>
+    ${resLinks('Skin')}${SKIN_RES.map(([t, l]) => panel(t, `<div class="lrows">${l.map(([n, src, u, why]) => `<div class="lrow"><a class="lmain" href="${esc(u)}" target="_blank" rel="noopener"><b>${esc(n)}</b><span>${esc(src)} · ${esc(why)}</span></a></div>`).join('')}</div>`)).join('')}</div>
     <p class="lnone">Research summaries open on PubMed. Information, not medical advice: for deep or painful spots that keep coming back, see your GP or a dermatologist.</p>`;
+}
+/* ---------- routines and logbooks everywhere: hair, nails, sleep, cycle, check-ins, learning, food, money, home ---------- */
+const tabsHTML = (attr, cur, list) => `<div class="seg lseg" role="group">${list.map(([k, l]) => `<button ${attr}="${k}" aria-pressed="${cur === k}">${esc(l)}</button>`).join('')}</div>`;
+const newBtn = (kind, label, pre = {}) => `<button class="btn small" data-lnew="${kind}" data-pre="${esc(JSON.stringify(pre))}">${esc(label)}</button>`;
+document.addEventListener('click', e => { const b = e.target.closest('[data-lnew]'); if (!b || !C) return; let pre = {}; try { pre = JSON.parse(b.dataset.pre || '{}'); } catch {} openEditor(b.dataset.lnew, null, { ...(KINDS[b.dataset.lnew]?.fields.some(f => f.k === 'date') ? { date: today() } : {}), ...pre }); });
+const thumbs = (r, keys) => `<div class="sdthumbs">${keys.map(k => r[k] ? `<img data-spath="${esc(r[k])}" alt="${esc(k)}" loading="lazy">` : '').join('')}</div>`;
+const logRows = (list, extra = () => '') => list.length ? `<div class="lrows">${list.map(r => `<div class="sdrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(KINDS[r.kind].sub?.(r) || '')}</span>${r.notes ? `<span>${esc(String(r.notes).slice(0, 120))}</span>` : ''}</button>${extra(r)}</div>`).join('')}</div>` : '';
+const byDate = kind => recs(kind).filter(r => r.date).sort((a, b) => b.date.localeCompare(a.date));
+const scoreAvg = (r, ks) => { const v = ks.map(k => num(r[k])).filter(x => x != null); return v.length ? avgOf(v) : null; };
+const daysAgo = d => d ? diffDays(d, today()) : null;
+// your own links per Resources tab, added by hand or shared with the share shortcut
+function resLinks(area) {
+  const l = recs('reslinks').filter(r => r.area === area).sort((a, b) => azCmp(titleOf(a), titleOf(b)));
+  return panel('Your links', `${l.length ? `<div class="lrows">${l.map(r => `<div class="lrow"><a class="lmain" href="${esc(r.url || '#')}" target="_blank" rel="noopener"><b>${esc(titleOf(r))}</b><span>${esc([r.topic, r.notes].filter(Boolean).join(' · '))}</span></a><button class="chip link" data-act="open" data-id="${r.id}">Edit</button></div>`).join('')}</div>` : quiet('Share a link with “Naar A’s Life” and pick this tab, or add one here.')}<div class="dbtns">${newBtn('reslinks', '+ Link', { area })}</div>`);
+}
+const resTips = list => list.map(([t, l]) => panel(t, l.map(([h, x]) => `<details class="fitres"><summary><b>${esc(h)}</b></summary><p>${esc(x)}</p></details>`).join(''))).join('');
+// the routine steps of one part of your life, ticked off right here (the same steps show on Today)
+function areaRoutines(area) {
+  const rs = recs('routines').filter(r => r.area === area); if (!rs.length) return '';
+  return panel('Routine', ROUTINES.map(k => { const l = rs.filter(r => r.routine === k && onDay(r)); return l.length ? `<p class="dsub">${esc(k)} · ${l.filter(routineDone).length} of ${l.length}</p><div class="lwrap">${l.map(r => tick(r.name, routineDone(r), `data-act="quick" data-id="${r.id}"`)).join('')}</div>` : ''; }).join('') || quiet('Nothing planned for today.'));
+}
+
+/* hair: your wash day rhythm, diary, analysis and resources */
+const HAIR_RES = [
+  ['Your 4c hair', [
+    ['Why 4c hair gets dry', 'The tight coils make it hard for your scalp’s oil to travel down the strand, so the ends dry out first. Water is the real moisturiser; oils and butters only seal it in.'],
+    ['Porosity', 'Low porosity: water beads on your hair and products sit on top; use warmth (a steamer or a shower cap) when you deep condition and lighter products. High porosity: hair drinks water but dries fast; seal with a cream and an oil or butter.'],
+    ['LOC and LCO', 'Liquid (water or a water-based leave-in), then Oil, then Cream (LOC), or Liquid, Cream, Oil (LCO). Try both on two wash days and log which one keeps your hair softer for longer.'],
+    ['Protein and moisture', 'Hair that feels mushy and stretches too much needs protein; hair that feels hard and snaps needs moisture. A light protein treatment every 4 to 6 weeks keeps the balance for most 4c hair.'],
+    ['Detangling', 'Only on wet hair with lots of conditioner, in sections, from the ends up, with your fingers first and then a wide-tooth comb. Never on dry hair.']]],
+  ['Protective styles', [
+    ['How long', 'Braids, twists and faux locs: 4 to 6 weeks, at most 8. Longer and your new growth starts to mat and break at the roots.'],
+    ['Your edges', 'Ask for little tension at the hairline, skip the tightest ponytails, and do not braid your edges every time. Tender, bumpy or painful roots mean it is too tight.'],
+    ['During the style', 'Spray your scalp and roots with water or a light leave-in every few days, oil your scalp lightly, and sleep with a satin bonnet or scarf.'],
+    ['Taking it out', 'Take your time: oil and conditioner on the roots, detangle each section before you wash, and expect shed hair (up to about 100 a day is normal).'],
+    ['Rest between styles', 'Give your hair a week or two between protective styles for a deep conditioning and a trim if needed.']]],
+  ['Growth and breakage', [
+    ['Hair grows, length breaks', 'Most hair grows about 1 cm a month. Keeping length is about stopping breakage at the ends, not growing faster.'],
+    ['What helps', 'Moisture, gentle detangling, satin at night, protective and low-manipulation styles, trimming split ends, and less heat.'],
+    ['Fuller hair and edges', 'A gentle scalp massage helps blood flow. Rosemary oil has a small study behind it, but results vary; give anything at least 3 months and compare your photos.'],
+    ['Measure it right', 'Measure the same spot every time (for example the back middle), stretched, once a month. Your photos from the same side show more than a measuring tape.'],
+    ['When to see someone', 'Thinning patches, a sore or very flaky scalp, or sudden shedding: see your GP or a dermatologist.']]]
+];
+function hairNow() {
+  const l = recs('hairlog').filter(r => r.date).sort((a, b) => a.date.localeCompare(b.date));
+  const lastWash = l.filter(r => r.type === 'Wash day').pop(), every = num(C.prefs().hairEvery) || 14;
+  const ins = l.filter(r => r.type === 'Style in'), lastIn = ins[ins.length - 1], out = lastIn && l.some(r => r.type === 'Style out' && r.date >= lastIn.date);
+  return { l, lastWash, every, next: lastWash ? addDays(lastWash.date, every) : today(), style: lastIn && !out ? lastIn : null };
+}
+function hairPage(host) {
+  const H = L.hairT ||= 'routine', N = hairNow(), t = today();
+  let body = '';
+  if (H === 'routine') {
+    const prods = recs('beauty').filter(b => b.type === 'Hair' && !b.wish && !b.finished && !b.archived);
+    const sd = N.style ? daysAgo(N.style.date) : null;
+    body = `<div class="tiles lt3"><div class="tile"><div class="k">🚿 Next wash day</div><div class="v">${N.next <= t ? 'Today' : esc(shortDate(N.next))}</div><div class="h">${N.lastWash ? 'last one ' + esc(niceDate(N.lastWash.date)) : 'log your first wash day'}</div></div>
+      <div class="tile"><div class="k">💇🏾‍♀️ Style</div><div class="v">${N.style ? esc(N.style.style || 'In') : 'Out'}</div><div class="h">${N.style ? `${sd} days in${PROTECTIVE.has(N.style.style) ? `, out by ${esc(shortDate(addDays(N.style.date, 42)))}` : ''}` : 'no protective style in'}</div></div>
+      <div class="tile"><div class="k">📏 Length</div><div class="v">${(() => { const x = N.l.filter(r => num(r.length)).pop(); return x ? x.length + ' cm' : '–'; })()}</div><div class="h">stretched, measured monthly</div></div></div>
+      ${sd != null && PROTECTIVE.has(N.style.style) && sd >= 42 ? `<div class="panel fitdue"><b>Time to take your style out</b><p class="lnone">It has been in for ${sd} days. After 6 weeks new growth starts to mat.</p>${newBtn('hairlog', 'Style out', { type: 'Style out', style: N.style.style })}</div>` : ''}
+      <div class="lplanhead">${newBtn('hairlog', '🚿 Wash day', { type: 'Wash day' })}${newBtn('hairlog', '💧 Refresh', { type: 'Refresh' })}${newBtn('hairlog', '🫒 Scalp oil', { type: 'Scalp oil' })}${newBtn('hairlog', '🌙 Night routine', { type: 'Night routine' })}${newBtn('hairlog', '💇🏾‍♀️ Style in', { type: 'Style in' })}</div>
+      <div class="panels">${areaRoutines('Hair')}
+      ${panel('Your hair products', prods.length ? `<div class="lrows">${prods.map(b => `<button class="lrow" data-act="open" data-id="${b.id}"><span class="lmain"><b>${esc(titleOf(b))}</b><span>${esc([b.brand, b.variant].filter(Boolean).join(' · '))}</span></span></button>`).join('')}</div>` : quiet('Add your hair products in Products with type Hair.'))}
+      ${panel('Wash day rhythm', `<div class="fset"><div><b>Wash day every</b><span>The app counts from your last wash day.</span></div><select class="pill" data-hairevery>${[7, 10, 14, 21].map(n => `<option value="${n}" ${N.every === n ? 'selected' : ''}>${n} days</option>`).join('')}</select></div>`)}</div>`;
+  } else if (H === 'diary') {
+    body = `<div class="lplanhead">${newBtn('hairlog', '+ Entry')}</div>${logRows(byDate('hairlog'), r => thumbs(r, ['front', 'back', 'side'])) || quiet('Log your first wash day with a few photos.')}`;
+  } else if (H === 'stats') {
+    const len = N.l.filter(r => num(r.length) != null), wash = N.l.filter(r => r.type === 'Wash day');
+    const prod = new Map(); for (const r of wash) { const s = scoreAvg(r, ['moisture', 'breakage', 'tangles', 'shine']); if (s == null) continue; for (const id of [].concat(r.steps || [])) { const e = prod.get(id) || []; e.push(s); prod.set(id, e); } }
+    const pr = [...prod.entries()].map(([id, v]) => [relName(id), avgOf(v), v.length]).filter(x => x[0]).sort((a, b) => b[1] - a[1]);
+    const pairs = N.l.filter(r => r.type === 'Style in').map(i => { const o = N.l.find(r => r.type === 'Style out' && r.date >= i.date); return { i, o, days: diffDays(i.date, o ? o.date : t), score: o ? scoreAvg(o, ['moisture', 'breakage', 'tangles', 'shine']) : null }; });
+    const withP = N.l.filter(r => r.front || r.back || r.side), a = withP[0], z = withP[withP.length - 1];
+    const fig = (r, k) => r?.[k] ? `<figure class="sdfig"><img data-spath="${esc(r[k])}" alt=""><figcaption>${esc(niceDate(r.date))}</figcaption></figure>` : '';
+    body = `<div class="panels">${panel('📏 Length over time', aLine(len.map(r => r.date), len.map(r => num(r.length)), { label: 'Length', unit: ' cm' }))}
+      ${panel('🧴 What works', pr.length ? `<div class="lrows">${pr.map(([n, v, c]) => `<div class="lrow"><span class="lmain"><b>${esc(n)}</b><span>${c} wash ${c === 1 ? 'day' : 'days'}</span></span><span class="lside">${emoOf('hair', v)} ${r1(v)}/5</span></div>`).join('')}</div><p class="lnone">How your hair felt on wash days with each product (moisture, breakage, detangling, shine).</p>` : quiet('Log your wash days with the products you used and how your hair felt.'))}
+      ${panel('💇🏾‍♀️ Styles', pairs.length ? `<div class="lrows">${pairs.reverse().map(x => `<div class="lrow"><span class="lmain"><b>${esc(x.i.style || 'Style')}</b><span>${esc(niceDate(x.i.date))} · ${x.days} days${x.o ? '' : ' (still in)'}</span></span><span class="lside">${x.score != null ? emoOf('hair', x.score) + ' after' : ''}</span></div>`).join('')}</div>` : quiet('Log Style in and Style out to see how long your styles stay in.'))}
+      ${withP.length > 1 ? panel('📸 Before and after', ['front', 'back', 'side'].map(k => a[k] && z[k] ? `<p class="dsub">${k}</p><div class="sdcompare">${fig(a, k)}${fig(z, k)}</div>` : '').join('') || quiet('Take photos from the same side to compare.')) : ''}</div>`;
+  } else body = `<div class="panels">${resTips(HAIR_RES)}${resLinks('Hair')}</div>`;
+  host.innerHTML = `<div class="viewhead"><h1>Hair</h1><span class="sub">4c, wash day every ${N.every} days</span></div>${tabsHTML('data-hairt', H, [['routine', 'Routine'], ['diary', 'Diary'], ['stats', 'Analysis'], ['res', 'Resources']])}${body}`;
+  fillSigned(host);
+  if (host.dataset.hairw) return; host.dataset.hairw = '1';
+  host.addEventListener('click', e => { const b = e.target.closest('[data-hairt]'); if (b) { L.hairT = b.dataset.hairt; hairPage(host); } });
+  host.addEventListener('change', e => { if (e.target.matches('[data-hairevery]')) C.savePrefs({ hairEvery: Number(e.target.value) }).then(() => hairPage(host)); });
+}
+
+/* nails you do yourself: log, inspiration and resources */
+const NAIL_RES = [['Doing your own nails', [
+  ['Prep is everything', 'Push back your cuticles, remove the shine with a buffer, clean with alcohol and use a dehydrator and primer. Most lifting comes from oil or skin left on the nail.'],
+  ['Thin layers', 'Biab and gel: several thin layers, each fully cured. Thick layers lift and can cause heat spikes under the lamp.'],
+  ['Fills instead of new sets', 'A fill every 2 to 3 weeks keeps your nails stronger than soaking off and starting over each time.'],
+  ['Nail health', 'Cuticle oil every day, gloves for cleaning, and a break of a week if your nails get thin, soft or painful. Never pick or peel gel off.'],
+  ['Allergies', 'Keep gel and liquid off your skin. Itching, redness or swelling around the nails can be an allergy to acrylates: stop and see your GP.']]]];
+function nailsPage(host) {
+  const T = L.nailT ||= 'log', l = byDate('naillog'), ins = recs('ideas').filter(r => r.area === 'Nails');
+  const lasted = l.map(nailDays).filter(x => x != null), mins = l.map(r => num(r.minutes)).filter(x => x != null);
+  const card = r => `<button class="lcard" data-act="open" data-id="${r.id}"><div class="lph"><span>💅</span>${r.photo ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(r.photo))}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div><div class="meta"><b>${esc(titleOf(r))}</b><span>${esc(KINDS[r.kind].sub?.(r) || '')}</span></div></button>`;
+  const body = T === 'log' ? `<div class="tiles lt3"><div class="tile"><div class="k">💅 Sets</div><div class="v">${l.filter(r => ['Full set', 'Fill'].includes(r.kind)).length}</div><div class="h">full sets and fills</div></div><div class="tile"><div class="k">⏳ They last</div><div class="v">${lasted.length ? Math.round(avgOf(lasted)) : '–'}</div><div class="h">days on average</div></div><div class="tile"><div class="k">⏱ Time</div><div class="v">${mins.length ? Math.round(avgOf(mins)) : '–'}</div><div class="h">minutes on average</div></div></div>
+      <div class="lplanhead">${newBtn('naillog', '+ Full set', { kind: 'Full set' })}${newBtn('naillog', '+ Fill', { kind: 'Fill' })}${newBtn('naillog', 'Removed or broke', { kind: 'Removed' })}</div>${l.length ? `<div class="lgrid">${l.map(card).join('')}</div>` : quiet('Log your nails with a photo after each set.')}`
+    : T === 'inspo' ? `<div class="lplanhead">${newBtn('ideas', '+ Inspiration', { area: 'Nails', what: 'Look' })}</div>${ins.length ? `<div class="lgrid">${ins.map(r => `<button class="lcard" data-act="open" data-id="${r.id}"><div class="lph"><span>✨</span>${r.photo ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(r.photo))}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div><div class="meta"><b>${esc(titleOf(r))}</b><span>${r.tried ? 'tried ✓' : ''}</span></div></button>`).join('')}</div>` : quiet('Share nail designs with “Naar A’s Life”: they land here.')}`
+    : `<div class="panels">${resTips(NAIL_RES)}${resLinks('Nails')}</div>`;
+  host.innerHTML = `<div class="viewhead"><h1>Nails</h1><span class="sub">Your own sets, inspiration and tips</span></div>${tabsHTML('data-nailt', T, [['log', 'Log'], ['inspo', 'Inspiration'], ['res', 'Resources']])}${body}`;
+  if (host.dataset.nailw) return; host.dataset.nailw = '1';
+  host.addEventListener('click', e => { const b = e.target.closest('[data-nailt]'); if (b) { L.nailT = b.dataset.nailt; nailsPage(host); } });
+}
+
+/* sleep: your log, morning and evening routine and what helps */
+const hhmm = t => { const m = String(t || '').match(/^(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : null; };
+const sleepHours = r => { if (num(r.hours) != null) return num(r.hours); const b = hhmm(r.bed), u = hhmm(r.up); if (b == null || u == null) return null; let d = u - b; if (d <= 0) d += 1440; return Math.round(d / 6) / 10; };
+const SLEEP_RES = [['Sleeping better', [
+  ['A steady rhythm', 'The same bedtime and wake time, also at the weekend (within an hour), is the strongest thing you can do for your sleep.'],
+  ['Caffeine and screens', 'No coffee or matcha after 14:00. Put your phone away 30 minutes before bed; reading or stretching helps you wind down.'],
+  ['Joints and alcohol', 'Both help you fall asleep, but give lighter, more broken sleep. Your log shows how you feel the morning after.'],
+  ['Your cycle', 'Many people sleep worse in the days before their period. A cooler room and a fixed evening routine help.'],
+  ['When to see someone', 'Lying awake most nights for weeks, or very tired despite enough hours: talk to your GP.']]]];
+function sleepPage(host) {
+  const l = byDate('sleep'), t = today(), last = l[0];
+  const days = dayList(30), hrs = days.map(d => { const r = recs('sleep').find(x => x.date === d); return r ? sleepHours(r) : null; });
+  const rest = days.map(d => num(recs('sleep').find(x => x.date === d)?.rested));
+  const wk = r => ['Sat', 'Sun'].includes(wdOf(r.date)), avgT = (list, k) => { const v = list.map(r => hhmm(r[k])).filter(x => x != null).map(x => x < 720 && k === 'bed' ? x + 1440 : x); return v.length ? hm(Math.round(avgOf(v)) % 1440) : '–'; };
+  const recent = l.filter(r => r.date >= days[0]);
+  const fx = ['Screen time', 'Phone in bed', 'Caffeine', 'Joint', 'Alcohol', 'Exercise', 'Evening routine done', 'Late meal', 'Stress'].map(f => { const y = recent.filter(r => [].concat(r.factors || []).includes(f)).map(r => num(r.rested)).filter(x => x != null), n = recent.filter(r => ![].concat(r.factors || []).includes(f)).map(r => num(r.rested)).filter(x => x != null); return y.length >= 2 && n.length >= 2 ? [f, avgOf(y), avgOf(n)] : null; }).filter(Boolean);
+  const ph = ['Period', 'Follicular', 'Ovulation', 'Luteal'].map(p => { const s = recs('sleep').filter(r => cyclePhase(cycleDayOn(r.date)) === p); return [p, avgOf(s.map(sleepHours).filter(x => x != null)), avgOf(s.map(r => num(r.rested)).filter(x => x != null)), s.length]; });
+  const rt = k => { const rs = recs('routines').filter(r => r.routine === k); if (!rs.length) return null; const d14 = dayList(14); return Math.round(100 * avgOf(d14.map(d => rs.filter(r => onDay(r, d)).length ? rs.filter(r => onDay(r, d) && daysSet(r).has(d)).length / rs.filter(r => onDay(r, d)).length : null).filter(x => x != null)) || 0); };
+  host.innerHTML = `<div class="viewhead"><h1>Sleep</h1><span class="sub">${last ? `Last night ${sleepHours(last) ?? '?'} h ${emoOf('rested', last.rested)}` : 'Your sleep log'}</span></div>
+    <div class="lplanhead">${last?.date === t ? `<button class="btn small" data-act="open" data-id="${last.id}">Edit last night</button>` : newBtn('sleep', '🌙 Log last night')}</div>
+    <div class="panels">
+      ${panel('⏰ Hours and rhythm', `${aLine(days, hrs, { label: 'Hours', unit: ' h', max: 12 })}<div class="tiles lt3"><div class="tile"><div class="k">🛏 Bed on weekdays</div><div class="v">${avgT(recent.filter(r => !wk(r)), 'bed')}</div></div><div class="tile"><div class="k">🛏 Bed at the weekend</div><div class="v">${avgT(recent.filter(wk), 'bed')}</div></div><div class="tile"><div class="k">🌅 Up on weekdays</div><div class="v">${avgT(recent.filter(r => !wk(r)), 'up')}</div></div></div>`)}
+      ${panel('🌞 How rested', aLine(days, rest, { label: 'Rested', unit: '/5', max: 5 }))}
+      ${panel('💡 What helps your sleep', fx.length ? `<ul class="alinks">${fx.map(([f, y, n]) => `<li><b>${esc(f)}</b>: ${emoOf('rested', y)} ${r1(y)}/5 with, ${emoOf('rested', n)} ${r1(n)}/5 without.</li>`).join('')}</ul><p class="lnone">How rested you felt, the last 30 days. Averages, not cause and effect.</p>` : quiet('Tick what played a part when you log your night. After a few weeks you see what helps.'))}
+      ${panel('🌙 Sleep and your cycle', ph.some(x => x[3]) ? `<table class="atable"><thead><tr><th>Phase</th><th>Hours</th><th>Rested</th></tr></thead><tbody>${ph.map(([p, h, r, n]) => `<tr><td>${esc(PHASE_NL?.[p] || p)}</td><td>${h != null ? r1(h) : '–'}</td><td>${r != null ? emoOf('rested', r) + ' ' + r1(r) : '–'}</td></tr>`).join('')}</tbody></table>` : quiet('Log your period in Cycle to see your sleep per phase.'))}
+      ${panel('✅ Routines done', `<div class="tiles lt3">${['Morning', 'Evening'].map(k => { const v = rt(k); return `<div class="tile"><div class="k">${k === 'Morning' ? '🌅' : '🌙'} ${k} routine</div><div class="v">${v == null ? '–' : v + '%'}</div><div class="h">last 14 days</div></div>`; }).join('')}</div>${areaRoutines('Body')}`)}
+      ${panel('Your nights', logRows(l.slice(0, 30)) || quiet('Log your first night.'))}
+      ${resTips(SLEEP_RES)}${resLinks('Sleep')}
+    </div>`;
+}
+
+/* cycle: predictions, tips per phase, patterns and a summary for your GP */
+const PHASE_TIPS = {
+  Period: ['🩸', 'Rest is fine: walks, stretching and light training. Iron-rich food (meat, spinach, lentils if you like them) and warm meals. Plan lighter work days if you can. Skin can be drier: extra moisture.'],
+  Follicular: ['🌱', 'Energy rises: a good time for your heaviest gym sessions and new things. Fresh food and lots of vegetables. Good days for planning and starting projects.'],
+  Ovulation: ['☀️', 'Often your strongest and most social days: good for filming content, meetings and hard workouts. Warm up well.'],
+  Luteal: ['🍂', 'You may tire sooner and crave sweets: plan protein and a hearty snack, and keep sugar steady. Keep the weights, rest a bit longer. Skin can break out: be gentle and consistent.']
+};
+function cycleInsights() {
+  const cy = cycleStats(); if (!cy.last) return '';
+  const t = today(), next = cy.next, ov = addDays(next, -14), fert = [addDays(ov, -5), addDays(ov, 1)], ph = cyclePhase(cy.day), tip = PHASE_TIPS[ph];
+  const logs = recs('cyclelog').filter(r => r.date && cycleDayOn(r.date)), byPh = {};
+  for (const r of logs) { const p = cyclePhase(cycleDayOn(r.date)); for (const s of [].concat(r.symptoms || [], r.feel || [])) { byPh[p] ||= new Map(); byPh[p].set(s, (byPh[p].get(s) || 0) + 1); } }
+  const starts = recs('cycles').map(c => c.start).filter(Boolean).sort(), lens = starts.slice(1).map((s, i) => diffDays(starts[i], s)).filter(g => g >= 15 && g <= 60);
+  const plen = recs('cycles').filter(c => c.start && c.end).map(c => diffDays(c.start, c.end) + 1);
+  const symAll = new Map(); for (const r of [...logs, ...recs('cycles')]) for (const s of [].concat(r.symptoms || [])) symAll.set(s, (symAll.get(s) || 0) + 1);
+  const gp = [`Cycle overview made ${niceDate(t)}`, `Last period started: ${niceDate(cy.last)}`, `Cycle lengths: ${lens.length ? lens.join(', ') + ' days (average ' + cy.avg + ')' : 'not enough data yet'}`, `Period lengths: ${plen.length ? plen.join(', ') + ' days' : 'not logged'}`,
+    `Most logged symptoms: ${[...symAll.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([s, n]) => `${s} (${n}×)`).join(', ') || 'none logged'}`];
+  return `<div class="panels">
+    ${panel('🔮 Coming up', `<div class="tiles lt3"><div class="tile"><div class="k">🩸 Next period</div><div class="v">${esc(shortDate(next))}</div><div class="h">in ${Math.max(0, diffDays(t, next))} days</div></div><div class="tile"><div class="k">🌸 Fertile days</div><div class="v">${esc(shortDate(fert[0]))}</div><div class="h">to ${esc(shortDate(fert[1]))}, a guess</div></div><div class="tile"><div class="k">${tip?.[0] || ''} Now</div><div class="v">${esc(PHASE_NL?.[ph] || ph || '–')}</div><div class="h">day ${cy.day}</div></div></div><p class="lnone">Predictions from your own average cycle. Not reliable as contraception.</p><div class="dbtns">${newBtn('cyclelog', '📝 Log today')}</div>`)}
+    ${tip ? panel(`${tip[0]} Tips for this phase`, `<p>${esc(tip[1])}</p>`) : ''}
+    ${panel('🔁 Your patterns', Object.keys(byPh).length ? ['Period', 'Follicular', 'Ovulation', 'Luteal'].filter(p => byPh[p]).map(p => `<p class="dsub">${PHASE_TIPS[p][0]} ${esc(PHASE_NL?.[p] || p)}</p><div class="lwrap">${[...byPh[p].entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([s, n]) => `<span class="chip">${esc(s)} <span class="n">${n}</span></span>`).join('')}</div>`).join('') : quiet('Log how you feel in your cycle diary: after a cycle or two your patterns show up here.'))}
+    ${panel('🩺 For your GP', `<p class="lpre">${esc(gp.join('\n'))}</p><div class="dbtns"><button class="btn small" data-copy="${esc(gp.join('\n'))}">Copy</button></div>`)}
+    ${resLinks('Cycle')}</div>`;
+}
+
+/* mind: check-ins twice a day, journal prompts and learning */
+const JOURNAL_PROMPTS = ['What gave you energy today, and what took it?', 'When did you feel most like yourself this week?', 'What would you tell a friend in your situation?', 'What are you avoiding, and why?', 'What small thing made today better?',
+  'What do you want more of next week?', 'What did you learn about yourself today?', 'Who made you feel good lately? Tell them.', 'What are you proud of that nobody saw?', 'What does a perfect ordinary day look like for you?',
+  'What worry can you let go of tonight?', 'What boundary do you want to keep?', 'Which habit is helping you most right now?', 'What would make tomorrow 1% better?', 'What did your body need today?',
+  'What are you looking forward to this month?', 'What would you do if you weren’t afraid?', 'Where did you spend your time today, and does it match what matters to you?', 'What made you laugh this week?', 'What is something you forgive yourself for?'];
+const promptOf = (d = today()) => JOURNAL_PROMPTS[Math.floor(fromISO(d).getTime() / 864e5) % JOURNAL_PROMPTS.length];
+function journalTop() {
+  const t = today(), j = recs('journal').find(r => r.date === t);
+  return `<div class="panel jtop"><p class="dsub">✍️ Today’s question</p><p class="lbig">${esc(promptOf())}</p><div class="dbtns">${j ? `<button class="btn small" data-act="open" data-id="${j.id}">Open tonight’s entry</button>` : newBtn('journal', 'Write tonight', { prompt: promptOf() })}${newBtn('journal', 'Free writing')}</div></div>`;
+}
+function checkinPage(host) {
+  const t = today(), time = new Date().getHours() < 14 ? 'Morning' : 'Evening', cur = recs('checkin').find(r => r.date === t && r.time === time);
+  const D = L.ciD && L.ciD.date === t && L.ciD.time === time ? L.ciD : (L.ciD = { date: t, time, ...(cur ? dataOf(cur) : {}) });
+  const emo = (k, sc) => `<div class="fset fsetcol"><div><b>${{ mood: 'Mood', energy: 'Energy', stress: 'Stress' }[k]}</b></div><div class="lemo">${EMO[sc].map(([n, e, l]) => `<button type="button" data-ci="${k}" data-v="${n}" aria-pressed="${D[k] === n}"><span>${e}</span><small>${esc(l)}</small></button>`).join('')}</div></div>`;
+  const chips = (k, list) => `<div class="lwrap">${list.map(v => `<button type="button" class="chip small ${[].concat(D[k] || []).includes(v) ? 'on' : ''}" data-cim="${k}" data-v="${esc(v)}">${esc(v)}</button>`).join('')}</div>`;
+  const week = dayList(7).map(d => { const c = recs('checkin').filter(r => r.date === d); return `<div class="ciday"><b>${esc(wdShort(d))}</b><span>${c.map(r => emoOf('mood', r.mood)).join(' ') || '·'}</span></div>`; }).join('');
+  host.innerHTML = `<div class="viewhead"><h1>Check-in</h1><span class="sub">${time === 'Morning' ? '🌅 Morning' : '🌙 Evening'}${cur ? ' · saved, you can change it' : ''}</span></div>
+    <div class="panels">${panel(`How are you, ${time.toLowerCase()}?`, `${emo('mood', 'mood')}${emo('energy', 'energy')}${emo('stress', 'stress')}
+      <p class="dsub">I feel</p>${chips('feelings', FEELINGS)}<p class="dsub">What played a part</p>${chips('factors', MOOD_FACTORS)}
+      <div class="fset fsetcol"><div><b>Urge for a joint</b><span>0 = none, 10 = strong</span></div><div class="painrow">${[...Array(11).keys()].map(n => `<button type="button" class="chip small ${D.craving === n ? 'on' : ''}" data-ci="craving" data-v="${n}">${n}</button>`).join('')}</div></div>
+      <textarea class="finp" rows="2" data-cinote placeholder="Anything else?">${esc(D.notes || '')}</textarea><div class="dbtns"><button class="btn primary" data-cisave>Save check-in</button></div>`)}
+      ${panel('This week', `<div class="ciweek">${week}</div>`)}
+      ${journalTop()}
+      ${panel('Earlier', logRows(byDate('checkin').slice(0, 14)) || quiet('Your check-ins show up here.'))}${resLinks('Mind')}</div>`;
+  if (host.dataset.ciw) return; host.dataset.ciw = '1';
+  host.addEventListener('click', async e => { const b = e.target.closest('button'); if (!b) return; const D2 = L.ciD;
+    if (b.dataset.ci) { const v = +b.dataset.v; D2[b.dataset.ci] = D2[b.dataset.ci] === v ? undefined : v; D2.notes = host.querySelector('[data-cinote]')?.value; return checkinPage(host); }
+    if (b.dataset.cim) { const s = new Set([].concat(D2[b.dataset.cim] || [])); s.has(b.dataset.v) ? s.delete(b.dataset.v) : s.add(b.dataset.v); D2[b.dataset.cim] = [...s]; D2.notes = host.querySelector('[data-cinote]')?.value; return checkinPage(host); }
+    if (b.hasAttribute('data-cisave')) { const n = host.querySelector('[data-cinote]')?.value.trim(); const data = { ...D2, ...(n ? { notes: n } : {}) }; for (const k of Object.keys(data)) if (data[k] === undefined) delete data[k];
+      const cur2 = recs('checkin').find(r => r.date === D2.date && r.time === D2.time);
+      try { cur2 ? await put('checkin', cur2.id, { ...dataOf(cur2), ...data }) : await create('checkin', data); C.toast('Check-in saved ' + emoOf('mood', data.mood)); } catch { C.toast('Could not save. Try again.'); } checkinPage(host); } });
+}
+function learnTop() {
+  const y = today().slice(0, 4), read = recs('books').filter(b => b.status === 'Read' && String(b.end || '').startsWith(y)), now = recs('books').filter(b => b.status === 'Reading');
+  const goal = recs('lgoals').find(g => /book|boek/i.test(g.name || '') && !taskDone(g)), mins = recs('learnlog').filter(r => String(r.date || '').startsWith(today().slice(0, 7))).reduce((n, r) => n + (num(r.minutes) || 0), 0);
+  return `<div class="tiles lt3"><div class="tile"><div class="k">📚 Read this year</div><div class="v">${read.length}${goal ? ` / ${esc((goal.name.match(/\d+/) || [''])[0])}` : ''}</div><div class="h">${goal ? esc(goal.name) : 'add a goal in Growth, like 12 books'}</div></div><div class="tile"><div class="k">📖 Reading now</div><div class="v">${now.length}</div><div class="h">${esc(now.map(b => `${titleOf(b)}${num(b.pages) && num(b.page) ? ' ' + Math.round(100 * b.page / b.pages) + '%' : ''}`).join(', ') || '–')}</div></div><div class="tile"><div class="k">🎧 Learned this month</div><div class="v">${mins}</div><div class="h">minutes</div></div></div>
+    <div class="lplanhead">${newBtn('learnlog', '+ What I learned')}${newBtn('books', '+ Book')}</div>`;
+}
+
+/* food log: what you ate (with a photo) and what you drank, with your soda goal */
+const drinkOf = (d, k) => k === 'water' ? num(waterOn(d)?.glasses) || 0 : num(nlOn(d)?.[k]) || 0;
+async function drinkSet(d, k, v) { if (k === 'water') { const w = waterOn(d); try { w ? await put('water', w.id, { ...dataOf(w), glasses: v }) : await create('water', { date: d, glasses: v }); } catch {} return; } await nlSet({ [k]: v, ...(k === 'soda' || k === 'juice' ? { nosoda: false } : {}) }, d); }
+function foodLog(host) {
+  const t = L.flDay || today(), meals = recs('meals').filter(m => m.date === t), g = sodaGoal(), wg = Number(C.prefs().waterGoal) || 8;
+  const slot = s => { const m = meals.filter(x => x.slot === s); return `<div class="lrow"><span class="lmain"><b>${esc(s)}</b><span>${esc(m.map(titleOf).join(', ') || 'nothing planned')}</span></span><span class="wpbtns">${m.map(x => `<button class="chip ${x.ate ? 'on' : ''}" data-flate="${x.id}">${x.ate ? 'Eaten ✓' : 'Eaten'}</button><button class="chip" data-act="open" data-id="${x.id}">${x.photo ? '📷 ✓' : '📷'}</button>`).join('')}${m.length ? '' : `<button class="chip" data-flnew="${esc(s)}">+ What I ate</button>`}</span></div>${m.filter(x => x.photo).map(x => `<img class="flphoto" referrerpolicy="no-referrer" src="${esc(C.photoURL(x.photo))}" alt="" loading="lazy" onerror="this.remove()">`).join('')}`; };
+  const cnt = ([k, l, e]) => { const v = drinkOf(t, k); return `<div class="drink"><span>${e}</span><b>${esc(l)}</b><span class="drinkn"><button class="iconbtn small" data-drink="${k}" data-v="-1" aria-label="Less">${svg(P.minus)}</button><b>${v}</b><button class="iconbtn small" data-drink="${k}" data-v="1" aria-label="More">${svg(P.plus)}</button></span></div>`; };
+  const sweet = drinkOf(t, 'soda') + drinkOf(t, 'juice');
+  const last7 = dayList(7).map(d => [wdShort(d), drinkOf(d, 'soda') + drinkOf(d, 'juice')]);
+  host.innerHTML = `<div class="viewhead"><h1>Food log</h1><span class="sub">${esc(niceDate(t))}</span></div>
+    <div class="lplanhead"><button class="btn small" data-flday="-1">← Day before</button>${t !== today() ? '<button class="btn small" data-flday="0">Today</button>' : ''}</div>
+    <div class="panels">${panel('🍽 What you ate', MEALS.map(slot).join('') + '<p class="lnone">Tap 📷 to add a photo of what you ate.</p>')}
+      ${panel('🥤 What you drank', `<div class="drinks">${DRINKS.map(cnt).join('')}</div><p class="lnone">💧 ${drinkOf(t, 'water')} of ${wg} glasses of water · 🥤 ${sweet} sweet ${sweet === 1 ? 'drink' : 'drinks'}${`, this week’s goal: at most ${g} a day ${sweet <= g ? '✅' : '⚠️'}`}</p><p class="dsub">Soda and juice, last 7 days</p>${aBars(last7, { unit: '' })}`)}
+      ${panel('👩🏾‍🍳 Cooking log', `${logRows(byDate('rreviews').slice(0, 5)) || quiet('After cooking, open the recipe review to add a photo, the real time and what you would change.')}`, ['kitchen/cooked', 'All'])}</div>`;
+  if (host.dataset.flw) return; host.dataset.flw = '1';
+  host.addEventListener('click', async e => { const b = e.target.closest('button'); if (!b) return; const d = b.dataset, day = L.flDay || today();
+    if (d.flday) { L.flDay = d.flday === '0' ? '' : addDays(day, -1); return foodLog(host); }
+    if (d.flate) { const r = L.byId[d.flate]; if (r) await save(r, { ate: !r.ate }); return foodLog(host); }
+    if (d.flnew) return openEditor('meals', null, { date: day, slot: d.flnew, ate: true });
+    if (d.drink) { await drinkSet(day, d.drink, Math.max(0, drinkOf(day, d.drink) + Number(d.v))); return foodLog(host); } });
+}
+
+/* money: impulses and days without spending */
+const spentOn = d => recs('ftx').some(x => x.date === d && fEveryday(x) && (num(x.amount) || 0) > 0);
+function noSpend() { let streak = 0; for (let i = 0; i < 365; i++) { const d = addDays(today(), -i); if (spentOn(d)) break; streak++; } const m = today().slice(0, 7), dm = dayList(Number(today().slice(8, 10))); return { streak, month: dm.filter(d => d.startsWith(m) && !spentOn(d)).length }; }
+function impulseTop() {
+  const l = recs('impulse'), not = l.filter(r => r.bought !== 'Bought'), saved = not.reduce((n, r) => n + (num(r.price) || 0), 0), reg = l.filter(r => r.after === 'Regret').length, ns = noSpend();
+  const tally = k => { const m = new Map(); for (const r of l) if (r[k]) m.set(r[k], (m.get(r[k]) || 0) + 1); return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5); };
+  return `<div class="tiles lt3"><div class="tile"><div class="k">💪 Not bought</div><div class="v">${eur(saved)}</div><div class="h">${not.length} of ${l.length} impulses</div></div><div class="tile"><div class="k">🙈 Regret</div><div class="v">${reg}</div><div class="h">bought and regretted</div></div><div class="tile"><div class="k">🚫💸 No-spend days</div><div class="v">${ns.month}</div><div class="h">this month · streak ${ns.streak}</div></div></div>
+    ${l.length ? `<div class="lwrap">${[...tally('feeling'), ...tally('source')].map(([k, n]) => `<span class="chip">${esc(k)} <span class="n">${n}</span></span>`).join('')}</div>` : ''}`;
+}
+
+/* home: your daily reset and cleaning log */
+function houseTop() {
+  const wk = weekMon(), l = recs('houselog').filter(r => r.date >= wk), mins = l.reduce((n, r) => n + (num(r.minutes) || 0), 0), rooms = new Map();
+  for (const r of l) rooms.set(r.room || 'Other', (rooms.get(r.room || 'Other') || 0) + (num(r.minutes) || 0));
+  const chores = recs('chores'), stale = chores.filter(c => c.last && daysAgo(c.last) > 30).length;
+  return `${areaRoutines('Home')}<div class="tiles lt3"><div class="tile"><div class="k">🧽 This week</div><div class="v">${mins}</div><div class="h">minutes cleaned</div></div><div class="tile"><div class="k">🏠 Rooms</div><div class="v">${rooms.size}</div><div class="h">${esc([...rooms.keys()].join(', ') || '–')}</div></div><div class="tile"><div class="k">🕸 Forgotten</div><div class="v">${stale}</div><div class="h">chores not done in 30+ days</div></div></div>`;
+}
+document.addEventListener('click', e => { const cp = e.target.closest('[data-copy]'); if (!cp || !C || cp.closest('.setpanel')) return; navigator.clipboard?.writeText(cp.dataset.copy).then(() => C.toast('Copied'), () => C.toast('Select it and copy it by hand')); });
+/* ---------- the Analyse tab of each section shows your new logbooks too ---------- */
+const anaAdd = (host, html) => { const p = host.querySelector('.panels'); if (p && html) p.insertAdjacentHTML('beforeend', html); };
+const tilesOf = list => `<div class="tiles lt3">${list.map(([k, v, h]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v ?? '–'}</div><div class="h">${h || ''}</div></div>`).join('')}</div>`;
+const inDays = days => x => x.date && x.date >= days[0] && x.date <= days[days.length - 1];
+const avgKey = (list, k) => { const v = list.map(x => num(x[k])).filter(x => x != null); return v.length ? avgOf(v) : null; };
+const fmt1 = v => v == null ? '–' : r1(v);
+function bodyExtra() {
+  const days = dayList(anaDays()), inP = inDays(days);
+  const sl = recs('sleep').filter(inP), cy = recs('cyclelog').filter(inP), hr = recs('hairlog').filter(inP), nl = recs('naillog').filter(inP), pc = recs('paincheck').filter(inP);
+  const sym = new Map(); for (const r of cy) for (const x of [].concat(r.symptoms || [])) sym.set(x, (sym.get(x) || 0) + 1);
+  return panel('😴 Sleep', `${tilesOf([['⏰ Hours', fmt1(avgOf(sl.map(sleepHours).filter(v => v != null))), 'a night'], ['🌞 Rested', fmt1(avgKey(sl, 'rested')), 'out of 5'], ['📝 Logged', sl.length, 'nights']])}${aLine(days, days.map(d => { const r = recs('sleep').find(x => x.date === d); return r ? sleepHours(r) : null; }), { label: 'Hours', unit: ' h', max: 12 })}`, ['care/sleep', 'Sleep'])
+    + panel('🌸 Cycle', `${tilesOf([['📝 Diary days', cy.length, ''], ['⚡ Energy', fmt1(avgKey(cy, 'energy')), 'out of 5'], ['🩸 Bleeding', cy.filter(x => x.flow && x.flow !== 'None').length, 'days']])}${sym.size ? `<div class="lwrap">${[...sym.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => `<span class="chip">${esc(k)} <span class="n">${n}</span></span>`).join('')}</div>` : ''}`, ['care/cycle', 'Cycle'])
+    + panel('✨ Hair and nails', tilesOf([['🚿 Wash days', hr.filter(x => x.type === 'Wash day').length, ''], ['💧 Moisture', fmt1(avgKey(hr, 'moisture')), 'out of 5'], ['💅 Nail sets', nl.filter(x => ['Full set', 'Fill'].includes(x.kind)).length, `lasted ${fmt1(avgOf(nl.map(nailDays).filter(v => v != null)))} days`]]), ['care/hair', 'Hair'])
+    + panel('🧘🏾‍♀️ Back, neck and shoulders', tilesOf(PAIN_AREAS.map(([k, l]) => [l, fmt1(avgOf([...pc, ...recs('workouts').filter(w => w.done).filter(inP)].map(x => num(x['p' + k] ?? x['pb' + k])).filter(v => v != null))), 'pain out of 10'])), ['fit/stats', 'Training analysis']);
+}
+function mindExtra() {
+  const days = dayList(anaDays()), inP = inDays(days), ci = recs('checkin').filter(inP), med = recs('meditation').filter(inP), ll = recs('learnlog').filter(inP);
+  const feel = new Map(); for (const r of ci) for (const x of [].concat(r.feelings || [])) feel.set(x, (feel.get(x) || 0) + 1);
+  const fx = MOOD_FACTORS.map(f => { const y = ci.filter(r => [].concat(r.factors || []).includes(f)).map(r => num(r.mood)).filter(v => v != null), n = ci.filter(r => ![].concat(r.factors || []).includes(f)).map(r => num(r.mood)).filter(v => v != null); return y.length >= 2 && n.length >= 2 ? [f, avgOf(y), avgOf(n)] : null; }).filter(Boolean);
+  const calm = med.filter(m => num(m.calmA) != null && num(m.calmB) != null);
+  return panel('📝 Check-ins', ci.length ? `${tilesOf([['🙂 Mood', `${emoOf('mood', avgKey(ci, 'mood'))} ${fmt1(avgKey(ci, 'mood'))}`, 'out of 5'], ['⚡ Energy', `${emoOf('energy', avgKey(ci, 'energy'))} ${fmt1(avgKey(ci, 'energy'))}`, 'out of 5'], ['😣 Stress', `${emoOf('stress', avgKey(ci, 'stress'))} ${fmt1(avgKey(ci, 'stress'))}`, 'out of 5']])}
+      <p class="dsub">Mood per day</p>${aLine(days, days.map(d => ciAvg(d, 'mood')), { label: 'Mood', unit: '/5', max: 5 })}
+      ${feel.size ? `<p class="dsub">How you felt most</p><div class="lwrap">${[...feel.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => `<span class="chip">${esc(k)} <span class="n">${n}</span></span>`).join('')}</div>` : ''}
+      ${fx.length ? `<p class="dsub">What played a part</p><ul class="alinks">${fx.map(([f, y, n]) => `<li><b>${esc(f)}</b>: ${emoOf('mood', y)} ${r1(y)} when it played a part, ${emoOf('mood', n)} ${r1(n)} when not.</li>`).join('')}</ul>` : ''}` : quiet('Do a check-in in the morning and evening: your mood, energy and stress show up here.'), ['care/checkin', 'Check-in'])
+    + panel('🧘 Meditation', tilesOf([['⏱ Minutes', sumOf(med.map(m => m.minutes)), `${med.length} sessions`], ['😌 Before', fmt1(avgKey(calm, 'calmB')), 'calm out of 5'], ['🧘 After', fmt1(avgKey(calm, 'calmA')), 'calm out of 5']]), ['care/mindful', 'Mindfulness'])
+    + panel('📚 Learning', `${tilesOf([['🎧 Minutes', sumOf(ll.map(x => x.minutes)), ''], ['📖 Finished', recs('books').filter(b => b.status === 'Read' && inP({ date: b.end })).length, 'books'], ['📝 Lessons', ll.filter(x => x.lesson).length, '']])}${ll.filter(x => x.lesson).slice(-3).map(x => `<p class="lnone">“${esc(String(x.lesson).slice(0, 140))}”</p>`).join('')}`, ['care/learn', 'Learning']);
+}
+function kitchenExtra() {
+  const days = dayList(Math.min(anaDays(), 31)), inP = inDays(days), g = sodaGoal(), meals = recs('meals').filter(inP).filter(m => m.date <= today());
+  const sweet = days.map(d => [wdShort(d) + (days.length > 7 ? fromISO(d).getDate() : ''), drinkOf(d, 'soda') + drinkOf(d, 'juice')]);
+  const rv = recs('rreviews').filter(inP);
+  return panel('🥤 Drinks', `${tilesOf([['💧 Water', fmt1(avgOf(days.map(d => drinkOf(d, 'water')))), 'glasses a day'], ['🥤 Soda and juice', fmt1(avgOf(sweet.map(x => x[1]))), `a day, goal at most ${g}`], ['☕ Coffee and matcha', sumOf(days.map(d => drinkOf(d, 'coffee') + drinkOf(d, 'matcha'))), `🍷 ${sumOf(days.map(d => drinkOf(d, 'alcohol')))} alcohol`]])}${aBars(sweet.slice(-14), { unit: '' })}`, ['kitchen/foodlog', 'Food log'])
+    + panel('📷 Food log', tilesOf([['🍽 Eaten', meals.filter(m => m.ate).length, `of ${meals.length} planned`], ['📷 With a photo', meals.filter(m => m.photo).length, 'meals'], ['👩🏾‍🍳 Reviewed', rv.length, `average ${fmt1(avgKey(rv, 'score'))}/5`]]), ['kitchen/cooked', 'Cooking log']);
+}
+function socialExtra() {
+  const made = recs('cideas').map(x => x.created ? iso(new Date(x.created)) : '').filter(Boolean), set = new Set(made);
+  let streak = 0; for (let i = 0; i < 365; i++) { if (set.has(addDays(today(), -i))) streak++; else if (i) break; }
+  const weeks = [...Array(8).keys()].map(i => addDays(weekMon(), -7 * (7 - i))), per = weeks.map(w => [shortDate(w).split(' ').slice(0, 2).join(' '), made.filter(d => d >= w && d < addDays(w, 7)).length]);
+  const p = recs('posts').filter(x => x.stage === 'Posted' && (num(x.v24) != null || num(x.v7) != null)), best = [...p].sort((a, b) => (num(b.v7) || 0) - (num(a.v7) || 0))[0];
+  return panel('💡 Ideas', `${tilesOf([['🔥 Streak', streak, 'days in a row with an idea'], ['📝 This week', per[per.length - 1][1], 'ideas'], ['💡 All', made.length, 'ideas written down']])}${aBars(per, { unit: '' })}`)
+    + panel('⏱ 24 hours and 7 days', p.length ? `${tilesOf([['👀 After 24 hours', fmt1(avgKey(p, 'v24')), 'views on average'], ['👀 After 7 days', fmt1(avgKey(p, 'v7')), 'views on average'], ['🏆 Best', best ? esc(titleOf(best)) : '–', best ? `${best.v7 || 0} views in 7 days` : '']])}${p.filter(x => x.learned).slice(-3).map(x => `<p class="lnone">${esc(titleOf(x))}: ${esc(String(x.learned).slice(0, 140))}</p>`).join('')}` : quiet('Fill in views after 24 hours and 7 days on your posts.'));
 }
 /* ---------- train: your routine, logbook, analysis and resources, like your skincare ---------- */
 const FIT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -8220,6 +8646,7 @@ function fitRes(host) {
     <div class="panels">
       ${panel('Muscle groups', MUSCLES.map(([n, what, best, re]) => { const vids = own(re); return `<details class="fitres"><summary><b>${esc(n)}</b></summary><p>${esc(what)}</p><p class="lnone"><b>Best exercises:</b> ${esc(best.join(', '))}</p>${vids.length ? `<p class="dsub">Your videos</p><div class="lrows">${vids.map(v => `<div class="lrow"><button class="lmain" data-act="open" data-id="${v.id}"><b>${esc(v.n)}</b></button>${vidBtn(v.u)}</div>`).join('')}</div>` : ''}</details>`; }).join(''))}
       ${FIT_TIPS.map(([t, l]) => panel(t, l.map(([h, x]) => `<details class="fitres"><summary><b>${esc(h)}</b></summary><p>${esc(x)}</p></details>`).join(''))).join('')}
+      ${resLinks('Training')}
     </div>
     <p class="lnone">General information, not medical advice. With pain that does not go away, see your GP or a physiotherapist.</p>`;
 }
