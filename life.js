@@ -1366,7 +1366,7 @@ const SECTIONS = [
       ['wish/today', 'Overview', P.grid, 'wish'], ['wish/inbox', 'Inbox', P.inbox, 'wish'], ['wish/master', 'Master', P.heart, 'wish'], ['wish/orders', 'Orders', P.box, 'wish'], ['wish/stats', 'Analyse', P.trend, 'wish'], ['weekplan', 'Plan my week', P.list], ['reports', 'Reports', P.trend], ['todo', 'To do', P.check]] },
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile,
     groups: { food: ['Food', P.book], shop: ['Shop', P.cart] },
-    views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['pantry', 'Pantry', P.jar, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['shops', 'Shops', P.house, 'shop'], ['stats', 'Analyse', P.trend], ['todo', 'To do', P.check]] },
+    views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['pantry', 'Pantry', P.jar, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['shops', 'Shops', P.house, 'shop'], ['stats', 'Analyse', P.trend], ['todo', 'To do', P.check]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile,
     groups: { plan: ['Plan', P.target], look: ['Review', P.trend] },
     views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target, 'plan'], ['debt', 'Debt', P.card, 'plan'], ['insurance', 'Insurance', P.doc, 'plan'], ['forecast', 'Forecast', P.trend, 'plan'], ['year', 'Year', P.calendar, 'look'], ['networth', 'Net worth', P.wallet, 'look'], ['reviews', 'Reviews', P.doc, 'look'], ['todo', 'To do', P.check]] },
@@ -4986,19 +4986,21 @@ async function makeReport(type, from, to, key) {
   for (const sec of secs) for (const st of sec.stats) st.prev = prev.find(x => x.k === sec.k)?.stats.find(x => x.label === st.label)?.v ?? null;
   const name = type === 'week' ? `Week ${niceDate(from)} to ${niceDate(to)}` : fromISO(from).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   const old = recs('reports').find(r => r.key === key);
-  const data = { name, type, key, from, to, made: today(), secs, ...repInsights(secs, prev), extra: WK(from).extra || '', ...(old?.note ? { note: old.note } : {}) };
+  const data = { name, type, key, from, to, made: today(), v: REP_V, secs, ...repInsights(secs, prev), extra: WK(from).extra || '', ...(old?.note ? { note: old.note } : {}) };
   if (old) await put('reports', old.id, { ...dataOf(old), ...data }); else await create('reports', data);
 }
 // the report of the week that ends today (Sunday) or ended last Sunday, and of the month that ends today or ended last month
+// raise this when the way a report counts changes, so saved reports are made again (your notes stay)
+const REP_V = 2;
 async function ensureReports() {
   if (L.repBusy) return; L.repBusy = true;
   try {
     const t = today(), sun = fromISO(t).getDay() === 0 ? t : addDays(weekMon(t), -1), mon = addDays(sun, -6), wkey = 'week:' + mon;
     const w = recs('reports').find(r => r.key === wkey);
-    if (!w || w.made < sun) await makeReport('week', mon, sun, wkey);
+    if (!w || w.made < sun || (w.v || 1) < REP_V) await makeReport('week', mon, sun, wkey);
     const ym = t.slice(0, 7), isLast = lastDayOf(ym) === t, mm = isLast ? ym : addMonths(ym + '-01', -1).slice(0, 7), mkey = 'month:' + mm, mto = lastDayOf(mm);
     const m = recs('reports').find(r => r.key === mkey);
-    if (!m || m.made < mto) await makeReport('month', mm + '-01', mto, mkey);
+    if (!m || m.made < mto || (m.v || 1) < REP_V) await makeReport('month', mm + '-01', mto, mkey);
   } catch (e) { console.error('reports', e); } finally { L.repBusy = false; }
 }
 function reportHTML(r) {
