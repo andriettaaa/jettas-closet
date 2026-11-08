@@ -511,7 +511,7 @@ const KINDS = {
   /* self-care */
   beauty: {
     one: 'product', many: 'Beauty', facet: 'type',
-    fields: [F('name', 'Name'), F('brand', 'Brand', 'text', { half: 1 }), F('size', 'Size', 'text', { half: 1 }),
+    fields: [F('name', 'Name'), F('brand', 'Brand', 'text', { half: 1 }), F('variant', 'Variant or shade', 'text', { half: 1 }), F('size', 'Size', 'text', { half: 1 }),
       F('type', 'Type', 'select', { options: ['Face', 'Hair', 'Body', 'Makeup', 'Fragrance', 'Nails', 'Other'] }),
       F('about', 'What it does', 'long', { rows: 3 }),
       F('concern', 'Concern', 'multi', { when: D => D.type !== 'Fragrance', options: ['Hydration', 'Dryness', 'Cleansing', 'Dullness', 'Textural Irregularities', 'Signs of Congestion', 'Dark Circles', 'Uneven Skin Tone', 'Signs of Aging', 'Redness', 'Puffiness', 'Heat Protection', 'Styling Product', 'Hair Growth', 'Fragrance'] }),
@@ -532,7 +532,7 @@ const KINDS = {
     filter: (r, f) => f === 'own' ? !r.wish : f === 'want' ? !!r.wish : true,
     hide: r => r.finished || r.archived, hideLabel: 'Show finished',
     quick: r => ({ on: !!r.low, label: 'Running low', act: () => save(r, { low: !r.low }) }),
-    sub: r => [r.low ? 'running low' : '', num(r.qty) != null ? `${num(r.qty)} in stock` : '', leftOf(r) != null ? `open, nog ${leftOf(r)}%` : '', r.wish ? 'Wishlist' : '', r.brand, r.type, r.texture, r.am && r.pm ? 'AM + PM' : r.am ? 'AM' : r.pm ? 'PM' : ''].filter(Boolean).join(' · '),
+    sub: r => [r.low ? 'running low' : '', num(r.qty) != null ? `${num(r.qty)} in stock` : '', leftOf(r) != null ? `open, nog ${leftOf(r)}%` : '', r.wish ? 'Wishlist' : '', r.brand, r.variant, r.type, r.texture, r.am && r.pm ? 'AM + PM' : r.am ? 'AM' : r.pm ? 'PM' : ''].filter(Boolean).join(' · '),
     side: r => r.expiry ? (r.expiry < today() ? 'expired' : diffDays(today(), r.expiry) <= 30 ? 'use by ' + shortDate(r.expiry) : '') : ''
   },
   supplements: {
@@ -1745,7 +1745,7 @@ function filtered(page, seg) {
   if (K.filter && f) list = list.filter(r => K.filter(r, f));
   if (fk && fv) list = list.filter(r => [].concat(r[fk] || []).includes(fv));
   if (K.facet2 && fv && u.facet2) list = list.filter(r => [].concat(r[K.facet2] || []).includes(u.facet2));
-  if (q) list = list.filter(r => norm([titleOf(r), K.sub?.(r), r.brand, r.notes, ...relNames(r.ingredients)].join(' ')).includes(q));
+  if (q) list = list.filter(r => norm([titleOf(r), K.sub?.(r), r.brand, r.variant, r.notes, ...relNames(r.ingredients)].join(' ')).includes(q));
   return sortList(list, K, u.sort[seg.key] || defSort(K));
 }
 function listPage(host, page) {
@@ -2448,7 +2448,7 @@ function skinDiary(host) {
 const skinSetupNote = () => `<section class="ltipsteps"><h3>One step in Supabase first</h3><p class="lnone">Your skin photos go into a private storage space that only you can open. Create it once: open the SQL editor in Supabase, paste the setup from the chat and click Run. Until then the photos can't be saved.</p></section>`;
 function skinWeek(host) {
   const t = wdOf(), prods = recs('beauty').filter(skinUsable);
-  const slot = (wd, eve) => { const ps = skinSlot(wd, eve); return `<div class="sslot ${eve ? 'pm' : 'am'}"><span class="rowlbl">${eve ? 'Evening' : 'Morning'}</span><ol>${ps.map(b => `<li><button class="sprod" data-act="open" data-id="${b.id}"><b>${esc(b.name)}</b>${b.step ? `<small>${esc(b.step)}</small>` : ''}</button><button class="sx" data-skinx="${b.id}" data-wd="${wd}" data-eve="${eve ? 1 : ''}" aria-label="Not on ${wd} ${eve ? 'evening' : 'morning'}">×</button></li>`).join('')}</ol><button class="chip ghost sadd" data-skinadd="${wd}" data-eve="${eve ? 1 : ''}">+ Add</button></div>`; };
+  const slot = (wd, eve) => { const ps = skinSlot(wd, eve); return `<div class="sslot ${eve ? 'pm' : 'am'}"><span class="rowlbl">${eve ? 'Evening' : 'Morning'}</span><ol>${ps.map(b => `<li><button class="sprod" data-act="open" data-id="${b.id}"><b>${esc(b.name)}</b>${b.brand || b.step ? `<small>${esc([b.brand, b.step].filter(Boolean).join(' · '))}</small>` : ''}</button><button class="sx" data-skinx="${b.id}" data-wd="${wd}" data-eve="${eve ? 1 : ''}" aria-label="Not on ${wd} ${eve ? 'evening' : 'morning'}">×</button></li>`).join('')}</ol><button class="chip ghost sadd" data-skinadd="${wd}" data-eve="${eve ? 1 : ''}">+ Add</button></div>`; };
   host.innerHTML = `<div class="viewhead"><h1>Skincare</h1><span class="sub">Your week, morning and evening</span></div>
     <div class="lplanhead"><button class="btn small" data-act="go" data-v="care/skinmonth">Month</button><button class="btn small" data-skinorder>Order</button><button class="btn small" data-act="go" data-v="care/diary">Skin diary</button><button class="btn small" data-act="new" data-v="beauty">+ Product</button></div>
     ${prods.length ? '' : quiet('Add your skincare products under Beauty, then put them on the days you use them.')}
@@ -2477,7 +2477,7 @@ function skinOrderSheet() {
   const sh = C.sheet({ title: 'Order of your routine', body: `<p class="lnone">Drag the handle, or use the arrows. "By step" puts them back in the usual order: cleanse, treat, moisturise, protect.</p><ol class="skorder" data-skl></ol>`,
     foot: `<button class="btn" data-skauto>By step</button><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-sksave>Save order</button>` });
   const box = sh.querySelector('[data-skl]');
-  const draw = () => { box.innerHTML = list.map((b, i) => `<li data-i="${i}"><span class="skh" aria-hidden="true">⋮⋮</span><span class="skn"><b>${esc(b.name)}</b><small>${esc(b.step || 'No step set')}</small></span><button class="iconbtn" data-up="${i}" aria-label="Move up" ${i ? '' : 'disabled'}>${svg(P.left)}</button><button class="iconbtn" data-down="${i}" aria-label="Move down" ${i < list.length - 1 ? '' : 'disabled'}>${svg(P.right)}</button></li>`).join(''); };
+  const draw = () => { box.innerHTML = list.map((b, i) => `<li data-i="${i}"><span class="skh" aria-hidden="true">⋮⋮</span><span class="skn"><b>${esc(b.name)}</b><small>${esc([b.brand, b.step || 'No step set'].filter(Boolean).join(' · '))}</small></span><button class="iconbtn" data-up="${i}" aria-label="Move up" ${i ? '' : 'disabled'}>${svg(P.left)}</button><button class="iconbtn" data-down="${i}" aria-label="Move down" ${i < list.length - 1 ? '' : 'disabled'}>${svg(P.right)}</button></li>`).join(''); };
   draw();
   sh.addEventListener('click', e => {
     const u = e.target.closest('[data-up]'), dn = e.target.closest('[data-down]');
@@ -7029,8 +7029,8 @@ function buildList() {
 }
 // one day: the morning and evening, every product and technique with how to do it
 function skinDaySheet(d) {
-  const block = eve => { const ps = slotOn(d, eve), ts = techOn(d, eve); return `<section class="skds"><div class="lph3"><h3>${eve ? 'Evening' : 'Morning'}${eve && nightOn(d) ? ` · ${esc(nightOn(d))}` : ''}</h3><span class="lnone">about ${Math.max(1, ps.length + minsOf(ts))} min</span></div>${ps.length || ts.length ? `<ol class="skdl">${ps.map(b => `<li><button class="lmain" data-act="open" data-id="${b.id}"><b>${esc(b.name)}</b><span>${esc([b.step, b.how].filter(Boolean).join(' · '))}</span></button></li>`).join('')}${ts.map(x => `<li><button class="lmain" data-techsteps="${x.id}"><b>${esc(x.name)}</b><span>${esc([x.minutes ? x.minutes + ' min' : '', 'tap for the steps'].filter(Boolean).join(' · '))}</span></button></li>`).join('')}</ol>` : quiet('Nothing planned.')}</section>`; };
-  const body = bodyOn(wdOf(d)), bodyBlock = body.length ? `<section class="skds"><div class="lph3"><h3>Body · after every shower</h3></div><ol class="skdl">${body.map(b => `<li><button class="lmain" data-act="open" data-id="${b.id}"><b>${esc(b.name)}</b><span>${esc([b.step, b.how].filter(Boolean).join(' · '))}</span></button></li>`).join('')}</ol></section>` : '';
+  const block = eve => { const ps = slotOn(d, eve), ts = techOn(d, eve); return `<section class="skds"><div class="lph3"><h3>${eve ? 'Evening' : 'Morning'}${eve && nightOn(d) ? ` · ${esc(nightOn(d))}` : ''}</h3><span class="lnone">about ${Math.max(1, ps.length + minsOf(ts))} min</span></div>${ps.length || ts.length ? `<ol class="skdl">${ps.map(b => `<li><button class="lmain" data-act="open" data-id="${b.id}"><b>${esc(b.name)}</b><span>${esc([b.brand, b.step, b.how].filter(Boolean).join(' · '))}</span></button></li>`).join('')}${ts.map(x => `<li><button class="lmain" data-techsteps="${x.id}"><b>${esc(x.name)}</b><span>${esc([x.minutes ? x.minutes + ' min' : '', 'tap for the steps'].filter(Boolean).join(' · '))}</span></button></li>`).join('')}</ol>` : quiet('Nothing planned.')}</section>`; };
+  const body = bodyOn(wdOf(d)), bodyBlock = body.length ? `<section class="skds"><div class="lph3"><h3>Body · after every shower</h3></div><ol class="skdl">${body.map(b => `<li><button class="lmain" data-act="open" data-id="${b.id}"><b>${esc(b.name)}</b><span>${esc([b.brand, b.step, b.how].filter(Boolean).join(' · '))}</span></button></li>`).join('')}</ol></section>` : '';
   const sh = C.sheet({ title: niceDate(d), body: block(false) + block(true) + bodyBlock, foot: '<div class="spacer"></div><button class="btn primary" data-close>Close</button>' });
   sh.addEventListener('click', e => { const s = e.target.closest('[data-techsteps]'); if (s) { e.stopPropagation(); techSheet(L.byId[s.dataset.techsteps]); } });
 }
