@@ -1237,7 +1237,10 @@ function skinOrder(list) {
   const ord = skinPlan()?.order || [], pos = b => { const i = ord.indexOf(b.id); return i < 0 ? 1000 + SKIN_STEPS.indexOf(b.step || 'Other') * 10 : i; };
   return [...list].sort((a, b) => pos(a) - pos(b) || norm(a.name).localeCompare(norm(b.name)));
 }
-const skinSlot = (wd, eve) => skinOrder(recs('beauty').filter(b => skinUsable(b) && (eve ? pmDaysOf(b) : amDaysOf(b)).includes(wd)));
+const NOT_FACE = ['Body', 'Hair', 'Fragrance', 'Makeup', 'Nails'];
+const skinSlot = (wd, eve) => skinOrder(recs('beauty').filter(b => skinUsable(b) && !NOT_FACE.includes(b.type) && (eve ? pmDaysOf(b) : amDaysOf(b)).includes(wd)));
+// body care after showering: everything for the body planned on that weekday, morning or evening
+const bodyOn = wd => skinOrder(recs('beauty').filter(b => skinUsable(b) && b.type === 'Body' && (amDaysOf(b).includes(wd) || pmDaysOf(b).includes(wd))));
 function routineFor(eve) {
   const type = eve ? nightOf() : '', ps = skinSlot(wdOf(), eve);
   return { type, ps, pick: [] };
@@ -6982,7 +6985,8 @@ function buildList() {
 // one day: the morning and evening, every product and technique with how to do it
 function skinDaySheet(d) {
   const block = eve => { const ps = slotOn(d, eve), ts = techOn(d, eve); return `<section class="skds"><div class="lph3"><h3>${eve ? 'Evening' : 'Morning'}${eve && nightOn(d) ? ` · ${esc(nightOn(d))}` : ''}</h3><span class="lnone">about ${Math.max(1, ps.length + minsOf(ts))} min</span></div>${ps.length || ts.length ? `<ol class="skdl">${ps.map(b => `<li><button class="lmain" data-act="open" data-id="${b.id}"><b>${esc(b.name)}</b><span>${esc([b.step, b.how].filter(Boolean).join(' · '))}</span></button></li>`).join('')}${ts.map(x => `<li><button class="lmain" data-techsteps="${x.id}"><b>${esc(x.name)}</b><span>${esc([x.minutes ? x.minutes + ' min' : '', 'tap for the steps'].filter(Boolean).join(' · '))}</span></button></li>`).join('')}</ol>` : quiet('Nothing planned.')}</section>`; };
-  const sh = C.sheet({ title: niceDate(d), body: block(false) + block(true), foot: '<div class="spacer"></div><button class="btn primary" data-close>Close</button>' });
+  const body = bodyOn(wdOf(d)), bodyBlock = body.length ? `<section class="skds"><div class="lph3"><h3>Body · after every shower</h3></div><ol class="skdl">${body.map(b => `<li><button class="lmain" data-act="open" data-id="${b.id}"><b>${esc(b.name)}</b><span>${esc([b.step, b.how].filter(Boolean).join(' · '))}</span></button></li>`).join('')}</ol></section>` : '';
+  const sh = C.sheet({ title: niceDate(d), body: block(false) + block(true) + bodyBlock, foot: '<div class="spacer"></div><button class="btn primary" data-close>Close</button>' });
   sh.addEventListener('click', e => { const s = e.target.closest('[data-techsteps]'); if (s) { e.stopPropagation(); techSheet(L.byId[s.dataset.techsteps]); } });
 }
 // a technique: its steps written out, the video, and tips
@@ -7000,7 +7004,7 @@ function techSheet(x) {
 const cycleDayOn = d => { const s = recs('cycles').map(c => c.start).filter(x => x && x <= d).sort().pop(); if (!s) return null; const n = diffDays(s, d) + 1; return n <= 45 ? n : null; };
 const cyclePhase = n => n == null ? null : n <= 5 ? 'Period' : n <= 13 ? 'Follicular' : n <= 16 ? 'Ovulation' : 'Luteal';
 function skinAnalysis(host) {
-  const prods = recs('beauty').filter(b => skinUsable(b) && usesPerWeek(b) && !['Hair', 'Body', 'Makeup', 'Fragrance', 'Nails'].includes(b.type)), all = prods;
+  const prods = recs('beauty').filter(b => skinUsable(b) && usesPerWeek(b) && !NOT_FACE.includes(b.type)), all = prods;
   const v = new Map(prods.map(b => [b.id, skinVerdict(b, all)])), w = skinWeights(), p = skinProfile();
   const order = ['works', 'basic', 'some', 'little', 'unknown'];
   const byTag = order.map(k => [k, prods.filter(b => v.get(b.id).tag === k)]);
@@ -7026,6 +7030,8 @@ function skinAnalysis(host) {
     ${panel('Your skin profile', p ? `<p class="dline"><span>Skin type</span><b>${esc(p.skinType || '–')}</b></p><p class="dline"><span>Concerns</span><b>${esc([].concat(p.concerns || []).map(k => SKIN_CONCERNS.find(c => c[0] === concernKey(k))?.[1] || k).join(', ') || '–')}</b></p><p class="dline"><span>Avoid</span><b>${esc([].concat(p.avoid || []).join(', ') || '–')}</b></p>${p.notes ? `<p class="lnone">${esc(p.notes)}</p>` : ''}<button class="btn small" data-act="open" data-id="${p.id}">Edit profile</button>` : `${quiet('Tell the app your skin type and concerns; the analysis weighs everything by them.')}<button class="btn small primary" data-act="new" data-v="skinprofile">Fill in profile</button>`)}
     ${panel('Your concerns, covered?', `<div class="lrows">${cover.map(c => `<div class="lrow"><span class="lmain"><b>${esc(c.l)}</b><span>${c.by ? `${esc(c.grp.label.replace(/ \(.*/, ''))} in ${esc(c.by.name)} · ${ev(c.best)}` : 'nothing in your routine yet'}</span></span><b class="lside" style="color:${c.full ? 'var(--c5)' : c.best >= 2 ? 'var(--c3)' : 'var(--danger)'}">${c.full ? 'Covered' : c.best >= 2 ? 'Partly' : 'Gap'}</b></div>${c.spf ? '<p class="lnone skgap">Your daily SPF keeps new marks from forming; it doesn’t fade the ones you have.</p>' : ''}${!c.full && SKIN_GAPS[c.k] ? `<div class="skgap"><p class="lnone"><b>${c.best >= 2 ? 'Stronger option' : 'Add'}: ${esc(SKIN_GAPS[c.k].group)}.</b> ${c.best >= 2 ? 'Your routine helps a bit; this adds a stronger effect.' : esc(SKIN_GAPS[c.k].why)}</p><div class="lwrap">${SKIN_GAPS[c.k].try.filter(([n, , gk]) => !present.has(gk) && !recs('beauty').some(b => norm(b.name).includes(norm(n).slice(0, 24)))).map(([n, u]) => `<button class="chip" data-skwish="${esc(n)}" data-u="${esc(u)}">+ Wishlist: ${esc(n)}</button>`).join('')}</div></div>` : ''}`).join('')}</div>`)}
     ${byTag.filter(([, l]) => l.length).map(([k, l]) => panel(VERDICT[k][0], `<div class="lrows">${l.sort((a, b) => v.get(b.id).score - v.get(a.id).score).map(vrow).join('')}</div>${k === 'little' ? '<p class="lnone">These add steps without doing much for your concerns. Use them up and don’t rebuy, or keep them for comfort.</p>' : k === 'unknown' ? '<p class="lnone">Open the product and paste its ingredient list (INCI) so the app can judge it.</p>' : ''}`)).join('')}
+    ${darkSkinPanel(prods, v, p)}
+    ${bodyPanel()}
     ${panel('Ingredient groups in your routine', groups.length ? `<div class="lrows">${groups.sort((a, b) => b.n - a.n).map(x => `<details class="skgrp"><summary><span class="lmain"><b>${esc(x.g.label)}</b><span>${esc(x.ps.map(b => b.name).join(', '))}</span></span><b class="lside">${x.n}×/wk</b></summary><p class="lnone">${esc(x.g.does)}${x.g.care ? ' ' + esc(x.g.care) : ''}</p><p class="lnone">${Object.entries(x.g.helps).map(([c, e]) => `${esc(SKIN_CONCERNS.find(s => s[0] === c)[1])}: ${ev(e)}`).join(' · ')}</p></details>`).join('')}</div>` : quiet('Add ingredient lists to your products to see this.'))}
     ${panel('Skin score per day', aLine(days, days.map(scoreOn), { label: 'Skin score', unit: '/10', max: 10.5 }) + '<p class="lnone">From the daily score in your skin diary.</p>', ['care/diary', 'Skin diary'])}
     ${panel('New spots per day', aLine(days, days.map(spotsOn), { label: 'New spots' }))}
@@ -7038,6 +7044,42 @@ function skinAnalysis(host) {
     const b = e.target.closest('[data-skwish]'); if (!b) return;
     try { await create('beauty', { name: b.dataset.skwish, type: 'Face', wish: true, url: b.dataset.u || undefined, notes: 'Suggested by Skin analysis' }); C.toast('On your beauty wishlist'); b.remove(); } catch { C.toast('Could not save. Try again.'); }
   });
+}
+/* darker skin (Fitzpatrick IV to VI): irritation and sun leave dark marks that last for months, so the checks are about
+   protection, gentle exfoliation, a pigment fader, and no ingredients that harm darker skin */
+const SCRUB = /\b(juglans regia shell powder|prunus armeniaca seed powder|pumice|olea europaea seed powder|silica beads|walnut shell)\b/;
+function darkSkinPanel(prods, v, p) {
+  if (p && !['IV', 'V', 'VI'].includes(p.fitz)) return '';
+  const has = k => prods.filter(b => v.get(b.id).gs.some(g => g.k === k));
+  const spf = has('spf'), daily = spf.some(b => amDaysOf(b).length === 7), tint = has('ironox').length > 0;
+  const fader = prods.filter(b => !['Eye cream', 'Mask', 'Lip care'].includes(b.step) && v.get(b.id).gs.some(g => ['azelaic', 'niacinamide', 'tranexamic', 'retinoid', 'brightener', 'vitc'].includes(g.k)) && usesPerWeek(b) >= 2);
+  const leaveOnAcid = prods.filter(b => !RINSE.includes(b.step) && v.get(b.id).gs.some(g => ['aha', 'bha'].includes(g.k)));
+  const acidNights = new Set(leaveOnAcid.flatMap(b => pmDaysOf(b))), retNights = new Set(has('retinoid').flatMap(b => pmDaysOf(b)));
+  const clash = [...acidNights].filter(d => retNights.has(d)), acidPerWeek = leaveOnAcid.reduce((n, b) => n + pmDaysOf(b).length + amDaysOf(b).length, 0);
+  const scrub = prods.filter(b => SCRUB.test(inciOf(b))), hq = prods.filter(b => /\bhydroquinone\b/.test(inciOf(b)));
+  const row = (ok, t, d) => `<div class="lrow"><span class="lmain"><b>${esc(t)}</b><span>${esc(d)}</span></span><b class="lside" style="color:${ok ? 'var(--c5)' : 'var(--danger)'}">${ok ? '✓' : '!'}</b></div>`;
+  return panel('For darker skin', `<p class="lnone">On darker skin every irritation or bit of sun can leave a dark mark for months. These checks matter more than any single product.</p><div class="lrows">
+    ${row(daily, 'SPF every morning', daily ? `${spf[0].name}, seven mornings a week.` : 'Put an SPF 30 to 50 on every morning, also when it is cloudy.')}
+    ${row(tint, 'Tinted SPF with iron oxides', tint ? 'Blocks visible light too, which darkens marks on darker skin.' : 'Visible light (not only UV) darkens marks on darker skin. A tinted SPF with iron oxides blocks it, for example SkinCeuticals Physical Fusion UV Defense SPF 50.')}
+    ${row(fader.length > 0, 'A pigment fader you use often', fader.length ? fader.map(b => b.name).join(', ') + '.' : 'Azelaic acid, niacinamide or tranexamic acid, at least every other day, for 8 to 12 weeks.')}
+    ${row(acidPerWeek <= 3, 'Gentle with acids', `${plural(acidPerWeek, 'leave-on acid')} a week. ${acidPerWeek <= 3 ? 'Good: enough to work, little risk of irritation.' : 'Too many: irritation on darker skin turns into new dark marks. Keep it at two or three.'}`)}
+    ${row(!clash.length, 'Acids and retinoid on different nights', clash.length ? `Both on ${clash.join(', ')}: move one of them.` : 'They never share an evening.')}
+    ${scrub.length ? row(false, 'No scrub grains', `${scrub.map(b => b.name).join(', ')} contains grains that make tiny tears, which can leave marks. Use acids instead.`) : ''}
+    ${hq.length ? row(false, 'Hydroquinone only with a doctor', `${hq.map(b => b.name).join(', ')} contains hydroquinone. On darker skin long use can cause blue-grey patches (ochronosis); only short courses under a doctor.`) : ''}
+    ${row(true, 'Hands off', 'Picking and squeezing make marks deeper and longer-lasting. Pimple patches keep your fingers away.')}</div>`);
+}
+/* the body: dry skin and showering twice a day */
+function bodyPanel() {
+  const body = recs('beauty').filter(b => skinUsable(b) && b.type === 'Body'), used = body.filter(b => usesPerWeek(b));
+  const hasG = k => used.some(b => groupsOf(b).some(g => g.k === k));
+  const tip = (t, d) => `<div class="lrow"><span class="lmain"><b>${esc(t)}</b><span>${esc(d)}</span></span></div>`;
+  const sug = !hasG('humectant') || !recs('beauty').some(b => /urea/i.test(b.inci || '') || /urea/i.test(b.name)) ? `<button class="chip" data-skwish="Eucerin UreaRepair PLUS Lotion 10% Urea" data-u="">+ Wishlist: Eucerin UreaRepair PLUS Lotion 10% Urea</button>` : '';
+  return panel('Body: dry skin', `<div class="lrows">
+    ${used.length ? `<div class="lrow"><span class="lmain"><b>After every shower</b><span>${esc(used.map(b => b.name).join(', '))}</span></span><b class="lside" style="color:var(--c5)">✓</b></div>` : tip('After every shower', 'Plan a body cream under Products (type Body, every day), so it shows up in your day.')}
+    ${tip('Lukewarm and short', 'Two showers a day dry out your skin: keep both lukewarm and under 10 minutes, and use soap only where you need it in one of them.')}
+    ${tip('Within 3 minutes', 'Cream on skin that is still a bit damp holds the most water. Pat dry, don’t rub.')}
+    ${tip('What works on dry body skin', 'Urea (5 to 10%) or lactic acid pull water in; shea butter, petrolatum and ceramides keep it there. In winter a cream works better than a lotion.')}
+    ${tip('Soap-free wash', 'A shower oil or a syndet (soap-free gel) is gentler than bar soap.')}</div>${sug ? `<div class="lwrap skgap">${sug}</div>` : ''}`);
 }
 /* ---------- resources: articles and research, checked links ---------- */
 const SKIN_RES = [
