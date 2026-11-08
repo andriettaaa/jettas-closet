@@ -1222,3 +1222,13 @@ img.nophoto { background: var(--line); }
 .wptile .lph span { font-size: 26px; }
 .wppick .lqadd { display: flex; gap: 6px; } .wppick .lqadd input { flex: 1; min-width: 0; }
 .wppick .lqadd input { width: 100%; } .wppick .lqadd .btn { flex: none; }
+/* suggestions while you type */
+.sugpop { position: fixed; z-index: 9999; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 4px; display: grid; max-height: 50vh; overflow-y: auto; }
+.sugpop[hidden] { display: none; }
+.sugpop button { border: 0; background: none; color: inherit; text-align: left; padding: 9px 10px; border-radius: 8px; font: inherit; font-size: .92rem; min-height: 40px; }
+.sugpop button:hover, .sugpop button.on { background: var(--line); }
+/* the ingredient filter */
+.ingf { display: grid; gap: 6px; margin: 4px 0 8px; min-width: 0; }
+.ingf .lwrap { align-items: center; }
+.ingmode { display: inline-flex; gap: 4px; }
+.ingsoon { font-size: .8rem; }
