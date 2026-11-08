@@ -142,7 +142,9 @@ function weekahead(recs: Rec[], prefs: any, today: string) {
   // the shopping day for the coming week, or the question when you haven't picked one
   const wk = addDays(today, 1), picked = shopPicked(prefs, wk);
   lines.push(picked ? `Shopping on ${dayName(picked)}` : 'Which day do you shop this week? Tap to pick.');
-  return { title: 'Your week ahead', body: lines.join('\n'), url: picked ? './#overview' : './#do=shopday', tag: 'weekahead' };
+  // tapping it opens Plan my week: one step per screen, starting with this overview
+  lines.push('Tap to plan your week.');
+  return { title: 'Plan your week', body: lines.join('\n'), url: './#plan/weekplan', tag: 'weekahead' };
 }
 // every morning, only when there is one: a smoke-free milestone, a free trial about to end, a warranty running out
 function reminders(recs: Rec[], prefs: any, today: string) {

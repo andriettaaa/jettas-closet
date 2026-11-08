@@ -1358,7 +1358,7 @@ const SECTIONS = [
       ['fit/workouts', 'Workouts', P.run, 'body', 'train'], ['fit/library', 'Videos', P.star, 'body', 'train'], ['fit/plans', 'Plans', P.list, 'body', 'train'], ['fit/exercises', 'Exercises', P.dumbbell, 'body', 'train'], ['fit/fgoals', 'Goals', P.target, 'body', 'train'], ['fit/body', 'Body', P.scale, 'body', 'train'], ['fit/gear', 'Gear', P.box, 'body', 'train'],
       ['care/beauty', 'Products', P.drop, 'body', 'beauty'], ['care/skin', 'Skincare', P.flask, 'body', 'beauty'], ['care/skinmonth', 'Month', P.calendar, 'body', 'beauty'], ['care/skinstats', 'Skin analysis', P.trend, 'body', 'beauty'], ['care/skinres', 'Resources', P.book, 'body', 'beauty'], ['care/perfume', 'Perfume', P.star, 'body', 'beauty'], ['care/diary', 'Skin diary', P.camera, 'body', 'beauty'], ['care/bdeals', 'Deals', P.tag, 'body', 'beauty'], ['body/stats', 'Analyse', P.trend, 'body'],
       ['plan/plans', 'Overview', P.grid, 'plans'], ['care/trips', 'Trips', P.plane, 'plans'], ['care/docs', 'Documents', P.doc, 'plans'], ['care/ideas', 'Ideas', P.star, 'plans'], ['care/saved', 'Saved links', P.link, 'plans'], ['care/gifts', 'Gifts', P.gift, 'plans'], ['plan/planstats', 'Analyse', P.trend, 'plans'],
-      ['wish/today', 'Overview', P.grid, 'wish'], ['wish/inbox', 'Inbox', P.inbox, 'wish'], ['wish/master', 'Master', P.heart, 'wish'], ['wish/orders', 'Orders', P.box, 'wish'], ['wish/stats', 'Analyse', P.trend, 'wish'], ['todo', 'To do', P.check]] },
+      ['wish/today', 'Overview', P.grid, 'wish'], ['wish/inbox', 'Inbox', P.inbox, 'wish'], ['wish/master', 'Master', P.heart, 'wish'], ['wish/orders', 'Orders', P.box, 'wish'], ['wish/stats', 'Analyse', P.trend, 'wish'], ['weekplan', 'Plan my week', P.list], ['todo', 'To do', P.check]] },
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile,
     groups: { food: ['Food', P.book], shop: ['Shop', P.cart] },
     views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['pantry', 'Pantry', P.jar, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['shops', 'Shops', P.house, 'shop'], ['stats', 'Analyse', P.trend], ['todo', 'To do', P.check]] },
@@ -1394,6 +1394,7 @@ const PAGES = {
   'plan/overview': { render: lifeOverview, adds: ['journal', 'sleep', 'workouts', 'wishes', 'gifts'] },
   'plan/today': { render: planToday, adds: ['habits', 'routines', 'journal', 'lgoals', 'fgoals'] },
   'plan/week': { render: calPage, adds: ['appts', 'workouts', 'meals', 'posts', 'tasks', 'gifts', 'journal'] },
+  'plan/weekplan': { render: weekPlanPage },
   'body/today': { render: bodyToday, adds: ['sleep', 'workouts', 'cleanlog', 'symptoms', 'cycles'] },
   'body/clean': { render: cleanPage, adds: ['cleanlog'] },
   'social/income': { render: socialIncome, adds: ['ltk', 'deals'] },
@@ -4906,6 +4907,136 @@ function openRecord(id) {
   if (r.kind === 'recipes') openRecipe(r); else openEditor(r.kind, id);
 }
 
+/* ---------- plan my week: a checklist on Sunday evening, one step per screen ----------
+   Steps can be switched off and put in another order in Settings, and you can add your own questions. */
+const WP_STEPS = [['week', 'Your week'], ['stock', 'What is running out'], ['food', 'Food'], ['agenda', 'Agenda and to-dos'], ['money', 'Money'],
+  ['move', 'Movement'], ['house', 'Household'], ['skin', 'Skin and self-care'], ['looks', 'Clothes and content'], ['own', 'Your own questions']];
+const WPCFG = () => ({ off: [], order: WP_STEPS.map(x => x[0]), custom: [], checks: {}, done: {}, ...(C?.prefs?.().wplan || {}) });
+const saveWp = patch => C.savePrefs({ wplan: { ...WPCFG(), ...patch } }).catch(() => C.toast('Could not save. Try again.'));
+const wpSteps = () => { const c = WPCFG(), order = [...c.order, ...WP_STEPS.map(x => x[0]).filter(k => !c.order.includes(k))]; return order.filter(k => WP_STEPS.some(x => x[0] === k) && !c.off.includes(k) && (k !== 'own' || c.custom.length)); };
+const wpWeek = () => shopAskWeek();
+const wpIn = (d, wk) => d && d >= wk && d <= addDays(wk, 6);
+const STOCK_LISTS = [['ingredients', 'Pantry', r => !!r.stock || !!r.list], ['beauty', 'Beauty', r => !r.wish && !r.finished && !r.archived && r.type !== 'Fragrance'], ['supplements', 'Supplements', r => !r.wish && !r.finished]];
+// pantry: out means not in stock and on the shopping list; beauty and supplements: none left
+const isOut = r => r.kind === 'ingredients' ? !r.stock && !!r.list : (num(cntOf(r)) === 0 && !!r.low);
+async function wpMark(r, what) {
+  const d = dataOf(r), out = isOut(r), low = !!r.low && !out;
+  if (what === 'out') {
+    if (out) return save(r, r.kind === 'ingredients' ? { stock: true, list: false, low: false } : { [CK(r)]: null, low: false });
+    return save(r, r.kind === 'ingredients' ? { stock: false, list: true, low: false } : { [CK(r)]: 0, low: true });
+  }
+  return save(r, { low: !low, ...(r.kind === 'ingredients' && !low ? { list: true } : {}) });
+}
+function wpStock() {
+  L.wpList ||= 'ingredients'; const q = norm(L.wpQ || ''), [k, label, keep] = STOCK_LISTS.find(x => x[0] === L.wpList);
+  const all = recs(k).filter(r => keep(r) || isOut(r) || (r.low && !r.finished)).filter(r => !q || norm(titleOf(r) + ' ' + (r.brand || '')).includes(q));
+  const by = new Map(); for (const r of all) { const g = (k === 'ingredients' ? r.category : r.type) || 'Other'; (by.get(g) || by.set(g, []).get(g)).push(r); }
+  const row = r => { const out = isOut(r), low = !!r.low && !out; return `<div class="lrow wprow"><span class="lmain"><b>${esc(titleOf(r))}</b><span>${esc([r.brand, r.variant].filter(Boolean).join(' · '))}</span></span>
+    <button class="chip ${low ? 'on' : ''}" data-wpmark="low" data-id="${r.id}" aria-pressed="${low}">Almost out</button><button class="chip ${out ? 'on' : ''}" data-wpmark="out" data-id="${r.id}" aria-pressed="${out}">Out</button></div>`; };
+  const n = k2 => recs(k2).filter(r => isOut(r) || r.low).length;
+  return `<p class="lnone">Tap what is out or almost out. Out goes on your shopping list.</p>
+    <div class="lwrap">${STOCK_LISTS.map(([k2, l]) => `<button class="chip ${k2 === L.wpList ? 'on' : ''}" data-wplist="${k2}" aria-pressed="${k2 === L.wpList}">${esc(l)}${n(k2) ? ` <span class="n">${n(k2)}</span>` : ''}</button>`).join('')}</div>
+    <input class="finp" type="search" data-wpq placeholder="Search ${esc(label.toLowerCase())}" value="${esc(L.wpQ || '')}" autocomplete="off">
+    ${all.length ? [...by.entries()].sort((a, b) => azCmp(a[0], b[0])).map(([g, l]) => `<h3 class="lgh">${esc(g)} · ${l.length}</h3><div class="lrows">${l.sort((a, b) => azCmp(titleOf(a), titleOf(b))).map(row).join('')}</div>`).join('') : quiet('Nothing here.')}`;
+}
+const evRow = e => `<div class="lrow"><span class="lmain"><b>${esc(e.title)}</b><span>${esc([niceDate(e.date), e.time, e.sub].filter(Boolean).join(' · '))}</span></span></div>`;
+const linkBtn = (go, label) => `<button class="btn small" data-wpgo="${go}">${esc(label)}</button>`;
+function wpBody(k, wk) {
+  const end = addDays(wk, 6), days = [...Array(7).keys()].map(i => addDays(wk, i));
+  if (k === 'week') {
+    let ev = []; try { ev = calEvents(wk, end).filter(e => !['meals'].includes(e.area)); } catch {}
+    const bills = recs('fbills').filter(b => b.active !== false).map(b => ({ b, d: fNext(b) })).filter(x => wpIn(x.d, wk));
+    return `<p class="lnone">The week of ${esc(niceDate(wk))} to ${esc(niceDate(end))}.</p>${shopPickHTML(wk)}
+      ${panel('In your calendar', ev.length ? `<div class="lrows">${ev.slice(0, 14).map(evRow).join('')}</div>${ev.length > 14 ? `<p class="lnone">and ${ev.length - 14} more</p>` : ''}` : quiet('Nothing planned yet.'))}
+      ${bills.length ? panel('Bills this week', `<div class="lrows">${bills.map(x => `<div class="lrow"><span class="lmain"><b>${esc(x.b.name)}</b><span>${esc(niceDate(x.d))}</span></span><span class="lside">${eur(num(x.b.amount))}</span></div>`).join('')}</div>`) : ''}`;
+  }
+  if (k === 'stock') return wpStock();
+  if (k === 'food') {
+    const soon = recs('ingredients').filter(useSoon), frz = recs('ingredients').filter(r => r.stock && r.location === 'Vriezer'), list = recs('ingredients').filter(r => r.list);
+    const meals = recs('meals').filter(m => wpIn(m.date, wk));
+    return `${shopPickHTML(wk)}
+      ${panel('Use first', soon.length ? `<div class="lwrap">${soon.map(r => `<span class="chip">${esc(titleOf(r))}</span>`).join('')}</div>` : quiet('Nothing in the fridge that has to go soon.'))}
+      ${panel('In the freezer', frz.length ? `<div class="lwrap">${frz.slice(0, 30).map(r => `<span class="chip">${esc(titleOf(r))}</span>`).join('')}</div>` : quiet('Your freezer is empty in the app.'))}
+      ${panel('Meals planned', `<p class="lnone">${plural(meals.length, 'meal')} planned for this week · ${plural(list.length, 'thing')} on your shopping list.</p><div class="dbtns">${linkBtn('kitchen/meals', 'Plan meals')}${linkBtn('kitchen/groceries', 'Shopping list')}</div>`)}`;
+  }
+  if (k === 'agenda') {
+    let ev = []; try { ev = calEvents(wk, end).filter(e => ['appts', 'tasks', 'gifts', 'trips', 'care', 'plan'].some(a => String(e.area || '').includes(a)) || /appt|task|gift|birthday|verjaar/i.test(e.kind || e.area || '')); } catch {}
+    const todo = Object.entries(TODO.plan).reduce((n, [kind, c]) => n + recs(kind).filter(r => (!c.when || c.when(r)) && c.checks.some(x => x[2](r))).length, 0);
+    return `${panel('Appointments and dates', ev.length ? `<div class="lrows">${ev.map(evRow).join('')}</div>` : quiet('No appointments or dates this week.'))}
+      ${panel('To do', `<p class="lnone">${plural(todo, 'thing')} in Life still miss details.</p><div class="dbtns">${linkBtn('plan/todo', 'Open To do')}${linkBtn('plan/week', 'Open calendar')}</div>`)}`;
+  }
+  if (k === 'money') {
+    const bills = recs('fbills').filter(b => b.active !== false).map(b => ({ b, d: fNext(b) })).filter(x => wpIn(x.d, wk));
+    const open = recs('ftx').filter(t => t.date >= addDays(today(), -7) && !(t.items || []).length).sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 12);
+    const env = groceryEnv();
+    return `${panel('Bills this week', bills.length ? `<div class="lrows">${bills.map(x => `<div class="lrow"><span class="lmain"><b>${esc(x.b.name)}</b><span>${esc(niceDate(x.d))}</span></span><span class="lside">${eur(num(x.b.amount))}</span></div>`).join('')}</div><p class="lnone">Together ${eur(bills.reduce((n, x) => n + (num(x.b.amount) || 0), 0))}.</p>` : quiet('No bills this week.'))}
+      ${panel('Purchases to link', open.length ? `<p class="lnone">Tap one to say what you bought.</p><div class="lrows">${open.map(t => `<button class="lrow" data-act="open" data-id="${t.id}"><span class="lmain"><b>${esc(t.name)}</b><span>${esc(niceDate(t.date))}</span></span><span class="lside">${eur(num(t.amount))}</span></button>`).join('')}</div>` : quiet('Every purchase of the last week is linked.'))}
+      ${env ? panel('Groceries budget', `<p class="lnone">${esc(env.name)}: ${eur(num(env.budget) || 0)} a month.</p><div class="dbtns">${linkBtn('money/today', 'Open Finance')}</div>`) : ''}`;
+  }
+  if (k === 'move') {
+    const w = recs('workouts').filter(x => wpIn(x.date, wk)).sort((a, b) => a.date.localeCompare(b.date));
+    return `${panel('Workouts this week', w.length ? `<div class="lrows">${w.map(x => `<button class="lrow" data-act="open" data-id="${x.id}"><span class="lmain"><b>${esc(titleOf(x))}</b><span>${esc([niceDate(x.date), x.type, x.minutes ? x.minutes + ' min' : ''].filter(Boolean).join(' · '))}</span></span></button>`).join('')}</div>` : quiet('No workouts planned yet.'))}
+      <div class="lwrap">${days.map(d => `<button class="chip" data-wpwork="${d}">+ ${esc(wdShort(d))} ${esc(shortDate(d))}</button>`).join('')}</div>`;
+  }
+  if (k === 'house') {
+    const ch = recs('chores').filter(r => { try { return choreDue(r) <= end; } catch { return false; } }), pl = recs('plants').filter(r => plantDue(r) && plantDue(r) <= end);
+    return `${panel('Cleaning', ch.length ? `<div class="lrows">${ch.map(r => `<div class="lrow"><span class="lmain"><b>${esc(titleOf(r))}</b><span>${esc([].concat(r.space || []).join(', '))}</span></span><span class="lside">${esc(shortDate(choreDue(r)))}</span></div>`).join('')}</div>` : quiet('No chores due this week.'))}
+      ${panel('Plants', pl.length ? `<div class="lrows">${pl.map(r => `<div class="lrow"><span class="lmain"><b>${esc(titleOf(r))}</b><span>${esc(r.location || '')}</span></span><span class="lside">${esc(shortDate(plantDue(r)))}</span></div>`).join('')}</div>` : quiet('No plants need water this week.'))}
+      <div class="dbtns">${linkBtn('home/chores', 'Open chores')}</div>`;
+  }
+  if (k === 'skin') {
+    return panel('Your skin week', `<div class="lrows">${days.map(d => { const t = [...techOn(d, false), ...techOn(d, true)].map(x => titleOf(x)); return `<div class="lrow"><span class="lmain"><b>${esc(wdShort(d))} ${esc(shortDate(d))}</b><span>${esc([nightOn(d).replace(' night', ' evening'), ...t].filter(Boolean).join(' · ') || 'Your daily routine')}</span></span></div>`; }).join('')}</div><div class="dbtns">${linkBtn('care/skinmonth', 'Open month')}${linkBtn('care/skin', 'Open routine')}</div>`);
+  }
+  if (k === 'looks') {
+    const off = days.filter(d => dayType(d) === 'office'), posts = recs('posts').filter(r => wpIn(r.date, wk));
+    return `${panel('Office days', off.length ? `<p class="lnone">${esc(off.map(d => wdShort(d) + ' ' + shortDate(d)).join(', '))}: pick your outfits.</p><div class="dbtns"><button class="btn small" data-wpcloset>Open closet</button></div>` : quiet('No office days this week.'))}
+      ${panel('Posts this week', posts.length ? `<div class="lrows">${posts.map(r => `<button class="lrow" data-act="open" data-id="${r.id}"><span class="lmain"><b>${esc(titleOf(r))}</b><span>${esc([niceDate(r.date), r.stage].filter(Boolean).join(' · '))}</span></span></button>`).join('')}</div>` : quiet('No posts planned this week.'))}`;
+  }
+  if (k === 'own') {
+    const c = WPCFG(), on = new Set(c.checks[wk] || []);
+    return `<div class="lrows">${c.custom.map((q, i) => `<label class="lrow settog"><input type="checkbox" data-wpcheck="${i}" ${on.has(i) ? 'checked' : ''}> ${esc(q)}</label>`).join('')}</div>`;
+  }
+  return '';
+}
+function weekPlanPage(host) {
+  const steps = wpSteps(), wk = wpWeek(), c = WPCFG();
+  L.wpIdx = Math.min(Math.max(0, L.wpIdx || 0), steps.length);
+  const i = L.wpIdx, k = steps[i], label = k ? WP_STEPS.find(x => x[0] === k)[1] : 'Done';
+  const dots = steps.map((s, j) => `<span class="wpdot ${j < i ? 'past' : j === i ? 'now' : ''}" title="${esc(WP_STEPS.find(x => x[0] === s)[1])}"></span>`).join('');
+  host.innerHTML = `<div class="viewhead"><h1>Plan my week</h1><span class="sub">${esc(niceDate(wk))} to ${esc(niceDate(addDays(wk, 6)))}</span></div>
+    <div class="wpdots" aria-label="Step ${Math.min(i + 1, steps.length)} of ${steps.length}">${dots}</div>
+    <h2 class="wph">${k ? `${i + 1}. ` : ''}${esc(label)}</h2>
+    <div class="wpbody">${k ? wpBody(k, wk) : `<p class="lbig">Your week is planned.</p><p class="lnone">${c.done[wk] ? 'You finished this week’s planning.' : ''} Change the steps or add your own questions in Settings.</p><div class="dbtns">${linkBtn('plan/settings', 'Settings')}${linkBtn('overview', 'Overview')}</div>`}</div>
+    <div class="wpnav"><button class="btn" data-wpstep="-1" ${i ? '' : 'disabled'}>Back</button><div class="spacer"></div>${k ? `<button class="btn primary" data-wpstep="1">${i + 1 === steps.length ? 'Finish' : 'Next'}</button>` : `<button class="btn" data-wpstep="restart">Start again</button>`}</div>`;
+  if (host.dataset.wpwired) return; host.dataset.wpwired = '1';
+  host.addEventListener('click', async e => {
+    const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
+    if (d.wpstep) { const st = wpSteps(); if (d.wpstep === 'restart') L.wpIdx = 0; else { L.wpIdx = (L.wpIdx || 0) + Number(d.wpstep); if (L.wpIdx >= st.length) await saveWp({ done: { ...WPCFG().done, [wpWeek()]: today() } }); } L.wpQ = ''; weekPlanPage(host); scrollTo(0, 0); return; }
+    if (d.wplist) { L.wpList = d.wplist; L.wpQ = ''; return weekPlanPage(host); }
+    if (d.wpmark) { const r = L.byId[d.id]; if (r) { await wpMark(r, d.wpmark); weekPlanPage(host); } return; }
+    if (d.wpgo) return C.go(d.wpgo);
+    if (b.hasAttribute('data-wpcloset')) return C.go('closet');
+    if (d.wpwork) return openEditor('workouts', null, { date: d.wpwork });
+  });
+  host.addEventListener('input', e => { if (e.target.matches('[data-wpq]')) { L.wpQ = e.target.value; const pos = e.target.selectionStart; weekPlanPage(host); const inp = host.querySelector('[data-wpq]'); inp?.focus(); inp?.setSelectionRange(pos, pos); } });
+  host.addEventListener('change', e => { const t = e.target; if (t.matches('[data-wpcheck]')) { const c2 = WPCFG(), wk2 = wpWeek(), s2 = new Set(c2.checks[wk2] || []); t.checked ? s2.add(+t.dataset.wpcheck) : s2.delete(+t.dataset.wpcheck); saveWp({ checks: { [wk2]: [...s2] } }); } });
+}
+function wpSettings() {
+  const c = WPCFG(), order = [...c.order, ...WP_STEPS.map(x => x[0]).filter(k => !c.order.includes(k))].filter(k => WP_STEPS.some(x => x[0] === k));
+  return `<section class="panel setpanel" data-wpset><h3>Plan my week</h3><p class="muted">On Sunday evening your notification opens these steps. Switch steps off, change the order and add your own questions.</p>
+    <div class="lrows">${order.map((k, i) => `<div class="lrow wpsetrow"><label class="settog"><input type="checkbox" data-wpon="${k}" ${c.off.includes(k) ? '' : 'checked'}> ${esc(WP_STEPS.find(x => x[0] === k)[1])}</label><button class="iconbtn small" data-wpmove="${k}" data-v="-1" ${i ? '' : 'disabled'} aria-label="Move up">${svg(P.left)}</button><button class="iconbtn small" data-wpmove="${k}" data-v="1" ${i < order.length - 1 ? '' : 'disabled'} aria-label="Move down">${svg(P.right)}</button></div>`).join('')}</div>
+    <h3 class="lgh">Your own questions</h3>
+    <div class="lrows">${c.custom.map((q, i) => `<div class="lrow"><span class="lmain"><b>${esc(q)}</b></span><button class="iconbtn small" data-wpdelq="${i}" aria-label="Remove">${svg(P.x)}</button></div>`).join('') || '<p class="lnone">For example: Laundry basket empty? Plants topped up?</p>'}</div>
+    <form class="lqadd" data-wpaddq><input type="text" placeholder="Add a question" aria-label="Add a question" autocomplete="off"><button class="btn primary" type="submit">Add</button></form></section>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-wpmove],[data-wpdelq]'); if (!b || !C) return; const c = WPCFG();
+  if (b.dataset.wpmove) { const o = [...c.order, ...WP_STEPS.map(x => x[0]).filter(k => !c.order.includes(k))], i = o.indexOf(b.dataset.wpmove), j = i + Number(b.dataset.v); if (j < 0 || j >= o.length) return; [o[i], o[j]] = [o[j], o[i]]; saveWp({ order: o }).then(() => C.render()); }
+  else { const cu = c.custom.filter((_, i) => i !== +b.dataset.wpdelq); saveWp({ custom: cu }).then(() => C.render()); }
+});
+document.addEventListener('change', e => { const t = e.target; if (!C || !t.matches?.('[data-wpon]')) return; const c = WPCFG(), off = new Set(c.off); t.checked ? off.delete(t.dataset.wpon) : off.add(t.dataset.wpon); saveWp({ off: [...off] }); });
+document.addEventListener('submit', e => { const f = e.target.closest?.('[data-wpaddq]'); if (!f || !C) return; e.preventDefault(); const v = f.querySelector('input').value.trim(); if (!v) return; saveWp({ custom: [...WPCFG().custom, v] }).then(() => C.render()); });
+
 /* ---------- what you bought: a purchase in Finance linked to the things it paid for ----------
    Each line is { k: list, id, n: name, q: how many, p: price (optional) }; a new thing gets made in its list when you save.
    Saving the purchase adds what you bought to your pantry, closet, beauty and the rest: stock up, off the shopping list,
@@ -6184,7 +6315,7 @@ function secOwn(sec) {
     return wrap(`<section class="panel setpanel"><h3>Your day</h3><p class="muted">The timeline on Today and your bedtime reminder follow this. Office days come from Kitchen › Settings.</p>
       ${tm('wakeOffice', 'Up on office days', 'Kantoordagen')}${tm('wakeHome', 'Up on home days', 'Thuiswerkdagen')}${tm('wakeWeekend', 'Up at the weekend', 'Uitslapen mag')}${tm('workStart', 'Work starts', '')}${tm('workEnd', 'Work ends', '')}
       <div class="fset"><div><b>Hours of sleep</b><span>Bedtime is this many hours before the next alarm.</span></div><input class="finp" type="number" min="6" max="10" step="0.5" data-dayset="sleep" value="${esc(c.sleep)}"></div>
-      <p class="muted">Tonight: bed at ${hm(bedOn(today()))}, up at ${hm(wakeOn(addDays(today(), 1)))}.</p></section>`) + secOwn('wish') + secOwn('care') + secOwn('fit') + icalPanel();
+      <p class="muted">Tonight: bed at ${hm(bedOn(today()))}, up at ${hm(wakeOn(addDays(today(), 1)))}.</p></section>` + wpSettings()) + secOwn('wish') + secOwn('care') + secOwn('fit') + icalPanel();
   }
   if (sec === 'body') return secOwn('care') + secOwn('fit');
   if (sec === 'care') {
