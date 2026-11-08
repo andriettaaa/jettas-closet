@@ -515,7 +515,7 @@ const KINDS = {
       F('type', 'Type', 'select', { options: ['Face', 'Hair', 'Body', 'Makeup', 'Fragrance', 'Nails', 'Other'] }),
       F('about', 'What it does', 'long', { rows: 3 }),
       F('concern', 'Concern', 'multi', { when: D => D.type !== 'Fragrance', options: ['Hydration', 'Dryness', 'Cleansing', 'Dullness', 'Textural Irregularities', 'Signs of Congestion', 'Dark Circles', 'Uneven Skin Tone', 'Signs of Aging', 'Redness', 'Puffiness', 'Heat Protection', 'Styling Product', 'Hair Growth', 'Fragrance'] }),
-      F('family', 'Scent family', 'multi', { options: FRAG_FAMILIES, when: D => D.type === 'Fragrance' }), F('notes', 'Notes', 'multi', { options: FRAG_NOTES, when: D => D.type === 'Fragrance' }),
+      F('family', 'Scent family', 'multi', { options: FRAG_FAMILIES, when: D => D.type === 'Fragrance' }), F('scent', 'Scent notes', 'multi', { options: FRAG_NOTES, when: D => D.type === 'Fragrance' }),
       F('season', 'Season', 'multi', { options: ['Spring', 'Summer', 'Autumn', 'Winter'], when: D => D.type === 'Fragrance', half: 1 }), F('occasion', 'When I wear it', 'multi', { options: ['Every day', 'Office', 'Evening', 'Date', 'Special'], when: D => D.type === 'Fragrance', half: 1 }),
       F('texture', 'Texture', 'select', { when: D => D.type !== 'Fragrance', options: ['Creamy', 'Gel-like', 'Serum', 'Oily', 'Watery', 'Spray', 'Balm', 'Foam', 'Wipes', 'Wax'] }),
       F('step', 'Step in your routine', 'select', { options: SKIN_STEPS, when: D => D.type !== 'Fragrance' }), F('amDays', 'Morning on', 'multi', { options: WEEKDAYS, when: D => D.type !== 'Fragrance' }), F('pmDays', 'Evening on', 'multi', { options: WEEKDAYS, when: D => D.type !== 'Fragrance' }),
@@ -7182,12 +7182,14 @@ function skinResources(host) {
 
 
 const isFrag = b => b.type === 'Fragrance';
+// scent notes live in 'scent'; older records kept them as a list in 'notes'
+const scentOf = b => [].concat(b.scent || (Array.isArray(b.notes) ? b.notes : []));
 function fragPage(host) {
   const fs = recs('beauty').filter(isFrag), own = fs.filter(b => !b.wish && !b.archived), wish = fs.filter(b => b.wish), fp = recs('fragprofile')[0];
   const love = b => b.fav || num(b.rating) >= 4 || num(b.love) >= 4, dislike = b => num(b.rating) && num(b.rating) <= 2;
-  const tally = (list, k) => { const m = new Map(); for (const b of list) for (const v of [].concat(b[k] || [])) m.set(v, (m.get(v) || 0) + 1); return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])); };
-  const likedNotes = tally(fs.filter(love), 'notes'), noNotes = tally(fs.filter(dislike), 'notes'), fams = tally(own, 'family');
-  const row = b => `<div class="lrow"><button class="lmain" data-act="open" data-id="${b.id}"><b>${esc(b.name)}</b><span>${esc([b.brand, [].concat(b.family || []).join(', '), [].concat(b.notes || []).slice(0, 5).join(', ')].filter(Boolean).join(' · ') || 'add its family and notes')}</span></button>${b.url ? `<a class="chip link" href="${esc(b.url)}" target="_blank" rel="noopener">Link</a>` : ''}</div>`;
+  const tally = (list, k) => { const m = new Map(); for (const b of list) for (const v of (k === 'scent' ? scentOf(b) : [].concat(b[k] || []))) m.set(v, (m.get(v) || 0) + 1); return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])); };
+  const likedNotes = tally(fs.filter(love), 'scent'), noNotes = tally(fs.filter(dislike), 'scent'), fams = tally(own, 'family');
+  const row = b => `<div class="lrow"><button class="lmain" data-act="open" data-id="${b.id}"><b>${esc(b.name)}</b><span>${esc([b.brand, [].concat(b.family || []).join(', '), scentOf(b).slice(0, 5).join(', ')].filter(Boolean).join(' · ') || 'add its family and notes')}</span></button>${b.url ? `<a class="chip link" href="${esc(b.url)}" target="_blank" rel="noopener">Link</a>` : ''}</div>`;
   host.innerHTML = `<div class="viewhead"><h1>Perfume</h1><span class="sub">${plural(own.length, 'fragrance')} · ${wish.length} on your wishlist</span></div>
     <div class="lplanhead"><button class="btn small primary" data-fragnew>+ Fragrance</button><button class="btn small" data-fragnew="wish">+ Wishlist</button>${fp ? `<button class="btn small" data-act="open" data-id="${fp.id}">Your scent profile</button>` : '<button class="btn small" data-act="new" data-v="fragprofile">Your scent profile</button>'}</div>
     <div class="panels">
