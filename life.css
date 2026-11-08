@@ -1201,3 +1201,13 @@ img.nophoto { background: var(--line); }
 .wphint { font-size: .78rem; }
 .wpsetrow { display: flex; align-items: center; gap: 6px; } .wpsetrow .settog { flex: 1; }
 .wpsetrow [data-v] svg { transform: rotate(90deg); }
+
+/* reports */
+.rphead { display: grid; gap: 4px; margin-bottom: 8px; justify-items: start; } .rphead h2 { margin: 6px 0 0; }
+.rptop { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.rplist { margin: 0; padding-left: 18px; display: grid; gap: 4px; } .rplist.good li::marker { color: #2e7d4f; } .rplist.bad li::marker { color: #b3541e; }
+.rpstats { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.rpstat { display: grid; gap: 2px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.rpstat .rpl { font-size: .8rem; color: var(--muted, #888); } .rpstat b { font-size: 1.1rem; } .rpstat .muted { font-size: .75rem; }
+.rparrow { margin-left: 4px; font-size: .95rem; } .rparrow.good { color: #2e7d4f; } .rparrow.bad { color: #b3541e; }
+.rpcard .lmain span { white-space: normal; }

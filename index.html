@@ -2121,7 +2121,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v147';
+const APP_VERSION = 'hangtag-v148';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -3913,6 +3913,10 @@ async function start(session) {
     // Plan my week: the weather of a day, and the outfit planned on a day
     wxDay: d => { const w = wxDay(d); return w ? { ...w, icon: wmo(w.c)[1], word: wmo(w.c)[2] } : null; },
     closetDayOutfit: d => S.days?.[d]?.outfit || '',
+    // Reports: what you wore, bought and let go between two dates
+    closetStats: (from, to) => { const ds = Object.entries(S.days || {}).filter(([d, r]) => d >= from && d <= to && r && dayItems(r).length); const worn = new Set(ds.flatMap(([, r]) => dayItems(r)));
+      const day = ms => ms ? new Date(ms).toISOString().slice(0, 10) : ''; const added = S.items.filter(i => !isInbox(i) && i.status !== 'wishlist' && day(i.created) >= from && day(i.created) <= to);
+      return { worn: ds.length, pieces: worn.size, added: added.length, gone: S.items.filter(i => i.passedDate && i.passedDate >= from && i.passedDate <= to).length, spent: added.reduce((n, i) => n + (Number(i.price) || 0), 0) }; },
     closetPlanDay: async (d, outfitId) => { const cur = S.days?.[d] || {}; if (!outfitId) { if (!cur.outfit) return; const { outfit, ...rest } = cur; return Object.keys(rest).length ? DB.put('days', d, rest) : DB.del('days', d); } await DB.put('days', d, { ...cur, outfit: outfitId }); },
     closetPatch: async (id, patch) => { const it = S.items.find(x => x.id === id); if (!it) return; const { id: _i, ...rest } = it; await DB.put('items', id, { ...rest, ...patch, updated: Date.now() }); },
     closetNew: async (id, data) => { await DB.put('items', id, { status: 'closet', ...data, created: Date.now(), updated: Date.now() }); },
