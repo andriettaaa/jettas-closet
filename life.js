@@ -1684,7 +1684,19 @@ const groupFields = K => K.fields.filter(f => ['select', 'multi', 'rel'].include
 const GROUP_PREF = ['category', 'type', 'cuisine', 'room', 'area', 'store', 'shop', 'status', 'for', 'brand'];
 const defGroup = K => { const fs = groupFields(K).map(f => f.k); return K.group !== undefined ? K.group : fs.includes(K.facet) ? K.facet : GROUP_PREF.find(k => fs.includes(k)) || ''; };
 const groupOf = K => { let v = null; try { v = localStorage.getItem('lgroup:' + K.kind); } catch {} return v === 'none' ? '' : v || defGroup(K); };
-const GROUP_SHOW = 9;
+const GROUP_SHOW = 9, GROUP_MAX = 60;
+// tiles fill whole rows: about nine per group, rounded up to the number of columns this screen fits
+function fitGroups(root = document) {
+  for (const sec of root.querySelectorAll('section.lgrp[data-gn]')) {
+    const n = +sec.dataset.gn, grid = sec.querySelector('.lgrid');
+    let shown = GROUP_SHOW;
+    if (grid) { const cols = Math.max(1, getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length); shown = Math.ceil(GROUP_SHOW / cols) * cols; }
+    const box = grid || sec.querySelector('.lrows') || sec.querySelector('tbody');
+    if (box) [...box.children].forEach((c, i) => { c.hidden = i >= shown; });
+    const more = sec.querySelector('.lgmore'); if (more) more.hidden = n <= shown;
+  }
+}
+let fitT = 0; addEventListener('resize', () => { clearTimeout(fitT); fitT = setTimeout(() => fitGroups(), 120); });
 const groupSel = K => { const fs = groupFields(K); return fs.length ? `<select class="pill" data-lgroup aria-label="Group by"><option value="">No groups</option>${fs.map(f => `<option value="${f.k}" ${groupOf(K) === f.k ? 'selected' : ''}>Group: ${esc(f.label)}</option>`).join('')}</select>` : ''; };
 const groupVal = (r, f) => { const v = r[f.k]; if (f.type === 'check') return v ? 'Ja' : 'Nee'; if (f.type === 'rel') return v ? titleOf(L.byId[v] || {}) : ''; return [].concat(v ?? [])[0] ?? ''; };
 function groupedHTML(list, K, inner) {
@@ -1697,7 +1709,7 @@ function groupedHTML(list, K, inner) {
   if (fo && fo.kind === K.kind && fo.g === g && m.has(fo.key)) { const l = m.get(fo.key); return `<div class="lgfocus"><button class="btn small" data-gback>${svg(P.left)} All groups</button><h2>${esc(name(fo.key))} <span class="muted">${l.length}</span></h2></div>${inner(l)}`; }
   L.gfocus = null;
   return [...m.entries()].sort((a, b) => a[0] === '—' ? 1 : b[0] === '—' ? -1 : azCmp(a[0], b[0]))
-    .map(([k, l]) => `<section class="lgrp"><div class="tdgh"><h3>${esc(name(k))} <span class="muted">${l.length}</span></h3></div>${inner(l.slice(0, GROUP_SHOW))}${l.length > GROUP_SHOW ? `<button class="btn small lgmore" data-gall="${esc(k)}" data-gkind="${K.kind}" data-gby="${g}">See all ${l.length} in ${esc(name(k))} ${svg(P.right)}</button>` : ''}</section>`).join('');
+    .map(([k, l]) => `<section class="lgrp" data-gn="${l.length}"><div class="tdgh"><h3>${esc(name(k))} <span class="muted">${l.length}</span></h3></div>${inner(l.slice(0, GROUP_MAX))}${l.length > GROUP_SHOW ? `<button class="btn small lgmore" data-gall="${esc(k)}" data-gkind="${K.kind}" data-gby="${g}">See all ${l.length} in ${esc(name(k))} ${svg(P.right)}</button>` : ''}</section>`).join('');
 }
 const TABLE_TYPES = ['text', 'num', 'money', 'date', 'select', 'multi', 'check'];
 const tableCols = (K, keys) => keys ? keys.map(k => K.fields.find(f => f.k === k)).filter(f => f && TABLE_TYPES.includes(f.type) && !['name', 'title'].includes(f.k)) : K.fields.filter(f => TABLE_TYPES.includes(f.type) && !['name', 'title'].includes(f.k) && !isDays(f)).slice(0, 9);
@@ -1810,6 +1822,7 @@ function fillList(host, page) {
   // Finance lists say so when something is in there twice, with the button to clean it up
   const top = (FIN_KINDS.includes(seg.kind) ? fDupNote() : seg.kind === 'recipes' ? recipeDupNote() : '') + (seg.top ? seg.top() : '') + (K.total && list.length ? K.total(list, u) : '');
   fill.innerHTML = top + (list.length ? groupedHTML(list, K, l => viewMode(K) === 'table' ? tableHTML(l, K) : listHTML(l, K)) : emptyList(K, all.length));
+  fitGroups(fill);
   drawSel(host, page, list);
 }
 // select mode: tap rows or cards to pick them, then delete them or set a field on all of them at once
