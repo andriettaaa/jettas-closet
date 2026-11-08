@@ -132,6 +132,31 @@ const FREEZE_DAYS = 90;
 // your food settings (Kitchen › Deals): shopping day this week and the finance envelope for groceries
 const food = () => (C?.prefs?.() || {}).food || {};
 const MARKET_DAYS = ['Wed', 'Sat'];
+/* your shopping day, week by week: food.shopDates holds the day you picked per week (keyed by its Monday);
+   a week you didn't pick uses your usual day (food.shopDay). On Sunday the question is about the week that starts tomorrow. */
+const SHOP_WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const shopAskWeek = () => weekMon(addDays(today(), new Date().getDay() === 0 ? 1 : 0));
+const shopPicked = wk => (food().shopDates || {})[wk] || null;
+function shopDateIn(wk) { const d = shopPicked(wk); if (d) return d; const i = SHOP_WD.indexOf(food().shopDay); return i >= 0 ? addDays(wk, i) : null; }
+// the weekday you shop this week, for the market list
+const shopDayNow = () => { const d = shopDateIn(weekMon()); return d ? SHOP_WD[(fromISO(d).getDay() + 6) % 7] : ''; };
+// the week to ask about, and on Friday and Saturday also the next one
+const shopPickAll = () => { const wk = shopAskWeek(), late = [5, 6].includes(new Date().getDay()); return shopPickHTML(wk) + (late ? shopPickHTML(addDays(wk, 7)) : ''); };
+function shopPickHTML(wk = shopAskWeek()) {
+  const pick = shopPicked(wk), guess = shopDateIn(wk), t = today(), label = wk > weekMon() ? 'Next week I shop on' : 'This week I shop on';
+  return `<div class="shoppick" data-shopwk="${wk}"><span class="rowlbl">${label}</span><div class="lwrap">${SHOP_WD.map((w, i) => { const d = addDays(wk, i); return `<button type="button" class="chip ${!pick && d === guess ? 'ghost' : ''}" data-act="shopweek" data-wk="${wk}" data-v="${d}" aria-pressed="${pick === d}" ${d < t ? 'disabled' : ''}>${w} ${fromISO(d).getDate()}</button>`; }).join('')}</div><span class="lnone">${pick ? `Shopping on ${esc(niceDate(pick))}.` : guess ? `Not picked yet; your usual day is ${esc(niceDate(guess))}.` : 'Pick a day; the morning of that day you get your list.'}</span></div>`;
+}
+async function setShopWeek(wk, d) {
+  const f = food(), cur = { ...(f.shopDates || {}) }, keep = addDays(weekMon(), -14);
+  for (const k of Object.keys(cur)) if (k < keep) delete cur[k];
+  if (cur[wk] === d) delete cur[wk]; else cur[wk] = d;
+  try { await C.savePrefs({ food: { ...f, shopDates: cur } }); C.toast(cur[wk] ? `Shopping on ${niceDate(d)}` : 'Shopping day cleared'); } catch { C.toast('Could not save. Try again.'); }
+}
+// from the Sunday notification: pick the day for the coming week
+function shopPick() {
+  const sh = C.sheet({ title: 'Shopping day', body: `<div data-shopbody>${shopPickAll()}</div>`, foot: '<div class="spacer"></div><button class="btn primary" data-close>Done</button>' });
+  sh.addEventListener('click', async e => { const b = e.target.closest('[data-act="shopweek"]'); if (!b) return; e.stopPropagation(); await setShopWeek(b.dataset.wk, b.dataset.v); sh.querySelector('[data-shopbody]').innerHTML = shopPickAll(); });
+}
 const isProduce = x => /groente|fruit|vegetable|veg\b|kruiden vers|sla\b|tomaat|komkommer|paprika|ui\b|uien|wortel|appel|banaan|peer|citroen|limoen|gember|knoflook|courgette|broccoli|spinazie|paksoi/i.test(`${x.category || ''} ${x.name || ''}`);
 const groceryEnv = () => { const cats = recs('fcats'), id = food().groceryCat; return (id && cats.find(c => c.id === id)) || cats.find(c => /boodschap|grocer|supermarkt|eten/i.test(c.name || '')) || null; };
 const dealWeekStart = () => { const d = fromISO(today()), back = (d.getDay() + 4) % 7; return addDays(today(), -back); }; // the deals week runs Wednesday to Tuesday
@@ -1240,7 +1265,7 @@ const SECTIONS = [
       ['wish/today', 'Overview', P.grid, 'wish'], ['wish/inbox', 'Inbox', P.inbox, 'wish'], ['wish/master', 'Master', P.heart, 'wish'], ['wish/orders', 'Orders', P.box, 'wish'], ['wish/stats', 'Analyse', P.trend, 'wish'], ['todo', 'To do', P.check]] },
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile,
     groups: { food: ['Food', P.book], shop: ['Shop', P.cart] },
-    views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['pantry', 'Pantry', P.jar, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['shops', 'Shops', P.house, 'shop'], ['todo', 'To do', P.check]] },
+    views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['pantry', 'Pantry', P.jar, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['shops', 'Shops', P.house, 'shop'], ['stats', 'Analyse', P.trend], ['todo', 'To do', P.check]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile,
     groups: { plan: ['Plan', P.target], look: ['Review', P.trend] },
     views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['plan', 'Goals', P.target, 'plan'], ['debt', 'Debt', P.card, 'plan'], ['insurance', 'Insurance', P.doc, 'plan'], ['forecast', 'Forecast', P.trend, 'plan'], ['year', 'Year', P.calendar, 'look'], ['networth', 'Net worth', P.wallet, 'look'], ['reviews', 'Reviews', P.doc, 'look'], ['todo', 'To do', P.check]] },
@@ -1258,6 +1283,7 @@ const PAGES = {
   'kitchen/deals': { render: dealsPage, adds: ['recipes'] },
   'kitchen/quit': { render: quitPage, adds: ['recipes', 'ingredients'] },
   'kitchen/recipes': { title: 'Recipes', segs: [{ kind: 'recipes' }] },
+  'kitchen/stats': { render: kitchenAnalysis, adds: ['recipes', 'meals'] },
 
   'kitchen/meals': { title: 'Meal plan', segs: [{ key: 'week', label: 'Week', kind: 'meals', fill: weekFill, tools: false }, { key: 'month', label: 'Month', kind: 'meals', fill: monthFill, tools: false }, { kind: 'mealprep' }] },
   'kitchen/groceries': { title: 'Groceries', segs: [{ key: 'list', label: 'Shopping list', kind: 'ingredients', fill: groceryFill, tools: false }] },
@@ -1660,7 +1686,7 @@ function fillList(host, page) {
   }
   if (seg.fill) { seg.fill(fill, page); return; }
   // Finance lists say so when something is in there twice, with the button to clean it up
-  const top = (FIN_KINDS.includes(seg.kind) ? fDupNote() : '') + (seg.top ? seg.top() : '') + (K.total && list.length ? K.total(list, u) : '');
+  const top = (FIN_KINDS.includes(seg.kind) ? fDupNote() : seg.kind === 'recipes' ? recipeDupNote() : '') + (seg.top ? seg.top() : '') + (K.total && list.length ? K.total(list, u) : '');
   fill.innerHTML = top + (list.length ? groupedHTML(list, K, l => viewMode(K) === 'table' ? tableHTML(l, K) : listHTML(l, K)) : emptyList(K, all.length));
   drawSel(host, page, list);
 }
@@ -2050,10 +2076,17 @@ const empty = v => v == null || v === '' || (Array.isArray(v) && !v.length);
 const need = (k, label, when) => [k, label, r => (when ? when(r) : true) && empty(r[k])];
 const RTODO = [
   ['photo', 'Photo', r => !r.photo], ['category', 'Category', r => !r.category], ['time', 'Time', r => !num(r.prep) && !num(r.cook)],
-  ['servings', 'Servings', r => !num(r.servings)], ['ingredients', 'Ingredients', r => ![].concat(r.ingredients || []).length],
-  ['instructions', 'Instructions', r => !String(r.instructions || '').trim()], ['protein', 'Protein', r => !String(r.protein || '').trim()],
-  ['feel', 'Feels like', r => ![].concat(r.feel || []).length], ['rating', 'Rating', r => !num(r.rating)]
+  // ingredients count from the list with amounts too (Albo recipes), not only from pantry links
+  ['servings', 'Servings', r => !num(r.servings)], ['ingredients', 'Ingredients', r => ![].concat(r.ingredients || []).length && !parseRecipe(r).lines.length],
+  ['amounts', 'Amounts', r => { const l = [].concat(r.ilines || []).filter(x => x && x.h == null && x.n); return l.length > 0 && !l.some(x => String(x.q ?? '').trim()); }],
+  ['steps', 'Steps', r => !parseRecipe(r).steps.length],
+  // protein is known when you typed it, entered your own value, or the estimate found some
+  ['protein', 'Protein', r => !String(r.protein || '').trim() && num(r.nprot) == null && !(nutriOf(r).per.p > 0)],
+  // how it felt and how good it was only matter once you cooked it
+  ['feel', 'Feels like', r => hasCooked(r) && ![].concat(r.feel || []).length], ['rating', 'Rating', r => hasCooked(r) && !num(r.rating)]
 ];
+// cooked at least once: you tapped "I made this", it was in your meal plan on a day that has passed, or you reviewed it
+const hasCooked = r => num(r.cooks) > 0 || !!r.lastCooked || recs('meals').some(m => m.recipe === r.id && m.date && m.date <= today()) || recs('rreviews').some(x => x.recipe === r.id);
 const TODO = {
   kitchen: {
     recipes: { checks: RTODO },
@@ -2443,7 +2476,7 @@ function foodCheckPanel() {
 // after cooking: tick the meal and the veg in the food check, then count off what is used up
 function cookedPanel(r) {
   const ings = [].concat(r.ingredients || []).map(id => L.byId[id]).filter(Boolean);
-  return `<section class="ltipsteps cooked"><div class="lph3"><h3>Gekookt?</h3><button type="button" class="btn small primary" data-act="cooked" data-id="${r.id}">Ik heb dit gekookt</button></div>
+  return `<section class="ltipsteps cooked"><div class="lph3"><h3>Made it?</h3><button type="button" class="btn small primary" data-act="cooked" data-id="${r.id}">I made this</button></div>
     <div data-cookedbody hidden>${ings.length ? `<p class="lnone">Wat is er op of minder? Tik − bij wat je gebruikte.</p><div class="lrows">${ings.map(i => `<div class="lrow"><span class="lmain"><b>${esc(i.name)}</b></span><span class="stepper" data-istep="${i.id}"><button type="button" data-act="icnt" data-id="${i.id}" data-v="-1">−</button><b>${cntOf(i) == null ? (i.stock ? 'in huis' : 'op') : esc(unitShort(cntOf(i), unitOf(i)))}</b><button type="button" data-act="icnt" data-id="${i.id}" data-v="1">+</button></span><button type="button" class="chip" data-act="iout" data-id="${i.id}">Op</button></div>`).join('')}</div>` : ''}
     <div class="dbtns"><button type="button" class="btn small" data-act="cleft" data-v="Fridge" data-id="${r.id}">Restje in koelkast</button><button type="button" class="btn small" data-act="cleft" data-v="Freezer" data-id="${r.id}">Restje in vriezer</button><button type="button" class="btn small" data-act="creview" data-id="${r.id}">Hoe smaakte het?</button></div></div></section>`;
 }
@@ -2453,6 +2486,8 @@ async function cooked(r) {
   if (['Breakfast', 'Lunch', 'Dinner'].includes(slot)) m.add(slot);
   const patch = { meals: ['Breakfast', 'Lunch', 'Dinner'].filter(x => m.has(x)), ...(num(r.vegG) ? { veg: (num(n.veg) || 0) + num(r.vegG) } : {}), ...(slot === 'Snack' ? { snack: true } : {}) };
   await nlSet(patch);
+  // the recipe remembers how often and when you cooked it (for stats and To do)
+  save(L.byId[r.id] || r, { cooks: (num(r.cooks) || 0) + 1, lastCooked: t });
   C.toast(`In je dagcheck: ${slot.toLowerCase()}${num(r.vegG) ? ` en ${num(r.vegG)} g groente` : ''}`);
 }
 // learning to eat breakfast: today's planned breakfast and a tick that counts as a habit in Routines
@@ -2563,13 +2598,13 @@ function dealsPage(host) {
       <button class="btn small primary" data-act="dplan" data-k="${k}" data-i="${i}">Put in meal plan</button></div></div></div>`;
   };
   const block = (k, title, sub) => { const l = plan?.[k] || []; return l.length ? panel(title, `<p class="lnone">${esc(sub)}</p><div class="dmeals">${l.map((m, i) => mealCard(m, i, k)).join('')}</div>`) : ''; };
-  const shopping = plan?.shopping || [], sday = food().shopDay || '', mkt = MARKET_DAYS.includes(sday), mktName = recs('shops').find(r => r.type === 'Market')?.name || 'Market', storeOf = x => mkt && (x.market || isProduce(x)) ? mktName : x.store,
+  const shopping = plan?.shopping || [], sday = shopDayNow(), mkt = MARKET_DAYS.includes(sday), mktName = recs('shops').find(r => r.type === 'Market')?.name || 'Market', storeOf = x => mkt && (x.market || isProduce(x)) ? mktName : x.store,
     shopStores = [...new Set([...(mkt ? [mktName] : []), ...allStores, ...shopping.map(x => x.store).filter(Boolean)])], shopBy = [...shopStores, 'Other'].map(s => [s, shopping.filter(x => (shopStores.includes(storeOf(x)) ? storeOf(x) : 'Other') === s)]).filter(([, l]) => l.length);
   const cost = fSum(shopping.filter(x => !x.have), 'price'), bud = groceryBudget();
   const saved = fSum(offers.filter(o => num(o.was) > num(o.price)).map(o => ({ amount: num(o.was) - num(o.price) })));
   host.innerHTML = `${head('Deals of the week')}<div class="ldeals">
   <div class="tiles">${fTile('Deals', String(offers.length), byStore.map(([s, l]) => `${s} ${l.length}`).join(' · ') || 'none yet')}${fTile('Dinners', String((plan?.dinners || []).length), plan ? `each for 2 days · ${esc(shortDate(plan.start))} to ${esc(shortDate(plan.end))}` : 'no plan yet')}${fTile('Shared', String((plan?.shared || []).length), 'deal ingredients used in more than one recipe')}${bud ? fTile('Budget this week', fEur0(bud.week), `${eur(bud.spentWeek)} spent since Wednesday${cost ? ` · plan about ${eur(cost)}` : ''}`) : fTile('Plan costs', cost ? eur(cost) : '–', saved ? `${eur(saved)} saved with deals` : 'from the shopping list')}</div>
-  <div class="dday"><span class="rowlbl">I shop on</span><div class="seg fseg" role="group">${[['Wed', 'Wednesday'], ['Fri', 'Friday'], ['Sat', 'Saturday']].map(([k, l]) => `<button data-act="shopday" data-v="${k}" aria-pressed="${sday === k}">${l}</button>`).join('')}</div><span class="lnone">${mkt ? `Fruit and vegetables go on the ${esc(mktName)} list: buy small amounts.` : sday ? 'No market today: fruit and vegetables stay at the shop.' : 'On Wednesday and Saturday fruit and vegetables move to the market list.'}</span></div>
+  ${shopPickAll()}<div class="dday"><span class="rowlbl">Usually I shop on</span><div class="seg fseg" role="group">${[['Wed', 'Wednesday'], ['Fri', 'Friday'], ['Sat', 'Saturday']].map(([k, l]) => `<button data-act="shopday" data-v="${k}" aria-pressed="${food().shopDay === k}">${l}</button>`).join('')}</div><span class="lnone">${mkt ? `Fruit and vegetables go on the ${esc(mktName)} list: buy small amounts.` : sday ? 'No market today: fruit and vegetables stay at the shop.' : 'On Wednesday and Saturday fruit and vegetables move to the market list.'}</span></div>
   ${awayRow()}
   ${bud ? `<div class="dbudget"><div class="dbar"><i style="width:${Math.min(100, bud.week ? 100 * (bud.spentWeek + (cost || 0)) / bud.week : 0)}%" class="${bud.spentWeek + cost > bud.week ? 'over' : ''}"></i></div><p class="lnone">${esc(bud.cat.name)} in Finance: ${eur(bud.spentPeriod)} of ${eur(bud.period)} this ${fMode() === 'month' ? 'month' : 'pay'}. ${bud.spentWeek + cost > bud.week ? `The plan goes ${eur(bud.spentWeek + cost - bud.week)} over this week's share.` : `${eur(bud.week - bud.spentWeek - cost)} left this week after the plan.`}${saved ? ` Deals save you ${eur(saved)}.` : ''}</p></div>` : (recs('fcats').length ? `<p class="lnone">Pick your groceries envelope under Kitchen › Settings to see your budget here.</p>` : '')}
   ${!plan && !offers.length ? panel('How this works', `<p class="lnone">Every Wednesday a task reads the deals of Dirk, Aldi, Albert Heijn and every shop under Shops that has its deals switched on, looks through your recipes, pantry and freezer, and puts this week's deals here with a plan: 5 dinners that each last 2 days, 3 office lunches that reheat in a microwave, 3 breakfasts and a few snacks. It reuses the same deal ingredients across recipes, so you buy less and waste less.</p><p class="lnone">It needs the Supabase function <b>offers</b> with the secret <b>OFFERS_TOKEN</b>. Then the first plan shows up after the next Wednesday.</p>`) : ''}
@@ -3205,7 +3240,7 @@ function groceryFill(fill) {
     fill.innerHTML = `<form class="lqadd" data-qadd><input type="text" placeholder="Add something to buy" aria-label="Add to grocery list" autocomplete="off" enterkeyhint="done"><button class="btn primary" type="submit">Add</button></form><div class="lsugs" data-sugs></div><div data-glist></div>`;
     fill.querySelector('input').addEventListener('input', e => sugs(fill, e.target.value));
   }
-  const items = recs('ingredients').filter(i => i.list), mkt = MARKET_DAYS.includes(food().shopDay), mktName = recs('shops').find(r => r.type === 'Market')?.name || 'Market';
+  const items = recs('ingredients').filter(i => i.list), mkt = MARKET_DAYS.includes(shopDayNow()), mktName = recs('shops').find(r => r.type === 'Market')?.name || 'Market';
   const shopOf = i => mkt && isProduce(i) ? mktName : i.shop || 'Anywhere';
   const groups = {};
   for (const i of items) (groups[shopOf(i)] ||= []).push(i);
@@ -3217,9 +3252,9 @@ function groceryFill(fill) {
   const buyN = i => (L.buyN ||= {})[i.id] ?? stepOf(i);
   const line = i => `<div class="lrow grow"><button class="lbuy" data-act="buy" data-id="${i.id}" aria-label="Bought ${esc(i.name)}"></button><button class="lmain" data-act="open" data-id="${i.id}"><b>${esc(i.name)}</b>${i.qty || i.category ? `<span>${esc([i.qty, i.category].filter(Boolean).join(' · '))}</span>` : ''}</button><span class="gacts"><span class="stepper buyn" role="group" aria-label="How many you buy"><button type="button" data-act="buyn" data-id="${i.id}" data-v="-1" aria-label="Fewer">−</button><b>${esc(unitShort(buyN(i), unitOf(i)))}</b><button type="button" data-act="buyn" data-id="${i.id}" data-v="1" aria-label="More">+</button></span>${isMeatFish(i) ? `<button class="btn small" data-act="buyfreeze" data-id="${i.id}" title="Bought, straight into the freezer">Freeze</button>` : ''}<button class="iconbtn lx" data-act="unlist" data-id="${i.id}" aria-label="Take ${esc(i.name)} off the list">${svg(P.x)}</button></span></div>`;
   const gv = ingViewOf('grocView', 'shop');
-  g.innerHTML = items.length ? ingViewSeg('grocView', gv, [['shop', 'Per winkel'], ['type', 'Per soort']]) + (gv === 'type' ? ingTypeView(items, line, 'grocery') : order.map(c => `<div class="lgh gshop"><h3>${esc(c)} · ${groups[c].length}</h3>${env && c !== 'Anywhere' ? `<button class="chip link" data-act="paid" data-v="${esc(c)}">Paid</button>` : ''}</div><div class="lrows">${groups[c].sort((a, b) => norm(a.category || 'zz').localeCompare(norm(b.category || 'zz')) || norm(a.name).localeCompare(norm(b.name))).map(line).join('')}</div>`).join(''))
+  g.innerHTML = shopPickAll() + (items.length ? ingViewSeg('grocView', gv, [['shop', 'Per winkel'], ['type', 'Per soort']]) + (gv === 'type' ? ingTypeView(items, line, 'grocery') : order.map(c => `<div class="lgh gshop"><h3>${esc(c)} · ${groups[c].length}</h3>${env && c !== 'Anywhere' ? `<button class="chip link" data-act="paid" data-v="${esc(c)}">Paid</button>` : ''}</div><div class="lrows">${groups[c].sort((a, b) => norm(a.category || 'zz').localeCompare(norm(b.category || 'zz')) || norm(a.name).localeCompare(norm(b.name))).map(line).join('')}</div>`).join(''))
     + `<p class="lnone">Tick something off and it moves into your pantry. ${env ? `Tap Paid when you pay at a shop, and it goes into ${esc(env.name)} in Finance.` : ''}</p>`
-    : quiet('Your list is empty. Add things above, or use “Add missing to list” on a recipe.');
+    : quiet('Your list is empty. Add things above, or use “Add missing to list” on a recipe.'));
   sugs(fill, fill.querySelector('.lqadd input').value);
 }
 function sugs(fill, text) {
@@ -4764,20 +4799,64 @@ async function fromBudgetBackup(j) {
   out.push({ id: fs?.id || await U('settings'), kind: 'fset', data: clean({ payday: st.payday, payAmount: st.v3PayAmount, buffer: st.buffer, cycle: 'Monthly' }) });
   return out;
 }
+/* the same recipe twice: a name that only differs in capitals, accents or punctuation ("30-Minute Brothy Rice" and
+   "30 minute brothy rice"), the same Albo or web link, or the same photo */
+const looseName = v => deUml(v || '').replace(/[^a-z0-9]+/g, ' ').trim();
+const sameKeys = r => [looseName(titleOf(r)) && 'n:' + looseName(titleOf(r)), r.link && 'l:' + String(r.link).trim().toLowerCase(), /^https?:/.test(r.photo || '') && 'p:' + r.photo].filter(Boolean);
+function recipeDups() {
+  const rs = recs('recipes'), parent = new Map(rs.map(r => [r.id, r.id])), find = id => { while (parent.get(id) !== id) id = parent.get(id); return id; };
+  const seen = new Map(); for (const r of rs) for (const k of sameKeys(r)) { if (seen.has(k)) parent.set(find(r.id), find(seen.get(k))); else seen.set(k, r.id); }
+  const groups = new Map(); for (const r of rs) { const g = find(r.id); (groups.get(g) || groups.set(g, []).get(g)).push(r); }
+  // the copy that stays: the one with most of your own things (made it, rating, in a plan), then the most filled in, then the oldest
+  const uses = id => recs('meals').filter(m => m.recipe === id).length + recs('rreviews').filter(x => x.recipe === id).length;
+  const score = r => (num(r.rating) ? 5 : 0) + (r.fav ? 3 : 0) + (num(r.cooks) || 0) * 2 + uses(r.id) * 2 + Object.values(dataOf(r)).filter(v => !isEmptyVal(v)).length / 10;
+  return [...groups.values()].filter(l => l.length > 1).map(l => { const keep = [...l].sort((a, b) => score(b) - score(a) || (a.created || 0) - (b.created || 0))[0]; return { keep, gone: l.filter(r => r !== keep) }; });
+}
+const recipeDupNote = () => { let n = 0; try { n = recipeDups().reduce((a, g) => a + g.gone.length, 0); } catch {} return n ? `<div class="note tnote fdupnote"><span>${n === 1 ? 'Er staat 1 recept dubbel' : `Er staan ${n} recepten dubbel`}.</span><button class="btn small primary" data-act="rdups">Dubbele opruimen</button></div>` : ''; };
+function rDups() {
+  const gs = recipeDups(); if (!gs.length) { C.toast('No duplicate recipes.'); return; }
+  const n = gs.reduce((a, g) => a + g.gone.length, 0);
+  const sh = C.sheet({ title: 'Duplicate recipes', body: `<p class="lnone">Each recipe stays once: the copy with your own rating, notes and meal plans. It gets what the other copy had and it lacked. You can undo this right after.</p><div class="lrows">${gs.map(g => `<div class="lrow"><span class="lmain"><b>${esc(titleOf(g.keep))}</b><span>${esc(g.gone.map(titleOf).filter(t => t !== titleOf(g.keep)).join(', ') || 'same name')}</span></span><span class="lside">${g.gone.length + 1}×</span></div>`).join('')}</div>`,
+    foot: '<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-go>Clean up ' + n + '</button>' });
+  sh.querySelector('[data-go]').onclick = async e => {
+    e.target.disabled = true; const msg = sh.querySelector('[data-msg]'); msg.textContent = 'Cleaning up…';
+    const map = new Map(), fillIn = new Map();
+    for (const g of gs) for (const r of g.gone) { map.set(r.id, g.keep.id); (fillIn.get(g.keep.id) || fillIn.set(g.keep.id, []).get(g.keep.id)).push(r); }
+    const changes = [];
+    for (const r of L.all) {
+      if (map.has(r.id)) continue;
+      let d = relink(dataOf(r), map);
+      for (const o of fillIn.get(r.id) || []) for (const [k, v] of Object.entries(dataOf(o))) if (isEmptyVal(d[k]) && !isEmptyVal(v)) d = { ...d, [k]: v };
+      if (r.kind === 'recipes' && fillIn.has(r.id)) d = { ...d, cooks: (num(d.cooks) || 0) + fillIn.get(r.id).reduce((a, o) => a + (num(o.cooks) || 0), 0) || undefined };
+      if (JSON.stringify(d) !== JSON.stringify(dataOf(r))) changes.push({ id: r.id, kind: r.kind, data: JSON.parse(JSON.stringify(d)) });
+    }
+    const old = [...[...map.keys()].map(id => L.byId[id]), ...changes.map(c => L.byId[c.id])].map(r => ({ id: r.id, kind: r.kind, data: dataOf(r) }));
+    const ids = [...map.keys()], now = new Date().toISOString();
+    try {
+      for (let i = 0; i < changes.length; i += 400) { const { error } = await C.sb.from('records').upsert(changes.slice(i, i + 400).map(r => ({ user_id: C.uid(), id: r.id, kind: r.kind, data: r.data, updated_at: now }))); if (error) throw error; }
+      for (let i = 0; i < ids.length; i += 200) { const { error } = await C.sb.from('records').delete().in('id', ids.slice(i, i + 200)); if (error) throw error; }
+    } catch (err) { console.error(err); msg.textContent = ''; C.toast('Could not clean up. Reload and try again.'); e.target.disabled = false; return; }
+    const gone = new Set(ids), ch = new Map(changes.map(c => [c.id, c]));
+    L.all = L.all.filter(r => !gone.has(r.id)).map(r => ch.has(r.id) ? { ...ch.get(r.id).data, id: r.id, kind: r.kind } : r);
+    index(); cacheSave(); C.closeSheet(); C.render();
+    C.undoPush?.(`Removed ${plural(ids.length, 'duplicate recipe')}`, () => putMany(old, null, 'restore'), true);
+  };
+}
 /* a file can ask to fill in only (mode "fill", like the Albo recipes): a recipe with the same name as one you
    already have keeps everything you filled in yourself and only gets what is still empty */
 const isEmptyVal = v => v == null || v === '' || (Array.isArray(v) && !v.length);
 const nameForms = n => { const b = deUml(n); return [...new Set([b, b.replace(/(en|s)$/, ''), b + 'en', b + 's'].filter(Boolean))]; };
 function fillMatch(rows) {
-  const byName = new Map(); for (const k of new Set(rows.map(r => r.kind))) for (const r of recs(k)) for (const f of nameForms(titleOf(r))) { const key = k + '#' + f; if (!byName.has(key)) byName.set(key, r.id); }
+  // a record matches on its name (or a form of it, or one of its other names), and recipes also on the loose name, link or photo
+  const keysOf = (kind, d) => { const names = [d.name || d.title || '', ...[].concat(d.aka || [])]; return [...names.flatMap(n => nameForms(n).map(f => 'f:' + f)), ...(kind === 'recipes' ? sameKeys({ ...d, kind }) : [])]; };
+  const byName = new Map(); for (const k of new Set(rows.map(r => r.kind))) for (const r of recs(k)) for (const key of keysOf(k, { ...r, name: titleOf(r) })) if (!byName.has(k + '#' + key)) byName.set(k + '#' + key, r.id);
   let added = 0, filled = 0, same = 0; const linked = [], fresh = [];
   const out = rows.map(r => {
-    const { aka, ...rd } = r.data, names = [rd.name || rd.title || '', ...[].concat(aka || [])];
-    let id = L.byId[r.id] ? r.id : null;
-    for (const nm of names) { if (id) break; for (const f of nameForms(nm)) { const hit = byName.get(r.kind + '#' + f); if (hit) { id = hit; break; } } }
+    const { aka, ...rd } = r.data;
+    const id = L.byId[r.id] ? r.id : keysOf(r.kind, r.data).map(k => byName.get(r.kind + '#' + k)).find(Boolean) || null;
     const have = id && L.byId[id];
-    if (!have) { added++; fresh.push(rd.name || ''); return { ...r, id: r.id, data: rd }; }
-    linked.push([rd.name || '', titleOf(have)]);
+    if (!have) { added++; fresh.push(rd.name || rd.title || ''); return { ...r, id: r.id, data: rd }; }
+    linked.push([rd.name || rd.title || '', titleOf(have)]);
     const cur = dataOf(have), data = { ...cur };
     let n = 0; for (const [k, v] of Object.entries(rd)) if (k !== 'name' && isEmptyVal(cur[k]) && !isEmptyVal(v)) { data[k] = v; n++; }
     // a photo from the file only goes on a product that has none yet
@@ -4928,6 +5007,7 @@ document.addEventListener('click', async e => {
     case 'fwnew': openEditor('wishes', null, { status: 'Wish', since: today(), wait: WAIT_DAYS * 24, category: 'Other' }); break;
     case 'fcsv': pickCsv(); break;
     case 'fdups': fDups(); break;
+    case 'rdups': rDups(); break;
     case 'fpaydates': fPayDates(); break;
     case 'finsmove': insMove(); break;
     case 'fclear': fClear(); break;
@@ -4965,6 +5045,7 @@ document.addEventListener('click', async e => {
     case 'away': toggleAway(d.v); break;
     case 'hadbf': hadBreakfast(); break;
     case 'office': { const o = new Set(food().office || ['Mon', 'Tue', 'Thu']); o.has(d.v) ? o.delete(d.v) : o.add(d.v); C.savePrefs({ food: { ...food(), office: WEEKDAYS.filter(x => o.has(x)) } }).catch(() => C.toast('Could not save. Try again.')); break; }
+    case 'shopweek': setShopWeek(d.wk, d.v).then(() => C.render()); break;
     case 'shopday': C.savePrefs({ food: { ...food(), shopDay: food().shopDay === d.v ? '' : d.v } }).catch(() => C.toast('Could not save. Try again.')); break;
     case 'leftover': leftover(d.id, d.v); break;
     case 'buyfreeze': { const r = L.byId[d.id]; const n = r && ((L.buyN ||= {})[r.id] ?? 1); if (r) save(r, { list: false, stock: true, location: 'Vriezer', frozen: today(), unit: r.unit || 'portie', amount: Math.round(((cntOf(r) || 0) + n) * 100) / 100 }).then(() => C.toast(`${r.name} is in the freezer`)); break; }
@@ -6507,6 +6588,40 @@ function wishAnalysis(host) {
     ${panel('Bestellingen per winkel', perShop.size ? `<div class="lrows">${[...perShop.entries()].sort((a, b) => b[1].n - a[1].n).map(([s, e]) => `<div class="lrow"><span class="lmain"><b>${esc(s)}</b><span>${plural(e.n, 'bestelling', 'bestellingen')}</span></span><b class="lside">${e.r ? e.r + ' retour' : ''}</b></div>`).join('')}</div>` : quiet('Nog geen bestellingen in deze periode.'), ['wish/orders', 'Orders'])}
   </div>`;
 }
+/* Kitchen: what you cook and eat, your recipes and how they add up, and the pantry */
+function kitchenAnalysis(host) {
+  const n = anaDays(), days = dayList(n), from = days[0], t = today(), prev = dayList(n, addDays(from, -1));
+  const rs = recs('recipes'), inP = (d, l = days) => d && d >= l[0] && d <= l[l.length - 1];
+  const meals = recs('meals').filter(m => inP(m.date) && m.date <= t), pmeals = recs('meals').filter(m => inP(m.date, prev));
+  const home = meals.filter(m => !m.away), withR = meals.filter(m => m.recipe && L.byId[m.recipe]), pR = pmeals.filter(m => m.recipe && L.byId[m.recipe]);
+  const cookedN = withR.length + rs.filter(r => inP(r.lastCooked) && !withR.some(m => m.recipe === r.id && m.date === r.lastCooked)).length;
+  const newR = rs.filter(r => r.created && inP(iso(new Date(r.created)))).length;
+  // what a day's planned recipes add up to, per serving
+  const nut = new Map(); const nOf = r => { if (!nut.has(r.id)) nut.set(r.id, nutriOf(r)); return nut.get(r.id); };
+  const dayKcal = d => { const l = withR.filter(m => m.date === d); if (!l.length) return null; const v = l.map(m => nOf(L.byId[m.recipe])).filter(x => x.counted || x.own); return v.length ? v.reduce((a, x) => a + x.per.kcal, 0) : null; };
+  const kcalDays = days.map(dayKcal), kAvg = avgOf(kcalDays);
+  const est = rs.map(r => ({ r, n: nOf(r) })).filter(x => (x.n.counted || x.n.own) && x.n.per.kcal > 20);
+  const most = new Map(); for (const m of withR) most.set(m.recipe, (most.get(m.recipe) || 0) + 1);
+  const top = [...most.entries()].sort((a, b) => b[1] - a[1] || azCmp(titleOf(L.byId[a[0]]), titleOf(L.byId[b[0]]))).slice(0, 8);
+  const count = (list, key) => { const m = new Map(); for (const r of list) { const k = r[key] || 'Geen'; m.set(k, (m.get(k) || 0) + 1); } return [...m.entries()].sort((a, b) => b[1] - a[1]); };
+  const ing = recs('ingredients'), inStock = ing.filter(i => i.stock).length, low = ing.filter(i => i.low).length, soon = ing.filter(useSoon).length, onList = ing.filter(i => i.list).length;
+  const quick = rs.filter(r => totalTime(r) > 0 && totalTime(r) <= 30).length, tried = rs.filter(hasCooked).length, totry = rs.filter(r => r.totry).length;
+  const protein = est.slice().sort((a, b) => b.n.per.p - a.n.per.p).slice(0, 6), light = est.filter(x => x.n.per.kcal >= 150).sort((a, b) => a.n.per.kcal - b.n.per.kcal).slice(0, 6);
+  const rowR = (r, side) => `<div class="lrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(r.category || '')}</span></button><b class="lside">${side}</b></div>`;
+  host.innerHTML = `${anaHead('Kitchen · analyse', `${calDayLabel(from)} tot vandaag`)}
+  <div class="tiles">${aTile('Gekookt', String(cookedN), delta(withR.length, pR.length))}${aTile('Thuis gegeten', String(home.length), `${plural(meals.length - home.length, 'keer', 'keer')} buiten de deur`)}${aTile('Calorieën per dag', kAvg != null ? Math.round(kAvg) + ' kcal' : '–', 'uit je maaltijdplan, geschat')}${aTile('Recepten', String(rs.length), `${newR} nieuw · ${tried} gekookt · ${totry} nog proberen`)}</div>
+  <div class="panels">
+    ${panel('Calorieën per dag', aLine(days, kcalDays, { label: 'Calorieën', unit: ' kcal' }) + '<p class="lnone">Per portie van de recepten in je maaltijdplan. Maaltijden zonder recept tellen niet mee.</p>', ['kitchen/meals', 'Meal plan'])}
+    ${panel('Maaltijden per weekdag', aBars(WD_NL.map((w, i) => [w, meals.filter(m => (fromISO(m.date).getDay() + 6) % 7 === i).length])))}
+    ${panel('Meest gekookt', top.length ? `<div class="lrows">${top.map(([id, c]) => rowR(L.byId[id], plural(c, 'keer', 'keer'))).join('')}</div>` : quiet('Zet recepten in je maaltijdplan of tik op "I made this", dan verschijnen ze hier.'))}
+    ${panel('Recepten per categorie', aBars(count(rs, 'category').slice(0, 10)), ['kitchen/recipes', 'Recipes'])}
+    ${panel('Recepten per keuken', aBars(count(rs.filter(r => r.cuisine), 'cuisine').slice(0, 8)))}
+    ${panel('Voeding van je recepten', est.length ? `<p class="dline"><span>Gemiddeld per portie</span><b>${Math.round(avgOf(est.map(x => x.n.per.kcal)))} kcal</b></p><p class="dline"><span>Eiwit per portie</span><b>${r1(avgOf(est.map(x => x.n.per.p)))} g</b></p><p class="dline"><span>Met een schatting</span><b>${est.length} van ${rs.length}</b></p><p class="dline"><span>Klaar in 30 minuten of minder</span><b>${quick}</b></p>` : quiet('Vul hoeveelheden in bij je ingrediënten, dan rekent de app dit uit.'))}
+    ${panel('Meeste eiwit per portie', protein.length ? `<div class="lrows">${protein.map(x => rowR(x.r, Math.round(x.n.per.p) + ' g')).join('')}</div>` : quiet('Nog geen schattingen.'))}
+    ${panel('Lichtste maaltijden', light.length ? `<div class="lrows">${light.map(x => rowR(x.r, Math.round(x.n.per.kcal) + ' kcal')).join('')}</div>` : quiet('Nog geen schattingen.'))}
+    ${panel('Voorraad', `<p class="dline"><span>Op voorraad</span><b>${inStock} van ${ing.length}</b></p><p class="dline"><span>Bijna op</span><b>${low}</b></p><p class="dline"><span>Snel opmaken</span><b>${soon}</b></p><p class="dline"><span>Op je boodschappenlijst</span><b>${onList}</b></p>`, ['kitchen/pantry', 'Pantry'])}
+  </div>`;
+}
 /* Mind overview */
 function mindOverview(host) {
   const t = today(), nl = nlOn(t) || {}, hs = recs('habits').filter(h => !h.paused && (!(h.onDays || []).length || h.onDays.includes(wdOf(t)))), done = hs.filter(h => daysSet(h).has(t));
@@ -6556,7 +6671,7 @@ function lifeOverview(host) {
   const hs = recs('habits').filter(h => !h.paused), hp = avgOf(hs.map(h => { const due = d30.filter(d => !(h.onDays || []).length || h.onDays.includes(wdOf(d))); return due.length ? due.filter(d => daysSet(h).has(d)).length / due.length * 100 : null; }));
   host.innerHTML = `${head('Life')}
   <div class="tiles lifenums">${aTile('Stemming', mood != null ? r1(mood) + '/4' : '–', '30 dagen')}${aTile('Slaap', sleep != null ? r1(sleep) + ' uur' : '–', 'gemiddeld')}${aTile('Trainingen', String(wo), '30 dagen')}${aTile('Routines', hp != null ? Math.round(hp) + '%' : '–', 'gelukt')}</div>
-  <div class="lanalinks">${[['plan/mindstats', 'Mind'], ['body/stats', 'Body'], ['plan/planstats', 'Plans'], ['wish/stats', 'Wishlists']].map(([v, l]) => `<button class="chip link" data-act="go" data-v="${v}">Analyse ${l}</button>`).join('')}</div>
+  <div class="lanalinks">${[['plan/mindstats', 'Mind'], ['body/stats', 'Body'], ['plan/planstats', 'Plans'], ['wish/stats', 'Wishlists'], ['kitchen/stats', 'Kitchen']].map(([v, l]) => `<button class="chip link" data-act="go" data-v="${v}">Analyse ${l}</button>`).join('')}</div>
   <div class="quickacts lifeacts"><button class="chip" data-act="new" data-v="journal">+ Journal</button><button class="chip" data-act="new" data-v="sleep">+ Slaap</button><button class="chip" data-act="new" data-v="workouts">+ Workout</button><button class="chip" data-act="new" data-v="wishes">+ Wens</button></div>
   <div class="panels">
     ${panel('Mind', planTile(), ['plan/today', 'My year'])}
@@ -6613,6 +6728,7 @@ function planWeek(host) {
   <div class="panels">
     ${panel('Terugblik', `<div class="ylines"><p class="dline"><span>Uitgegeven</span><b>${eur(spent)}</b></p><p class="dline"><span>Posts geplaatst</span><b>${posted} van 3</b></p><p class="dline"><span>Gekocht voor de verhuizing</span><b>${bought}</b></p>${cs.start && !cs.before ? `<p class="dline"><span>Rookgeld deze week</span><b>${eur(cs.weekSaved)}</b></p>` : ''}</div>
       ${cs.start && !cs.before && cs.weekSaved ? `<button class="btn small primary" data-act="cleanmove">${eur(cs.weekSaved)} naar Verhuizen</button>` : ''}`)}
+    ${panel('Boodschappen', shopPickAll(), ['kitchen/groceries', 'Groceries'])}
     ${panel('Focus voor volgende week', `<input class="finp" data-intent value="${esc(it.text || '')}" placeholder="Bijv. elke dag ontbijten" aria-label="Focus voor de week"><p class="lnone">Je focus staat de hele week bovenaan Today.</p>`)}
     ${panel('Zondag reset', `<div class="lrows">${RESET.map(([k, l, go]) => `<label class="lrow dpick ${done.has(k) ? 'gone' : ''}"><input type="checkbox" data-reset="${key}:${k}" ${done.has(k) ? 'checked' : ''}><span class="lmain"><b>${esc(l)}</b></span>${go ? `<button class="chip link" data-act="go" data-v="${go}">Open</button>` : ''}</label>`).join('')}</div>`)}
   </div>`;
@@ -6671,6 +6787,7 @@ return {
   canBuyWish: () => fAccs().length > 0,
   newRecord: kind => KINDS[kind] && openEditor(kind, null),
   chooser: () => openChooser(),
+  shopPick: () => shopPick(),
   inboxCount: () => inboxOpen().length,
   // every photo path the lists use, once they loaded fresh from Supabase (null until then)
   records: () => L.all.map(r => ({ id: r.id, kind: r.kind, data: dataOf(r) })),

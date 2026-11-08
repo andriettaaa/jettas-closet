@@ -13,7 +13,7 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
 // the same defaults the Settings page shows
 const DEF: Record<string, { on: boolean; time?: string }> = {
   morning: { on: true, time: '07:30' }, evening: { on: true, time: '21:30' }, bills: { on: true, time: '18:00' },
-  payday: { on: true, time: '09:00' }, weekly: { on: true, time: '19:00' }, weekahead: { on: true, time: '19:30' }, reminders: { on: true, time: '10:00' }, content: { on: true, time: '09:00' }, skindiary: { on: true, time: '10:00' }, freezer: { on: true, time: '17:00' }, shopday: { on: true, time: '10:00' }, eatbf: { on: true, time: '09:30' }, eatlunch: { on: true, time: '12:45' }, eatsnack: { on: true, time: '15:30' }, foodweek: { on: true, time: '18:00' }, movelist: { on: true, time: '19:15' }, socialweek: { on: true, time: '18:30' },
+  payday: { on: true, time: '09:00' }, weekly: { on: true, time: '19:00' }, weekahead: { on: true, time: '19:30' }, shopask: { on: true, time: '19:00' }, reminders: { on: true, time: '10:00' }, content: { on: true, time: '09:00' }, skindiary: { on: true, time: '10:00' }, freezer: { on: true, time: '17:00' }, shopday: { on: true, time: '10:00' }, eatbf: { on: true, time: '09:30' }, eatlunch: { on: true, time: '12:45' }, eatsnack: { on: true, time: '15:30' }, foodweek: { on: true, time: '18:00' }, movelist: { on: true, time: '19:15' }, socialweek: { on: true, time: '18:30' },
   budget: { on: true }, applepay: { on: true }
 };
 type Rec = Record<string, any> & { id: string; kind: string };
@@ -23,6 +23,19 @@ const pad = (n: number) => String(n).padStart(2, '0');
 const iso = (d: Date) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 const fromISO = (s: string) => { const [y, m, d] = s.slice(0, 10).split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); };
 const addDays = (s: string, n: number) => { const d = fromISO(s); d.setUTCDate(d.getUTCDate() + n); return iso(d); };
+// shopping day per week (Kitchen): the day picked for that week (food.shopDates, keyed by Monday), else the usual weekday
+const SHOP_WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const weekMon = (s: string) => addDays(s, -((fromISO(s).getUTCDay() + 6) % 7));
+const shopPicked = (prefs: any, wk: string) => (prefs?.food?.shopDates || {})[wk] || null;
+const shopDateIn = (prefs: any, wk: string) => { const d = shopPicked(prefs, wk); if (d) return d; const i = SHOP_WD.indexOf(prefs?.food?.shopDay); return i >= 0 ? addDays(wk, i) : null; };
+const dayName = (s: string) => fromISO(s).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' });
+// Sunday evening: which day do you shop in the coming week? Asked until you picked one for that week
+function shopAsk(prefs: any, today: string) {
+  const wk = addDays(today, 1);
+  if (shopPicked(prefs, wk)) return null;
+  const usual = shopDateIn(prefs, wk);
+  return { title: 'Shopping day', body: `Which day do you shop this week? Tap to pick.${usual ? ` Usually ${dayName(usual)}.` : ''}`, url: './#do=shopday', tag: 'shopask' };
+}
 const addMonths = (s: string, n: number) => { const d = fromISO(s), day = d.getUTCDate(); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + n); d.setUTCDate(Math.min(day, new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate())); return iso(d); };
 function localNow(tz: string) {
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'short', hourCycle: 'h23' }).formatToParts(new Date()).map(x => [x.type, x.value]));
@@ -126,7 +139,10 @@ function weekahead(recs: Rec[], prefs: any, today: string) {
   if (out.length) lines.push(`${out.length} bill${out.length === 1 ? '' : 's'} going out, ${eur(out.reduce((a, b) => a + b, 0))}`);
   const trip = (prefs?.trips || []).filter((t: any) => t.start && t.start > today && t.start <= addDays(today, 21)).sort((a: any, b: any) => a.start.localeCompare(b.start))[0];
   if (trip) { const n = Math.round((fromISO(trip.start).getTime() - fromISO(today).getTime()) / 864e5); lines.push(`${trip.name || trip.dest?.name || 'Your trip'} in ${n} days`); }
-  return { title: 'Your week ahead', body: lines.join('\n'), url: './#overview', tag: 'weekahead' };
+  // the shopping day for the coming week, or the question when you haven't picked one
+  const wk = addDays(today, 1), picked = shopPicked(prefs, wk);
+  lines.push(picked ? `Shopping on ${dayName(picked)}` : 'Which day do you shop this week? Tap to pick.');
+  return { title: 'Your week ahead', body: lines.join('\n'), url: picked ? './#overview' : './#do=shopday', tag: 'weekahead' };
 }
 // every morning, only when there is one: a smoke-free milestone, a free trial about to end, a warranty running out
 function reminders(recs: Rec[], prefs: any, today: string) {
@@ -178,9 +194,8 @@ function skindiary(recs: Rec[], today: string) {
   return { title: 'Skin diary', body: last ? 'A week has passed. Take three photos and note how your skin is.' : 'Start your skin diary: three photos and how your skin is today.', url: './#care/diary', tag: 'skindiary' };
 }
 // on your shopping day (Kitchen › Deals): the grocery list per shop, fruit and veg at the market on Wed and Sat
-function shopday(recs: Rec[], prefs: any, wd: string) {
-  const day = String(prefs?.food?.shopDay || '').toLowerCase().slice(0, 3);
-  if (!day || day !== wd) return null;
+function shopday(recs: Rec[], prefs: any, wd: string, today: string) {
+  if (shopDateIn(prefs, weekMon(today)) !== today) return null;
   const list = recs.filter(r => r.kind === 'ingredients' && r.list);
   if (!list.length) return null;
   const mkt = wd === 'wed' || wd === 'sat', mname = recs.find(r => r.kind === 'shops' && r.type === 'Market')?.name || 'Market';
@@ -306,10 +321,10 @@ function bedtime(recs: Rec[], prefs: any, day: string, wd: string) {
 const BUNDLES: Record<string, string[]> = {
   morning: ['morning', 'content', 'reminders', 'shopday', 'eatbf', 'payday', 'skindiary', 'freezer'],
   midday: ['eatlunch', 'eatsnack', 'bills'],
-  evening: ['weekly', 'weekahead', 'socialweek', 'foodweek', 'movelist'],
+  evening: ['shopask', 'weekly', 'weekahead', 'socialweek', 'foodweek', 'movelist'],
   bedtime: ['bedtime']
 };
-const SUNDAY = ['weekly', 'weekahead', 'socialweek', 'skindiary', 'freezer', 'foodweek'];
+const SUNDAY = ['weekly', 'weekahead', 'socialweek', 'skindiary', 'freezer', 'foodweek', 'shopask'];
 async function runUser(uid: string, prefs: any, force = false) {
   const cfg = { ...DEF, ...(prefs?.notify || {}) }, tz = cfg.tz || 'Europe/Amsterdam', now = localNow(tz);
   const on = (k: string) => k === 'bedtime' ? cfg.bedtime?.on !== false : ({ ...DEF[k], ...(cfg[k] || {}) }).on && (!SUNDAY.includes(k) || now.wd === 'sun' || force);
@@ -318,7 +333,7 @@ async function runUser(uid: string, prefs: any, force = false) {
   const msgOf = async (recs: Rec[], k: string) => k === 'morning' ? morning(recs, now.day, await outfitToday(uid, now.day)) : k === 'evening' ? evening(recs, now.wd)
     : k === 'bills' ? bills(recs, now.day) : k === 'payday' ? payday(recs, now.day) : k === 'weekahead' ? weekahead(recs, prefs, now.day)
     : k === 'reminders' ? reminders(recs, prefs, now.day) : k === 'content' ? content(recs, now.day) : k === 'socialweek' ? socialweek(recs, now.day) : k === 'skindiary' ? skindiary(recs, now.day) : k === 'freezer' ? freezer(recs, now.day)
-    : k === 'shopday' ? shopday(recs, prefs, now.wd) : k === 'eatbf' ? eatNudge(recs, now.day, 'Breakfast') : k === 'eatlunch' ? eatNudge(recs, now.day, 'Lunch') : k === 'eatsnack' ? eatNudge(recs, now.day, 'snack')
+    : k === 'shopday' ? shopday(recs, prefs, now.wd, now.day) : k === 'shopask' ? shopAsk(prefs, now.day) : k === 'eatbf' ? eatNudge(recs, now.day, 'Breakfast') : k === 'eatlunch' ? eatNudge(recs, now.day, 'Lunch') : k === 'eatsnack' ? eatNudge(recs, now.day, 'snack')
     : k === 'foodweek' ? foodweek(recs, now.day, prefs) : k === 'movelist' ? movelist(recs, now.day, prefs) : k === 'bedtime' ? bedtime(recs, prefs, now.day, now.wd) : k === 'weekly' ? weekly(recs, now.day) : null;
   let sent = 0;
   if (cfg.bundle?.on !== false && cfg.bundle !== false) {

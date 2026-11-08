@@ -2115,7 +2115,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v136';
+const APP_VERSION = 'hangtag-v137';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2325,6 +2325,7 @@ const NOTI = [
   ['payday', 'Payday', 'What comes in and what bills are still coming', '09:00'],
   ['weekly', 'Week in money', 'Sundays: what you spent that week', '19:00'],
   ['weekahead', 'Week ahead', 'Sundays: meals, appointments, bills and trips for the coming week', '19:30'],
+  ['shopask', 'Shopping day question', 'Sundays: which day you shop in the coming week, until you pick one', '19:00'],
   ['reminders', 'Reminders', 'Smoke-free milestones, free trials, warranties, returns, parcels and insurance renewals', '10:00'],
   ['content', 'Content today', 'The posts you script, film, edit or post today, collab deadlines, and good posts to use again', '09:00'],
   ['skindiary', 'Skin diary', 'Sundays: a nudge to add photos when your last entry is a week old', '10:00'],
@@ -2406,6 +2407,7 @@ function quickAction(k) {
   if (k === 'spend') { go('money/today'); window.LIFE?.newRecord?.('ftx'); }
   else if (k === 'wish') { go('wish/today'); window.LIFE?.newRecord?.('wishes'); }
   else if (k === 'groceries') go('kitchen/groceries');
+  else if (k === 'shopday') { go('kitchen/groceries'); setTimeout(() => window.LIFE?.shopPick?.(), 300); }
   else if (k === 'eat') window.LIFE?.chooser?.();
   else if (k === 'inbox') go('wish/inbox');
   else if (k === 'outfit') { if (S.view !== 'overview') go('overview'); setTimeout(() => document.querySelector('.wxpick, [data-overday]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); }
