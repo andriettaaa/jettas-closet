@@ -1176,9 +1176,13 @@ img.nophoto { background: var(--line); }
 .wpbar span { display: block; height: 100%; background: var(--accent, #7a4b2a); transition: width .25s ease; }
 .wph { margin: 6px 0 10px; font-size: 1.2rem; } .wph .muted { font-size: .85rem; font-weight: 500; }
 .wpbody { display: grid; gap: 12px; min-width: 0; }
-.wpnav { display: flex; gap: 8px; margin: 16px 0 8px; position: sticky; bottom: 76px; background: var(--bg); padding: 8px 0; z-index: 2; }
-.wpstrip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
-@media (max-width: 720px) { .wpstrip { grid-template-columns: 1fr; } }
+.wpnav { display: flex; gap: 8px; margin: 16px 0 8px; position: sticky; bottom: env(safe-area-inset-bottom, 0px); background: var(--bg); padding: 8px 0; z-index: 2; }
+/* on a phone the bar sits above the bottom navigation; iPad and computer have no bottom bar */
+@media (max-width: 720px) { .wpnav { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); } }
+.wpstrip { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+/* seven days side by side only when there is room for them (big iPad landscape, computer) */
+@media (min-width: 1100px) { .wpstrip { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .wpstrip { grid-template-columns: 1fr; } }
 .wpday { border: 1px solid var(--line); border-radius: 12px; padding: 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0; background: var(--surface); }
 .wpday.office { border-left: 4px solid var(--accent, #7a4b2a); } .wpday.off, .wpday.weekend { opacity: .95; border-style: dashed; }
 .wpday > .muted { font-size: .8rem; }
