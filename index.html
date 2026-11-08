@@ -90,6 +90,11 @@
 .wxpick { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; margin-top: 4px; }
 .wxpick .dpieces img { background: var(--stage); }
 * { box-sizing: border-box; }
+/* form fields never stick out of their box. iPhone Safari gives date and time fields a fixed native width
+   and centres their text; without the native look they follow the width of the box and read from the left */
+input, select, textarea { max-width: 100%; min-width: 0; }
+input[type="date"], input[type="time"], input[type="datetime-local"], input[type="month"] { -webkit-appearance: none; appearance: none; min-height: 2.6em; text-align: left; }
+input::-webkit-date-and-time-value { text-align: left; margin: 0; }
 [hidden] { display: none !important; }
 /* file pickers stay technically visible: Safari won't open a file field that is display:none */
 .vh { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip: rect(0 0 0 0); pointer-events: none; }
@@ -2115,7 +2120,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v141';
+const APP_VERSION = 'hangtag-v142';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
