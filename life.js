@@ -1039,7 +1039,7 @@ const KINDS = {
   },
   vworkouts: {
     one: 'video workout', many: 'Video library', facet: 'type', photo: 'photo', display: 'cards',
-    fields: [F('name', 'Name'), F('url', 'Video link', 'url'), F('type', 'Type', 'select', { options: VW_TYPES, half: 1 }), F('minutes', 'Minutes', 'num', { half: 1 }),
+    fields: [F('name', 'Name'), F('url', 'Video link', 'url'), F('type', 'Type', 'select', { options: VW_TYPES, half: 1 }), F('minutes', 'Minutes', 'num', { half: 1 }), F('steps', 'Steps', 'steplist'),
       F('instructor', 'Instructor', 'text', { half: 1 }), F('level', 'Level', 'select', { options: ['Beginner', 'Intermediate', 'Advanced'], half: 1 }),
       F('materials', 'Materials', 'multi', { options: ['No equipment', 'Mat', 'Dumbbells', 'Resistance band', 'Ankle weights', 'Pilates ball', 'Kettlebell', 'Bench'] }),
       F('rating', 'Rating', 'rating'), F('fav', 'Pinned', 'check', { half: 1 }), F('photo', 'Cover', 'photo'), F('notes', 'Notes', 'long')],
@@ -1885,7 +1885,7 @@ function emptyList(K, any) {
    times a day, works out what it is (recipe, wish, closet piece, beauty, supplement, gear, home, idea, content,
    gift) and fills in a card. You accept it, send it somewhere else, keep it as a saved link, or skip it. */
 const INBOX_TO = { recipes: ['Recipe', 'kitchen/recipes'], wishes: ['Wish', 'wish/master'], closet: ['Closet wishlist', 'wishlist'], beauty: ['Beauty', 'care/beauty'], supplements: ['Supplement', 'care/supplements'],
-  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], stips: ['Social tip', 'social/tips'], inspo: ['Inspiration', 'social/inspo'], gifts: ['Gift idea', 'care/gifts'], trip: ['Trip idea', 'care/trips'], stays: ['Saved stay', 'care/trips'], keep: ['Saved link', 'care/saved'] };
+  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], stips: ['Social tip', 'social/tips'], vworkouts: ['Workout video', 'fit/library'], inspo: ['Inspiration', 'social/inspo'], gifts: ['Gift idea', 'care/gifts'], trip: ['Trip idea', 'care/trips'], stays: ['Saved stay', 'care/trips'], keep: ['Saved link', 'care/saved'] };
 const INBOX_EXTRA = { stays: () => ({ status: 'Saved' }), wishes: () => ({ status: 'Wish', since: today() }), beauty: () => ({ wish: true }), supplements: () => ({ wish: true }), gear: () => ({ own: false }), fitgear: () => ({ own: false }), inventory: () => ({ status: 'Idee' }), cideas: () => ({ status: 'Idea', source: 'Inbox' }), gifts: () => ({ status: 'Idea' }) };
 const inboxOpen = () => recs('inbox').filter(r => ['New', 'Ready'].includes(r.status));
 const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
