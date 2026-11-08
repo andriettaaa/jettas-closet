@@ -1147,3 +1147,8 @@ img.nophoto { background: var(--line); }
 .skgrp summary::-webkit-details-marker { display: none; }
 .skgrp .lmain { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .skdl .lmain span, .skdl .lmain b { white-space: normal; overflow: visible; text-overflow: clip; }
+/* pantry per kind: filter on form, variants as small headings, variant and form next to the name */
+.iforms { margin: 4px 0 12px; align-items: center; }
+.ivar { margin: 8px 0 2px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.itag { font-weight: 500; font-size: 12px; color: var(--muted); margin-left: 4px; }
+.iksel { margin: 4px 0 6px; display: inline-flex; gap: 8px; align-items: center; }

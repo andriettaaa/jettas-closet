@@ -185,7 +185,7 @@ const catNL = (kind, v) => (CAT_NL[kind] || {})[v] || v;
 // a kind of product inside a pantry category (Kip under Vlees & vis)
 const ING_TYPES = {
   'Vlees & vis': ['Kip', 'Rund', 'Gehakt', 'Varken', 'Kalkoen', 'Lam', 'Worst', 'Spek', 'Vleeswaren', 'Zalm', 'Tonijn', 'Witvis', 'Garnalen', 'Vis'],
-  'Groente & fruit': ['Uien & knoflook', 'Tomaten', 'Paprika', 'Bladgroente', 'Kool & broccoli', 'Wortels', 'Aardappelen', 'Courgette & pompoen', 'Paddenstoelen', 'Verse kruiden', 'Appels & peren', 'Bessen', 'Citrus', 'Bananen', 'Tropisch fruit'],
+  'Groente & fruit': ['Uien & knoflook', 'Tomaten', 'Paprika', 'Bladgroente', 'Kool & broccoli', 'Wortels', 'Aardappelen', 'Courgette & pompoen', 'Paddenstoelen', 'Verse kruiden', 'Gember', 'Appels & peren', 'Bessen', 'Citrus', 'Bananen', 'Tropisch fruit'],
   'Zuivel & eieren': ['Melk', 'Yoghurt & kwark', 'Kaas', 'Boter', 'Room', 'Eieren', 'Plantaardig'],
   'Granen & peulvruchten': ['Rijst', 'Pasta', 'Noedels', 'Havermout', 'Meel', 'Couscous & quinoa', 'Bonen', 'Linzen & kikkererwten'],
   'Brood & bakkerij': ['Brood', 'Wraps', 'Crackers', 'Gebak'],
@@ -201,7 +201,7 @@ const ING_TYPES = {
 };
 for (const [en, nl] of Object.entries(CAT_NL.ingredients)) if (ING_TYPES[nl]) ING_TYPES[en] = ING_TYPES[nl];
 // the kind guessed from a name, so "Kipdrumsticks" lands under Kip without typing it
-const ING_GUESS = [[/kip|chicken|drumstick|vleugel|wings?\b|poulet/, 'Kip'], [/kalkoen|turkey/, 'Kalkoen'], [/gehakt|mince/, 'Gehakt'], [/rund|biefstuk|steak|beef|riblap|sukade|entrecote/, 'Rund'],
+const ING_GUESS = [[/^gember|\bgember\b|ginger|kentjoer|galanga|laos\b/, 'Gember'], [/kip|chicken|drumstick|vleugel|wings?\b|poulet/, 'Kip'], [/kalkoen|turkey/, 'Kalkoen'], [/gehakt|mince/, 'Gehakt'], [/rund|biefstuk|steak|beef|riblap|sukade|entrecote/, 'Rund'],
   [/varken|karbonade|pork|speklap|procureur|schnitzel|hamlap/, 'Varken'], [/\blam\b|lams/, 'Lam'], [/worst|chorizo|salami/, 'Worst'], [/spek|bacon|ontbijtspek/, 'Spek'], [/\bham\b|kipfilet beleg|rookvlees|fricandeau/, 'Vleeswaren'],
   [/zalm|salmon/, 'Zalm'], [/tonijn|tuna/, 'Tonijn'], [/kabeljauw|koolvis|pangasius|tilapia|schol|witvis|heek/, 'Witvis'], [/garnal|gamba|shrimp|prawn/, 'Garnalen'], [/vis\b|makreel|haring|forel/, 'Vis'],
   [/\bui\b|uien|sjalot|knoflook|garlic|onion/, 'Uien & knoflook'], [/tomaat|tomaten|tomato/, 'Tomaten'], [/paprika|pepper/, 'Paprika'], [/sla\b|spinazie|rucola|andijvie|boerenkool|veldsla/, 'Bladgroente'],
@@ -215,6 +215,36 @@ const ING_GUESS = [[/kip|chicken|drumstick|vleugel|wings?\b|poulet/, 'Kip'], [/k
   [/olie|oil/, 'Olie'], [/azijn|vinegar/, 'Azijn'], [/soja|ketjap/, 'Sojasaus'], [/bouillon|stock/, 'Bouillon'], [/koffie|coffee/, 'Koffie'], [/thee\b|tea\b/, 'Thee'], [/chocola/, 'Chocolade']];
 const ingGuess = name => { const n = norm(name || ''); for (const [re, t] of ING_GUESS) if (re.test(n)) return t; return ''; };
 const ingType = r => r.type || ingGuess(r.name) || '';
+/* below the kind of product: its variant (old cheese, brie, basmati) and its form (grated, ground, fresh, frozen).
+   Both are guessed from the name when you leave them empty, so "geraspte oude kaas" lands under Kaas › Oud › Geraspt */
+const ING_FORMS = ['Vers', 'Gedroogd', 'Gemalen of poeder', 'Geraspt', 'Plakken', 'Blok of stuk', 'Blokjes', 'Smeerbaar', 'Pasta of puree', 'Diepvries', 'Blik of pot', 'Vloeibaar', 'Heel'];
+const ING_VARIANTS = {
+  Kaas: ['Jong', 'Jong belegen', 'Belegen', 'Extra belegen', 'Oud', 'Brie', 'Camembert', 'Mozzarella', 'Burrata', 'Feta', 'Halloumi', 'Parmezaan', 'Pecorino', 'Geitenkaas', 'Cheddar', 'Gruyère', 'Roomkaas', 'Mascarpone', 'Ricotta', 'Hüttenkäse', 'Blauwe kaas', 'Plantaardig'],
+  Gember: ['Verse wortel', 'Gemalen', 'Pasta', 'Gekonfijt', 'Ingelegd'],
+  Rijst: ['Basmati', 'Jasmijn', 'Zilvervlies', 'Risotto', 'Sushi', 'Wilde rijst', 'Kleefrijst'],
+  Pasta: ['Spaghetti', 'Penne', 'Fusilli', 'Tagliatelle', 'Macaroni', 'Lasagne', 'Orzo', 'Rigatoni', 'Farfalle', 'Tortellini', 'Volkoren', 'Glutenvrij'],
+  Noedels: ['Mie', 'Rijstnoedels', 'Udon', 'Soba', 'Ramen', 'Glasnoedels'],
+  Melk: ['Halfvol', 'Vol', 'Mager', 'Lactosevrij', 'Haver', 'Soja', 'Amandel', 'Kokos', 'Karnemelk'],
+  'Yoghurt & kwark': ['Volle yoghurt', 'Magere yoghurt', 'Griekse yoghurt', 'Kwark', 'Skyr', 'Plantaardig'],
+  Room: ['Slagroom', 'Kookroom', 'Zure room', 'Crème fraîche'],
+  Boter: ['Roomboter', 'Gezouten', 'Margarine', 'Ghee'],
+  Olie: ['Olijfolie', 'Extra vierge', 'Zonnebloem', 'Sesam', 'Kokos', 'Arachide', 'Frituur'],
+  'Bloem & meel': ['Tarwebloem', 'Zelfrijzend', 'Volkoren', 'Spelt', 'Rijstmeel', 'Kikkererwtenmeel', 'Amandelmeel'],
+  Suiker: ['Kristal', 'Bruin', 'Basterd', 'Poeder', 'Riet', 'Kokosbloesem'],
+  Chili: ['Vers', 'Vlokken', 'Gemalen', 'Pasta', 'Saus'],
+  Peper: ['Zwart', 'Wit', 'Roze', 'Cayenne', 'Citroenpeper'],
+  Kip: ['Filet', 'Dijen', 'Drumsticks', 'Vleugels', 'Gehakt', 'Heel'],
+  Brood: ['Wit', 'Volkoren', 'Meergranen', 'Zuurdesem', 'Stokbrood', 'Bolletjes', 'Glutenvrij'],
+  Noten: ['Amandelen', 'Cashew', 'Walnoten', 'Hazelnoten', 'Pinda’s', 'Pecan', 'Pistache', 'Gemengd'],
+  Koffie: ['Bonen', 'Gemalen', 'Oploskoffie', 'Cups'],
+  Thee: ['Zwart', 'Groen', 'Kruiden', 'Rooibos', 'Matcha', 'Chai']
+};
+const FORM_GUESS = [[/diepvries|bevroren|frozen/, 'Diepvries'], [/gerasp|grated|rasp/, 'Geraspt'], [/plak|slice/, 'Plakken'], [/gemalen|poeder|powder|ground/, 'Gemalen of poeder'], [/gedroogd|dried|droog/, 'Gedroogd'],
+  [/blokjes|cubes|dobbelst/, 'Blokjes'], [/pasta\b|puree|paste|purée/, 'Pasta of puree'], [/blik|\bpot\b|\bcan\b|in pot/, 'Blik of pot'], [/smeer|spread|roomkaas|smeerkaas/, 'Smeerbaar'],
+  [/\bheel\b|hele\b|whole/, 'Heel'], [/\bvers\b|verse\b|fresh/, 'Vers'], [/olie|saus|azijn|melk\b|sap\b|siroop/, 'Vloeibaar']];
+// the label variant you typed ("Oud 48+", "Gemalen") helps the guess too
+function ingForm(r) { if (r.form) return r.form; const n = norm((r.name || '') + ' ' + (r.variant || '')); for (const [re, f] of FORM_GUESS) if (re.test(n)) return f; return ''; }
+function ingVariant(r) { if (r.variety) return r.variety; const vs = ING_VARIANTS[ingType(r)] || [], n = deUml((r.name || '') + ' ' + (r.variant || '')); return vs.filter(v => n.includes(deUml(v))).sort((a, b) => b.length - a.length)[0] || ''; }
 const ROOMS = ['Entree', 'Woonkamer', 'Keuken', 'Slaapkamer', 'Werkkamer', 'Badkamer', 'Toilet', 'Wasruimte', 'Balkon', 'Schoonmaak', 'Overig'];
 const PRIO = ['Must-have', 'Binnen 3 maanden', 'Handig', 'Kan later'];
 // the home inventory is a move list in Dutch: an idea, then options to choose from, then ordered and bought
@@ -379,11 +409,12 @@ const KINDS = {
     one: 'ingredient', many: 'Pantry', facet: 'category',
     fields: [F('name', 'Name'), F('category', 'Category', 'select', { options: Object.values(CAT_NL.ingredients) }),
       F('type', 'Soort', 'select', { options: [...new Set(Object.values(ING_TYPES).flat())], dep: 'category', depOpts: ING_TYPES }),
+      F('variety', 'Variëteit', 'select', { options: [...new Set(Object.values(ING_VARIANTS).flat())], dep: 'type', depOpts: ING_VARIANTS, depHint: 'Kies eerst een soort.', half: 1 }), F('form', 'Vorm', 'select', { options: ING_FORMS, half: 1 }),
       F('location', 'Kept in', 'select', { options: ['Koelkast', 'Vriezer', 'Voorraadkast', 'Keukenkast', 'Fruitmand', 'Broodtrommel', 'Kelder / Berging', 'Overig'] }),
       F('stock', 'In stock', 'check', { half: 1 }), F('low', 'Running low', 'check', { half: 1 }), F('list', 'On grocery list', 'check', { half: 1 }),
       F('expires', 'Best before', 'date', { half: 1 }), F('frozen', 'Frozen on', 'date', { half: 1 }), F('portions', 'Portions', 'num', { half: 1 }), F('shop', 'Buy at', 'select', { options: STORES, more: () => shopNames('shops'), half: 1 }), F('amount', 'How much is left', 'num', { half: 1 }), F('unit', 'Counted in', 'select', { options: UNITS, half: 1 }), F('min', 'Minimum to keep', 'num', { half: 1 }), F('staple', 'Basic: always keep in stock', 'check', { half: 1 }), F('helps', 'Helps with', 'multi', { options: HELPS }),
       F('qty', 'Amount', 'text', { half: 1 }), F('left', 'Open: hoeveel zit er nog in', 'pct'), F('brand', 'Merk', 'text', { half: 1 }), F('variant', 'Variant', 'text', { half: 1 }), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
-    sorts: [['name', 'A to Z'], ['category', 'Category'], ['location', 'Where it is']],
+    sorts: [['name', 'A to Z'], ['category', 'Category'], ['type', 'Soort'], ['form', 'Vorm'], ['location', 'Where it is']],
     filters: [['all', 'All'], ['in', 'In stock'], ['low', 'Running low'], ['soon', 'Use soon'], ['out', 'Out of stock'], ['basic', 'Basics']],
     filter: (r, f) => f === 'basic' ? !!r.staple : f === 'in' ? !!r.stock : f === 'out' ? !r.stock : f === 'low' ? !!r.low : f === 'soon' ? useSoon(r) : true,
     sub: r => [r.brand, r.variant, r.category, r.location, r.frozen ? 'frozen ' + shortDate(r.frozen) : '', num(r.portions) ? plural(num(r.portions), 'portion') : '', r.low ? 'running low' : '', r.expires ? (r.expires < today() ? 'past its date' : 'best before ' + shortDate(r.expires)) : '', r.list ? 'on grocery list' : ''].filter(Boolean).join(' · '),
@@ -2607,18 +2638,29 @@ const ING_CAT_ORDER = Object.values(CAT_NL.ingredients);
 // one view for pantry, freezer and groceries: category, then each kind with what is in stock, freezer portions and what needs attention
 function ingTypeView(items, line, ctx) {
   if (!items.length) return '';
+  // the form you filter on, per list (pantry, groceries, freezer)
+  // one kind across every category: all your ginger together, fresh or ground
+  const ts = (L.ingKind ||= {})[ctx] || '', kinds = [...new Set(items.map(r => ingType(r)).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const kindSel = kinds.length > 1 ? `<label class="tdpick iksel"><span>Soort</span><select class="pill" data-ingkind="${ctx}" aria-label="Soort"><option value="">Alle soorten</option>${kinds.map(k => `<option ${k === ts ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select></label>` : '';
+  if (ts) items = items.filter(r => ingType(r) === ts);
+  const fs = (L.ingForm ||= {})[ctx] || '', forms = new Map(); for (const r of items) { const f = ingForm(r) || 'Geen vorm'; forms.set(f, (forms.get(f) || 0) + 1); }
+  const formBar = forms.size > 1 ? `<div class="chips iforms" role="group" aria-label="Vorm"><span class="rowlbl">Vorm</span><button class="chip" data-act="ingform" data-ctx="${ctx}" data-v="" aria-pressed="${!fs}">Alle <span class="n">${items.length}</span></button>${[...forms.entries()].sort((a, b) => (a[0] === 'Geen vorm') - (b[0] === 'Geen vorm') || ((ING_FORMS.indexOf(a[0]) + 1) || 99) - ((ING_FORMS.indexOf(b[0]) + 1) || 99)).map(([f, n]) => `<button class="chip" data-act="ingform" data-ctx="${ctx}" data-v="${esc(f)}" aria-pressed="${fs === f}">${esc(f)} <span class="n">${n}</span></button>`).join('')}</div>` : '';
+  if (fs) items = items.filter(r => (ingForm(r) || 'Geen vorm') === fs);
+  if (!items.length) return kindSel + formBar + quiet('Niets met deze soort en vorm.');
+  // a row with its variant and form next to the name
+  const tagged = r => { const t = [ingVariant(r), ingForm(r)].filter(Boolean).join(' · '); return t ? line(r).replace('</b>', ` <span class="itag">${esc(t)}</span></b>`) : line(r); };
   const cats = new Map();
   for (const r of items) { const c = ingCat(r); if (!cats.has(c)) cats.set(c, new Map()); const t = ingType(r) || 'Zonder soort', m = cats.get(c); m.has(t) ? m.get(t).push(r) : m.set(t, [r]); }
   const ck = [...cats.keys()].sort((a, b) => ((ING_CAT_ORDER.indexOf(a) + 1) || 99) - ((ING_CAT_ORDER.indexOf(b) + 1) || 99) || a.localeCompare(b));
   const fz = inFreezer();
-  return ck.map(c => {
+  return kindSel + formBar + ck.map(c => {
     const m = cats.get(c), tk = [...m.keys()].sort((a, b) => (a === 'Zonder soort') - (b === 'Zonder soort') || a.localeCompare(b));
     return `<div class="lgh gshop"><h3>${esc(c)} · ${[...m.values()].reduce((n, l) => n + l.length, 0)}</h3></div>` + tk.map(t => {
-      const rs = m.get(t).sort((a, b) => norm(a.name).localeCompare(norm(b.name))), all = recs('ingredients').filter(r => ingCat(r) === c && (ingType(r) || 'Zonder soort') === t);
+      const vord = ING_VARIANTS[t] || [], vk = r => ingVariant(r) || '', rs = m.get(t).sort((a, b) => ((vord.indexOf(vk(a)) + 1) || 99) - ((vord.indexOf(vk(b)) + 1) || 99) || vk(a).localeCompare(vk(b)) || ((ING_FORMS.indexOf(ingForm(a)) + 1) || 99) - ((ING_FORMS.indexOf(ingForm(b)) + 1) || 99) || norm(a.name).localeCompare(norm(b.name))), all = recs('ingredients').filter(r => ingCat(r) === c && (ingType(r) || 'Zonder soort') === t);
       const inS = all.filter(r => r.stock).length, por = fz.filter(r => all.includes(r)).reduce((n, r) => n + (num(r.portions) || 0), 0);
       const warn = all.filter(r => r.low || useSoon(r) || (r.stock && r.expires && r.expires < today())).length;
       const facts = [`${inS}/${all.length} op voorraad`, por ? plural(por, 'portie', 'porties') + ' in de vriezer' : '', warn ? `<b class="itwarn">${warn} bijna op of over datum</b>` : ''].filter(Boolean).join(' · ');
-      return `<div class="itype"><div class="itypeh"><span class="itypen"><b>${esc(t)}</b><span>${facts}</span></span>${t === 'Zonder soort' ? '' : `<button class="iconbtn small" data-act="ingtypeadd" data-cat="${esc(c)}" data-type="${esc(t)}" data-ctx="${ctx}" aria-label="${esc(t)} toevoegen">${svg(P.plus)}</button>`}</div><div class="lrows">${rs.map(line).join('')}</div></div>`;
+      return `<div class="itype"><div class="itypeh"><span class="itypen"><b>${esc(t)}</b><span>${facts}</span></span>${t === 'Zonder soort' ? '' : `<button class="iconbtn small" data-act="ingtypeadd" data-cat="${esc(c)}" data-type="${esc(t)}" data-ctx="${ctx}" aria-label="${esc(t)} toevoegen">${svg(P.plus)}</button>`}</div><div class="lrows">${(() => { const vs = new Set(rs.map(vk)); return vs.size > 1 ? [...new Set(rs.map(vk))].map(v => `<p class="ivar">${esc(v || 'Overig')} · ${rs.filter(r => vk(r) === v).length}</p>${rs.filter(r => vk(r) === v).map(tagged).join('')}`).join('') : rs.map(tagged).join(''); })()}</div></div>`;
     }).join('');
   }).join('');
 }
@@ -4807,6 +4849,7 @@ function openEditor(kind, id, preset = {}) {
         const out = {}; for (const [k, v] of Object.entries(D)) if (!k.startsWith('_') && v !== '' && v != null && !(Array.isArray(v) && !v.length && !['amDays', 'pmDays'].includes(k))) out[k] = v;
         if (out.name) out.name = String(out.name).trim();
         if (kind === 'ingredients' && !out.type && ingGuess(out.name)) out.type = ingGuess(out.name);
+        if (kind === 'ingredients') { if (!out.form && ingForm(out)) out.form = ingForm(out); if (!out.variety && ingVariant(out)) out.variety = ingVariant(out); }
         if (kind === 'recipes') recipeBeforeSave(out);
         await put(kind, r ? r.id : C.uuid(), out);
         C.closeSheet(); C.toast('Saved');
@@ -5035,6 +5078,7 @@ document.addEventListener('click', async e => {
     case 'quick': { const r = L.byId[d.id]; KINDS[r?.kind]?.quick?.(r)?.act(); break; }
     case 'go': C.go(d.v); break;
     case 'leftsheet': leftSheet(d.id); break;
+    case 'ingform': (L.ingForm ||= {})[d.ctx] = d.v; C.render(); break;
     case 'ingview': try { localStorage.setItem(d.k, d.v); } catch {} C.render(); break;
     case 'ingtypeadd': openEditor('ingredients', null, { category: d.cat, type: d.type, ...(d.ctx === 'freezer' ? { location: 'Vriezer', stock: true, frozen: today() } : d.ctx === 'grocery' ? { list: true } : { stock: true }) }); break;
     case 'icalnew': { if (C.prefs().calToken && !confirm('Een nieuwe sleutel maakt je huidige abonnementen ongeldig. Doorgaan?')) break; const tok = (C.uuid() + C.uuid()).replace(/-/g, '').slice(0, 40); C.savePrefs({ calToken: tok }).then(() => { L.calFeedAt = 0; calFeedSync(true).then(() => C.render()); C.toast('Sleutel gemaakt. Zet hem in Supabase als CAL_TOKEN.'); }).catch(() => {}); break; }
@@ -6812,6 +6856,7 @@ function planWeek(host) {
     ${panel('Zondag reset', `<div class="lrows">${RESET.map(([k, l, go]) => `<label class="lrow dpick ${done.has(k) ? 'gone' : ''}"><input type="checkbox" data-reset="${key}:${k}" ${done.has(k) ? 'checked' : ''}><span class="lmain"><b>${esc(l)}</b></span>${go ? `<button class="chip link" data-act="go" data-v="${go}">Open</button>` : ''}</label>`).join('')}</div>`)}
   </div>`;
 }
+document.addEventListener('change', e => { const c = e.target; if (C && c.matches?.('[data-ingkind]')) { (L.ingKind ||= {})[c.dataset.ingkind] = c.value; C.render(); } });
 document.addEventListener('change', e => { const c = e.target; if (C && c.matches?.('[data-ltkset]')) { const k = c.dataset.ltkset; C.savePrefs({ [k]: k === 'contentTax' ? num(c.value) : c.value.trim() }).then(() => C.toast('Saved')).catch(() => {}); } });
 document.addEventListener('change', e => { const c = e.target; if (!C || !c.matches?.('[data-reset]')) return; const [, wk, k] = c.dataset.reset.split(':'), key = 'reset:' + wk; let s = new Set(); try { s = new Set(JSON.parse(localStorage.getItem(key) || '[]')); } catch {} c.checked ? s.add(k) : s.delete(k); try { localStorage.setItem(key, JSON.stringify([...s])); } catch {} c.closest('.lrow')?.classList.toggle('gone', c.checked); });
 
