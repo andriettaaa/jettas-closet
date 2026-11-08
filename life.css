@@ -1160,3 +1160,12 @@ img.nophoto { background: var(--line); }
 
 /* a brand or shop you never used yet, suggested while you type */
 .chip.lknown { border-style: dashed; }
+
+/* what you bought, inside a purchase */
+.buys { display: grid; gap: 8px; }
+.buyrow { display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; align-items: center; }
+.buyrow .lcount { display: inline-flex; align-items: center; gap: 4px; }
+.buyrow .buyp { width: 100%; grid-column: 1; }
+.buyrow [data-buyx] { grid-column: 2; justify-self: end; }
+.buynewl { width: 100%; margin: 4px 0 0; }
+.buybanner { margin-bottom: 12px; }
