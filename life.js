@@ -1673,15 +1673,24 @@ const quiet = t => `<p class="lnone">${esc(t)}</p>`;
 const GROUP_KEYS = ['brand', 'shop', 'store', 'room', 'type', 'category', 'for', 'city', 'country', 'company', 'location', 'area', 'cuisine', 'status'];
 const isDays = f => (f.options || []).includes('Mon');
 const groupFields = K => K.fields.filter(f => ['select', 'multi', 'rel'].includes(f.type) || (f.type === 'text' && GROUP_KEYS.includes(f.k))).filter(f => (f.type !== 'rel' || !f.multi) && !isDays(f));
-const groupOf = K => { try { return localStorage.getItem('lgroup:' + K.kind) || ''; } catch { return ''; } };
+// every list is grouped unless you switch it off; the default is the list's own facet or its category or type
+const GROUP_PREF = ['category', 'type', 'cuisine', 'room', 'area', 'store', 'shop', 'status', 'for', 'brand'];
+const defGroup = K => { const fs = groupFields(K).map(f => f.k); return K.group !== undefined ? K.group : fs.includes(K.facet) ? K.facet : GROUP_PREF.find(k => fs.includes(k)) || ''; };
+const groupOf = K => { let v = null; try { v = localStorage.getItem('lgroup:' + K.kind); } catch {} return v === 'none' ? '' : v || defGroup(K); };
+const GROUP_SHOW = 9;
 const groupSel = K => { const fs = groupFields(K); return fs.length ? `<select class="pill" data-lgroup aria-label="Group by"><option value="">No groups</option>${fs.map(f => `<option value="${f.k}" ${groupOf(K) === f.k ? 'selected' : ''}>Group: ${esc(f.label)}</option>`).join('')}</select>` : ''; };
 const groupVal = (r, f) => { const v = r[f.k]; if (f.type === 'check') return v ? 'Ja' : 'Nee'; if (f.type === 'rel') return v ? titleOf(L.byId[v] || {}) : ''; return [].concat(v ?? [])[0] ?? ''; };
 function groupedHTML(list, K, inner) {
   const g = groupOf(K), f = g && K.fields.find(x => x.k === g);
-  if (!f || !list.length) return inner(list);
+  if (!f || !list.length) { L.gfocus = null; return inner(list); }
   const m = new Map(); for (const r of list) { const k = String(groupVal(r, f) || '').trim() || '—'; (m.get(k) || m.set(k, []).get(k)).push(r); }
+  const name = k => k === '—' ? 'Geen ' + f.label.toLowerCase() : k;
+  // "See all" opens one group on its own page, with a way back to all groups
+  const fo = L.gfocus;
+  if (fo && fo.kind === K.kind && fo.g === g && m.has(fo.key)) { const l = m.get(fo.key); return `<div class="lgfocus"><button class="btn small" data-gback>${svg(P.left)} All groups</button><h2>${esc(name(fo.key))} <span class="muted">${l.length}</span></h2></div>${inner(l)}`; }
+  L.gfocus = null;
   return [...m.entries()].sort((a, b) => a[0] === '—' ? 1 : b[0] === '—' ? -1 : azCmp(a[0], b[0]))
-    .map(([k, l]) => `<section class="lgrp"><div class="tdgh"><h3>${esc(k === '—' ? 'Geen ' + f.label.toLowerCase() : k)} <span class="muted">${l.length}</span></h3></div>${inner(l)}</section>`).join('');
+    .map(([k, l]) => `<section class="lgrp"><div class="tdgh"><h3>${esc(name(k))} <span class="muted">${l.length}</span></h3></div>${inner(l.slice(0, GROUP_SHOW))}${l.length > GROUP_SHOW ? `<button class="btn small lgmore" data-gall="${esc(k)}" data-gkind="${K.kind}" data-gby="${g}">See all ${l.length} in ${esc(name(k))} ${svg(P.right)}</button>` : ''}</section>`).join('');
 }
 const TABLE_TYPES = ['text', 'num', 'money', 'date', 'select', 'multi', 'check'];
 const tableCols = (K, keys) => keys ? keys.map(k => K.fields.find(f => f.k === k)).filter(f => f && TABLE_TYPES.includes(f.type) && !['name', 'title'].includes(f.k)) : K.fields.filter(f => TABLE_TYPES.includes(f.type) && !['name', 'title'].includes(f.k) && !isDays(f)).slice(0, 9);
@@ -1715,7 +1724,12 @@ async function cellSave(el) {
   L.quiet = true; try { await put(r.kind, r.id, { ...dataOf(r), [f.k]: v }); } catch (e) { failed(e); } finally { L.quiet = false; }
   el.closest('td')?.classList.toggle('miss', empty(v) && f.type !== 'check');
 }
-document.addEventListener('change', e => { const el = e.target; if (C && el.matches?.('[data-lcell]') && !el.closest('.ltdone')) cellSave(el); if (C && el.matches?.('[data-lgroup]')) { const host = el.closest('#viewHost') || document, page = C.view(), K = KINDS[curSeg(page).kind]; try { el.value ? localStorage.setItem('lgroup:' + K.kind, el.value) : localStorage.removeItem('lgroup:' + K.kind); } catch {} fillList(host, page); } });
+document.addEventListener('change', e => { const el = e.target; if (C && el.matches?.('[data-lcell]') && !el.closest('.ltdone')) cellSave(el); if (C && el.matches?.('[data-lgroup]')) { const host = el.closest('#viewHost') || document, page = C.view(), K = KINDS[curSeg(page).kind]; try { localStorage.setItem('lgroup:' + K.kind, el.value || 'none'); } catch {} fillList(host, page); } });
+document.addEventListener('click', e => {
+  const a = e.target.closest?.('[data-gall]'), back = e.target.closest?.('[data-gback]'); if (!C || (!a && !back)) return;
+  L.gfocus = a ? { kind: a.dataset.gkind, g: a.dataset.gby, key: a.dataset.gall } : null; C.render(); scrollTo(0, 0);
+});
+addEventListener('hashchange', () => { L.gfocus = null; });
 document.addEventListener('click', async e => { const b = e.target.closest?.('[data-lsug]'); if (!b || !C) return; const r = L.byId[b.dataset.lsug], f = r && KINDS[r.kind].fields.find(x => x.k === b.dataset.k), v = f && lSuggest(r, f); if (v == null) return; try { await put(r.kind, r.id, { ...dataOf(r), [f.k]: v }); } catch (err) { failed(err); } });
 
 /* ---------- list pages ---------- */
