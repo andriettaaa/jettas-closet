@@ -1122,3 +1122,28 @@ img.nophoto { background: var(--line); }
 .leftchip { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 4px 10px; font-variant-numeric: tabular-nums; }
 .leftchip:not(.on) { color: var(--muted); }
 .leftbar { display: inline-block; width: 22px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, currentColor var(--p), color-mix(in srgb, currentColor 25%, transparent) var(--p)); }
+/* skincare month: a calendar with the evening of each day, techniques and masks */
+.smcal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin: 10px 0; }
+.smcal .mdow { font-size: 11px; color: var(--muted); text-align: center; font-weight: 600; }
+.smday { display: flex; flex-direction: column; align-items: stretch; gap: 2px; min-height: 76px; padding: 5px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: inherit; font: inherit; text-align: left; cursor: pointer; min-width: 0; overflow: hidden; }
+.smday > b { font-size: 12px; }
+.smday.out { opacity: .45; }
+.smday.now { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.smday i { font-style: normal; font-size: 10.5px; line-height: 1.25; padding: 1px 4px; border-radius: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.smday .smn { background: color-mix(in srgb, var(--c) 22%, transparent); }
+.smday .smt { background: var(--stage); }
+.smday .smt.mk { background: color-mix(in srgb, var(--c4) 18%, transparent); }
+.smday .smnew { color: var(--accent); font-weight: 700; padding: 0; }
+.mlegend .smlt { background: var(--stage); border: 1px solid var(--line); }
+@media (max-width: 560px) { .smday { min-height: 64px; padding: 3px; } .smday i { font-size: 9.5px; padding: 0 2px; } }
+.skds { margin-bottom: 12px; }
+.skdl { margin: 6px 0 0; padding-left: 22px; display: grid; gap: 6px; }
+.skdl .lmain { text-align: left; }
+/* skin analysis */
+.skv .lmain { display: grid; gap: 2px; }
+.skwarn { color: var(--warn); font-size: 12.5px; }
+.skgap { padding: 4px 0 10px; }
+.skgrp summary { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; padding: 8px 0; }
+.skgrp summary::-webkit-details-marker { display: none; }
+.skgrp .lmain { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.skdl .lmain span, .skdl .lmain b { white-space: normal; overflow: visible; text-overflow: clip; }
