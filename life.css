@@ -1250,3 +1250,18 @@ img.nophoto { background: var(--line); }
 .sdcompare img { width: 100%; border-radius: 10px; }
 .rsteps li, .lpre, .fitform p { overflow-wrap: anywhere; }
 [data-tnotes], [data-cnotes] { width: 100%; }
+
+/* emoji scales, check-ins, drinks and logs */
+.lemo { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.lemo button { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 8px 2px; display: grid; justify-items: center; gap: 2px; color: inherit; font: inherit; min-width: 0; }
+.lemo button span { font-size: 1.5rem; line-height: 1; }
+.lemo button small { font-size: .68rem; color: var(--muted); overflow-wrap: anywhere; text-align: center; }
+.lemo button[aria-pressed="true"] { border-color: var(--accent, #6b4a2f); background: var(--tag, #f1e4d6); }
+.ciweek { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; text-align: center; }
+.ciday { display: grid; gap: 2px; font-size: .8rem; } .ciday span { font-size: 1.1rem; min-height: 1.4em; }
+.drinks { display: grid; gap: 6px; }
+.drink { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); padding: 4px 0; }
+.drink > span:first-child { font-size: 1.3rem; }
+.drinkn { display: inline-flex; align-items: center; gap: 8px; } .drinkn b { min-width: 1.5em; text-align: center; }
+.flphoto { width: 100%; max-height: 260px; object-fit: cover; border-radius: 12px; margin: 4px 0 8px; }
+.jtop { display: grid; gap: 6px; margin-bottom: 12px; }
