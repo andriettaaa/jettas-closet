@@ -347,7 +347,7 @@ const BUNDLES: Record<string, string[]> = {
   bedtime: ['bedtime']
 };
 const SUNDAY = ['weekly', 'weekahead', 'socialweek', 'skindiary', 'freezer', 'foodweek', 'shopask'];
-async function runUser(uid: string, prefs: any, force = false) {
+async function runUser(uid: string, prefs: any, force = false, only: string[] | null = null) {
   const cfg = { ...DEF, ...(prefs?.notify || {}) }, tz = cfg.tz || 'Europe/Amsterdam', now = localNow(tz);
   const on = (k: string) => k === 'bedtime' ? cfg.bedtime?.on !== false : ({ ...DEF[k], ...(cfg[k] || {}) }).on && (!SUNDAY.includes(k) || now.wd === 'sun' || force);
   const inHour = (t: number) => force || (now.mins >= t && now.mins < t + 60);
@@ -375,7 +375,7 @@ async function runUser(uid: string, prefs: any, force = false) {
     return sent;
   }
   const due = (k: string) => { if (k === 'bedtime') return inHour(Math.min(dt.bed - 30, 1410)); const c = { ...DEF[k], ...(cfg[k] || {}) }; if (!c.time) return false; return inHour(toMins(c.time) + (['eatbf', 'eatlunch'].includes(k) && wkend ? 60 : 0)); };
-  const slots = ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders', 'content', 'socialweek', 'skindiary', 'freezer', 'shopday', 'eatbf', 'eatlunch', 'eatsnack', 'foodweek', 'movelist', 'bedtime'].filter(k => on(k) && due(k));
+  const slots = only ? only : ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders', 'content', 'socialweek', 'skindiary', 'freezer', 'shopday', 'eatbf', 'eatlunch', 'eatsnack', 'foodweek', 'movelist', 'bedtime'].filter(k => on(k) && due(k));
   if (!slots.length) return 0;
   const recs = await loadAll(uid);
   for (const k of slots) {
@@ -398,6 +398,13 @@ Deno.serve(async req => {
       if (!u?.user) return json({ error: 'not signed in' }, 401);
       const n = await send(u.user.id, { title: 'A’s Life', body: 'Notifications work on this device.', url: './#settings', tag: 'test' });
       return json({ devices: n });
+    }
+    // one notification from the Settings page, right now
+    if (Array.isArray(body.only) && body.only.length) {
+      const { data: u } = await sb.auth.getUser(jwt || '');
+      if (!u?.user) return json({ error: 'not signed in' }, 401);
+      const { data: p } = await sb.from('prefs').select('data').eq('user_id', u.user.id).maybeSingle();
+      return json({ sent: await runUser(u.user.id, p?.data, true, body.only.map(String)) });
     }
     if (body.preview) {
       const { data: u } = await sb.auth.getUser(jwt || '');

@@ -2130,7 +2130,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v150';
+const APP_VERSION = 'hangtag-v151';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2387,9 +2387,9 @@ async function pushAction(a, btn, host) {
       const sub = await pushSub();
       if (sub) { await sb.from('push_subs').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); }
       toast('Notifications off for this device');
-    } else if (a === 'test' || a === 'preview') {
+    } else if (a === 'test' || a === 'preview' || a.startsWith('only:')) {
       const { data } = await sb.auth.getSession();
-      const res = await fetch(FN('notify'), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session?.access_token, apikey: CFG.key }, body: JSON.stringify({ [a]: true }) });
+      const res = await fetch(FN('notify'), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session?.access_token, apikey: CFG.key }, body: JSON.stringify(a.startsWith('only:') ? { only: [a.slice(5)] } : { [a]: true }) });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error || res.status);
       toast(a === 'test' ? (j.devices ? `Sent to ${j.devices} ${j.devices === 1 ? 'device' : 'devices'}` : 'No devices yet. Turn notifications on first.') : j.sent ? `Sent ${j.sent} ${j.sent === 1 ? 'notification' : 'notifications'}` : 'Nothing to send right now.');
@@ -2403,7 +2403,7 @@ function notiPanel() {
   const c = notiCfg();
   return `<section class="panel setpanel" id="set-noti"><h3>Notifications</h3><p class="muted" id="pushState">Checking this device…</p>
     <div class="setbtns"><button class="btn small primary" data-push="on" data-pushneed="off" hidden>Turn on for this device</button><button class="btn small" data-push="off" data-pushneed="on" hidden>Turn off</button><button class="btn small" data-push="test" data-pushneed="on" hidden>Send a test</button><button class="btn small" data-push="preview" data-pushneed="on" hidden>Send today’s now</button></div>
-    ${NOTI.map(([k, l, h, d]) => { const v = c[k] || {}; return `<div class="setrow notirow"><label class="settog"><input type="checkbox" data-non="${k}" ${v.on === false ? '' : 'checked'}> <b>${esc(l)}</b></label><div class="spacer"></div>${d ? `<input type="time" class="settime" data-ntime="${k}" value="${esc(v.time || d)}" aria-label="${esc(l)} time">` : ''}<span class="muted setsub">${esc(h)}</span></div>`; }).join('')}
+    ${NOTI.map(([k, l, h, d]) => { const v = c[k] || {}; return `<div class="setrow notirow"><label class="settog"><input type="checkbox" data-non="${k}" ${v.on === false ? '' : 'checked'}> <b>${esc(l)}</b></label><div class="spacer"></div>${d ? `<input type="time" class="settime" data-ntime="${k}" value="${esc(v.time || d)}" aria-label="${esc(l)} time">` : ''}<span class="muted setsub">${esc(h)}</span><button type="button" class="btn small" data-push="only:${k}">Send now</button></div>`; }).join('')}
     <p class="muted">Only sent when there is something to say. Times follow this device’s time zone (${esc(c.tz || TZ())}).</p></section>`;
 }
 function spendPanel() {
@@ -3924,7 +3924,7 @@ async function start(session) {
     closetDayOutfit: d => S.days?.[d]?.outfit || '',
     // Reports: what you wore, bought and let go between two dates
     closetStats: (from, to) => { const ds = Object.entries(S.days || {}).filter(([d, r]) => d >= from && d <= to && r && dayItems(r).length); const worn = new Set(ds.flatMap(([, r]) => dayItems(r)));
-      const day = ms => ms ? new Date(ms).toISOString().slice(0, 10) : ''; const added = S.items.filter(i => !isInbox(i) && i.status !== 'wishlist' && day(i.created) >= from && day(i.created) <= to);
+      const day = ms => ms ? new Date(ms).toISOString().slice(0, 10) : ''; const start = S.prefs.closetStart || '2026-11-08', added = S.items.filter(i => !isInbox(i) && i.status !== 'wishlist' && day(i.created) > start && day(i.created) >= from && day(i.created) <= to);
       return { worn: ds.length, pieces: worn.size, added: added.length, gone: S.items.filter(i => i.passedDate && i.passedDate >= from && i.passedDate <= to).length, spent: added.reduce((n, i) => n + (Number(i.price) || 0), 0) }; },
     closetPlanDay: async (d, outfitId) => { const cur = S.days?.[d] || {}; if (!outfitId) { if (!cur.outfit) return; const { outfit, ...rest } = cur; return Object.keys(rest).length ? DB.put('days', d, rest) : DB.del('days', d); } await DB.put('days', d, { ...cur, outfit: outfitId }); },
     closetPatch: async (id, patch) => { const it = S.items.find(x => x.id === id); if (!it) return; const { id: _i, ...rest } = it; await DB.put('items', id, { ...rest, ...patch, updated: Date.now() }); },
