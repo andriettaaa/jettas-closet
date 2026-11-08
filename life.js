@@ -773,6 +773,15 @@ const KINDS = {
     fields: [F('likes', 'Families I like', 'multi', { options: FRAG_FAMILIES }), F('notesLove', 'Notes I love', 'multi', { options: FRAG_NOTES }), F('dislikes', 'Not for me', 'long', { rows: 2 }), F('notes', 'Notes', 'long')],
     title: () => 'Scent profile', sub: r => [].concat(r.likes || []).join(', ')
   },
+  fragsugs: {
+    one: 'perfume suggestion', many: 'Perfume suggestions', photo: 'photo', display: 'cards', facet: 'fit',
+    fields: [F('name', 'Perfume'), F('brand', 'Brand', 'text', { half: 1 }), F('fit', 'Why you see it', 'select', { options: ['New for you', 'On sale: one you love', 'Cheaper alternative'], half: 1 }),
+      F('like', 'Smells like', 'text', { half: 1 }), F('month', 'Month', 'text', { half: 1 }), F('family', 'Scent family', 'multi', { options: FRAG_FAMILIES }), F('scent', 'Scent notes', 'multi', { options: FRAG_NOTES }),
+      F('store', 'Shop', 'text', { half: 1 }), F('deal', 'Deal', 'text', { half: 1 }), F('price', 'Price', 'money', { half: 1 }), F('was', 'Normal price', 'money', { half: 1 }), F('size', 'Size', 'text', { half: 1 }), F('until', 'Until', 'date', { half: 1 }),
+      F('status', 'Your choice', 'select', { options: ['Want to smell', 'On wishlist', 'Not for me'] }), F('why', 'Why it fits you', 'long'), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo')],
+    sorts: [['-month', 'Newest'], ['name', 'A to Z']],
+    sub: r => [r.brand, r.fit, num(r.price) ? eur(num(r.price)) + (num(r.was) ? ` (was ${eur(num(r.was))})` : '') : '', r.store].filter(Boolean).join(' · ')
+  },
   bsched: {
     one: 'week schedule', many: 'Week schedule',
     fields: WEEK.map(([k, l]) => F(k, l, 'select', { options: NIGHTS, half: 1 })),
@@ -3429,18 +3438,19 @@ async function quickAdd(form) {
   if (hit) save(hit, { list: true }); else create('ingredients', { name, list: true, stock: false }).catch(() => {});
 }
 function openSlot(date, slot) {
-  const rs = recs('recipes').sort((a, b) => norm(a.name).localeCompare(norm(b.name)));
-  const sh = C.sheet({
-    title: `${slot} on ${dayName(date)} ${shortDate(date)}`,
-    body: `<label class="search">${svg(P.search)}<input type="search" data-sq placeholder="Find a recipe" aria-label="Find a recipe"></label>
-      <div class="lrows lpick" data-sl></div>
-      <form class="lqadd" data-free><input type="text" placeholder="Or just type what you'll eat" aria-label="What you'll eat"><button class="btn" type="submit">Add</button></form>`
-  });
-  const draw = q => { const n = norm(q); sh.querySelector('[data-sl]').innerHTML = rs.filter(r => !n || norm(r.name).includes(n)).slice(0, 40).map(r => `<button class="lrow lmain" data-pick="${r.id}"><b>${esc(r.name)}</b><span>${esc(KINDS.recipes.sub(r))}</span></button>`).join('') || quiet('No recipe with that name.'); };
-  draw('');
-  sh.querySelector('[data-sq]').addEventListener('input', e => draw(e.target.value));
-  sh.addEventListener('click', e => { const b = e.target.closest('[data-pick]'); if (b) { create('meals', { date, slot, recipe: b.dataset.pick }).catch(() => {}); C.closeSheet(); } });
-  sh.querySelector('[data-free]').addEventListener('submit', e => { e.preventDefault(); const v = e.target.querySelector('input').value.trim(); if (v) { create('meals', { date, slot, what: v }).catch(() => {}); C.closeSheet(); } });
+  const st = { q: '', f: 'fit' };
+  const sh = C.sheet({ title: `${slot} on ${dayName(date)} ${shortDate(date)}`, wide: true, body: '<div data-slotbody></div>' });
+  const draw = () => { const host = sh.querySelector('[data-slotbody]'), y = host.querySelector('.wpgrid')?.scrollTop || 0; host.innerHTML = mealPickBody(slot, st.q, st.f); const g = host.querySelector('.wpgrid'); if (g) g.scrollTop = y; };
+  draw();
+  sh.addEventListener('input', e => { if (!e.target.matches('[data-wpmealq]')) return; st.q = e.target.value; const pos = e.target.selectionStart; draw(); const inp = sh.querySelector('[data-wpmealq]'); inp?.focus(); inp?.setSelectionRange(pos, pos); });
+  sh.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
+    if (d.wpmealf) { st.f = d.wpmealf; draw(); return; }
+    if (d.wpmealset) { create('meals', { date, slot, recipe: d.wpmealset }).catch(() => {}); C.closeSheet(); return; }
+    if (b.hasAttribute('data-wpmealaway')) { create('meals', { date, slot, away: true }).catch(() => {}); C.closeSheet(); return; }
+    if (b.hasAttribute('data-wpmealclose')) C.closeSheet(); });
+  sh.addEventListener('submit', async e => { if (!e.target.closest('[data-wpmealnew]')) return; e.preventDefault(); const n = e.target.querySelector('input').value.trim(); if (!n) return;
+    try { const rid = await create('recipes', { name: n, category: slot, totry: true }); await create('meals', { date, slot, recipe: rid }); C.toast('New recipe added. Fill it in after cooking.'); } catch { C.toast('Could not save. Try again.'); }
+    C.closeSheet(); });
 }
 function openRecipe(r) {
   const ings = [].concat(r.ingredients || []).map(id => L.byId[id]).filter(Boolean);
@@ -5023,6 +5033,8 @@ function reportHTML(r) {
   return `<div class="rphead"><button class="btn small" data-repback>${svg(P.left)} All reports</button><h2>${esc(r.name)}</h2><span class="muted">${r.type === 'month' ? 'Month report' : 'Week report'} · made ${esc(niceDate(r.made))}</span></div>
     <div class="rptop">${list('Went well', r.good, 'good')}${list('Worth watching', r.watch, 'bad')}${list('For next ' + (r.type === 'month' ? 'month' : 'week'), r.tips, '')}</div>
     ${(r.secs || []).filter(sec => sec.stats.some(st => st.v)).map(sec => panel(sec.t, `<div class="rpstats">${sec.stats.map(stat).join('')}</div>${sec.top3?.length ? `<p class="lnone">Top 3: ${esc(sec.top3.join(', '))}</p>` : ''}${sec.chart?.length && sec.chart.some(x => x[1]) ? `<p class="dsub">${esc(sec.chartT || '')}</p>${aBars(sec.chart)}` : ''}`)).join('')}
+    ${r.type === 'month' ? (() => { const mo = addDays(r.to || today(), 1).slice(0, 7), l = fragSugsFor(recs('fragsugs').some(x => x.month === mo) ? mo : undefined), bd = recs('bdeals').filter(o => (!o.until || o.until >= today()) && o.match !== 'Brand you use').slice(0, 6);
+      return panel('Deals', `${bd.length ? `<p class="dsub">Beauty deals on your own products · ${bd.length}</p><div class="lrows">${bd.map(o => `<button class="lrow" data-act="open" data-id="${o.id}"><span class="lmain"><b>${esc(o.name)}</b><span>${esc(KINDS.bdeals.sub(o))}</span></span></button>`).join('')}</div>` : ''}<p class="dsub">Perfume for you</p>${fragSugsHTML(l) || quiet('Perfume suggestions come on the 1st of the month.')}`); })() : ''}
     ${r.extra ? panel('You wanted to add', `<p class="lpre">${esc(r.extra)}</p>`) : ''}
     ${panel('My reflection', `<textarea class="finp" rows="4" data-repnote="${r.id}" placeholder="What went well? What do you take with you?">${esc(r.note || '')}</textarea>`)}`;
 }
@@ -5036,7 +5048,8 @@ function reportsPage(host) {
     ${open ? reportHTML(open) : `<div class="lwrap">${[['week', 'Weeks'], ['month', 'Months']].map(([k, l]) => `<button class="chip ${f === k ? 'on' : ''}" data-reptype="${k}" aria-pressed="${f === k}">${l}</button>`).join('')}</div>
       ${list.length ? `<div class="lrows">${list.map(card).join('')}</div>` : quiet('Your first report is being made. It comes every Sunday evening, and at the end of every month.')}`}`;
   if (host.dataset.repwired) return; host.dataset.repwired = '1';
-  host.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
+  host.addEventListener('click', async e => { const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.fragsug) { if (await fragSugClick(e)) reportsPage(host); return; }
     if (b.dataset.repopen) { L.repOpen = b.dataset.repopen; reportsPage(host); scrollTo(0, 0); }
     else if (b.hasAttribute('data-repback')) { L.repOpen = ''; reportsPage(host); }
     else if (b.dataset.reptype) { L.repType = b.dataset.reptype; reportsPage(host); } });
@@ -5120,17 +5133,20 @@ const pickTile = (r, attr, sub, mark) => { const ph = photoOf(r); return `<butto
 const pickFilters = (attr, cur, opts) => `<div class="lwrap">${opts.map(([v, l]) => `<button class="chip small ${cur === v ? 'on' : ''}" ${attr}="${esc(v)}" aria-pressed="${cur === v}">${esc(l)}</button>`).join('')}</div>`;
 function mealPicker(wk) {
   const [d, slot] = String(L.wpMeal || '').split('|'); if (!d) return '';
-  const q = norm(L.wpMealQ || ''), f = L.wpMealF || 'fit', soon = new Set(recs('ingredients').filter(useSoon).map(r => r.id));
+  return `<div class="panel wppick"><p><b>${esc(slot)} on ${esc(niceDate(d))}</b></p>${mealPickBody(slot, L.wpMealQ || '', L.wpMealF || 'fit')}</div>`;
+}
+function mealPickBody(slot, qRaw, f) {
+  const q = norm(qRaw || ''), soon = new Set(recs('ingredients').filter(useSoon).map(r => r.id));
   const score = r => [].concat(r.ingredients || []).filter(i => soon.has(i)).length * 3 + (r.fav ? 2 : 0) + (num(r.rating) || 0) / 2;
   const fits = r => r.category === slot || (slot === 'Dinner' && (!r.category || r.category === 'Soup')) || (slot === 'Lunch' && r.category === 'Soup');
   const list = recs('recipes').filter(r => (!q || norm(titleOf(r) + ' ' + (r.cuisine || '')).includes(q)) && (q || f === 'all' || (f === 'fit' ? fits(r) : f === 'fav' ? r.fav : f === 'try' ? r.totry : true)))
     .sort((a, b) => score(b) - score(a) || azCmp(titleOf(a), titleOf(b)));
   const sub = r => [r.prep || r.cook ? `${(num(r.prep) || 0) + (num(r.cook) || 0)} min` : '', r.totry ? 'to try' : ''].filter(Boolean).join(' · ');
-  return `<div class="panel wppick"><p><b>${esc(slot)} on ${esc(niceDate(d))}</b></p>
-    <input class="finp" type="search" data-wpmealq placeholder="Search your recipes" value="${esc(L.wpMealQ || '')}" autocomplete="off">
+  return `<div class="wppick">
+    <input class="finp" type="search" data-wpmealq placeholder="Search your recipes" value="${esc(qRaw || '')}" autocomplete="off">
     ${q ? '' : pickFilters('data-wpmealf', f, [['fit', slot], ['all', 'All recipes'], ['fav', 'Favourites'], ['try', 'Still to try']])}
     ${list.length ? `<div class="lgrid wpgrid">${list.map(r => pickTile(r, 'data-wpmealset', sub(r), score(r) >= 3 ? '♻' : '')).join('')}</div>` : quiet(q ? 'No recipe with that name yet.' : 'No recipes here yet.')}
-    <form class="lqadd" data-wpmealnew><input type="text" placeholder="Something else? Type the name" value="${esc(L.wpMealQ || '')}" autocomplete="off"><button class="btn small" type="submit">Add as new recipe</button></form>
+    <form class="lqadd" data-wpmealnew><input type="text" placeholder="Something else? Type the name" value="${esc(qRaw || '')}" autocomplete="off"><button class="btn small" type="submit">Add as new recipe</button></form>
     <p class="lnone">It becomes a new recipe under Still to try, so you can fill it in after cooking. ♻ uses something from your fridge that has to go soon.</p>
     <div class="dbtns"><button class="btn small" data-wpmealaway>Not eating at home</button><button class="btn small" data-wpmealclose>Close</button></div></div>`;
 }
@@ -7853,10 +7869,26 @@ function fragPage(host) {
       ${panel('Notes you love', likedNotes.length ? `<div class="lwrap">${likedNotes.map(([n, c]) => `<span class="chip">${esc(n)} <span class="n">${c}</span></span>`).join('')}</div><p class="lnone">From fragrances you rate 4 or 5 stars or mark as favourite.</p>` : quiet('Rate your fragrances and add their notes; the notes you love show up here.'))}
       ${panel('Families in your collection', fams.length ? aBars(fams.slice(0, 8)) : quiet('Add a family to each fragrance.'))}
       ${noNotes.length || fp?.dislikes ? panel('Not for you', `${noNotes.length ? `<div class="lwrap">${noNotes.map(([n]) => `<span class="chip">${esc(n)}</span>`).join('')}</div>` : ''}${fp?.dislikes ? `<p class="lnone">${esc(fp.dislikes)}</p>` : ''}`) : ''}
-      ${panel('Suggestions', quiet('New fragrance suggestions come once a month in your month review, based on the notes you love.'))}
+      ${panel('Suggestions this month', fragSugsHTML(fragSugsFor()) || quiet('New perfume suggestions come on the 1st of every month, based on your scent profile. They also show in your month report.'))}
     </div>`;
   if (host.dataset.frwired) return; host.dataset.frwired = '1';
-  host.addEventListener('click', e => { const n = e.target.closest('[data-fragnew]'); if (n) openEditor('beauty', null, { type: 'Fragrance', ...(n.dataset.fragnew === 'wish' ? { wish: true } : {}) }); });
+  host.addEventListener('click', async e => { const n = e.target.closest('[data-fragnew]'); if (n) openEditor('beauty', null, { type: 'Fragrance', ...(n.dataset.fragnew === 'wish' ? { wish: true } : {}) });
+    if (await fragSugClick(e)) fragPage(host); });
+}
+// perfume suggestions: the latest month that has any, or one month
+const fragSugsFor = mo => { const all = recs('fragsugs'); const m = mo || all.map(r => r.month || '').sort().pop(); return all.filter(r => r.month === m && r.status !== 'Not for me'); };
+function fragSugsHTML(list) {
+  if (!list.length) return '';
+  const groups = ['On sale: one you love', 'Cheaper alternative', 'New for you'].map(k => [k, list.filter(r => (r.fit || 'New for you') === k)]).filter(([, l]) => l.length);
+  return groups.map(([k, l]) => `<p class="dsub">${esc(k)} · ${l.length}</p><div class="lrows">${l.map(r => `<div class="lrow fragsug"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc([r.brand, r.like ? 'like ' + r.like : '', [].concat(r.scent || []).slice(0, 4).join(', '), num(r.price) ? eur(num(r.price)) + (num(r.was) ? ` (was ${eur(num(r.was))})` : '') + (r.store ? ' at ' + r.store : '') : ''].filter(Boolean).join(' · '))}</span>${r.why ? `<span>${esc(r.why)}</span>` : ''}</button>
+    <span class="wpbtns">${r.url ? `<a class="chip link" href="${esc(r.url)}" target="_blank" rel="noopener">Link</a>` : ''}<button class="chip ${r.status === 'On wishlist' ? 'on' : ''}" data-fragsug="wish" data-id="${r.id}">${r.status === 'On wishlist' ? 'On wishlist ✓' : 'Wishlist'}</button><button class="chip" data-fragsug="no" data-id="${r.id}">Not for me</button></span></div>`).join('')}</div>`).join('');
+}
+async function fragSugClick(e) {
+  const b = e.target.closest('[data-fragsug]'); if (!b) return false; const r = L.byId[b.dataset.id]; if (!r) return false;
+  if (b.dataset.fragsug === 'no') { await save(r, { status: 'Not for me' }); C.toast('Noted. Next month leaves this kind out.'); return true; }
+  if (r.status === 'On wishlist') return false;
+  try { await create('beauty', { name: r.name, brand: r.brand || '', type: 'Fragrance', wish: true, texture: 'Spray', ...(r.family ? { family: r.family } : {}), ...(r.scent ? { scent: r.scent } : {}), ...(num(r.price) ? { price: num(r.price) } : {}), ...(r.size ? { size: r.size } : {}), ...(r.url ? { url: r.url } : {}), ...(r.photo ? { photo: r.photo } : {}), about: r.why || '' }); await save(r, { status: 'On wishlist' }); C.toast('On your perfume wishlist'); } catch { C.toast('Could not save. Try again.'); }
+  return true;
 }
 
 return {

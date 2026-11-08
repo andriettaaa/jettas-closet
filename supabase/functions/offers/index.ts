@@ -628,6 +628,36 @@ Deno.serve(async req => {
       const shops = data.filter((r: any) => r.kind === 'bshops').map((r: any) => shopOut(r.data));
       return json({ products, wishes, shops });
     }
+    // perfume once a month: her fragrances, her scent profile and what was suggested before
+    if (body.action === 'fraglist') {
+      const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['beauty', 'fragprofile', 'fragsugs', 'bshops']);
+      if (error) throw error;
+      const arr = (v: any) => [].concat(v || []);
+      const fragrances = data.filter((r: any) => r.kind === 'beauty' && r.data?.type === 'Fragrance').map((r: any) => clean({ id: r.id, name: r.data.name, brand: r.data.brand, family: arr(r.data.family), notes: arr(r.data.scent), season: arr(r.data.season), occasion: arr(r.data.occasion), rating: r.data.rating, fav: r.data.fav || undefined, wish: r.data.wish || undefined, finished: r.data.finished || undefined, size: r.data.size, price: r.data.price, about: r.data.about }));
+      const p = data.find((r: any) => r.kind === 'fragprofile')?.data || {};
+      const before = data.filter((r: any) => r.kind === 'fragsugs').map((r: any) => clean({ name: r.data.name, brand: r.data.brand, month: r.data.month, status: r.data.status }));
+      const shops = data.filter((r: any) => r.kind === 'bshops').map((r: any) => shopOut(r.data));
+      return json({ fragrances, profile: clean({ likes: arr(p.likes), notesLove: arr(p.notesLove), dislikes: p.dislikes, notes: p.notes }), before, shops });
+    }
+    // this month's perfume suggestions: replaces only the suggestions of the same month, keeps what she marked
+    if (body.action === 'fragsave') {
+      const month = /^\d{4}-\d{2}$/.test(String(body.month || '')) ? String(body.month) : new Date().toISOString().slice(0, 7);
+      const KIND = ['New for you', 'On sale: one you love', 'Cheaper alternative'];
+      const sugs = (Array.isArray(body.items) ? body.items : []).slice(0, 30).map((o: any) => clean({
+        name: str(o?.name, 160), brand: str(o?.brand, 80), why: str(o?.why, 400), fit: KIND.includes(o?.fit) ? o.fit : 'New for you', like: str(o?.like, 120),
+        family: (Array.isArray(o?.family) ? o.family : []).map((x: any) => str(x, 30)).slice(0, 4), scent: (Array.isArray(o?.notes) ? o.notes : []).map((x: any) => str(x, 30)).slice(0, 10),
+        store: str(o?.store, 60), deal: str(o?.deal, 120), price: num(o?.price), was: num(o?.was), size: str(o?.size, 30), until: day(o?.until), url: str(o?.url, 500), photo: str(o?.photo, 500), month
+      })).filter((o: any) => o.name);
+      for (const o of sugs as any[]) if (o.photo) o.photo = await keepPhoto(uid, o.photo);
+      const { data: old, error: e1 } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'fragsugs');
+      if (e1) throw e1;
+      const stale = (old || []).filter((r: any) => r.data?.month === month && !r.data?.status).map((r: any) => r.id);
+      for (let i = 0; i < stale.length; i += 200) { const { error } = await sb.from('records').delete().eq('user_id', uid).in('id', stale.slice(i, i + 200)); if (error) throw error; }
+      const now = new Date().toISOString(), rows = sugs.map((d: any) => ({ user_id: uid, id: crypto.randomUUID(), kind: 'fragsugs', data: { ...d, created: Date.now() }, updated_at: now }));
+      if (rows.length) { const { error } = await sb.from('records').insert(rows); if (error) throw error; }
+      if (rows.length) await send(uid, { title: 'Perfume for this month', body: `${rows.length} ${rows.length === 1 ? 'suggestion' : 'suggestions'} that fit your scent profile.`, url: './#care/perfume', tag: 'fragsugs' });
+      return json({ ok: true, saved: rows.length, month });
+    }
     // this week's beauty deals: replaces last week's
     if (body.action === 'beautysave') {
       const MATCH = ['Your product', 'Running low', 'On your wishlist', 'Brand you use'];
