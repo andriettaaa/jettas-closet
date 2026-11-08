@@ -4750,7 +4750,7 @@ function openRecord(id) {
 
 /* ---------- moving data in and out ---------- */
 function pickFile() {
-  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json'; inp.className = 'vh';
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,.txt,application/json,text/plain'; inp.className = 'vh';
   document.body.appendChild(inp);
   inp.addEventListener('change', async () => { const f = inp.files?.[0]; inp.remove(); if (f) importFile(f); });
   inp.click();
@@ -4909,13 +4909,21 @@ async function importFile(file) {
     catch (err) { console.error(err); msg.textContent = isMissing(err) ? 'The records table is missing in Supabase. See the setup steps.' : 'Could not import. Try again.'; b.disabled = false; if (isMissing(err)) { L.missing = true; C.render(); } }
   };
 }
-function exportAll() {
+/* a backup of every list. Share sheets often refuse a .json file type, so the file goes out as plain text with a .json
+   name; when sharing is not possible it downloads, and when that fails too you get told instead of nothing happening */
+async function exportAll() {
   const name = `jettas-closet-lists-${today()}.json`;
-  const blob = new Blob([JSON.stringify({ app: 'Jetta’s Closet', exported: new Date().toISOString(), records: L.all.map(r => ({ id: r.id, kind: r.kind, data: dataOf(r) })) }, null, 1)], { type: 'application/json' });
-  const file = new File([blob], name, { type: 'application/json' });
-  if (navigator.canShare?.({ files: [file] })) { navigator.share({ files: [file] }).catch(() => {}); return; }
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  const text = JSON.stringify({ app: 'Jetta’s Closet', exported: new Date().toISOString(), records: L.all.map(r => ({ id: r.id, kind: r.kind, data: dataOf(r) })) }, null, 1);
+  const file = new File([text], name, { type: 'text/plain' });
+  if (navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); return; }
+    catch (e) { if (e?.name === 'AbortError') return; console.warn('Share did not work, downloading instead', e); }
+  }
+  try {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    C.toast(`Saved ${name} to your downloads`);
+  } catch (e) { console.error(e); C.toast('Could not save the backup on this device. Try it in Safari or on a computer.'); }
 }
 const SQL = `create table if not exists public.records (
   user_id uuid not null default auth.uid() references auth.users on delete cascade,
