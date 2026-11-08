@@ -1788,6 +1788,7 @@ function filtered(page, seg) {
   if (fk && fv) list = list.filter(r => [].concat(r[fk] || []).includes(fv));
   if (K.facet2 && fv && u.facet2) list = list.filter(r => [].concat(r[K.facet2] || []).includes(u.facet2));
   if (q) list = list.filter(r => norm([titleOf(r), K.sub?.(r), r.brand, r.variant, r.notes, ...relNames(r.ingredients)].join(' ')).includes(q));
+  if (seg.kind === 'recipes') list = list.filter(ingMatch);
   return sortList(list, K, u.sort[seg.key] || defSort(K));
 }
 function listPage(host, page) {
@@ -1829,7 +1830,7 @@ function fillList(host, page) {
   }
   if (seg.fill) { seg.fill(fill, page); return; }
   // Finance lists say so when something is in there twice, with the button to clean it up
-  const top = (FIN_KINDS.includes(seg.kind) ? fDupNote() : seg.kind === 'recipes' ? recipeDupNote() : '') + (seg.top ? seg.top() : '') + (K.total && list.length ? K.total(list, u) : '');
+  const top = (FIN_KINDS.includes(seg.kind) ? fDupNote() : seg.kind === 'recipes' ? recipeDupNote() + ingFilterHTML() : '') + (seg.top ? seg.top() : '') + (K.total && list.length ? K.total(list, u) : '');
   fill.innerHTML = top + (list.length ? groupedHTML(list, K, l => viewMode(K) === 'table' ? tableHTML(l, K) : listHTML(l, K)) : emptyList(K, all.length));
   fitGroups(fill);
   drawSel(host, page, list);
@@ -2852,7 +2853,8 @@ function kitchenToday(host) {
     ${panel('Today’s meals', `<div class="lslots">${MEALS.map(s => { const m = meals.filter(x => x.slot === s); return `<div class="lslot"><span class="rowlbl">${s}</span>${m.map(x => `<button class="chip" data-act="open" data-id="${x.id}">${esc(titleOf(x))}</button>`).join('')}<button class="chip ghost" data-act="slot" data-date="${t}" data-slot="${s}" aria-label="Plan ${s.toLowerCase()}">+</button></div>`; }).join('')}</div>`, ['kitchen/meals', 'Meal plan'])}
     ${panel('Grocery list', groc.length ? `<p class="lbig">${plural(groc.length, 'thing')} to buy</p><div class="lwrap">${groc.slice(0, 14).map(i => `<span class="chip">${esc(i.name)}</span>`).join('')}${groc.length > 14 ? `<span class="chip">+${groc.length - 14}</span>` : ''}</div>` : quiet('Nothing on your list. Tap “Add to list” on a recipe or in the pantry.'), ['kitchen/groceries', 'Go shopping'])}
     ${panel('Meal prep', prep.length ? `<div class="lrows">${prep.slice(0, 5).map(row).join('')}</div>` : quiet('No prepped meals waiting.'), ['kitchen/meals', 'All meal prep'])}
-    ${panel(ready.length >= 3 ? 'You can cook these now' : 'Something to cook', pick.length ? `<div class="lgrid small">${pick.map(card).join('')}</div>` : quiet('Your recipes show up here.'), ['kitchen/recipes', 'All recipes'])}
+    ${(() => { const on = ingF().sel.length > 0, hit = on ? rs.filter(ingMatch).sort((a, b) => ingHits(b) - ingHits(a) || azCmp(titleOf(a), titleOf(b))) : [], show = on ? hit.slice(0, 6) : pick;
+      return panel(on ? `Cook with ${ingF().sel.join(ingF().mode === 'any' ? ' or ' : ' and ')}` : ready.length >= 3 ? 'You can cook these now' : 'Something to cook', `${ingFilterHTML()}${show.length ? `<div class="lgrid small">${show.map(card).join('')}</div>${on && hit.length > 6 ? `<p class="lnone">and ${hit.length - 6} more under All recipes</p>` : ''}` : quiet(on ? 'No recipe with these ingredients yet.' : 'Your recipes show up here.')}`, ['kitchen/recipes', 'All recipes']); })()}
   </div>`;
 }
 /* ---------- money ----------
@@ -3404,7 +3406,7 @@ function mealDay(d) {
 function groceryFill(fill) {
   setTimeout(stapleRestock, 0);
   if (!fill.querySelector('.lqadd')) {
-    fill.innerHTML = `<form class="lqadd" data-qadd><input type="text" placeholder="Add something to buy" aria-label="Add to grocery list" autocomplete="off" enterkeyhint="done"><button class="btn primary" type="submit">Add</button></form><div class="lsugs" data-sugs></div><div data-glist></div>`;
+    fill.innerHTML = `<form class="lqadd" data-qadd><input type="text" data-sug="ing" placeholder="Add something to buy" aria-label="Add to grocery list" autocomplete="off" enterkeyhint="done"><button class="btn primary" type="submit">Add</button></form><div class="lsugs" data-sugs></div><div data-glist></div>`;
     fill.querySelector('input').addEventListener('input', e => sugs(fill, e.target.value));
   }
   const items = recs('ingredients').filter(i => i.list), mkt = MARKET_DAYS.includes(shopDayNow()), mktName = recs('shops').find(r => r.type === 'Market')?.name || 'Market';
@@ -3442,6 +3444,7 @@ function openSlot(date, slot) {
   const sh = C.sheet({ title: `${slot} on ${dayName(date)} ${shortDate(date)}`, wide: true, body: '<div data-slotbody></div>' });
   const draw = () => { const host = sh.querySelector('[data-slotbody]'), y = host.querySelector('.wpgrid')?.scrollTop || 0; host.innerHTML = mealPickBody(slot, st.q, st.f); const g = host.querySelector('.wpgrid'); if (g) g.scrollTop = y; };
   draw();
+  sh.addEventListener('ingchange', e => { e.preventDefault(); draw(); });
   sh.addEventListener('input', e => { if (!e.target.matches('[data-wpmealq]')) return; st.q = e.target.value; const pos = e.target.selectionStart; draw(); const inp = sh.querySelector('[data-wpmealq]'); inp?.focus(); inp?.setSelectionRange(pos, pos); });
   sh.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
     if (d.wpmealf) { st.f = d.wpmealf; draw(); return; }
@@ -3534,7 +3537,7 @@ function ilinesEditor(D) {
   const rows = Array.isArray(D.ilines) ? D.ilines : [];
   return `<div class="ilines">${rows.map((x, i) => x.h != null
     ? `<div class="ilrow ilhead"><input data-il="${i}" data-ik="h" value="${esc(x.h)}" placeholder="Part, like Sauce or Topping" aria-label="Part name"><button type="button" class="iconbtn small" data-ilx="${i}" aria-label="Remove part">${svg(P.x)}</button></div>`
-    : `<div class="ilrow"><input class="ilq" data-il="${i}" data-ik="q" value="${esc(x.q ?? '')}" inputmode="decimal" placeholder="200" aria-label="Amount"><select class="ilu" data-il="${i}" data-ik="u" aria-label="Unit">${RUNITS.map(u => `<option value="${u}" ${u === (x.u || '') ? 'selected' : ''}>${u || '–'}</option>`).join('')}</select><input class="iln" data-il="${i}" data-ik="n" value="${esc(x.n || '')}" list="ilnames" placeholder="Ingredient" aria-label="Ingredient"><input class="ilnote" data-il="${i}" data-ik="note" value="${esc(x.note || '')}" placeholder="Note, like chopped" aria-label="Note"><button type="button" class="iconbtn small" data-ilx="${i}" aria-label="Remove ingredient">${svg(P.x)}</button>${x.ing && L.byId[x.ing] ? '<span class="ilpan" title="In your pantry">✓</span>' : ''}</div>`).join('')}</div>
+    : `<div class="ilrow"><input class="ilq" data-il="${i}" data-ik="q" value="${esc(x.q ?? '')}" inputmode="decimal" placeholder="200" aria-label="Amount"><select class="ilu" data-il="${i}" data-ik="u" aria-label="Unit">${RUNITS.map(u => `<option value="${u}" ${u === (x.u || '') ? 'selected' : ''}>${u || '–'}</option>`).join('')}</select><input class="iln" data-il="${i}" data-ik="n" value="${esc(x.n || '')}" data-sug="ing" autocomplete="off" placeholder="Ingredient" aria-label="Ingredient"><input class="ilnote" data-il="${i}" data-ik="note" value="${esc(x.note || '')}" placeholder="Note, like chopped" aria-label="Note"><button type="button" class="iconbtn small" data-ilx="${i}" aria-label="Remove ingredient">${svg(P.x)}</button>${x.ing && L.byId[x.ing] ? '<span class="ilpan" title="In your pantry">✓</span>' : ''}</div>`).join('')}</div>
     <datalist id="ilnames">${[...new Set([...recs('ingredients').map(i => i.name), ...recs('recipes').flatMap(r => [].concat(r.ilines || []).map(x => x.n))].filter(Boolean).map(v => String(v).trim()))].sort(azCmp).map(v => `<option value="${esc(v)}">`).join('')}</datalist>
     <div class="dbtns"><button type="button" class="btn small" data-iladd>+ Ingredient</button><button type="button" class="btn small ghost" data-iladdh>+ Part</button></div>`;
 }
@@ -4706,7 +4709,7 @@ function fieldInner(kind, f, D) {
       return span + `<div class="lwrap">${ids.map(x => `<button type="button" class="chip on" data-relx="${f.k}" data-id="${x}" aria-label="Remove ${esc(relName(x))}">${esc(relName(x))} ×</button>`).join('')}</div>
         ${all.length ? `<div class="lpick"><select class="pill" data-relsel="${f.k}" aria-label="${esc(f.label)}"><option value="">${f.multi ? 'Add…' : ids.length ? 'Change…' : 'Choose…'}</option>${all.filter(x => !ids.includes(x.id)).map(x => `<option value="${x.id}">${esc(titleOf(x))}</option>`).join('')}</select></div>` : ''}${find}`;
     }
-    default: { const sg = textSugs(kind, f), kn = !!knownFor(f.k); return lab + `<input id="${id}" type="text" data-k="${f.k}" value="${esc(v || '')}" autocomplete="off"${sg.length || kn ? ` data-sugk="${f.k}"` : ''}>${sg.length || kn ? `<div class="lwrap ltsugs" data-sugs="${f.k}">${sg.map(o => `<button type="button" class="chip" data-tsug="${f.k}" data-v="${esc(o)}" aria-pressed="${norm(o) === norm(v || '')}">${esc(o)}</button>`).join('')}</div>` : ''}`; }
+    default: { const sg = textSugs(kind, f), kn = !!knownFor(f.k); return lab + `<input id="${id}" type="text" data-k="${f.k}"${kind === 'ingredients' && f.k === 'name' ? ' data-sug="ing"' : ''} value="${esc(v || '')}" autocomplete="off"${sg.length || kn ? ` data-sugk="${f.k}"` : ''}>${sg.length || kn ? `<div class="lwrap ltsugs" data-sugs="${f.k}">${sg.map(o => `<button type="button" class="chip" data-tsug="${f.k}" data-v="${esc(o)}" aria-pressed="${norm(o) === norm(v || '')}">${esc(o)}</button>`).join('')}</div>` : ''}`; }
   }
 }
 /* fewer things to type: a text field offers what you wrote there before as buttons. Shops are one list for the
@@ -5112,7 +5115,7 @@ function stockScreen([k, cat, label]) {
   const all = recs(k).filter(r => (STOCK_KEEP[k](r) || isOut(r)) && (!cat || (r[key] || 'Other') === cat) && (!q || norm(titleOf(r) + ' ' + (r.brand || '')).includes(q))).sort((a, b) => azCmp(titleOf(a), titleOf(b)));
   const sk = k + '|' + cat, snap = (L.wpUsual ||= {})[sk] ||= new Set(all.filter(usual).map(r => r.id));
   const top = all.filter(r => snap.has(r.id)), rest = all.filter(r => !snap.has(r.id));
-  const add = k === 'ingredients' ? `<form class="lqadd" data-wpnewitem="${esc(cat)}"><input type="text" placeholder="Add something to ${esc(cat || label)}" autocomplete="off"><button class="btn small" type="submit">Add</button></form>` : '';
+  const add = k === 'ingredients' ? `<form class="lqadd" data-wpnewitem="${esc(cat)}"><input type="text" data-sug="ing" placeholder="Add something to ${esc(cat || label)}" autocomplete="off"><button class="btn small" type="submit">Add</button></form>` : '';
   return `<p class="lnone">${esc(label)}${cat ? ' · ' + esc(cat) : ''}: tap what is out or almost out. Out goes on your shopping list.</p>
     <input class="finp" type="search" data-wpq placeholder="Search" value="${esc(L.wpQ || '')}" autocomplete="off">
     ${top.length ? `<h3 class="lgh">Usually runs out · ${top.length}</h3><div class="lrows">${top.map(stockRow).join('')}</div>` : ''}
@@ -5131,6 +5134,107 @@ const MEAL_SLOTS = ['Breakfast', 'Lunch', 'Dinner'];
 // a tile to pick from, with photo or first letter
 const pickTile = (r, attr, sub, mark) => { const ph = photoOf(r); return `<button class="lcard wptile" ${attr}="${r.id}"><div class="lph"><span>${esc(titleOf(r).slice(0, 1).toUpperCase())}</span>${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${mark ? `<i class="lfav">${mark}</i>` : ''}</div><div class="meta"><b>${esc(titleOf(r))}</b><span>${esc(sub || '')}</span></div></button>`; };
 const pickFilters = (attr, cur, opts) => `<div class="lwrap">${opts.map(([v, l]) => `<button class="chip small ${cur === v ? 'on' : ''}" ${attr}="${esc(v)}" aria-pressed="${cur === v}">${esc(l)}</button>`).join('')}</div>`;
+/* ---------- ingredient filter: only recipes with what you pick (rijst finds rice too) ---------- */
+const ING_SYN = { rijst: ['rice'], kip: ['chicken'], kipfilet: ['chicken breast'], ei: ['egg'], eieren: ['eggs', 'egg'], ui: ['onion'], uien: ['onions', 'onion'], knoflook: ['garlic'], tomaat: ['tomato'], tomaten: ['tomatoes', 'tomato'],
+  aardappel: ['potato'], aardappelen: ['potatoes', 'potato'], zoete_aardappel: ['sweet potato'], noedels: ['noodles'], mie: ['noodles', 'egg noodles'], kaas: ['cheese'], gehakt: ['minced meat', 'ground beef', 'mince', 'ground meat'], zalm: ['salmon'],
+  tonijn: ['tuna'], garnalen: ['shrimp', 'prawns', 'prawn'], vis: ['fish'], spinazie: ['spinach'], paprika: ['bell pepper', 'pepper'], champignons: ['mushrooms', 'mushroom'], paddenstoelen: ['mushrooms'], wortel: ['carrot'], wortels: ['carrots', 'carrot'],
+  courgette: ['zucchini', 'courgette'], aubergine: ['eggplant', 'aubergine'], melk: ['milk'], room: ['cream'], slagroom: ['heavy cream', 'whipping cream'], boter: ['butter'], bloem: ['flour'], suiker: ['sugar'], citroen: ['lemon'], limoen: ['lime'],
+  gember: ['ginger'], sojasaus: ['soy sauce'], kokosmelk: ['coconut milk'], bonen: ['beans'], linzen: ['lentils'], kikkererwten: ['chickpeas'], brood: ['bread'], wrap: ['tortilla', 'wraps'], appel: ['apple'], banaan: ['banana'], yoghurt: ['yogurt', 'yoghurt'],
+  spek: ['bacon'], worst: ['sausage'], rundvlees: ['beef'], biefstuk: ['steak'], varkensvlees: ['pork'], lamsvlees: ['lamb'], mais: ['corn'], erwten: ['peas'], doperwten: ['peas'], sla: ['lettuce'], komkommer: ['cucumber'], parmezaan: ['parmesan'],
+  prei: ['leek'], bloemkool: ['cauliflower'], kool: ['cabbage'], sperziebonen: ['green beans'], pompoen: ['pumpkin', 'squash'], olijfolie: ['olive oil'], honing: ['honey'], pindakaas: ['peanut butter'], havermout: ['oats', 'oatmeal'], peterselie: ['parsley'], basilicum: ['basil'],
+  koriander: ['cilantro', 'coriander'], tofu: ['tofu'], pasta: ['pasta', 'spaghetti', 'penne', 'macaroni'], couscous: ['couscous'], quinoa: ['quinoa'], tortilla: ['tortilla'], feta: ['feta'], mozzarella: ['mozzarella'], ham: ['ham'], kalkoen: ['turkey'], eend: ['duck'] };
+const ingTerms = t => { const n = norm(t).replace(/\s+/g, ' '), out = new Set([n]); for (const [nl, en] of Object.entries(ING_SYN)) { const k = nl.replace(/_/g, ' '); if (n === k || en.includes(n)) { out.add(k); en.forEach(e => out.add(e)); } } return [...out]; };
+const ING_TXT = new WeakMap();
+const ingText = r => { let t = ING_TXT.get(r); if (t == null) { t = ' ' + norm([titleOf(r), ...relNames(r.ingredients), ...[].concat(r.ilines || []).map(x => x && x.n || '')].join(' | ')).replace(/[^a-z0-9à-ÿ]+/g, ' ') + ' '; ING_TXT.set(r, t); } return t; };
+// a whole word (plural too), or a Dutch compound like kipfilet; never rice vinegar, rijstpapier or rice noodles
+const ING_NOT = '(?!(vinegar|paper|wine|flour|noodles?|cakes?|crackers?|syrup|milk)\\b)';
+const ING_RE = new Map();
+const ingRe = w => { let re = ING_RE.get(w); if (!re) { const e = w.replace(/[^a-z0-9à-ÿ]+/g, ' ').trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); re = new RegExp(` ${e}(s|es|en|n)?(filet|dijfilet|dijen|dij|borst|poten|vleugels|blokjes|reepjes|stukjes)? ` + ING_NOT); ING_RE.set(w, re); } return re; };
+const ingHas = (r, term) => { const txt = ingText(r); return ingTerms(term).some(w => ingRe(w).test(txt)); };
+const ingF = () => (L.ingF ||= { sel: [], mode: 'all' });
+const ingHits = r => ingF().sel.filter(t => ingHas(r, t)).length;
+const ingMatch = r => { const F = ingF(); if (!F.sel.length) return true; const h = ingHits(r); return F.mode === 'any' ? h > 0 : h === F.sel.length; };
+function ingFilterHTML() {
+  const F = ingF(), sel = new Set(F.sel.map(norm)), soon = recs('ingredients').filter(useSoon).map(i => i.name).filter(n => !sel.has(norm(n))).slice(0, 6);
+  return `<div class="ingf"><input class="finp" type="search" data-ingq data-sug="ing" placeholder="Filter on ingredient, like rijst" autocomplete="off" enterkeyhint="done" aria-label="Filter on ingredient">
+    ${F.sel.length || soon.length ? `<div class="lwrap">${F.sel.map(t => `<button class="chip on" data-ingx="${esc(t)}" aria-label="Remove ${esc(t)}">${esc(t)} ×</button>`).join('')}${F.sel.length > 1 ? `<span class="ingmode"><button class="chip small ${F.mode === 'all' ? 'on' : ''}" data-ingmode="all" aria-pressed="${F.mode === 'all'}">Has all</button><button class="chip small ${F.mode === 'any' ? 'on' : ''}" data-ingmode="any" aria-pressed="${F.mode === 'any'}">Has any</button></span>` : ''}${soon.length ? `${F.sel.length ? '<span class="lsep"></span>' : ''}<span class="muted ingsoon">Use first:</span>${soon.map(n => `<button class="chip small" data-ingadd="${esc(n)}">+ ${esc(n)}</button>`).join('')}` : ''}</div>` : ''}</div>`;
+}
+// a change to the filter: the nearest place that shows it draws again
+const ingChanged = el => el.dispatchEvent(new CustomEvent('ingchange', { bubbles: true }));
+function ingAdd(el, v) { const t = String(v || '').trim(); if (!t) return; const F = ingF(); if (!F.sel.some(x => norm(x) === norm(t))) F.sel.push(t); ingChanged(el); }
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-ingx], [data-ingadd], [data-ingmode]'); if (!b || !C) return; const F = ingF();
+  if (b.dataset.ingx) F.sel = F.sel.filter(x => x !== b.dataset.ingx);
+  else if (b.dataset.ingmode) F.mode = b.dataset.ingmode;
+  else return ingAdd(b, b.dataset.ingadd);
+  ingChanged(b);
+});
+document.addEventListener('keydown', e => { const t = e.target; if (e.key !== 'Enter' || !t.matches?.('[data-ingq]')) return; e.preventDefault(); if (SUG.pick()) return; ingAdd(t, t.value); });
+document.addEventListener('ingchange', e => { if (!C || e.defaultPrevented) return; if (e.target.closest?.('#viewHost') || document.querySelector('#viewHost')?.contains(e.target)) C.render(); });
+
+/* ---------- suggestions while you type: every search field, and every field where you type an ingredient ---------- */
+let SUGV = { n: -1, ing: [], all: [] };
+function sugVocab() {
+  if (SUGV.n === L.all.length) return SUGV;
+  const cnt = new Map(), add = (v, w = 1) => { const t = String(v || '').trim(); if (!t || t.length > 40) return; const k = norm(t), e = cnt.get(k); e ? (e.n += w) : cnt.set(k, { v: t, n: w }); };
+  for (const i of recs('ingredients')) add(i.name, i.stock ? 50 : 10);
+  for (const r of recs('recipes')) for (const x of [].concat(r.ilines || [])) if (x && x.n) add(x.n.replace(/\(.*?\)/g, '').replace(/,.*$/, ''), 1);
+  for (const k of Object.keys(ING_SYN)) add(k.replace(/_/g, ' '), 5);
+  const ing = [...cnt.values()].sort((a, b) => b.n - a.n).map(x => x.v);
+  SUGV = { n: L.all.length, ing, byKind: new Map() };
+  return SUGV;
+}
+const sugTitles = kinds => { const V = sugVocab(), key = kinds.join(','); if (!V.byKind.has(key)) { const seen = new Set(), out = []; for (const k of kinds) for (const r of recs(k)) { const t = String(titleOf(r) || '').trim(); const n = norm(t); if (t && t.length <= 60 && !seen.has(n)) { seen.add(n); out.push(t); } } V.byKind.set(key, out); } return V.byKind.get(key); };
+// which lists a search field searches: its own data-sugkinds, the open picker, or the lists of the page
+function sugKinds(inp) {
+  if (inp.dataset.sugkinds) return inp.dataset.sugkinds.split(',');
+  if (inp.matches('[data-wpmealq]')) return ['recipes'];
+  if (inp.matches('[data-wpworkq]')) return ['vworkouts', 'plans'];
+  if (inp.id === 'findQ') return Object.keys(KINDS);
+  const pg = PAGES[C.view()]; const ks = new Set(); for (const sg of pg?.segs || []) ks.add(sg.kind); for (const k of pg?.adds || []) if (KINDS[k]) ks.add(k);
+  return ks.size ? [...ks] : [];
+}
+function sugMatches(list, q, n = 8) {
+  const t = norm(q); if (t.length < 2) return [];
+  const out = [], seen = new Set();
+  // what starts with your letters first, the shortest (the plain word) on top; then a word inside; then anywhere
+  for (const pass of [v => norm(v).startsWith(t), v => !norm(v).startsWith(t) && norm(v).split(/[^a-z0-9à-ÿ]+/).some(w => w.startsWith(t)), v => norm(v).includes(t)]) {
+    const hit = list.filter(v => { const k = norm(v); return !seen.has(k) && k !== t && pass(v); });
+    if (pass === undefined) break;
+    for (const v of out.length ? hit : hit.slice(0, 200).sort((a, b) => a.length - b.length)) { const k = norm(v); if (out.length >= n) return out; if (!seen.has(k)) { seen.add(k); out.push(v); } }
+  }
+  return out;
+}
+const SUG = {
+  el: null, inp: null, i: -1,
+  box() { if (!this.el) { this.el = document.createElement('div'); this.el.className = 'sugpop'; this.el.setAttribute('role', 'listbox'); document.body.appendChild(this.el);
+    this.el.addEventListener('mousedown', e => e.preventDefault());
+    this.el.addEventListener('click', e => { const b = e.target.closest('[data-sugv]'); if (b) this.use(b.dataset.sugv); }); } return this.el; },
+  hide() { if (this.el) this.el.hidden = true; this.i = -1; },
+  show(inp) {
+    if (!C || L.status !== 'ok' || !inp?.isConnected) return this.hide();
+    const ing = inp.matches('[data-sug="ing"]'), list = ing ? sugVocab().ing : sugTitles(sugKinds(inp));
+    const m = sugMatches(list, inp.value); if (!m.length) return this.hide();
+    const b = this.box(), r = inp.getBoundingClientRect(); this.inp = inp; this.i = -1;
+    b.innerHTML = m.map((v, i) => `<button type="button" role="option" data-sugv="${esc(v)}" data-i="${i}">${esc(v)}</button>`).join('');
+    b.style.left = Math.max(8, r.left) + 'px'; b.style.top = (r.bottom + 4) + 'px'; b.style.width = Math.min(r.width, innerWidth - 16) + 'px'; b.hidden = false;
+  },
+  move(d) { if (!this.el || this.el.hidden) return false; const bs = [...this.el.querySelectorAll('button')]; this.i = (this.i + d + bs.length) % bs.length; bs.forEach((x, j) => x.classList.toggle('on', j === this.i)); return true; },
+  pick() { if (!this.el || this.el.hidden || this.i < 0) return false; const b = this.el.querySelectorAll('button')[this.i]; if (b) this.use(b.dataset.sugv); return !!b; },
+  use(v) {
+    const inp = this.inp; this.hide(); if (!inp?.isConnected) return;
+    if (inp.matches('[data-ingq]')) { inp.value = ''; ingAdd(inp, v); return; }
+    inp.value = v; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true }));
+    setTimeout(() => { const a = document.activeElement; if (a && a !== inp && a.matches?.('input')) this.hide(); }, 0);
+  }
+};
+const sugField = t => t?.matches?.('input[type="search"], input[data-sug]') && !t.matches('[data-nosug]');
+document.addEventListener('input', e => { if (!sugField(e.target)) return; setTimeout(() => { const a = document.activeElement; sugField(a) ? SUG.show(a) : SUG.hide(); }, 0); });
+document.addEventListener('keydown', e => { if (!sugField(e.target)) return; if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { if (SUG.move(e.key === 'ArrowDown' ? 1 : -1)) e.preventDefault(); } else if (e.key === 'Escape') SUG.hide(); else if (e.key === 'Enter' && !e.target.matches('[data-ingq]') && SUG.pick()) e.preventDefault(); }, true);
+document.addEventListener('focusout', () => setTimeout(() => { if (!sugField(document.activeElement)) SUG.hide(); }, 150));
+addEventListener('scroll', () => SUG.hide(), { passive: true, capture: true });
+addEventListener('resize', () => SUG.hide());
+
 function mealPicker(wk) {
   const [d, slot] = String(L.wpMeal || '').split('|'); if (!d) return '';
   return `<div class="panel wppick"><p><b>${esc(slot)} on ${esc(niceDate(d))}</b></p>${mealPickBody(slot, L.wpMealQ || '', L.wpMealF || 'fit')}</div>`;
@@ -5139,13 +5243,15 @@ function mealPickBody(slot, qRaw, f) {
   const q = norm(qRaw || ''), soon = new Set(recs('ingredients').filter(useSoon).map(r => r.id));
   const score = r => [].concat(r.ingredients || []).filter(i => soon.has(i)).length * 3 + (r.fav ? 2 : 0) + (num(r.rating) || 0) / 2;
   const fits = r => r.category === slot || (slot === 'Dinner' && (!r.category || r.category === 'Soup')) || (slot === 'Lunch' && r.category === 'Soup');
-  const list = recs('recipes').filter(r => (!q || norm(titleOf(r) + ' ' + (r.cuisine || '')).includes(q)) && (q || f === 'all' || (f === 'fit' ? fits(r) : f === 'fav' ? r.fav : f === 'try' ? r.totry : true)))
-    .sort((a, b) => score(b) - score(a) || azCmp(titleOf(a), titleOf(b)));
+  const ingOn = ingF().sel.length > 0;
+  const list = recs('recipes').filter(r => (!q || norm(titleOf(r) + ' ' + (r.cuisine || '')).includes(q)) && ingMatch(r) && (q || f === 'all' || (f === 'fit' ? fits(r) : f === 'fav' ? r.fav : f === 'try' ? r.totry : true)))
+    .sort((a, b) => (ingOn ? ingHits(b) - ingHits(a) : 0) || score(b) - score(a) || azCmp(titleOf(a), titleOf(b)));
   const sub = r => [r.prep || r.cook ? `${(num(r.prep) || 0) + (num(r.cook) || 0)} min` : '', r.totry ? 'to try' : ''].filter(Boolean).join(' · ');
   return `<div class="wppick">
     <input class="finp" type="search" data-wpmealq placeholder="Search your recipes" value="${esc(qRaw || '')}" autocomplete="off">
+    ${ingFilterHTML()}
     ${q ? '' : pickFilters('data-wpmealf', f, [['fit', slot], ['all', 'All recipes'], ['fav', 'Favourites'], ['try', 'Still to try']])}
-    ${list.length ? `<div class="lgrid wpgrid">${list.map(r => pickTile(r, 'data-wpmealset', sub(r), score(r) >= 3 ? '♻' : '')).join('')}</div>` : quiet(q ? 'No recipe with that name yet.' : 'No recipes here yet.')}
+    ${list.length ? `${ingOn ? `<p class="lnone">${plural(list.length, 'recipe')} with ${esc(ingF().sel.join(ingF().mode === 'any' ? ' or ' : ' and '))}</p>` : ''}<div class="lgrid wpgrid">${list.map(r => pickTile(r, 'data-wpmealset', sub(r), score(r) >= 3 ? '♻' : '')).join('')}</div>` : quiet(q ? 'No recipe with that name yet.' : ingOn ? (f !== 'all' ? 'No recipe here with these ingredients. Try All recipes.' : 'No recipe with these ingredients yet.') : 'No recipes here yet.')}
     <form class="lqadd" data-wpmealnew><input type="text" placeholder="Something else? Type the name" value="${esc(qRaw || '')}" autocomplete="off"><button class="btn small" type="submit">Add as new recipe</button></form>
     <p class="lnone">It becomes a new recipe under Still to try, so you can fill it in after cooking. ♻ uses something from your fridge that has to go soon.</p>
     <div class="dbtns"><button class="btn small" data-wpmealaway>Not eating at home</button><button class="btn small" data-wpmealclose>Close</button></div></div>`;
@@ -5352,6 +5458,7 @@ function weekPlanPage(host) {
     if (d.wppost) { const r = L.byId[d.wppost]; if (!r) return; try { await create('posts', { name: titleOf(r), date: d.d, stage: 'Planned', filmOn: addDays(d.d, -2), editOn: addDays(d.d, -1), ...(r.desc ? { desc: r.desc } : {}), ...(r.format ? { format: r.format } : {}), ...(r.platforms ? { platforms: r.platforms } : {}) }); await save(r, { status: 'Planned' }); C.toast('Post planned'); } catch {} return again(); }
     if (b.hasAttribute('data-wpskinsave')) { const v = k2 => host.querySelector(`[data-wpsk="${k2}"]`)?.value || ''; const data = { date: today(), time: 'Evening', ...(v('score') ? { score: Number(v('score')) } : {}), ...(v('dryness') ? { dryness: v('dryness') } : {}), ...(v('breakouts') ? { breakouts: v('breakouts') } : {}), ...(v('notes') ? { notes: v('notes') } : {}) }; try { await create('skinlog', data); C.toast('Saved to your skin diary'); } catch {} return; }
   });
+  host.addEventListener('ingchange', e => { e.preventDefault(); again(); });
   host.addEventListener('submit', async e => {
     const mf = e.target.closest('[data-wpmealnew]'), wf = e.target.closest('[data-wpworknew]');
     if (mf || wf) { e.preventDefault(); const n = (mf || wf).querySelector('input').value.trim(); if (!n) return;
