@@ -2306,7 +2306,7 @@ function renderSettings(host) {
     if (t.matches('[data-cimportfile]')) {
       const file = t.files[0]; t.value = ''; if (!file) return;
       const say = msg => { const el = $('[data-cimportmsg]', host); if (el) el.textContent = msg; };
-      try { const r = await importFile(file, say); say(`Imported ${r.done} pieces${r.skipped ? `, skipped ${r.skipped} already here` : ''}.`); toast(`Imported ${r.done} pieces`); }
+      try { const r = await importFile(file, say); say(`${r.updated ? 'Updated' : 'Imported'} ${r.done} pieces${r.skipped ? `, skipped ${r.skipped} ${r.updated ? 'not in your closet' : 'already here'}` : ''}.`); toast(`${r.updated ? 'Updated' : 'Imported'} ${r.done} pieces`); }
       catch (err) { console.error(err); say("That file couldn't be imported. Use an A’s Life (or Jetta’s Closet) backup or import file."); }
       return;
     }
@@ -2732,7 +2732,7 @@ function statsOverview(host) {
     const file = e.target.files[0]; e.target.value = ''; if (!file) return;
     // the page redraws after every piece, so the message lives in state rather than in the element
     const say = msg => { S.importMsg = msg; const el = $('#importStatus'); if (el) el.textContent = msg; };
-    try { const r = await importFile(file, say); say(`Imported ${r.done} pieces${r.skipped ? `, skipped ${r.skipped} already here` : ''}.`); toast(`Imported ${r.done} pieces`); }
+    try { const r = await importFile(file, say); say(`${r.updated ? 'Updated' : 'Imported'} ${r.done} pieces${r.skipped ? `, skipped ${r.skipped} ${r.updated ? 'not in your closet' : 'already here'}` : ''}.`); toast(`${r.updated ? 'Updated' : 'Imported'} ${r.done} pieces`); }
     catch (err) { console.error(err); say("That file couldn't be imported. Use an A’s Life (or Jetta’s Closet) backup or import file."); }
   });
   $('#signOut', host).addEventListener('click', async () => { await sb.auth.signOut(); });
@@ -2848,7 +2848,7 @@ async function updateFromFile(items, progress) {
     if (photoData) { const blob = await (await fetch(photoData)).blob(); doc.photo = await uploadPhoto(blob); if (cur.photo && !cur.prevPhoto) doc.prevPhoto = cur.photo; }
     await DB.put('items', cur.id, doc); done++;
   }
-  return { done, skipped };
+  return { done, skipped, updated: true };
 }
 // Import cut-out. A dark piece keeps about the same shape at any sensitivity; a white top on a white background
 // mostly disappears at the normal one, so then a much gentler fill is used. Background enclosed by the piece
