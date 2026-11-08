@@ -1232,3 +1232,21 @@ img.nophoto { background: var(--line); }
 .ingf .lwrap { align-items: center; }
 .ingmode { display: inline-flex; gap: 4px; }
 .ingsoon { font-size: .8rem; }
+/* training: routine, logbook, analysis and resources */
+.fitex { border-top: 1px solid var(--line); padding-top: 6px; margin-top: 6px; }
+.fitform summary, .fitres summary { cursor: pointer; padding: 6px 0; font-size: .9rem; }
+.fitform p, .fitres p { margin: 4px 0 8px; font-size: .9rem; line-height: 1.45; }
+.fitres { border-top: 1px solid var(--line); }
+.fitres:first-child { border-top: 0; }
+.fitweek .wpday.now { outline: 2px solid var(--accent, #6b4a2f); }
+.fitdue { margin: 0 0 12px; display: grid; gap: 6px; }
+.painrow, .fset > .painrow { display: flex; flex-wrap: wrap; gap: 4px; }
+.painrow .chip { min-width: 34px; justify-content: center; }
+.trex { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; margin: 8px 0; display: grid; gap: 6px; }
+.trset { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.trset .finp { min-width: 0; padding: 8px 10px; }
+.trset.done .finp { opacity: .6; }
+.sdcompare { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sdcompare img { width: 100%; border-radius: 10px; }
+.rsteps li, .lpre, .fitform p { overflow-wrap: anywhere; }
+[data-tnotes], [data-cnotes] { width: 100%; }
