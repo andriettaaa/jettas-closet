@@ -2121,7 +2121,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v144';
+const APP_VERSION = 'hangtag-v145';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -3908,6 +3908,10 @@ async function start(session) {
     closetBuy: async (id, { price, bought, tx }) => { const before = noId(S.byId[id]), { planBuy, ...rest } = before; await DB.put('items', id, { ...rest, status: 'closet', price, bought, tx, updated: Date.now() }); return before; },
     closetRestore: (id, data) => data ? DB.put('items', id, data) : DB.del('items', id),
     // a closet wish from the inbox; hands back null, so undo removes it again
+    // linking a purchase in Finance to pieces: the pieces to pick from, a change to one, and a new one
+    closetItems: () => S.items.map(i => ({ id: i.id, name: i.name, brand: i.brand, status: i.status })),
+    closetPatch: async (id, patch) => { const it = S.items.find(x => x.id === id); if (!it) return; const { id: _i, ...rest } = it; await DB.put('items', id, { ...rest, ...patch, updated: Date.now() }); },
+    closetNew: async (id, data) => { await DB.put('items', id, { status: 'closet', ...data, created: Date.now(), updated: Date.now() }); },
     closetAdd: async (id, data) => { await DB.put('items', id, { ...data, status: 'wishlist', wishSince: today(), created: Date.now(), updated: Date.now() }); return null; },
     closetPatch: (id, patch) => DB.put('items', id, { ...noId(S.byId[id]), ...patch, updated: Date.now() }),
     // closet wishes that left the list: bought (in the closet now) or let go (wishlist archive)

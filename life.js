@@ -413,7 +413,7 @@ const KINDS = {
       F('location', 'Kept in', 'select', { options: ['Koelkast', 'Vriezer', 'Voorraadkast', 'Keukenkast', 'Fruitmand', 'Broodtrommel', 'Kelder / Berging', 'Overig'] }),
       F('stock', 'In stock', 'check', { half: 1 }), F('low', 'Running low', 'check', { half: 1 }), F('list', 'On grocery list', 'check', { half: 1 }),
       F('expires', 'Best before', 'date', { half: 1 }), F('frozen', 'Frozen on', 'date', { half: 1 }), F('portions', 'Portions', 'num', { half: 1 }), F('shop', 'Buy at', 'select', { options: STORES, more: () => shopNames('shops'), half: 1 }), F('amount', 'How much is left', 'num', { half: 1 }), F('unit', 'Counted in', 'select', { options: UNITS, half: 1 }), F('min', 'Minimum to keep', 'num', { half: 1 }), F('staple', 'Basic: always keep in stock', 'check', { half: 1 }), F('helps', 'Helps with', 'multi', { options: HELPS }),
-      F('qty', 'Amount', 'text', { half: 1 }), F('left', 'Open: hoeveel zit er nog in', 'pct'), F('brand', 'Merk', 'text', { half: 1 }), F('variant', 'Variant', 'text', { half: 1 }), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
+      F('qty', 'Amount', 'text', { half: 1 }), F('left', 'Open: hoeveel zit er nog in', 'pct'), F('brand', 'Merk', 'text', { half: 1 }), F('variant', 'Variant', 'text', { half: 1 }), F('price', 'Last price', 'money', { half: 1 }), F('bought', 'Last bought', 'date', { half: 1 }), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['category', 'Category'], ['type', 'Soort'], ['form', 'Vorm'], ['location', 'Where it is']],
     filters: [['all', 'All'], ['in', 'In stock'], ['low', 'Running low'], ['soon', 'Use soon'], ['out', 'Out of stock'], ['basic', 'Basics']],
     filter: (r, f) => f === 'basic' ? !!r.staple : f === 'in' ? !!r.stock : f === 'out' ? !r.stock : f === 'low' ? !!r.low : f === 'soon' ? useSoon(r) : true,
@@ -906,7 +906,7 @@ const KINDS = {
   ftx: {
     one: 'purchase', many: 'Purchases',
     fields: [F('name', 'What'), F('amount', 'Amount', 'money', { half: 1 }), F('date', 'Date', 'date', { half: 1 }),
-      F('category', 'Category', 'rel', { to: 'fcats', half: 1 }), F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 }), F('tags', 'Tags', 'multi', { options: ['wishlist', 'verhuizen'] }), F('receipt', 'Receipt photo', 'photo'), F('notes', 'Notes', 'long')],
+      F('category', 'Category', 'rel', { to: 'fcats', half: 1 }), F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 }), F('tags', 'Tags', 'multi', { options: ['wishlist', 'verhuizen'] }), F('items', 'What you bought', 'buys'), F('receipt', 'Receipt photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['-date', 'Newest'], ['-amount', 'Biggest'], ['name', 'A to Z']],
     sub: r => [niceDate(r.date), relName(r.category), relName(r.account), r.bill ? 'bill' : r.debt ? 'debt payment' : '', isWishTx(r) ? 'wishlist' : ''].filter(Boolean).join(' · '),
     side: r => eur(num(r.amount)),
@@ -3390,7 +3390,7 @@ function groceryFill(fill) {
   const buyN = i => (L.buyN ||= {})[i.id] ?? stepOf(i);
   const line = i => `<div class="lrow grow"><button class="lbuy" data-act="buy" data-id="${i.id}" aria-label="Bought ${esc(i.name)}"></button><button class="lmain" data-act="open" data-id="${i.id}"><b>${esc(i.name)}</b>${i.qty || i.category ? `<span>${esc([i.qty, i.category].filter(Boolean).join(' · '))}</span>` : ''}</button><span class="gacts"><span class="stepper buyn" role="group" aria-label="How many you buy"><button type="button" data-act="buyn" data-id="${i.id}" data-v="-1" aria-label="Fewer">−</button><b>${esc(unitShort(buyN(i), unitOf(i)))}</b><button type="button" data-act="buyn" data-id="${i.id}" data-v="1" aria-label="More">+</button></span>${isMeatFish(i) ? `<button class="btn small" data-act="buyfreeze" data-id="${i.id}" title="Bought, straight into the freezer">Freeze</button>` : ''}<button class="iconbtn lx" data-act="unlist" data-id="${i.id}" aria-label="Take ${esc(i.name)} off the list">${svg(P.x)}</button></span></div>`;
   const gv = ingViewOf('grocView', 'shop');
-  g.innerHTML = shopPickAll() + (items.length ? ingViewSeg('grocView', gv, [['shop', 'Per winkel'], ['type', 'Per soort']]) + (gv === 'type' ? ingTypeView(items, line, 'grocery') : order.map(c => `<div class="lgh gshop"><h3>${esc(c)} · ${groups[c].length}</h3>${env && c !== 'Anywhere' ? `<button class="chip link" data-act="paid" data-v="${esc(c)}">Paid</button>` : ''}</div><div class="lrows">${groups[c].sort((a, b) => norm(a.category || 'zz').localeCompare(norm(b.category || 'zz')) || norm(a.name).localeCompare(norm(b.name))).map(line).join('')}</div>`).join(''))
+  g.innerHTML = boughtBanner() + shopPickAll() + (items.length ? ingViewSeg('grocView', gv, [['shop', 'Per winkel'], ['type', 'Per soort']]) + (gv === 'type' ? ingTypeView(items, line, 'grocery') : order.map(c => `<div class="lgh gshop"><h3>${esc(c)} · ${groups[c].length}</h3>${env && c !== 'Anywhere' ? `<button class="chip link" data-act="paid" data-v="${esc(c)}">Paid</button>` : ''}</div><div class="lrows">${groups[c].sort((a, b) => norm(a.category || 'zz').localeCompare(norm(b.category || 'zz')) || norm(a.name).localeCompare(norm(b.name))).map(line).join('')}</div>`).join(''))
     + `<p class="lnone">Tick something off and it moves into your pantry. ${env ? `Tap Paid when you pay at a shop, and it goes into ${esc(env.name)} in Finance.` : ''}</p>`
     : quiet('Your list is empty. Add things above, or use “Add missing to list” on a recipe.'));
   sugs(fill, fill.querySelector('.lqadd input').value);
@@ -4633,6 +4633,7 @@ function fieldInner(kind, f, D) {
   switch (f.type) {
     case 'long': return lab + `<textarea id="${id}" data-k="${f.k}" rows="${f.rows || 4}">${esc(v || '')}</textarea>`;
     case 'ilines': return span + ilinesEditor(D);
+    case 'buys': return span + buysEditor(D);
     case 'steplist': return span + stepsEditor(D);
     case 'num': case 'money': return lab + `<input id="${id}" type="number" inputmode="decimal" step="any" data-k="${f.k}" data-num value="${v ?? ''}">`;
     case 'date': return lab + `<input id="${id}" type="date" data-k="${f.k}" value="${esc(v || '')}">`;
@@ -4745,6 +4746,8 @@ function openEditor(kind, id, preset = {}) {
     const t = e.target;
     if (t.dataset.k) { D[t.dataset.k] = t.dataset.num !== undefined ? num(t.value) : t.value; if (t.dataset.photourl !== undefined) { delete D._blobs[t.dataset.k]; photoPreview(t); } }
     if (t.dataset.relq) relOpts(t.dataset.relq, t.value);
+    if (t.dataset.buyq !== undefined) { D._buyq = t.value; const box = sh.querySelector('[data-buyres]'); if (box) box.innerHTML = buysResults(D); }
+    if (t.dataset.buyp !== undefined) { const e2 = D.items?.[+t.dataset.buyp]; if (e2) { const n = num(String(t.value).replace(/\s|€/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.')); n == null ? delete e2.p : (e2.p = n); } }
     if (t.dataset.pctr) { D[t.dataset.pctr] = Number(t.value); D.fill = ''; const o = sh.querySelector(`[data-pctv="${t.dataset.pctr}"]`); if (o) o.textContent = t.value + '%'; sh.querySelectorAll(`[data-pct="${t.dataset.pctr}"]`).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === t.value)); }
     if (t.dataset.il !== undefined) { const x = D.ilines[+t.dataset.il]; if (x) x[t.dataset.ik] = t.value; }
     if (t.dataset.st !== undefined) D.steps[+t.dataset.st] = t.value;
@@ -4856,6 +4859,7 @@ function openEditor(kind, id, preset = {}) {
     if (d.act === 'cnt') { const r0 = L.byId[d.id]; if (!r0) return; const p = countPatch({ ...r0, ...D, kind: r0.kind }, Number(d.v)); Object.assign(D, p); for (const [k, v] of Object.entries(p)) { const inp = sh.querySelector(`input[data-k="${k}"]`); if (inp) inp.value = v ?? ''; const ck = sh.querySelector(`[data-chk="${k}"]`); if (ck) { ck.setAttribute('aria-pressed', !!v); ck.innerHTML = (v ? svg(P.check) : '') + esc(K.fields.find(f => f.k === k)?.label || k); } } await save(r0, p).catch(() => C.toast('Could not save. Try again.')); const st = b.closest('.stepper'); if (st) st.outerHTML = stepper({ ...r0, ...D, kind: r0.kind, id: r0.id }); return; }
     if (d.act === 'blowsheet') { const b = L.byId[d.id]; if (!b) return; sh.querySelector('[data-chk="low"]')?.click(); const on = !!D.low; const btn = sh.querySelector('[data-act="blowsheet"]'); if (btn) { btn.classList.toggle('on', on); btn.setAttribute('aria-pressed', on); btn.innerHTML = on ? svg(P.check) + ' Running low' : 'Running low?'; } return save(b, { low: on }).then(() => C.toast(on ? 'On the running low list' : 'Taken off the running low list')); }
     if (d.act === 'mkidea') return postToIdea(d.id);
+    if (d.buyadd || d.buyx || d.buystep || d.buynew) { buysClick(D, d); redraw('items'); sh.querySelector('[data-buyq]')?.focus(); return; }
     if (d.opt) { const f = fdef(d.opt); if (f.type === 'multi') { const a = [].concat(D[d.opt] || []); const i = a.indexOf(d.v); i >= 0 ? a.splice(i, 1) : a.push(d.v); D[d.opt] = a; } else D[d.opt] = D[d.opt] === d.v ? '' : d.v; redraw(d.opt); }
     else if (d.chk) { D[d.chk] = !D[d.chk]; redraw(d.chk); }
     else if (d.rate) { const n = Number(d.v); D[d.rate] = D[d.rate] === n ? 0 : n; redraw(d.rate); }
@@ -4888,7 +4892,10 @@ function openEditor(kind, id, preset = {}) {
         if (kind === 'ingredients' && !out.type && ingGuess(out.name)) out.type = ingGuess(out.name);
         if (kind === 'ingredients') { if (!out.form && ingForm(out)) out.form = ingForm(out); if (!out.variety && ingVariant(out)) out.variety = ingVariant(out); }
         if (kind === 'recipes') recipeBeforeSave(out);
-        await put(kind, r ? r.id : C.uuid(), out);
+        if (kind === 'ftx') await buysBeforeSave(out);
+        const sid = r ? r.id : C.uuid();
+        await put(kind, sid, out);
+        if (kind === 'ftx') await buysApply(r ? [].concat(r.items || []) : [], out);
         C.closeSheet(); C.toast('Saved');
       } catch (err) { console.error(err); msg.textContent = 'Could not save. Try again.'; b.disabled = false; }
     }
@@ -4897,6 +4904,113 @@ function openEditor(kind, id, preset = {}) {
 function openRecord(id) {
   const r = L.byId[id]; if (!r) return;
   if (r.kind === 'recipes') openRecipe(r); else openEditor(r.kind, id);
+}
+
+/* ---------- what you bought: a purchase in Finance linked to the things it paid for ----------
+   Each line is { k: list, id, n: name, q: how many, p: price (optional) }; a new thing gets made in its list when you save.
+   Saving the purchase adds what you bought to your pantry, closet, beauty and the rest: stock up, off the shopping list,
+   with the price, shop and day. Lines that came from ticking off the shopping list (pre) already raised the stock. */
+const BUY_KINDS = [['ingredients', 'Pantry'], ['closet', 'Closet'], ['beauty', 'Beauty'], ['supplements', 'Supplements'], ['inventory', 'Home'], ['gear', 'Kitchen gear'], ['wishes', 'Wishlist']];
+const buyLabel = k => (BUY_KINDS.find(x => x[0] === k) || [k, k])[1];
+const buyPool = () => [
+  ...['ingredients', 'beauty', 'supplements', 'inventory', 'gear'].flatMap(k => recs(k).filter(r => !r.archived).map(r => ({ k, id: r.id, n: titleOf(r), sub: [r.brand, r.variant].filter(Boolean).join(' ') }))),
+  ...recs('wishes').filter(r => !['Bought', 'Dropped'].includes(r.status)).map(r => ({ k: 'wishes', id: r.id, n: titleOf(r), sub: r.brand || '' })),
+  ...(C.closetItems?.() || []).map(i => ({ k: 'closet', id: i.id, n: i.name || 'Piece', sub: i.brand || '' }))];
+const buyKey = e => e.k + ':' + (e.id || 'new:' + norm(e.n));
+// the shop a bank line belongs to: one of your shops, else a known shop name in the description
+function shopOfTx(name) {
+  const t = ' ' + norm(name || '').replace(/[^a-z0-9& ]+/g, ' ') + ' ';
+  const mine = [...recs('shops'), ...recs('bshops')].map(r => r.name).filter(Boolean), all = [...mine, ...(window.KNOWN?.shops || [])];
+  return all.find(sn => { const w = norm(sn).split(/\s+/)[0]; return w.length > 2 && t.includes(' ' + w + ' '); }) || '';
+}
+function buysEditor(D) {
+  const items = [].concat(D.items || []);
+  const rows = items.map((e, i) => `<div class="lrow buyrow"><span class="lmain"><b>${esc(e.n)}</b><span>${esc(buyLabel(e.k))}${e.id ? '' : ' · new'}${e.pre ? ' · from your shopping list' : ''}</span></span>
+    <span class="lcount"><button type="button" class="iconbtn small" data-buystep="-1" data-i="${i}" aria-label="One less">${svg(P.minus)}</button><b>${num(e.q) || 1}×</b><button type="button" class="iconbtn small" data-buystep="1" data-i="${i}" aria-label="One more">${svg(P.plus)}</button></span>
+    <input class="finp buyp" data-buyp="${i}" inputmode="decimal" placeholder="€ optional" value="${e.p != null ? esc(String(e.p).replace('.', ',')) : ''}" aria-label="Price of ${esc(e.n)}">
+    <button type="button" class="iconbtn small" data-buyx="${i}" aria-label="Remove ${esc(e.n)}">${svg(P.x)}</button></div>`).join('');
+  const sum = items.reduce((n, e) => n + (num(e.p) || 0), 0), tot = num(D.amount);
+  return `<div class="buys">${rows ? `<div class="lrows">${rows}</div>` : '<p class="lnone">Link what this paid for: it goes into your pantry, closet or other list with the price, shop and date.</p>'}
+    ${sum && tot ? `<p class="lnone">${eur(sum)} of ${eur(tot)} has a product${tot - sum > 0.005 ? `, ${eur(tot - sum)} not split` : ''}.</p>` : ''}
+    <input class="finp" type="search" data-buyq placeholder="Search, or type something new" value="${esc(D._buyq || '')}" autocomplete="off" aria-label="Search what you bought">
+    <div class="lwrap" data-buyres>${buysResults(D)}</div></div>`;
+}
+function buysResults(D) {
+  const q = norm(D._buyq || ''); if (q.length < 2) return '';
+  const have = new Set([].concat(D.items || []).map(buyKey));
+  const hits = buyPool().filter(x => !have.has(buyKey(x)) && norm(x.n + ' ' + x.sub).includes(q)).sort((a, b) => (norm(a.n).startsWith(q) ? 0 : 1) - (norm(b.n).startsWith(q) ? 0 : 1) || azCmp(a.n, b.n)).slice(0, 12);
+  const exact = hits.some(x => norm(x.n) === q);
+  return hits.map(x => `<button type="button" class="chip" data-buyadd="${x.k}" data-id="${x.id}" data-v="${esc(x.n)}">${esc(x.n)} <span class="muted">${esc(buyLabel(x.k))}</span></button>`).join('')
+    + (exact ? '' : `<span class="lnone buynewl">New “${esc(D._buyq.trim())}” in:</span>` + BUY_KINDS.filter(([k]) => k !== 'wishes').map(([k, l]) => `<button type="button" class="chip lknown" data-buynew="${k}">+ ${esc(l)}</button>`).join(''));
+}
+function buysClick(D, d) {
+  const items = D.items = [].concat(D.items || []);
+  if (d.buyadd) { const r = d.buyadd === 'closet' ? null : L.byId[d.id]; items.push({ k: d.buyadd, id: d.id, n: d.v, q: d.buyadd === 'ingredients' && r ? stepOf(r) : 1 }); D._buyq = ''; }
+  else if (d.buynew) { const n = String(D._buyq || '').trim(); if (n) items.push({ k: d.buynew, n, q: 1 }); D._buyq = ''; }
+  else if (d.buyx != null && d.buyx !== '') items.splice(+d.buyx, 1);
+  else if (d.buystep) { const e = items[+d.i]; if (e) e.q = Math.max(1, (num(e.q) || 1) + Number(d.buystep)); }
+}
+// new things get made in their list first, so the purchase can point to them
+async function buysBeforeSave(out) {
+  const shop = shopOfTx(out.name), date = out.date || today();
+  for (const e of [].concat(out.items || [])) {
+    if (e.id) continue;
+    const base = { name: e.n, ...(e.p != null ? { price: e.p } : {}), bought: date };
+    if (e.k === 'closet') { e.id = C.uuid(); await C.closetNew?.(e.id, { name: e.n, price: e.p ?? null, shop, bought: date }); continue; }
+    const extra = { ingredients: { stock: true, ...(shop ? { shop } : {}) }, beauty: { qty: 0 }, supplements: {}, inventory: { status: 'Idee', ...(shop ? { shop } : {}) }, gear: { own: false } }[e.k] || {};
+    e.id = await create(e.k, { ...base, ...extra });
+  }
+}
+// what changed since the purchase was saved before: new lines add, removed lines take back, a new price is stored
+async function buysApply(before, out) {
+  const shop = shopOfTx(out.name), date = out.date || today(), old = new Map(before.map(e => [buyKey(e), e])), now = new Map([].concat(out.items || []).map(e => [buyKey(e), e]));
+  const go = async (e, sign) => {
+    const q = (num(e.q) || 1) * sign, price = sign > 0 && e.p != null ? { price: e.p } : {}, when = sign > 0 ? { bought: date } : {};
+    if (e.k === 'closet') { if (sign > 0) await C.closetPatch?.(e.id, { status: 'closet', bought: date, ...(shop ? { shop } : {}), ...(e.p != null ? { price: e.p } : {}) }); return; }
+    const r = L.byId[e.id]; if (!r) return;
+    const d = dataOf(r), stock = e.pre ? 0 : q;
+    if (e.k === 'ingredients') { const have = cntOf(r) || 0, n = Math.max(0, Math.round((have + stock) * 100) / 100); await put('ingredients', r.id, { ...d, ...(stock ? { [CK(r)]: n, stock: n > 0 } : {}), ...(sign > 0 ? { list: false, low: false, ...(shop ? { shop } : {}) } : {}), ...price, ...when }); }
+    else if (e.k === 'beauty') await put('beauty', r.id, { ...d, qty: Math.max(0, (num(d.qty) || 0) + stock), ...(sign > 0 ? { wish: false, finished: false } : {}), ...price, ...when });
+    else if (e.k === 'supplements') await put('supplements', r.id, { ...d, ...(stock && d.left != null ? { left: Math.max(0, (num(d.left) || 0) + stock) } : {}), ...(sign > 0 ? { wish: false } : {}), ...price, ...when });
+    else if (e.k === 'inventory') { if (sign > 0) await put('inventory', r.id, { ...d, status: 'Gekocht', ...(shop ? { shop } : {}), ...price, ...when }); }
+    else if (e.k === 'gear') { if (sign > 0) await put('gear', r.id, { ...d, own: true, ...price, ...when }); }
+    else if (e.k === 'wishes') { if (sign > 0) await put('wishes', r.id, { ...d, status: 'Bought', ...price }); }
+  };
+  L.batch = true;
+  try {
+    for (const [k, e] of now) { const o = old.get(k); if (!o) await go(e, 1); else if (num(o.p) !== num(e.p) && e.p != null && e.k !== 'closet') { const r = L.byId[e.id]; if (r) await put(e.k, r.id, { ...dataOf(r), price: e.p }); } }
+    for (const [k, e] of old) if (!now.has(k)) await go(e, -1);
+  } finally { L.batch = false; }
+  if (now.size) C.toast(`${plural(now.size, 'thing')} linked to this purchase`);
+}
+/* After ticking things off the shopping list: which purchase they belong to. Kept for two days on this device. */
+const JB_KEY = 'ljustbought';
+const justBought = () => { try { const a = JSON.parse(localStorage.getItem(JB_KEY) || '[]'); return a.filter(x => x.at >= addDays(today(), -1) && L.byId[x.id]); } catch { return []; } };
+const setJustBought = a => { try { a.length ? localStorage.setItem(JB_KEY, JSON.stringify(a)) : localStorage.removeItem(JB_KEY); } catch {} };
+function noteBought(r, n) { const a = justBought().filter(x => x.id !== r.id); a.push({ id: r.id, q: n, at: today(), shop: r.shop || '' }); setJustBought(a); }
+// the purchase this shopping trip most likely is: same shop, today or yesterday, not linked yet
+function tripTx(list) {
+  const shops = [...new Set(list.map(x => norm(x.shop)).filter(Boolean))];
+  const cand = recs('ftx').filter(t => t.date >= addDays(today(), -1) && t.date <= today() && !(t.items || []).length);
+  const env = groceryEnv();
+  return cand.find(t => shops.some(sn => norm(t.name).includes(sn.split(/\s+/)[0]))) || cand.find(t => env && t.category === env.id) || null;
+}
+function boughtBanner() {
+  const jb = justBought(); if (!jb.length) return '';
+  const tx = tripTx(jb), names = jb.map(x => titleOf(L.byId[x.id])).slice(0, 4).join(', ') + (jb.length > 4 ? ` +${jb.length - 4}` : '');
+  return `<div class="panel buybanner"><p><b>${plural(jb.length, 'thing')} bought:</b> ${esc(names)}</p>
+    ${tx ? `<p class="lnone">Is this ${esc(tx.name)}, ${eur(num(tx.amount))} on ${esc(niceDate(tx.date))}?</p>` : '<p class="lnone">No purchase from today or yesterday found yet. Import your bank lines, or link it later.</p>'}
+    <div class="dbtns">${tx ? `<button class="btn small primary" data-act="jblink" data-id="${tx.id}">Yes, link</button>` : ''}<button class="btn small" data-act="jbpick">Other purchase</button><button class="btn small" data-act="jbclear">Not now</button></div></div>`;
+}
+async function linkBought(txId) {
+  const t = L.byId[txId], jb = justBought(); if (!t || !jb.length) return;
+  const items = [...[].concat(t.items || []), ...jb.map(x => ({ k: 'ingredients', id: x.id, n: titleOf(L.byId[x.id]), q: x.q, pre: true }))];
+  const out = { ...dataOf(t), items }; await put('ftx', t.id, out); await buysApply([].concat(t.items || []), out); setJustBought([]); C.render();
+}
+function pickBoughtTx() {
+  const list = recs('ftx').filter(t => t.date >= addDays(today(), -7)).sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 15);
+  const sh = C.sheet({ title: 'Which purchase?', body: list.length ? `<div class="lrows">${list.map(t => `<button class="lrow" data-jbtx="${t.id}"><span class="lmain"><b>${esc(t.name)}</b><span>${esc(niceDate(t.date))}</span></span><span class="lside">${eur(num(t.amount))}</span></button>`).join('')}</div>` : quiet('No purchases from the last week. Import your bank lines first.'), foot: '<div class="spacer"></div><button class="btn" data-close>Close</button>' });
+  sh.addEventListener('click', async e => { const b = e.target.closest('[data-jbtx]'); if (!b) return; C.closeSheet(); await linkBought(b.dataset.jbtx); });
 }
 
 /* ---------- moving data in and out ---------- */
@@ -5147,7 +5261,7 @@ document.addEventListener('click', async e => {
     case 'lview': { const K = KINDS[curSeg(page).kind]; setViewMode(K, d.v); const host = b.closest('#viewHost'); if (host) host.dataset.sig = ''; C.render(); break; }
     case 'week': L.week = d.v === '0' ? 0 : L.week + Number(d.v); C.render(); break;
     case 'slot': openSlot(d.date, d.slot); break;
-    case 'buy': { const r = L.byId[d.id]; if (r) { b.classList.add('on'); const n = (L.buyN ||= {})[r.id] ?? stepOf(r), have = cntOf(r) || 0; delete L.buyN[r.id]; setTimeout(() => save(r, { list: false, stock: true, [CK(r)]: Math.round((have + n) * 100) / 100, low: false }), 220); } break; }
+    case 'buy': { const r = L.byId[d.id]; if (r) { b.classList.add('on'); const n = (L.buyN ||= {})[r.id] ?? stepOf(r), have = cntOf(r) || 0; delete L.buyN[r.id]; noteBought(r, n); setTimeout(() => save(r, { list: false, stock: true, [CK(r)]: Math.round((have + n) * 100) / 100, low: false }), 220); } break; }
     case 'buyn': { const r = L.byId[d.id]; if (!r) break; const m = (L.buyN ||= {}); m[r.id] = Math.max(stepOf(r), (m[r.id] ?? stepOf(r)) + Number(d.v) * stepOf(r)); C.render(); break; }
     case 'unlist': { const r = L.byId[d.id]; if (r) save(r, { list: false }); break; }
     case 'tolist': { const r = L.byId[d.id]; if (r) { save(r, { list: true }); const inp = $('.lqadd input'); if (inp) { inp.value = ''; inp.focus(); } } break; }
@@ -5209,7 +5323,10 @@ document.addEventListener('click', async e => {
     case 'shopday': C.savePrefs({ food: { ...food(), shopDay: food().shopDay === d.v ? '' : d.v } }).catch(() => C.toast('Could not save. Try again.')); break;
     case 'leftover': leftover(d.id, d.v); break;
     case 'buyfreeze': { const r = L.byId[d.id]; const n = r && ((L.buyN ||= {})[r.id] ?? 1); if (r) save(r, { list: false, stock: true, location: 'Vriezer', frozen: today(), unit: r.unit || 'portie', amount: Math.round(((cntOf(r) || 0) + n) * 100) / 100 }).then(() => C.toast(`${r.name} is in the freezer`)); break; }
-    case 'paid': { const env = groceryEnv(); openEditor('ftx', null, { name: 'Boodschappen ' + d.v, date: today(), category: env?.id, account: fMainAcc()?.id }); break; }
+    case 'paid': { const env = groceryEnv(), jb = justBought(); openEditor('ftx', null, { name: 'Boodschappen ' + d.v, date: today(), category: env?.id, account: fMainAcc()?.id, items: jb.map(x => ({ k: 'ingredients', id: x.id, n: titleOf(L.byId[x.id]), q: x.q, pre: true })) }); if (jb.length) setJustBought([]); break; }
+    case 'jblink': await linkBought(d.id); break;
+    case 'jbpick': pickBoughtTx(); break;
+    case 'jbclear': setJustBought([]); C.render(); break;
     case 'blow': { const r = L.byId[d.id]; if (r) save(r, { low: !r.low }).then(() => C.toast(r.low ? 'Taken off the running low list' : 'On the running low list: the weekly task looks for deals')); break; }
     case 'freeze': { const o = L.byId[d.id]; openEditor('ingredients', null, { name: o?.name || '', category: 'Vlees & vis', location: 'Vriezer', stock: true, frozen: today(), notes: o ? [o.store, o.deal, num(o.price) ? eur(num(o.price)) : ''].filter(Boolean).join(' · ') : '' }); break; }
     case 'freezeuse': { const r = L.byId[d.id]; if (!r) break; const n = num(r.portions); if (n > 1) save(r, { portions: n - 1 }); else { save(r, { portions: null, stock: false, frozen: null }); C.toast(`${r.name} is out of the freezer`); } break; }
