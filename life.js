@@ -364,6 +364,8 @@ const AREAS = ['Health & Nutrition', 'Fitness', 'Mindset', 'Growth', 'Career', '
 const goalTasks = g => recs('tasks').filter(t => [].concat(t.goal || []).includes(g.id));
 const goalPct = g => { if (g.status === 'Completed') return 100; const ts = goalTasks(g); return ts.length ? Math.round(100 * ts.filter(t => t.status === 'Completed').length / ts.length) : (num(g.progress) || 0); };
 // fitness extra: goals, video library and the week plan
+const PAIN_AREAS = [['Back', 'Back'], ['Neck', 'Neck'], ['Shoulders', 'Shoulders']];
+const TRAIN_MOODS = ['Great', 'Good', 'Okay', 'Tired', 'Bad'];
 const VW_TYPES = ['Pilates', 'Yoga', 'Strength', 'HIIT', 'Cardio', 'Dance', 'Barre', 'Stretching', 'Walk'];
 const fitPct = g => { const a = num(g.start) ?? 0, b = num(g.target), c = num(g.current) ?? a; if (g.done) return 100; if (b == null || b === a) return 0; return Math.max(0, Math.min(100, Math.round(100 * (c - a) / (b - a)))); };
 const vwCount = v => recs('workouts').filter(w => w.video === v.id && w.done).length;
@@ -878,7 +880,10 @@ const KINDS = {
       F('type', 'Type', 'select', { options: ['Strength', 'Cardio', 'HIIT', 'Pilates', 'Yoga', 'Walk', 'Run', 'Cycling', 'Stretching', 'Sport', 'Other'] }),
       F('intensity', 'Intensity', 'select', { options: ['Easy', 'Moderate', 'Hard'] }),
       F('plan', 'Workout plan', 'rel', { to: 'plans' }), F('video', 'Video workout', 'rel', { to: 'vworkouts' }), F('exercises', 'Exercises', 'rel', { to: 'exercises', multi: 1 }),
-      F('done', 'Done', 'check', { half: 1 }), F('skipped', 'Skipped', 'check', { half: 1 }), F('notes', 'Notes', 'long')],
+      F('done', 'Done', 'check', { half: 1 }), F('skipped', 'Skipped', 'check', { half: 1 }),
+      F('energy', 'Energy (1 to 5)', 'num', { half: 1, when: D => D.done }), F('rpe', 'How hard (1 to 10)', 'num', { half: 1, when: D => D.done }), F('mood', 'Mood after', 'select', { options: TRAIN_MOODS, half: 1, when: D => D.done }),
+      ...PAIN_AREAS.flatMap(([k, l]) => [F('pb' + k, `${l} before (0 to 10)`, 'num', { half: 1, when: D => D.done }), F('pa' + k, `${l} after (0 to 10)`, 'num', { half: 1, when: D => D.done })]),
+      F('notes', 'Notes', 'long')],
     title: r => r.name || relName(r.plan) || r.type || 'Workout', sorts: [['-date', 'Newest'], ['date', 'Oldest']],
     hide: r => r.skipped, hideLabel: 'Show skipped',
     sub: r => [r.date ? `${dayName(r.date)} ${niceDate(r.date)}` : '', r.type, r.minutes ? r.minutes + ' min' : '', r.exercises?.length ? plural(r.exercises.length, 'exercise') : '', r.skipped ? 'skipped' : ''].filter(Boolean).join(' · '),
@@ -1011,6 +1016,14 @@ const KINDS = {
     sub: r => { const h = Math.ceil((waitEnd(r) - Date.now()) / 36e5); return [r.status || 'Waiting', !r.status || r.status === 'Waiting' ? (h > 0 ? `decide in ${h} h` : 'waited long enough, still want it?') : ''].filter(Boolean).join(' · '); },
     side: r => eur(num(r.price))
   },
+  paincheck: {
+    one: 'check', many: 'Daily checks', facet: 'time',
+    fields: [F('date', 'Date', 'date', { half: 1 }), F('time', 'Time of day', 'select', { options: ['Morning', 'Evening'], half: 1 }),
+      ...PAIN_AREAS.map(([k, l]) => F('p' + k, `${l} (0 = no pain, 10 = a lot)`, 'num', { half: 1 })),
+      F('stretched', 'Did my stretch', 'check', { half: 1 }), F('notes', 'Notes', 'long')],
+    title: r => r.date ? `${niceDate(r.date)}${r.time ? ' · ' + r.time.toLowerCase() : ''}` : 'Check', sorts: [['-date', 'Newest']],
+    sub: r => [...PAIN_AREAS.filter(([k]) => r['p' + k] != null).map(([k, l]) => `${l.toLowerCase()} ${r['p' + k]}`), r.stretched ? 'stretched' : ''].filter(Boolean).join(' · ')
+  },
   sets: {
     one: 'set', many: 'Set log',
     fields: [F('date', 'Date', 'date', { half: 1 }), F('exercise', 'Exercise', 'rel', { to: 'exercises', half: 1 }),
@@ -1023,7 +1036,8 @@ const KINDS = {
     fields: [F('date', 'Date', 'date', { half: 1 }), F('weight', 'Weight', 'num', { unit: 'kg', half: 1 }),
       F('waist', 'Waist', 'num', { unit: 'cm', half: 1 }), F('hips', 'Hips', 'num', { unit: 'cm', half: 1 }),
       F('chest', 'Chest', 'num', { unit: 'cm', half: 1 }), F('arm', 'Arm', 'num', { unit: 'cm', half: 1 }),
-      F('thigh', 'Thigh', 'num', { unit: 'cm', half: 1 }), F('fat', 'Body fat', 'num', { unit: '%', half: 1 }), F('notes', 'Notes', 'long')],
+      F('glutes', 'Glutes', 'num', { unit: 'cm', half: 1 }), F('thigh', 'Thigh', 'num', { unit: 'cm', half: 1 }), F('fat', 'Body fat', 'num', { unit: '%', half: 1 }),
+      F('front', 'Photo front', 'pphoto'), F('side', 'Photo side', 'pphoto'), F('back', 'Photo back', 'pphoto'), F('notes', 'Notes', 'long')],
     title: r => r.date ? niceDate(r.date) : 'Measurement', sorts: [['-date', 'Newest']],
     sub: r => [r.weight != null ? r.weight + ' kg' : '', r.waist ? 'waist ' + r.waist : '', r.hips ? 'hips ' + r.hips : '', r.fat ? r.fat + '% fat' : ''].filter(Boolean).join(' · ')
   },
@@ -1369,7 +1383,7 @@ const SECTIONS = [
       ['plan/mind', 'Overview', P.grid, 'mind'], ['today', 'My year', P.target, 'mind'], ['care/habits', 'Routines', P.repeat, 'mind'], ['care/journal', 'Journal', P.pen, 'mind'], ['care/mindful', 'Mindfulness', P.moon, 'mind'], ['care/growth', 'Growth', P.target, 'mind'], ['care/vision', 'Vision', P.sparkle, 'mind'], ['care/discover', 'Self discovery', P.user, 'mind'], ['plan/mindstats', 'Analyse', P.trend, 'mind'],
       ['body/today', 'Overview', P.grid, 'body'],
       ['care/health', 'Sleep & health', P.moon, 'body', 'health'], ['care/cycle', 'Cycle', P.moon, 'body', 'health'], ['care/supplements', 'Supplements', P.pill, 'body', 'health'], ['body/clean', 'Clean', P.leaf, 'body', 'health'],
-      ['fit/workouts', 'Workouts', P.run, 'body', 'train'], ['fit/library', 'Videos', P.star, 'body', 'train'], ['fit/plans', 'Plans', P.list, 'body', 'train'], ['fit/exercises', 'Exercises', P.dumbbell, 'body', 'train'], ['fit/fgoals', 'Goals', P.target, 'body', 'train'], ['fit/body', 'Body', P.scale, 'body', 'train'], ['fit/gear', 'Gear', P.box, 'body', 'train'],
+      ['fit/routine', 'Routine', P.list, 'body', 'train'], ['fit/log', 'Logbook', P.pen, 'body', 'train'], ['fit/workouts', 'Workouts', P.run, 'body', 'train'], ['fit/library', 'Videos', P.star, 'body', 'train'], ['fit/plans', 'Plans', P.list, 'body', 'train'], ['fit/exercises', 'Exercises', P.dumbbell, 'body', 'train'], ['fit/fgoals', 'Goals', P.target, 'body', 'train'], ['fit/body', 'Body', P.scale, 'body', 'train'], ['fit/stats', 'Analysis', P.trend, 'body', 'train'], ['fit/res', 'Resources', P.book, 'body', 'train'], ['fit/gear', 'Gear', P.box, 'body', 'train'],
       ['care/beauty', 'Products', P.drop, 'body', 'beauty'], ['care/skin', 'Skincare', P.flask, 'body', 'beauty'], ['care/skinmonth', 'Month', P.calendar, 'body', 'beauty'], ['care/skinstats', 'Skin analysis', P.trend, 'body', 'beauty'], ['care/skinres', 'Resources', P.book, 'body', 'beauty'], ['care/perfume', 'Perfume', P.star, 'body', 'beauty'], ['care/diary', 'Skin diary', P.camera, 'body', 'beauty'], ['care/bdeals', 'Deals', P.tag, 'body', 'beauty'], ['body/stats', 'Analyse', P.trend, 'body'],
       ['plan/plans', 'Overview', P.grid, 'plans'], ['care/trips', 'Trips', P.plane, 'plans'], ['care/docs', 'Documents', P.doc, 'plans'], ['care/ideas', 'Ideas', P.star, 'plans'], ['care/saved', 'Saved links', P.link, 'plans'], ['care/gifts', 'Gifts', P.gift, 'plans'], ['plan/planstats', 'Analyse', P.trend, 'plans'],
       ['wish/today', 'Overview', P.grid, 'wish'], ['wish/inbox', 'Inbox', P.inbox, 'wish'], ['wish/master', 'Master', P.heart, 'wish'], ['wish/orders', 'Orders', P.box, 'wish'], ['wish/stats', 'Analyse', P.trend, 'wish'], ['weekplan', 'Plan my week', P.list], ['reports', 'Reports', P.trend], ['todo', 'To do', P.check]] },
@@ -1475,6 +1489,10 @@ const PAGES = {
   'home/inventory': { title: 'Verhuislijst', segs: [{ key: 'rooms', label: 'Per kamer', kind: 'inventory', fill: invRooms, tools: false }, { key: 'status', label: 'Per status', kind: 'inventory', fill: invByStatus, tools: false }, { key: 'prio', label: 'Per prioriteit', kind: 'inventory', fill: invByPrio, tools: false }, { key: 'board', label: 'Moodboard', kind: 'invopts', fill: invBoard, tools: false }, { key: 'analyse', label: 'Analyse', kind: 'inventory', fill: invAnalysis, tools: false }, { kind: 'inventory', label: 'Alle producten' }, { kind: 'invopts', label: 'Opties' }, { kind: 'movecosts', label: 'Verhuiskosten' }] },
   'home/repairs': { title: 'Repairs', segs: [{ kind: 'repairs' }] },
   'fit/today': { render: fitToday, adds: ['workouts', 'vworkouts', 'fitgoals', 'sets', 'body', 'exercises'] },
+  'fit/routine': { render: fitRoutine, adds: ['plans', 'vworkouts', 'exercises'] },
+  'fit/log': { render: fitLog, adds: ['paincheck', 'body', 'workouts'] },
+  'fit/stats': { render: fitStats, adds: ['body', 'paincheck'] },
+  'fit/res': { render: fitRes, adds: ['exercises', 'vworkouts'] },
   'fit/workouts': { title: 'Workouts', segs: [{ kind: 'workouts' }] },
   'fit/library': { title: 'Video workouts', segs: [{ kind: 'vworkouts' }, { key: 'week', label: 'Week plan', kind: 'fsched', fill: fitWeekFill, tools: false }] },
   'fit/fgoals': { title: 'Fitness goals', segs: [{ kind: 'fitgoals' }] },
@@ -4971,7 +4989,12 @@ function repSections(from, to) {
       chart: days.map(d => [WD_NL[(fromISO(d).getDay() + 6) % 7] + (days.length > 7 ? fromISO(d).getDate() : ''), num(nlOn(d)?.veg) || 0]).slice(-31), chartT: 'Vegetables (g)' },
     { k: 'move', t: 'Movement and health', stats: [s('Workouts done', work.filter(w => w.done).length, { good: 'up' }), s('Workouts planned', work.length), s('Minutes moved', sumOf(work.filter(w => w.done).map(w => w.minutes)), { good: 'up' }),
       s('Steps a day', avgOf(nl.map(x => num(x.steps))), { good: 'up' }), s('Sleep a night', avgOf(sleep.map(x => num(x.hours))), { unit: 'h', good: 'up' }), s('Supplements taken', recs('suplog').filter(x => inR(x.date, from, to)).length, { good: 'up' }),
-      s('Smoke moments', recs('cleanlog').filter(x => inR(x.date, from, to)).length, { good: 'down' })],
+      s('Smoke moments', recs('cleanlog').filter(x => inR(x.date, from, to)).length, { good: 'down' }),
+      s('Sets logged', sumOf(work.filter(w => w.done && Array.isArray(w.log)).map(w => w.log.reduce((n, x) => n + (x.sets || []).filter(st => st.done).length, 0))), { good: 'up' }),
+      s('New records', recs('sets').filter(x => inR(x.date, from, to) && prOf(x.exercise)?.id === x.id).length, { good: 'up' }),
+      s('Days stretched', new Set(recs('paincheck').filter(x => x.stretched && inR(x.date, from, to)).map(x => x.date)).size, { good: 'up' }),
+      ...PAIN_AREAS.map(([k, l]) => s(`${l} pain`, avgOf([...recs('paincheck'), ...work.filter(w => w.done)].filter(x => inR(x.date, from, to)).map(x => num(x['p' + k] ?? x['pb' + k])).filter(v => v != null)), { unit: '/10', good: 'down' })),
+      s('Training energy', avgOf(work.filter(w => w.done).map(w => num(w.energy)).filter(v => v != null)), { unit: '/5', good: 'up' })],
       chart: (() => { const out = []; for (let i = 7; i >= 0; i--) { const a = addDays(weekMon(to), -7 * i), b = addDays(a, 6); out.push([shortDate(a).split(' ')[0] + ' ' + shortDate(a).split(' ')[1].slice(0, 3), recs('workouts').filter(w => w.done && inR(w.date, a, b)).length]); } return out; })(), chartT: 'Workouts done per week' },
     { k: 'skin', t: 'Skin and self-care', stats: [s('Skin score', avgOf(skin.map(x => num(x.score))), { unit: '/10', good: 'up' }), s('Diary entries', skin.length, { good: 'up' }),
       s('Products running low', recs('beauty').filter(b => b.low && !b.finished && !b.archived).length, { good: 'down' }), s('Techniques planned', days.reduce((n, d) => n + techOn(d, false).length + techOn(d, true).length, 0))] },
@@ -4998,6 +5021,8 @@ function repInsights(secs, prev) {
   if ((get('food', 'Vegetables a day') ?? 250) < 250) tips.push('Plan two dinners with a big portion of vegetables: 250 g a day is the goal.');
   if ((get('move', 'Workouts done') ?? 0) < (WPCFG().moveGoal || 3)) tips.push(`Put your ${WPCFG().moveGoal || 3} workouts on fixed days in Plan my week, short ones on office days.`);
   if ((get('move', 'Sleep a night') ?? 8) < 7) tips.push('Go to bed 30 minutes earlier on two weeknights.');
+  if ((get('move', 'Days stretched') ?? 7) < 5) tips.push('Do your 5-minute morning stretch right after you brush your teeth: it helps your back, neck and shoulders most when you do it every day.');
+  if (Math.max(...PAIN_AREAS.map(([, l]) => get('move', `${l} pain`) ?? 0)) >= 6) tips.push('Your pain scores are high. Keep stretching, go lighter in the gym, and see your GP or a physiotherapist if it stays like this.');
   if ((get('skin', 'Diary entries') ?? 0) < 1) tips.push('Add one skin diary entry with a photo, so you can see what your routine does.');
   if ((get('money', 'Groceries') ?? 0) > 0 && (get('food', 'Meals planned') ?? 0) < 5) tips.push('Plan at least 5 meals before you shop: it keeps your groceries cheaper.');
   if ((get('food', 'Soda and juice') ?? 0) > 5) tips.push('Swap a few glasses of soda or juice for sparkling water.');
@@ -5017,7 +5042,7 @@ async function makeReport(type, from, to, key) {
 }
 // the report of the week that ends today (Sunday) or ended last Sunday, and of the month that ends today or ended last month
 // raise this when the way a report counts changes, so saved reports are made again (your notes stay)
-const REP_V = 2;
+const REP_V = 3;
 async function ensureReports() {
   if (L.repBusy) return; L.repBusy = true;
   try {
@@ -7955,6 +7980,248 @@ function skinResources(host) {
     <div class="panels">${own.length ? panel('Your links', `<div class="lrows">${own.map(r => `<div class="lrow"><a class="lmain" href="${esc(r.url || '#')}" target="_blank" rel="noopener"><b>${esc(r.name)}</b><span>${esc([r.topic, r.notes].filter(Boolean).join(' · '))}</span></a><button class="chip link" data-act="open" data-id="${r.id}">Edit</button></div>`).join('')}</div>`) : ''}
     ${SKIN_RES.map(([t, l]) => panel(t, `<div class="lrows">${l.map(([n, src, u, why]) => `<div class="lrow"><a class="lmain" href="${esc(u)}" target="_blank" rel="noopener"><b>${esc(n)}</b><span>${esc(src)} · ${esc(why)}</span></a></div>`).join('')}</div>`)).join('')}</div>
     <p class="lnone">Research summaries open on PubMed. Information, not medical advice: for deep or painful spots that keep coming back, see your GP or a dermatologist.</p>`;
+}
+/* ---------- train: your routine, logbook, analysis and resources, like your skincare ---------- */
+const FIT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const byName = (kind, re) => recs(kind).find(r => re.test(titleOf(r) || ''));
+// your week: which plan on which day, and which stretch in the morning and evening (Settings in Routine)
+function FITCFG() {
+  const c = C?.prefs?.().fitweek || {}, plan = re => byName('plans', re)?.id || '', vw = re => byName('vworkouts', re)?.id || '';
+  return { days: c.days || { Mon: plan(/^Gym C/i), Wed: plan(/^Gym A/i), Fri: plan(/^Gym B/i) }, am: c.am ?? vw(/^Ochtend desk reset/i), pmGym: c.pmGym ?? vw(/^Avond: heupen/i), pmRest: c.pmRest ?? vw(/^Avond: nek/i) };
+}
+const saveFit = patch => C.savePrefs({ fitweek: { ...FITCFG(), ...patch } }).catch(() => C.toast('Could not save. Try again.'));
+// the plan for a day: a workout you planned that day wins, then your usual week
+function planOn(d) {
+  const w = recs('workouts').find(x => x.date === d && !x.skipped && (x.plan || x.type === 'Rest'));
+  if (w) return w.type === 'Rest' ? '' : w.plan;
+  return FITCFG().days[wdShort(d)] || '';
+}
+// "1. Hip thrust 4 × 8–10" in the plan's notes belongs to its first exercise, and so on
+function planRx(p) {
+  const lines = String(p?.notes || '').split('\n').map(l => l.match(/^\s*\d+\.\s*(.+?)\s+(\d+\s*×\s*[^\n]+)$/)).filter(Boolean);
+  return [].concat(p?.exercises || []).map((id, i) => ({ id, rx: lines[i]?.[2] || '', sets: Number(lines[i]?.[2]?.match(/^(\d+)/)?.[1]) || 3, reps: Number(lines[i]?.[2]?.match(/×\s*(\d+)/)?.[1]) || '' }));
+}
+// what you lifted last time on an exercise, from your logbook
+function lastOf(exId) {
+  const w = recs('workouts').filter(x => x.done && Array.isArray(x.log) && x.log.some(e => e.ex === exId)).sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
+  if (w) { const e = w.log.find(x => x.ex === exId), done = (e.sets || []).filter(s => s.done && num(s.kg) != null); if (done.length) return { date: w.date, sets: e.sets.map(s => ({ kg: s.kg, reps: s.reps })), top: done.reduce((a, b) => (num(b.kg) > num(a.kg) ? b : a)) }; }
+  const s = recs('sets').filter(x => x.exercise === exId && x.date).sort((a, b) => b.date.localeCompare(a.date))[0];
+  return s ? { date: s.date, sets: [], top: { kg: s.weight, reps: s.reps } } : null;
+}
+const vidBtn = (url, label = 'Video') => url ? `<a class="chip link" href="${esc(url)}" target="_blank" rel="noopener">▶ ${esc(label)}</a>` : '';
+function stretchCard(id, when) {
+  const v = L.byId[id]; if (!v) return panel(when, quiet('Pick a stretch routine under Your week below.'));
+  const steps = [].concat(v.steps || []);
+  return panel(when, `<div class="lrow"><button class="lmain" data-act="open" data-id="${v.id}"><b>${esc(titleOf(v))}</b><span>${esc([v.minutes ? v.minutes + ' min' : '', v.type].filter(Boolean).join(' · '))}</span></button>${vidBtn(v.url)}</div>
+    ${steps.length ? `<ol class="rsteps">${steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : v.notes ? `<p class="lpre">${esc(v.notes)}</p>` : ''}
+    <div class="dbtns"><button class="btn small" data-fitcheck="${when.startsWith('Morning') ? 'Morning' : 'Evening'}">Done: how do you feel?</button></div>`);
+}
+function planCard(pid, d, title) {
+  const p = L.byId[pid]; if (!p) return '';
+  const rows = planRx(p).map(({ id, rx }) => { const e = L.byId[id]; if (!e) return ''; const last = lastOf(id), pr = prOf(id);
+    return `<div class="fitex"><div class="lrow"><button class="lmain" data-act="open" data-id="${id}"><b>${esc(titleOf(e))}</b><span>${esc([rx, last?.top?.kg != null ? `last ${last.top.kg} kg × ${last.top.reps || '?'}` : '', pr ? `PR ${pr.weight} kg` : ''].filter(Boolean).join(' · '))}</span></button>${vidBtn(e.link)}</div>${e.notes ? `<details class="fitform"><summary>How to do it</summary><p>${esc(e.notes)}</p></details>` : ''}</div>`; }).join('');
+  const done = recs('workouts').find(x => x.date === d && x.plan === pid && x.done);
+  return panel(title, `<div class="lrow"><button class="lmain" data-act="open" data-id="${p.id}"><b>${esc(titleOf(p))}</b><span>${esc(p.type || '')}</span></button></div>${rows}
+    ${p.notes ? `<details class="fitform"><summary>Warm-up, rest and tips</summary><p class="lpre">${esc(p.notes)}</p></details>` : ''}
+    <div class="dbtns">${done ? `<span class="chip on">Done ✓</span>` : `<button class="btn small primary" data-fitstart="${p.id}" data-d="${d}">Start training</button>`}</div>`);
+}
+function fitRoutine(host) {
+  const c = FITCFG(), t = today(), pid = planOn(t), mon = weekMon(t);
+  const opt = (kind, cur) => `<option value="">${kind === 'plans' ? 'Rest' : 'None'}</option>${recs(kind).sort((a, b) => azCmp(titleOf(a), titleOf(b))).map(r => `<option value="${r.id}" ${r.id === cur ? 'selected' : ''}>${esc(titleOf(r))}</option>`).join('')}`;
+  const week = FIT_DAYS.map((w, i) => { const d = addDays(mon, i), p = planOn(d), done = recs('workouts').some(x => x.date === d && x.done);
+    return `<div class="wpday ${d === t ? 'now' : ''}"><b>${esc(w)} ${esc(shortDate(d).split(' ')[0])}${done ? ' ✓' : ''}</b><span class="muted">${esc(p ? relName(p) : 'Rest day: stretch only')}</span></div>`; }).join('');
+  host.innerHTML = `<div class="viewhead"><h1>Training routine</h1><span class="sub">${esc(dayName(t))}: ${esc(pid ? relName(pid) : 'rest day')}</span></div>
+    <div class="lplanhead"><button class="btn small" data-act="go" data-v="fit/log">Logbook</button><button class="btn small" data-act="go" data-v="fit/res">Resources</button></div>
+    <div class="panels">
+      ${stretchCard(c.am, 'Morning stretch')}
+      ${pid ? planCard(pid, t, 'Gym today') : panel('Today', `<p class="lnone">No gym today. Your evening stretch is the training of the day.</p>`)}
+      ${stretchCard(pid ? c.pmGym : c.pmRest, pid ? 'Evening stretch: after the gym' : 'Evening stretch')}
+      ${panel('This week', `<div class="wpstrip fitweek">${week}</div><p class="lnone">A workout you plan in Plan my week wins over your usual week.</p>`)}
+      ${panel('Your week', `<p class="lnone">Your usual plan per day, and the stretches you do.</p>
+        ${FIT_DAYS.map(w => `<div class="fset"><div><b>${w}</b></div><select class="pill" data-fitday="${w}" aria-label="${w}">${opt('plans', c.days[w])}</select></div>`).join('')}
+        <div class="fset"><div><b>Morning stretch</b></div><select class="pill" data-fitset="am" aria-label="Morning stretch">${opt('vworkouts', c.am)}</select></div>
+        <div class="fset"><div><b>Evening after the gym</b></div><select class="pill" data-fitset="pmGym" aria-label="Evening stretch on gym days">${opt('vworkouts', c.pmGym)}</select></div>
+        <div class="fset"><div><b>Evening on other days</b></div><select class="pill" data-fitset="pmRest" aria-label="Evening stretch on other days">${opt('vworkouts', c.pmRest)}</select></div>`)}
+    </div>`;
+  fitWire(host);
+}
+// clicks shared by Routine and Logbook
+function fitWire(host) {
+  if (host.dataset.fitwired) return; host.dataset.fitwired = '1'; const again = () => C.render();
+  host.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.fitstart !== undefined) return trainSheet(b.dataset.fitstart, b.dataset.d || today(), again);
+    if (b.dataset.fitcheck) return checkSheet(b.dataset.fitcheck, again);
+    if (b.hasAttribute('data-fitbody')) return openEditor('body', null, { date: today() });
+  });
+  host.addEventListener('change', async e => {
+    const t = e.target;
+    if (t.dataset.fitday) { const c = FITCFG(); await saveFit({ days: { ...c.days, [t.dataset.fitday]: t.value } }); again(); }
+    if (t.dataset.fitset) { await saveFit({ [t.dataset.fitset]: t.value }); again(); }
+  });
+}
+// the logging sheet: your exercises with last time's weight; tick each set; pain and feeling before and after
+const painPick = (pre, D) => PAIN_AREAS.map(([k, l]) => `<div class="fset fsetcol"><div><b>${l}</b><span>0 = no pain, 10 = a lot</span></div><div class="painrow">${[...Array(11).keys()].map(n => `<button type="button" class="chip small ${D[pre + k] === n ? 'on' : ''}" data-pain="${pre + k}" data-v="${n}">${n}</button>`).join('')}</div></div>`).join('');
+const DRAFT_KEY = 'aslife-train';
+function trainSheet(pid, d, after) {
+  const p = L.byId[pid]; if (!p) return;
+  let D = null; try { const s = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); if (s && s.pid === pid && s.d === d) D = s; } catch {}
+  D ||= { pid, d, start: Date.now(), log: planRx(p).map(x => { const last = lastOf(x.id); return { ex: x.id, sets: [...Array(x.sets).keys()].map(i => ({ kg: last?.sets?.[i]?.kg ?? last?.top?.kg ?? '', reps: last?.sets?.[i]?.reps ?? x.reps ?? '', done: false })) }; }) };
+  const keep = () => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(D)); } catch {} };
+  const body = () => `<p class="dsub">Before you start</p>${painPick('pb', D)}
+    <div class="fset fsetcol"><div><b>Energy</b><span>1 = empty, 5 = full of energy</span></div><div class="painrow">${[1, 2, 3, 4, 5].map(n => `<button type="button" class="chip small ${D.energy === n ? 'on' : ''}" data-tset="energy" data-v="${n}">${n}</button>`).join('')}</div></div>
+    <p class="dsub">Your exercises</p>
+    ${D.log.map((x, i) => { const e = L.byId[x.ex], rx = planRx(p).find(r => r.id === x.ex)?.rx || '';
+      return `<div class="trex"><div class="lrow"><span class="lmain"><b>${esc(e ? titleOf(e) : 'Exercise')}</b><span>${esc(rx)}</span></span>${vidBtn(e?.link)}</div>
+      ${x.sets.map((st, j) => `<div class="trset ${st.done ? 'done' : ''}"><span class="muted">Set ${j + 1}</span><input class="finp" inputmode="decimal" data-tkg="${i}|${j}" value="${esc(st.kg ?? '')}" placeholder="kg" aria-label="Kilo set ${j + 1}"><input class="finp" inputmode="numeric" data-treps="${i}|${j}" value="${esc(st.reps ?? '')}" placeholder="reps" aria-label="Reps set ${j + 1}"><button type="button" class="chip ${st.done ? 'on' : ''}" data-tdone="${i}|${j}" aria-pressed="${st.done}">${st.done ? '✓' : 'Done'}</button></div>`).join('')}
+      <button type="button" class="chip small" data-tadd="${i}">+ Set</button></div>`; }).join('')}
+    <p class="dsub">After</p>${painPick('pa', D)}
+    <div class="fset fsetcol"><div><b>How hard was it?</b><span>1 = easy, 10 = everything you had</span></div><div class="painrow">${[...Array(10).keys()].map(n => n + 1).map(n => `<button type="button" class="chip small ${D.rpe === n ? 'on' : ''}" data-tset="rpe" data-v="${n}">${n}</button>`).join('')}</div></div>
+    <div class="fset fsetcol"><div><b>Mood after</b></div><div class="painrow">${TRAIN_MOODS.map(m => `<button type="button" class="chip small ${D.mood === m ? 'on' : ''}" data-tset="mood" data-v="${esc(m)}">${esc(m)}</button>`).join('')}</div></div>
+    <textarea class="finp" rows="2" data-tnotes placeholder="Notes: what went well, what felt off">${esc(D.notes || '')}</textarea>`;
+  const sh = C.sheet({ title: `${titleOf(p)} · ${niceDate(d)}`, wide: true, body: `<div data-tbody>${body()}</div>`, foot: `<button class="btn" data-tlater>Close, keep for later</button><div class="spacer"></div><button class="btn primary" data-tsave>Save training</button>` });
+  const draw = () => { const h = sh.querySelector('[data-tbody]'), y = sh.querySelector('.sb')?.scrollTop; h.innerHTML = body(); const sb = sh.querySelector('.sb'); if (sb && y != null) sb.scrollTop = y; };
+  sh.addEventListener('input', e => { const t = e.target;
+    if (t.dataset.tkg) { const [i, j] = t.dataset.tkg.split('|').map(Number); D.log[i].sets[j].kg = t.value; keep(); }
+    if (t.dataset.treps) { const [i, j] = t.dataset.treps.split('|').map(Number); D.log[i].sets[j].reps = t.value; keep(); }
+    if (t.matches('[data-tnotes]')) { D.notes = t.value; keep(); } });
+  sh.addEventListener('click', async e => { const b = e.target.closest('button'); if (!b) return; const ds = b.dataset;
+    if (ds.pain) { D[ds.pain] = D[ds.pain] === +ds.v ? undefined : +ds.v; keep(); return draw(); }
+    if (ds.tset) { const v = ds.tset === 'mood' ? ds.v : +ds.v; D[ds.tset] = D[ds.tset] === v ? undefined : v; keep(); return draw(); }
+    if (ds.tdone) { const [i, j] = ds.tdone.split('|').map(Number); const st = D.log[i].sets[j]; st.done = !st.done; keep(); return draw(); }
+    if (ds.tadd !== undefined) { const x = D.log[+ds.tadd], l = x.sets[x.sets.length - 1] || {}; x.sets.push({ kg: l.kg ?? '', reps: l.reps ?? '', done: false }); keep(); return draw(); }
+    if (b.hasAttribute('data-tlater')) { keep(); C.closeSheet(); C.toast('Kept: open Start training again to go on'); return; }
+    if (b.hasAttribute('data-tsave')) {
+      const log = D.log.map(x => ({ ex: x.ex, sets: x.sets.map(s => ({ kg: num(String(s.kg).replace(',', '.')), reps: num(s.reps), done: !!s.done })) }));
+      const mins = Math.max(10, Math.round((Date.now() - (D.start || Date.now())) / 60000));
+      const data = { date: d, plan: pid, name: titleOf(p), type: p.type?.includes('Cardio') ? 'Cardio' : 'Strength', done: true, skipped: false, minutes: mins > 240 ? undefined : mins, log,
+        ...(D.energy ? { energy: D.energy } : {}), ...(D.rpe ? { rpe: D.rpe, intensity: D.rpe <= 4 ? 'Easy' : D.rpe <= 7 ? 'Moderate' : 'Hard' } : {}), ...(D.mood ? { mood: D.mood } : {}), ...(D.notes ? { notes: D.notes } : {}),
+        exercises: log.filter(x => x.sets.some(s => s.done)).map(x => x.ex) };
+      for (const [k] of PAIN_AREAS) for (const pre of ['pb', 'pa']) if (D[pre + k] != null) data[pre + k] = D[pre + k];
+      for (const k of Object.keys(data)) if (data[k] === undefined) delete data[k];
+      L.batch = true;
+      try {
+        const cur = recs('workouts').find(x => x.date === d && x.plan === pid);
+        cur ? await put('workouts', cur.id, { ...dataOf(cur), ...data }) : await create('workouts', data);
+        // one line per exercise in your set log: the heaviest set you did, for your records and the strength chart
+        for (const x of log) { const done = x.sets.filter(s => s.done && s.kg != null); if (!done.length) continue; const top = done.reduce((a, b2) => (b2.kg > a.kg || (b2.kg === a.kg && (b2.reps || 0) > (a.reps || 0)) ? b2 : a));
+          await create('sets', { date: d, exercise: x.ex, weight: top.kg, reps: top.reps || undefined, sets: done.length }); }
+      } catch { C.toast('Could not save. Try again.'); return; } finally { L.batch = false; }
+      try { localStorage.removeItem(DRAFT_KEY); } catch {}
+      C.closeSheet(); C.toast('Training saved'); after?.();
+    }
+  });
+}
+// the short daily check, with your stretch
+function checkSheet(time, after) {
+  const D = {}, t = today(), cur = recs('paincheck').find(x => x.date === t && x.time === time); if (cur) for (const [k] of PAIN_AREAS) D['p' + k] = cur['p' + k];
+  D.stretched = cur ? !!cur.stretched : true;
+  const body = () => `${painPick('p', D)}<label class="settog setrow"><input type="checkbox" data-cstr ${D.stretched ? 'checked' : ''}> I did my ${time.toLowerCase()} stretch</label><textarea class="finp" rows="2" data-cnotes placeholder="Notes">${esc(cur?.notes || '')}</textarea>`;
+  const sh = C.sheet({ title: `${time} check`, body: `<div data-cbody>${body()}</div>`, foot: `<div class="spacer"></div><button class="btn primary" data-csave>Save</button>` });
+  sh.addEventListener('click', async e => { const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.pain) { D[b.dataset.pain] = D[b.dataset.pain] === +b.dataset.v ? undefined : +b.dataset.v; D.notes = sh.querySelector('[data-cnotes]')?.value; sh.querySelector('[data-cbody]').innerHTML = body(); if (D.notes) sh.querySelector('[data-cnotes]').value = D.notes; return; }
+    if (b.hasAttribute('data-csave')) {
+      const data = { date: t, time, stretched: !!sh.querySelector('[data-cstr]')?.checked }, n = sh.querySelector('[data-cnotes]')?.value.trim(); if (n) data.notes = n;
+      for (const [k] of PAIN_AREAS) if (D['p' + k] != null) data['p' + k] = D['p' + k];
+      try { cur ? await put('paincheck', cur.id, { ...dataOf(cur), ...data }) : await create('paincheck', data); } catch { C.toast('Could not save. Try again.'); return; }
+      C.closeSheet(); C.toast('Saved in your logbook'); after?.();
+    } });
+}
+// the first gym day of this week: the day for your progress photos
+function firstGymDay(d = today()) { const mon = weekMon(d); for (let i = 0; i < 7; i++) { const x = addDays(mon, i); if (planOn(x)) return x; } return null; }
+const avgPain = r => { const v = PAIN_AREAS.map(([k]) => num(r['p' + k] ?? r['pb' + k])).filter(x => x != null); return v.length ? avgOf(v) : null; };
+function fitLog(host) {
+  const t = today(), pid = planOn(t), fg = firstGymDay(t), mon = weekMon(t);
+  const photosDue = fg && fg <= t && !recs('body').some(b => b.date >= mon && (b.front || b.side || b.back));
+  const items = [...recs('workouts').filter(w => w.done && w.date).map(r => ({ d: r.date, k: 'w', r })), ...recs('paincheck').filter(r => r.date).map(r => ({ d: r.date, k: 'p', r })), ...recs('body').filter(r => r.date).map(r => ({ d: r.date, k: 'b', r }))]
+    .sort((a, b) => b.d.localeCompare(a.d) || a.k.localeCompare(b.k)).slice(0, 60);
+  const painTxt = r => PAIN_AREAS.map(([k, l]) => { const a = r['pb' + k], b2 = r['pa' + k]; return a != null || b2 != null ? `${l.toLowerCase()} ${a ?? '?'}→${b2 ?? '?'}` : ''; }).filter(Boolean).join(', ');
+  const row = ({ k, r }) => k === 'w' ? `<button class="lrow" data-act="open" data-id="${r.id}"><span class="lmain"><b>🏋 ${esc(titleOf(r))}</b><span>${esc([niceDate(r.date), r.minutes ? r.minutes + ' min' : '', Array.isArray(r.log) ? plural(r.log.reduce((n, x) => n + (x.sets || []).filter(s => s.done).length, 0), 'set') : '', r.energy ? 'energy ' + r.energy : '', r.rpe ? 'hard ' + r.rpe : '', r.mood || '', painTxt(r)].filter(Boolean).join(' · '))}</span>${r.notes ? `<span>${esc(r.notes.slice(0, 120))}</span>` : ''}</span></button>`
+    : k === 'p' ? `<button class="lrow" data-act="open" data-id="${r.id}"><span class="lmain"><b>✓ ${esc(r.time || 'Check')}</b><span>${esc([niceDate(r.date), KINDS.paincheck.sub(r)].filter(Boolean).join(' · '))}</span></span></button>`
+    : `<div class="sdrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>📏 Progress</b><span>${esc([niceDate(r.date), KINDS.body.sub(r), r.glutes ? 'glutes ' + r.glutes : '', r.thigh ? 'thigh ' + r.thigh : ''].filter(Boolean).join(' · '))}</span></button><div class="sdthumbs">${['front', 'side', 'back'].map(a => r[a] ? `<img data-spath="${esc(r[a])}" alt="${a}" loading="lazy">` : '').join('')}</div></div>`;
+  host.innerHTML = `<div class="viewhead"><h1>Training logbook</h1><span class="sub">Every training, check and measurement</span></div>
+    <div class="lplanhead">${pid ? `<button class="btn small primary" data-fitstart="${pid}" data-d="${t}">Start ${esc(relName(pid))}</button>` : ''}<button class="btn small" data-fitcheck="${new Date().getHours() < 14 ? 'Morning' : 'Evening'}">Daily check</button><button class="btn small" data-fitbody>Photos and measurements</button></div>
+    ${photosDue ? `<div class="panel fitdue"><b>Progress photos this week</b><p class="lnone">${t === fg ? 'Today is your first training day of the week.' : 'Your first training day was ' + esc(dayName(fg)) + '.'} Take a photo from the front, side and back, and measure yourself before you train.</p><button class="btn small primary" data-fitbody>Add photos and measurements</button></div>` : ''}
+    <div class="panels">${panel('Your log', items.length ? `<div class="lrows">${items.map(row).join('')}</div>` : quiet('Start a training or do your daily check: everything shows up here.'))}</div>`;
+  fillSigned(host);
+  fitWire(host);
+}
+// analysis: strength, pain, cycle and measurements
+function fitStats(host) {
+  const S = L.fitS ||= {}, setEx = [...new Set(recs('sets').map(s => s.exercise).filter(Boolean))].filter(id => L.byId[id]);
+  S.ex = setEx.includes(S.ex) ? S.ex : setEx[0];
+  const sets = recs('sets').filter(s => s.exercise === S.ex && s.date && num(s.weight) != null).sort((a, b) => a.date.localeCompare(b.date));
+  const days = [...new Set(sets.map(s => s.date))], top = days.map(d => Math.max(...sets.filter(s => s.date === d).map(s => num(s.weight))));
+  const pr = S.ex ? prOf(S.ex) : null;
+  // pain per week, last 12 weeks, from daily checks and the 'before' scores of trainings
+  const weeks = [...Array(12).keys()].map(i => addDays(weekMon(), -7 * (11 - i)));
+  const painSrc = [...recs('paincheck'), ...recs('workouts').filter(w => w.done)].filter(r => r.date);
+  const painWeek = k => weeks.map(w => { const v = painSrc.filter(r => r.date >= w && r.date < addDays(w, 7)).map(r => num(r['p' + k] ?? r['pb' + k])).filter(x => x != null); return v.length ? avgOf(v) : null; });
+  const stretchDays = weeks.map(w => [calDayLabel(w).replace(/^\w+ /, ''), new Set(recs('paincheck').filter(r => r.stretched && r.date >= w && r.date < addDays(w, 7)).map(r => r.date)).size]);
+  const wk = weeks.map(w => calDayLabel(w).replace(/^\w+ /, ''));
+  // cycle: energy, how hard and top weights per phase
+  const done = recs('workouts').filter(w => w.done && w.date);
+  const ph = ['Period', 'Follicular', 'Ovulation', 'Luteal'].map(p => { const l = done.filter(w => cyclePhase(cycleDayOn(w.date)) === p); return [p, l.length, avgOf(l.map(w => num(w.energy)).filter(x => x != null)), avgOf(l.map(w => num(w.rpe)).filter(x => x != null))]; });
+  const bodyL = recs('body').filter(b => b.date).sort((a, b) => a.date.localeCompare(b.date)), bd = bodyL.map(b => b.date);
+  const M = [['weight', 'Weight', ' kg'], ['waist', 'Waist', ' cm'], ['hips', 'Hips', ' cm'], ['glutes', 'Glutes', ' cm'], ['thigh', 'Thigh', ' cm'], ['arm', 'Arm', ' cm'], ['chest', 'Chest', ' cm']];
+  S.m = M.some(m => m[0] === S.m) ? S.m : 'glutes';
+  const withP = bodyL.filter(b => b.front || b.side || b.back), a = withP[0], z = withP[withP.length - 1];
+  const fig = (b, side) => b?.[side] ? `<figure class="sdfig"><img data-spath="${esc(b[side])}" alt=""><figcaption>${esc(niceDate(b.date))}</figcaption></figure>` : '';
+  host.innerHTML = `<div class="viewhead"><h1>Training analysis</h1><span class="sub">How you grow, and how your body feels</span></div>
+    <div class="panels">
+      ${panel('Strength per exercise', setEx.length ? `<select class="pill" data-fsex aria-label="Exercise">${setEx.map(id => `<option value="${id}" ${id === S.ex ? 'selected' : ''}>${esc(relName(id))}</option>`).join('')}</select>
+        ${pr ? `<p class="lbig">PR ${pr.weight} kg × ${pr.reps || '?'}</p><p class="lnone">on ${esc(niceDate(pr.date))}${top.length > 1 ? ` · ${top[top.length - 1] - top[0] >= 0 ? '+' : ''}${r1(top[top.length - 1] - top[0])} kg since ${esc(niceDate(days[0]))}` : ''}</p>` : ''}${aLine(days, top, { label: 'Heaviest set', unit: ' kg' })}` : quiet('Save a training in your logbook: your weights show up here.'))}
+      ${panel('Back, neck and shoulders', `${PAIN_AREAS.map(([k, l]) => `<p class="dsub">${l}</p>${aLine(wk, painWeek(k), { label: l, unit: '', max: 10 })}`).join('')}<p class="dsub">Days you stretched</p>${aBars(stretchDays, { unit: ' days' })}<p class="lnone">Weekly average, 0 = no pain and 10 = a lot. From your daily checks and how you felt before each training.</p>`)}
+      ${panel('Cycle and energy', done.some(w => cycleDayOn(w.date)) ? `<table class="atable"><thead><tr><th>Phase</th><th>Trainings</th><th>Energy</th><th>How hard</th></tr></thead><tbody>${ph.map(([p, n, e, r]) => `<tr><td>${esc(PHASE_NL?.[p] || p)}</td><td>${n}</td><td>${e != null ? r1(e) + '/5' : '–'}</td><td>${r != null ? r1(r) + '/10' : '–'}</td></tr>`).join('')}</tbody></table><p class="lnone">Averages over all your trainings, not cause and effect.</p>` : quiet('Log your period in Cycle and your energy in your trainings: then you see how they connect.'))}
+      ${panel('Measurements', bodyL.length ? `<div class="lwrap">${M.filter(m => bodyL.some(b => num(b[m[0]]) != null)).map(([k, l]) => `<button class="chip small ${S.m === k ? 'on' : ''}" data-fsm="${k}">${l}</button>`).join('')}</div>${aLine(bd, bodyL.map(b => num(b[S.m])), { label: S.m, unit: M.find(m => m[0] === S.m)[2] })}` : quiet('Add your measurements under Logbook › Photos and measurements.'))}
+      ${withP.length > 1 ? panel('Before and after', ['front', 'side', 'back'].map(sd => a[sd] && z[sd] ? `<p class="dsub">${sd[0].toUpperCase() + sd.slice(1)}</p><div class="sdcompare">${fig(a, sd)}${fig(z, sd)}</div>` : '').join('') || quiet('Take photos from the same side to compare.')) : ''}
+    </div>`;
+  fillSigned(host);
+  if (host.dataset.fswired) return; host.dataset.fswired = '1';
+  host.addEventListener('change', e => { if (e.target.matches('[data-fsex]')) { L.fitS.ex = e.target.value; fitStats(host); } });
+  host.addEventListener('click', e => { const b = e.target.closest('[data-fsm]'); if (b) { L.fitS.m = b.dataset.fsm; fitStats(host); } });
+}
+// resources: muscle groups with the best exercises and your own videos, technique, posture and your cycle
+const MUSCLES = [
+  ['Glutes', 'Your biggest muscle: it straightens your hips, keeps your pelvis level when you walk and protects your lower back and knees. Sitting all day makes it lazy.', ['Hip thrust', 'Romanian deadlift', 'Bulgarian split squat', 'Cable kickback', 'Hip abduction', 'Step-up'], /glute|billen|hip thrust|kickback|abduct|bulgarian|step.?up|bridge/i],
+  ['Hamstrings', 'The back of your thighs: they bend your knee and help your glutes straighten your hip. Tight hamstrings pull on your lower back.', ['Romanian deadlift', 'Leg curl', 'Good morning', 'Single-leg RDL'], /hamstring|rdl|romanian|deadlift|leg curl|good morning/i],
+  ['Quads', 'The front of your thighs: they straighten your knee for stairs, squats and getting up from a chair.', ['Leg press', 'Bulgarian split squat', 'Squat', 'Leg extension', 'Step-up'], /quad|squat|leg press|leg extension|lunge|step.?up/i],
+  ['Core', 'Your abs, obliques and deep core: they keep your spine steady when you lift, carry and twist.', ['Plank', 'Cable crunch', 'Dead bug', 'Hanging knee raise', 'Pallof press'], /core|abs?\b|crunch|plank|leg raise|waist/i],
+  ['Upper back', 'Lats, rhomboids and mid traps: they pull your shoulders back and down. Weak after years at a desk, so the shoulders round forward.', ['Lat pulldown', 'Seated cable row', 'Face pull', 'Band pull-apart'], /back|row|pulldown|lat\b|face pull|pull.?apart/i],
+  ['Shoulders', 'Your delts and the small rotator cuff muscles: they lift your arms and keep the shoulder joint stable.', ['Seated dumbbell press', 'Lateral raise', 'Face pull'], /shoulder|delt|lateral raise|press/i],
+  ['Hips and hip flexors', 'They lift your knee and tighten from long sitting, which tilts your pelvis and loads your lower back.', ['Hip flexor stretch', 'Pigeon', '90/90', 'Hip mobility flow'], /hip|pigeon|90\/90|mobility/i],
+  ['Neck and upper traps', 'They hold your head up; with your head forward at a screen they work overtime and get stiff and sore.', ['Neck release', 'Chin tucks', 'Upper trap stretch', 'Face pull'], /neck|trap|nek/i]
+];
+const FIT_TIPS = [
+  ['Form and technique', [
+    ['Sets, reps and rest', 'For shape and strength: 3 to 4 sets of 8 to 12 reps for most exercises, 1.5 to 2 minutes rest for big lifts (hip thrust, RDL, split squat) and about 1 minute for small ones.'],
+    ['Two reps in the tank', 'Stop each set when you could still do about 2 more good reps. Close to failure builds muscle; real failure with bad form builds injuries.'],
+    ['Progressive overload', 'Your muscles grow when the work slowly gets harder. Hit the top of your rep range on all sets? Add 2.5 kg next time, or one rep per set. Your logbook shows last time\'s weights.'],
+    ['Tempo', 'Lower the weight slowly (2 to 3 seconds), pause briefly, then push up with control. You feel the muscle more and swing less.'],
+    ['Common mistakes', 'Hip thrust: chin down and ribs closed, do not arch your back at the top. RDL: hips back, not down, and the bar close to your legs. Split squat: front foot flat, knee in line with your toes. Rows: shoulders down, do not shrug.'],
+    ['Film yourself', 'Once every few weeks, film a set from the side and compare it with the video of the exercise. That is the quickest way to check your form.']]],
+  ['Posture and office pain', [
+    ['What sitting does', 'Long sitting shortens your hip flexors and chest, and weakens your glutes, upper back and deep neck muscles. Your head goes forward and your shoulders round: that is where neck, shoulder and back pain often come from.'],
+    ['What helps', 'Strengthen what got weak (glutes, upper back, face pulls, rows) and stretch what got tight (hip flexors, chest, neck). Your Gym C day and your evening stretches do exactly that.'],
+    ['Move every 30 to 45 minutes', 'Stand up, roll your shoulders back, do 5 chin tucks and a chest opener. Short and often works better than long and rarely.'],
+    ['Your desk', 'Screen at eye height, elbows at about 90 degrees, feet flat on the floor and your back against the chair. A laptop on a stand with a separate keyboard helps a lot.'],
+    ['When to see someone', 'Pain that stays for weeks, gets worse, wakes you up, or comes with tingling or numbness: see your GP or a physiotherapist.']]],
+  ['Training with your cycle', [
+    ['Period (day 1 to 5)', 'Energy is often lower. Lighter weights, more mobility, walks and stretching are fine; train if it feels good.'],
+    ['Follicular (day 6 to 13)', 'Energy and strength usually rise. A good time for your heaviest sets and trying a bit more weight.'],
+    ['Ovulation (around day 14 to 16)', 'Often your strongest days. Warm up well: some research suggests looser joints around this time.'],
+    ['Luteal (day 17 onwards)', 'You may tire sooner and feel warmer. Keep the weights, but allow a few more minutes of rest or one set less near your period.'],
+    ['Listen to your logbook', 'Everybody is different. Your analysis shows your own energy and effort per phase, so after a few months you know your own pattern.']]]
+];
+function fitRes(host) {
+  const pool = [...recs('exercises').filter(e => e.link).map(e => ({ n: titleOf(e), u: e.link, id: e.id })), ...recs('vworkouts').filter(v => v.url).map(v => ({ n: titleOf(v), u: v.url, id: v.id }))];
+  const own = re => pool.filter(x => re.test(x.n)).slice(0, 6);
+  host.innerHTML = `<div class="viewhead"><h1>Training resources</h1><span class="sub">Muscle groups, technique, posture and your cycle</span></div>
+    <div class="panels">
+      ${panel('Muscle groups', MUSCLES.map(([n, what, best, re]) => { const vids = own(re); return `<details class="fitres"><summary><b>${esc(n)}</b></summary><p>${esc(what)}</p><p class="lnone"><b>Best exercises:</b> ${esc(best.join(', '))}</p>${vids.length ? `<p class="dsub">Your videos</p><div class="lrows">${vids.map(v => `<div class="lrow"><button class="lmain" data-act="open" data-id="${v.id}"><b>${esc(v.n)}</b></button>${vidBtn(v.u)}</div>`).join('')}</div>` : ''}</details>`; }).join(''))}
+      ${FIT_TIPS.map(([t, l]) => panel(t, l.map(([h, x]) => `<details class="fitres"><summary><b>${esc(h)}</b></summary><p>${esc(x)}</p></details>`).join(''))).join('')}
+    </div>
+    <p class="lnone">General information, not medical advice. With pain that does not go away, see your GP or a physiotherapist.</p>`;
 }
 /* ---------- perfume: your fragrances with their notes, and what you love ---------- */
 

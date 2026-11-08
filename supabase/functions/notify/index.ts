@@ -14,7 +14,7 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
 const DEF: Record<string, { on: boolean; time?: string }> = {
   morning: { on: true, time: '07:30' }, evening: { on: true, time: '21:30' }, bills: { on: true, time: '18:00' },
   payday: { on: true, time: '09:00' }, weekly: { on: true, time: '19:00' }, weekahead: { on: true, time: '19:30' }, shopask: { on: true, time: '19:00' }, reminders: { on: true, time: '10:00' }, content: { on: true, time: '09:00' }, skindiary: { on: true, time: '10:00' }, freezer: { on: true, time: '17:00' }, shopday: { on: true, time: '10:00' }, eatbf: { on: true, time: '09:30' }, eatlunch: { on: true, time: '12:45' }, eatsnack: { on: true, time: '15:30' }, foodweek: { on: true, time: '18:00' }, movelist: { on: true, time: '19:15' }, socialweek: { on: true, time: '18:30' },
-  budget: { on: true }, applepay: { on: true }
+  budget: { on: true }, applepay: { on: true }, progress: { on: true, time: '08:00' }
 };
 type Rec = Record<string, any> & { id: string; kind: string };
 // a notification about exactly one thing opens that thing; about more, the page with all of them
@@ -209,6 +209,17 @@ function content(recs: Rec[], today: string) {
   return lines.length ? { title: lines.length === 1 ? 'Content today' : `Content today: ${lines.length} steps`, body: lines.slice(0, 6).join('\n') + (lines.length > 6 ? `\nand ${lines.length - 6} more` : ''), url: openUrl('social/plan', ids), tag: 'content' } : null;
 }
 
+// on your first training day of the week: progress photos and measurements, once a week
+function progress(recs: Rec[], prefs: any, today: string) {
+  const mon = weekMon(today), WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const fw = prefs?.fitweek || {}, byName = (re: RegExp) => recs.find(r => r.kind === 'plans' && re.test(String(r.name || '')))?.id || '';
+  const days = fw.days || { Mon: byName(/^Gym C/i), Wed: byName(/^Gym A/i), Fri: byName(/^Gym B/i) };
+  const planOn = (d: string) => { const w = recs.find(r => r.kind === 'workouts' && r.date === d && !r.skipped && (r.plan || r.type === 'Rest')); return w ? (w.type === 'Rest' ? '' : w.plan) : days[WD[(new Date(d + 'T12:00:00Z').getUTCDay() + 6) % 7]] || ''; };
+  let first = ''; for (let i = 0; i < 7; i++) { const d = addDays(mon, i); if (planOn(d)) { first = d; break; } }
+  if (first !== today) return null;
+  if (recs.some(r => r.kind === 'body' && r.date >= mon && (r.front || r.side || r.back))) return null;
+  return { title: 'Progress photos', body: 'Your first training of the week: take a photo from the front, side and back, and measure yourself before you train.', url: './#fit/log?open=new-body', tag: 'progress' };
+}
 // Sundays: a nudge for the skin diary when the last entry is 6 days old or more
 function skindiary(recs: Rec[], today: string) {
   const last = recs.filter(r => r.kind === 'skinlog' && r.date).map(r => r.date).sort().pop();
@@ -341,7 +352,7 @@ function bedtime(recs: Rec[], prefs: any, day: string, wd: string) {
   return { title: 'Tijd om af te bouwen', body: lines.slice(0, 6).join('\n'), url: './#overview', tag: 'bedtime' };
 }
 const BUNDLES: Record<string, string[]> = {
-  morning: ['morning', 'content', 'reminders', 'shopday', 'eatbf', 'payday', 'skindiary', 'freezer'],
+  morning: ['morning', 'content', 'reminders', 'shopday', 'eatbf', 'payday', 'skindiary', 'freezer', 'progress'],
   midday: ['eatlunch', 'eatsnack', 'bills'],
   evening: ['shopask', 'weekly', 'weekahead', 'socialweek', 'foodweek', 'movelist'],
   bedtime: ['bedtime']
@@ -354,7 +365,7 @@ async function runUser(uid: string, prefs: any, force = false, only: string[] | 
   const dt = dayTimes(prefs, now.day), wkend = ['sat', 'sun'].includes(now.wd);
   const msgOf = async (recs: Rec[], k: string) => k === 'morning' ? morning(recs, now.day, await outfitToday(uid, now.day), prefs) : k === 'evening' ? evening(recs, now.wd)
     : k === 'bills' ? bills(recs, now.day) : k === 'payday' ? payday(recs, now.day) : k === 'weekahead' ? weekahead(recs, prefs, now.day)
-    : k === 'reminders' ? reminders(recs, prefs, now.day) : k === 'content' ? content(recs, now.day) : k === 'socialweek' ? socialweek(recs, now.day) : k === 'skindiary' ? skindiary(recs, now.day) : k === 'freezer' ? freezer(recs, now.day)
+    : k === 'reminders' ? reminders(recs, prefs, now.day) : k === 'content' ? content(recs, now.day) : k === 'socialweek' ? socialweek(recs, now.day) : k === 'skindiary' ? skindiary(recs, now.day) : k === 'progress' ? progress(recs, prefs, now.day) : k === 'freezer' ? freezer(recs, now.day)
     : k === 'shopday' ? shopday(recs, prefs, now.wd, now.day) : k === 'shopask' ? shopAsk(prefs, now.day) : k === 'eatbf' ? eatNudge(recs, now.day, 'Breakfast') : k === 'eatlunch' ? eatNudge(recs, now.day, 'Lunch') : k === 'eatsnack' ? eatNudge(recs, now.day, 'snack')
     : k === 'foodweek' ? foodweek(recs, now.day, prefs) : k === 'movelist' ? movelist(recs, now.day, prefs) : k === 'bedtime' ? bedtime(recs, prefs, now.day, now.wd) : k === 'weekly' ? weekly(recs, now.day) : null;
   let sent = 0;
@@ -375,7 +386,7 @@ async function runUser(uid: string, prefs: any, force = false, only: string[] | 
     return sent;
   }
   const due = (k: string) => { if (k === 'bedtime') return inHour(Math.min(dt.bed - 30, 1410)); const c = { ...DEF[k], ...(cfg[k] || {}) }; if (!c.time) return false; return inHour(toMins(c.time) + (['eatbf', 'eatlunch'].includes(k) && wkend ? 60 : 0)); };
-  const slots = only ? only : ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders', 'content', 'socialweek', 'skindiary', 'freezer', 'shopday', 'eatbf', 'eatlunch', 'eatsnack', 'foodweek', 'movelist', 'bedtime'].filter(k => on(k) && due(k));
+  const slots = only ? only : ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders', 'content', 'socialweek', 'skindiary', 'progress', 'freezer', 'shopday', 'eatbf', 'eatlunch', 'eatsnack', 'foodweek', 'movelist', 'bedtime'].filter(k => on(k) && due(k));
   if (!slots.length) return 0;
   const recs = await loadAll(uid);
   for (const k of slots) {
