@@ -18,6 +18,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <script src="config.js"></script>
+<script src="known.js"></script>
 <script src="life.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.js"></script>
 <style>
@@ -2120,7 +2121,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v143';
+const APP_VERSION = 'hangtag-v144';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -3301,7 +3302,9 @@ function openEditor(id, opts = {}) {
     // all of them stay as buttons; only while you type a new one do they narrow down to what matches
     const all = known[key](), exact = all.some(v => norm(v) === t);
     const vals = all.filter(v => !t || exact || norm(v).includes(t)).sort((a, b) => norm(a).localeCompare(norm(b), undefined, { numeric: true })).slice(0, sugMax[key] || 24);
-    $(`[data-sugfor="${key}"]`, sh).innerHTML = vals.map(v => `<button type="button" class="chip" data-sug="${key}" data-v="${esc(v)}" aria-pressed="${norm(v) === t}">${esc(v)}</button>`).join('');
+    $(`[data-sugfor="${key}"]`, sh).innerHTML = vals.map(v => `<button type="button" class="chip" data-sug="${key}" data-v="${esc(v)}" aria-pressed="${norm(v) === t}">${esc(v)}</button>`).join('')
+      // brands and shops you never used: suggestions from a known list while you type
+      + (['brand', 'shop'].includes(key) && !exact ? window.LIFE?.knownChips?.(key, inp.value, all, 'data-sug') || '' : '');
   };
   for (const key of Object.keys(known)) { drawSug(key); $(`#f-${key}`, sh).addEventListener('input', () => drawSug(key)); }
   $('#f-cat', sh).addEventListener('change', () => drawSug('sub'));

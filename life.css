@@ -1157,3 +1157,6 @@ img.nophoto { background: var(--line); }
 .lgmore svg, .lgfocus .btn svg { width: 16px; height: 16px; }
 .lgfocus { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 4px 0 12px; }
 .lgfocus h2 { margin: 0; font-size: 1.25rem; }
+
+/* a brand or shop you never used yet, suggested while you type */
+.chip.lknown { border-style: dashed; }
