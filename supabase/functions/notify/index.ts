@@ -69,8 +69,25 @@ const open = (r: Rec) => r.status !== 'Completed';
 // a routine step or skincare product planned on some weekdays only (wd like 'mon')
 const onDay = (days: unknown, wd: string) => { const l = ([] as string[]).concat((days as string[]) || []); return !l.length || l.some(x => x.toLowerCase().slice(0, 3) === wd); };
 const wdOf = (day: string) => ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][fromISO(day).getUTCDay()];
-function morning(recs: Rec[], today: string, outfit: string) {
-  const lines: string[] = [];
+// what you planned for today in Plan my week: day type, meals, workout, chores, laundry, bins, to-dos, top 3
+function dayPlan(recs: Rec[], today: string, prefs: any): string[] {
+  const mon = addDays(today, -((fromISO(today).getUTCDay() + 6) % 7)), W = prefs?.wplan?.weeks?.[mon] || {}, out: string[] = [];
+  const type = W.days?.[today]; if (type) out.push({ office: 'Office day', home: 'Home day', off: 'Free day' }[type as string] || '');
+  if (wdOf(today) === 'mon' && (W.top3 || []).some(Boolean)) out.push('Top 3: ' + (W.top3 as string[]).filter(Boolean).join(', '));
+  const nameOf = (r: Rec) => r.recipe ? (recs.find(x => x.id === r.recipe)?.name || r.what || 'planned') : (r.what || (r.away ? 'out' : 'planned'));
+  for (const slot of ['Lunch', 'Dinner']) { const m = recs.find(r => r.kind === 'meals' && r.date === today && r.slot === slot); if (m) out.push(`${slot}: ${nameOf(m)}`); }
+  const w = recs.find(r => r.kind === 'workouts' && r.date === today && !r.done); if (w) out.push(w.type === 'Rest' ? 'Rest day' : 'Workout: ' + (w.name || recs.find(x => x.id === (w.plan || w.video))?.name || w.type || 'planned'));
+  const chores = Object.entries(W.chores || {}).filter(([, d]) => d === today).map(([id]) => recs.find(r => r.id === id)?.name).filter(Boolean) as string[];
+  if ((W.laundry || []).includes(today)) chores.push('laundry');
+  if (chores.length) out.push('Home: ' + listOf(chores, 3));
+  const bins = (prefs?.wplan?.bins || []).filter((b: any) => b.wd && b.wd.toLowerCase().slice(0, 3) === wdOf(addDays(today, 1)) && (!b.from || Math.round((fromISO(addDays(today, 1)).getTime() - fromISO(b.from).getTime()) / 864e5 / 7) % (Number(b.every) || 1) === 0)).map((b: any) => b.name);
+  if (bins.length) out.push('Bin out tonight: ' + bins.join(', '));
+  const todo = Object.entries(W.todo || {}).filter(([, d]) => d === today).map(([id]) => recs.find(r => r.id === id)?.name).filter(Boolean) as string[];
+  if (todo.length) out.push('To do: ' + listOf(todo, 3));
+  return out.filter(Boolean);
+}
+function morning(recs: Rec[], today: string, outfit: string, prefs?: any) {
+  const lines: string[] = [...dayPlan(recs, today, prefs)];
   if (outfit) lines.push('Outfit: ' + outfit);
   const bf = recs.find(r => r.kind === 'meals' && r.date === today && r.slot === 'Breakfast' && !r.away);
   if (bf) { const rc = bf.recipe && recs.find(r => r.id === bf.recipe); lines.push('Breakfast: ' + (rc?.name || bf.what || 'planned')); }
@@ -332,7 +349,7 @@ async function runUser(uid: string, prefs: any, force = false) {
   const on = (k: string) => k === 'bedtime' ? cfg.bedtime?.on !== false : ({ ...DEF[k], ...(cfg[k] || {}) }).on && (!SUNDAY.includes(k) || now.wd === 'sun' || force);
   const inHour = (t: number) => force || (now.mins >= t && now.mins < t + 60);
   const dt = dayTimes(prefs, now.day), wkend = ['sat', 'sun'].includes(now.wd);
-  const msgOf = async (recs: Rec[], k: string) => k === 'morning' ? morning(recs, now.day, await outfitToday(uid, now.day)) : k === 'evening' ? evening(recs, now.wd)
+  const msgOf = async (recs: Rec[], k: string) => k === 'morning' ? morning(recs, now.day, await outfitToday(uid, now.day), prefs) : k === 'evening' ? evening(recs, now.wd)
     : k === 'bills' ? bills(recs, now.day) : k === 'payday' ? payday(recs, now.day) : k === 'weekahead' ? weekahead(recs, prefs, now.day)
     : k === 'reminders' ? reminders(recs, prefs, now.day) : k === 'content' ? content(recs, now.day) : k === 'socialweek' ? socialweek(recs, now.day) : k === 'skindiary' ? skindiary(recs, now.day) : k === 'freezer' ? freezer(recs, now.day)
     : k === 'shopday' ? shopday(recs, prefs, now.wd, now.day) : k === 'shopask' ? shopAsk(prefs, now.day) : k === 'eatbf' ? eatNudge(recs, now.day, 'Breakfast') : k === 'eatlunch' ? eatNudge(recs, now.day, 'Lunch') : k === 'eatsnack' ? eatNudge(recs, now.day, 'snack')
