@@ -4909,8 +4909,9 @@ function openEditor(kind, id, preset = {}) {
   });
 }
 function openRecord(id) {
-  const r = L.byId[id]; if (!r) return;
+  const r = L.byId[id]; if (!r) return false;
   if (r.kind === 'recipes') openRecipe(r); else openEditor(r.kind, id);
+  return true;
 }
 
 /* ---------- reports: a week and a month in numbers, saved so you can find them back ----------
@@ -7783,7 +7784,7 @@ return {
   icons: Object.fromEntries(Object.entries(P).filter(([k]) => !['plus', 'minus', 'left', 'right', 'x', 'check'].includes(k)).map(([k, v]) => [k, G(v)])),
   sections: SECTIONS.map(s => ({ key: s.key, label: s.label, icon: G(s.icon), groups: Object.fromEntries(Object.entries(s.groups || {}).map(([g, [l, ic]]) => [g, [l, G(ic)]])), subs: Object.fromEntries(Object.entries(s.subs || {}).map(([g, o]) => [g, Object.fromEntries(Object.entries(o).map(([k, [l, ic]]) => [k, [l, G(ic)]]))])), views: s.views.map(v => [vkey(s, v), v[1], G(v[2]), v[3] || '', v[4] || '']) })),
   has: view => !!PAGES[view],
-  lists: optionLists, fullList: fullOptions, renameIn: renameOption, knownChips,
+  lists: optionLists, fullList: fullOptions, renameIn: renameOption, knownChips, openRecord,
   search, openFound, settingsPanels, allShops,
   buyWish: (kind, id) => buyWish(kind, id), wishPanel, wishLine,
   canBuyWish: () => fAccs().length > 0,
