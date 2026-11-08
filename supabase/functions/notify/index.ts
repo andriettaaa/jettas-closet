@@ -17,6 +17,8 @@ const DEF: Record<string, { on: boolean; time?: string }> = {
   budget: { on: true }, applepay: { on: true }
 };
 type Rec = Record<string, any> & { id: string; kind: string };
+// a notification about exactly one thing opens that thing; about more, the page with all of them
+const openUrl = (page: string, ids: string[]) => { const u = [...new Set(ids.filter(Boolean))]; return u.length === 1 ? `./#${page}?open=${u[0]}` : `./#${page}`; };
 
 /* ---------- dates ---------- */
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -121,7 +123,7 @@ function bills(recs: Rec[], today: string) {
   const due = recs.filter(r => r.kind === 'fbills').filter(b => billDates(b, tom, tom).length && !paid.has(b.id + '@' + tom));
   if (!due.length) return null;
   const total = due.reduce((n, b) => n + (num(b.amount) || 0), 0);
-  return { title: `Tomorrow: ${eur(total)} goes out`, body: due.map(b => `${b.name} ${eur(num(b.amount) || 0)}`).join('\n'), url: './#money/repeats', tag: 'bills' };
+  return { title: `Tomorrow: ${eur(total)} goes out`, body: due.map(b => `${b.name} ${eur(num(b.amount) || 0)}`).join('\n'), url: openUrl('money/repeats', due.map(b => b.id)), tag: 'bills' };
 }
 function payday(recs: Rec[], today: string) {
   const set = recs.find(r => r.kind === 'fset'); if (!set?.payday) return null;
@@ -165,23 +167,24 @@ function weekahead(recs: Rec[], prefs: any, today: string) {
 }
 // every morning, only when there is one: a smoke-free milestone, a free trial about to end, a warranty running out
 function reminders(recs: Rec[], prefs: any, today: string) {
-  const lines: string[] = [], q = prefs?.quit;
+  const lines: string[] = [], ids: string[] = [], q = prefs?.quit;
+  let page = 'overview';
   if (q?.date) {
     const d = Math.round((fromISO(today).getTime() - fromISO(q.date).getTime()) / 864e5);
     const ms: Record<number, string> = { 1: '1 day', 3: '3 days', 7: '1 week', 14: '2 weeks', 30: '1 month', 60: '2 months', 90: '3 months', 182: '6 months', 365: '1 year' };
-    if (ms[d]) { const saved = d * (num(q.perDay) || 0) / (num(q.perPack) || 20) * (num(q.packPrice) || 0); lines.push(`${ms[d]} smoke-free!${saved ? ` You saved ${eur(saved)}.` : ''}`); }
+    if (ms[d]) { const saved = d * (num(q.perDay) || 0) / (num(q.perPack) || 20) * (num(q.packPrice) || 0); lines.push(`${ms[d]} smoke-free!${saved ? ` You saved ${eur(saved)}.` : ''}`); page = 'body/clean'; ids.push(''); }
   }
-  for (const b of recs.filter(r => r.kind === 'fbills' && r.trialEnds === addDays(today, 2))) lines.push(`Free trial of ${b.name} ends in 2 days`);
-  for (const i of recs.filter(r => r.kind === 'inventory' && r.warranty === addDays(today, 14))) lines.push(`Warranty of ${i.name} ends in 2 weeks`);
+  for (const b of recs.filter(r => r.kind === 'fbills' && r.trialEnds === addDays(today, 2))) { lines.push(`Free trial of ${b.name} ends in 2 days`); ids.push(b.id); page = 'money/repeats'; }
+  for (const i of recs.filter(r => r.kind === 'inventory' && r.warranty === addDays(today, 14))) { lines.push(`Warranty of ${i.name} ends in 2 weeks`); ids.push(i.id); page = 'home/inventory'; }
   for (const i of recs.filter(r => r.kind === 'item' && ['Kleermaker', 'Stomerij', 'Uitgeleend', 'In de was', 'In de koffer'].includes(r.where) && r.whereSince)) {
     const d = Math.round((fromISO(today).getTime() - fromISO(i.whereSince).getTime()) / 864e5);
-    if (d > 0 && d % 14 === 0) lines.push(i.where === 'Uitgeleend' ? `${i.name || 'A piece'} is lent out${i.loanTo ? ' to ' + i.loanTo : ''} for ${d / 7} weeks` : `${i.name || 'A piece'} has been "${i.where}" for ${d / 7} weeks`);
+    if (d > 0 && d % 14 === 0) { ids.push(i.id); page = 'closet'; } if (d > 0 && d % 14 === 0) lines.push(i.where === 'Uitgeleend' ? `${i.name || 'A piece'} is lent out${i.loanTo ? ' to ' + i.loanTo : ''} for ${d / 7} weeks` : `${i.name || 'A piece'} has been "${i.where}" for ${d / 7} weeks`);
   }
-  for (const o of recs.filter(r => r.kind === 'orders' && r.status === 'Delivered' && r.returnBy === addDays(today, 2))) lines.push(`Last 2 days to return ${o.name}${o.shop ? ' (' + o.shop + ')' : ''}`);
-  for (const o of recs.filter(r => r.kind === 'orders' && ['Ordered', 'Shipped'].includes(r.status || 'Ordered') && r.expected === today)) lines.push(`${o.name} should arrive today`);
-  for (const i of recs.filter(r => r.kind === 'insurance' && r.status !== 'Stopped' && r.renews === addDays(today, 30))) lines.push(`${i.name} renews in a month: check if you want to keep it`);
-  if (['11-15', '12-15'].includes(today.slice(5)) && recs.some(r => r.kind === 'insurance' && r.type === 'Zorgverzekering' && r.status !== 'Stopped')) lines.push('You can switch health insurance until 31 December: compare now');
-  return lines.length ? { title: lines.length === 1 ? 'Reminder' : `${lines.length} reminders`, body: lines.join('\n'), url: './#overview', tag: 'reminders' } : null;
+  for (const o of recs.filter(r => r.kind === 'orders' && r.status === 'Delivered' && r.returnBy === addDays(today, 2))) { lines.push(`Last 2 days to return ${o.name}${o.shop ? ' (' + o.shop + ')' : ''}`); ids.push(o.id); page = 'wish/orders'; }
+  for (const o of recs.filter(r => r.kind === 'orders' && ['Ordered', 'Shipped'].includes(r.status || 'Ordered') && r.expected === today)) { lines.push(`${o.name} should arrive today`); ids.push(o.id); page = 'wish/orders'; }
+  for (const i of recs.filter(r => r.kind === 'insurance' && r.status !== 'Stopped' && r.renews === addDays(today, 30))) { lines.push(`${i.name} renews in a month: check if you want to keep it`); ids.push(i.id); page = 'money/insurance'; }
+  if (['11-15', '12-15'].includes(today.slice(5)) && recs.some(r => r.kind === 'insurance' && r.type === 'Zorgverzekering' && r.status !== 'Stopped')) { lines.push('You can switch health insurance until 31 December: compare now'); ids.push(''); page = 'money/insurance'; }
+  return lines.length ? { title: lines.length === 1 ? 'Reminder' : `${lines.length} reminders`, body: lines.join('\n'), url: lines.length === 1 ? openUrl(page, ids) : './#overview', tag: 'reminders' } : null;
 }
 
 const DEAL_DATES: [string, string][] = [['draftBy', 'Draft for'], ['postBy', 'Post for'], ['due', 'Due:'], ['payBy', 'Payment from']];
@@ -189,28 +192,28 @@ const DEAL_DATES: [string, string][] = [['draftBy', 'Draft for'], ['postBy', 'Po
 const STAGES = ['Idea', 'Planned', 'Scripting', 'Filming', 'Editing', 'Scheduled', 'Posted'];
 const STEPS: [string, string, string][] = [['scriptOn', 'Write the script', 'Filming'], ['filmOn', 'Film', 'Editing'], ['editOn', 'Edit', 'Scheduled'], ['date', 'Post', 'Posted']];
 function content(recs: Rec[], today: string) {
-  const lines: string[] = [];
+  const lines: string[] = [], ids: string[] = [];
   for (const p of recs.filter(r => r.kind === 'posts' && r.stage !== 'Posted')) for (const [k, label, upto] of STEPS) {
     const d = p[k]; if (!d || d > today || STAGES.indexOf(p.stage) >= STAGES.indexOf(upto)) continue;
-    lines.push(`${label}: ${p.name || 'a post'}${d < today ? ' (was due ' + d.slice(8, 10) + '/' + d.slice(5, 7) + ')' : ''}`);
+    ids.push(p.id); lines.push(`${label}: ${p.name || 'a post'}${d < today ? ' (was due ' + d.slice(8, 10) + '/' + d.slice(5, 7) + ')' : ''}`);
   }
   // collab deadlines today and tomorrow
   const tom = addDays(today, 1);
   for (const c of recs.filter(r => r.kind === 'deals' && !['Paid', 'Declined'].includes(r.status))) for (const [k, label] of DEAL_DATES) {
     const d = c[k]; if (d !== today && d !== tom) continue;
     if (k !== 'payBy' && c.status === 'Delivered') continue;
-    lines.push(`${label} ${c.name || 'collab'} ${d === today ? 'today' : 'tomorrow'}`);
+    ids.push(c.id); lines.push(`${label} ${c.name || 'collab'} ${d === today ? 'today' : 'tomorrow'}`);
   }
   // good posts from exactly 3 months ago, ready to use again
-  for (const p of recs.filter(r => r.kind === 'posts' && r.stage === 'Posted' && (r.repurpose || r.top) && r.date === addDays(today, -90))) lines.push(`Use again: ${p.name || 'a post'} (posted 3 months ago)`);
-  return lines.length ? { title: lines.length === 1 ? 'Content today' : `Content today: ${lines.length} steps`, body: lines.slice(0, 6).join('\n') + (lines.length > 6 ? `\nand ${lines.length - 6} more` : ''), url: './#social/plan', tag: 'content' } : null;
+  for (const p of recs.filter(r => r.kind === 'posts' && r.stage === 'Posted' && (r.repurpose || r.top) && r.date === addDays(today, -90))) { ids.push(p.id); lines.push(`Use again: ${p.name || 'a post'} (posted 3 months ago)`); }
+  return lines.length ? { title: lines.length === 1 ? 'Content today' : `Content today: ${lines.length} steps`, body: lines.slice(0, 6).join('\n') + (lines.length > 6 ? `\nand ${lines.length - 6} more` : ''), url: openUrl('social/plan', ids), tag: 'content' } : null;
 }
 
 // Sundays: a nudge for the skin diary when the last entry is 6 days old or more
 function skindiary(recs: Rec[], today: string) {
   const last = recs.filter(r => r.kind === 'skinlog' && r.date).map(r => r.date).sort().pop();
   if (last && last > addDays(today, -6)) return null;
-  return { title: 'Skin diary', body: last ? 'A week has passed. Take three photos and note how your skin is.' : 'Start your skin diary: three photos and how your skin is today.', url: './#care/diary', tag: 'skindiary' };
+  return { title: 'Skin diary', body: last ? 'A week has passed. Take three photos and note how your skin is.' : 'Start your skin diary: three photos and how your skin is today.', url: './#care/diary?open=new-skinlog', tag: 'skindiary' };
 }
 // on your shopping day (Kitchen › Deals): the grocery list per shop, fruit and veg at the market on Wed and Sat
 function shopday(recs: Rec[], prefs: any, wd: string, today: string) {
@@ -270,7 +273,7 @@ function movelist(recs: Rec[], today: string, prefs: any) {
 function freezer(recs: Rec[], today: string) {
   const old = recs.filter(r => r.kind === 'ingredients' && r.location === 'Vriezer' && r.stock !== false && r.frozen && r.frozen <= addDays(today, -90)).sort((a, b) => String(a.frozen).localeCompare(String(b.frozen)));
   if (!old.length) return null;
-  return { title: old.length === 1 ? 'Use from the freezer' : `Use from the freezer: ${old.length} things`, body: 'In the freezer for 3 months or more: ' + old.slice(0, 6).map(r => r.name).join(', ') + (old.length > 6 ? ` and ${old.length - 6} more` : '') + '.', url: './#kitchen/pantry', tag: 'freezer' };
+  return { title: old.length === 1 ? 'Use from the freezer' : `Use from the freezer: ${old.length} things`, body: 'In the freezer for 3 months or more: ' + old.slice(0, 6).map(r => r.name).join(', ') + (old.length > 6 ? ` and ${old.length - 6} more` : '') + '.', url: openUrl('kitchen/pantry', old.map(r => r.id)), tag: 'freezer' };
 }
 // Sundays: your posts for the coming week, step by step, and collab deadlines
 function socialweek(recs: Rec[], today: string) {

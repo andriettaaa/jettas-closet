@@ -1106,7 +1106,7 @@ let PENDING_OPEN = '';
 function openPending() {
   const id = PENDING_OPEN; if (!id) return;
   try { history.replaceState(null, '', '#' + S.view); } catch {}
-  const tries = (n) => { if (PENDING_OPEN !== id) return; if (S.items.some(i => i.id === id)) { PENDING_OPEN = ''; return openItem(id); } if (window.LIFE?.openRecord?.(id)) { PENDING_OPEN = ''; return; } if (n > 0) setTimeout(() => tries(n - 1), 500); else PENDING_OPEN = ''; };
+  const tries = (n) => { if (PENDING_OPEN !== id) return; if (id.startsWith('new-')) { if (window.LIFE?.newForToday?.(id.slice(4))) { PENDING_OPEN = ''; return; } } if (S.items.some(i => i.id === id)) { PENDING_OPEN = ''; return openItem(id); } if (window.LIFE?.openRecord?.(id)) { PENDING_OPEN = ''; return; } if (n > 0) setTimeout(() => tries(n - 1), 500); else PENDING_OPEN = ''; };
   tries(40);
 }
 const MOVED = { 'inbox/review': 'wish/inbox', 'inbox/saved': 'care/saved', 'wish/saved': 'care/saved', 'care/today': 'body/today', 'fit/today': 'body/today', 'kitchen/quit': 'body/clean', 'care/settings': 'plan/settings', 'fit/settings': 'plan/settings', 'body/settings': 'plan/settings', 'wish/settings': 'plan/settings', 'care/todo': 'plan/todo', 'fit/todo': 'plan/todo', 'body/todo': 'plan/todo', 'wish/todo': 'plan/todo' };
@@ -3933,8 +3933,9 @@ async function start(session) {
     closetPatch: (id, patch) => DB.put('items', id, { ...noId(S.byId[id]), ...patch, updated: Date.now() }),
     // closet wishes that left the list: bought (in the closet now) or let go (wishlist archive)
     closetDone: () => S.items.filter(it => it.wishSince && !isWish(it) && !isInbox(it)).map(it => isPassed(it) ? { name: it.name, price: it.price, out: 'dropped', date: it.passedDate || '' } : { name: it.name, price: it.price, out: 'bought', date: it.bought || '' }), openItem: id => openItem(id) });
-  try { await loadAll(); await lifeLoad; purgePhotos(); } catch (e) { console.error(e); S.status = 'offline'; render(); }
+  // a notification link: keep trying in the background until its record has loaded
   openPending();
+  try { await loadAll(); await lifeLoad; purgePhotos(); } catch (e) { console.error(e); S.status = 'offline'; render(); }
   const qd = /^#do=(\w+)/.exec(location.hash || ''); if (qd) { try { history.replaceState(null, '', '#' + S.view); } catch {} quickAction(qd[1]); }
 }
 if (!window.supabase || !CFG.url || !CFG.key || /YOUR-/.test(CFG.url + CFG.key)) {

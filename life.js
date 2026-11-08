@@ -7785,6 +7785,8 @@ return {
   sections: SECTIONS.map(s => ({ key: s.key, label: s.label, icon: G(s.icon), groups: Object.fromEntries(Object.entries(s.groups || {}).map(([g, [l, ic]]) => [g, [l, G(ic)]])), subs: Object.fromEntries(Object.entries(s.subs || {}).map(([g, o]) => [g, Object.fromEntries(Object.entries(o).map(([k, [l, ic]]) => [k, [l, G(ic)]]))])), views: s.views.map(v => [vkey(s, v), v[1], G(v[2]), v[3] || '', v[4] || '']) })),
   has: view => !!PAGES[view],
   lists: optionLists, fullList: fullOptions, renameIn: renameOption, knownChips, openRecord,
+  // a notification can ask for a new entry, like a skin diary page for today
+  newForToday: kind => { if (!KINDS[kind] || !C || L.status !== 'ok') return false; openEditor(kind, null, KINDS[kind].fields.some(f => f.k === 'date') ? { date: today() } : {}); return true; },
   search, openFound, settingsPanels, allShops,
   buyWish: (kind, id) => buyWish(kind, id), wishPanel, wishLine,
   canBuyWish: () => fAccs().length > 0,
