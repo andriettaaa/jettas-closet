@@ -1100,6 +1100,15 @@ function renderTabs() {
   $('#addBtn').hidden = sec === 'overview' || sec === 'settings' || isSecSettings(S.view);
   $('#addBtn .addlabel').textContent = sec === 'closet' ? 'Add piece' : sec === 'overview' ? 'Add' : window.LIFE.addLabel(S.view);
 }
+// a link like #money/spending?open=<id> (from a notification) opens the page and then that one record
+const splitOpen = h => { const m = /^(.*?)\?open=([\w-]+)$/.exec(h || ''); return m ? [m[1], m[2]] : [h, '']; };
+let PENDING_OPEN = '';
+function openPending() {
+  const id = PENDING_OPEN; if (!id) return;
+  try { history.replaceState(null, '', '#' + S.view); } catch {}
+  const tries = (n) => { if (PENDING_OPEN !== id) return; if (id.startsWith('new-')) { if (window.LIFE?.newForToday?.(id.slice(4))) { PENDING_OPEN = ''; return; } } if (S.items.some(i => i.id === id)) { PENDING_OPEN = ''; return openItem(id); } if (window.LIFE?.openRecord?.(id)) { PENDING_OPEN = ''; return; } if (n > 0) setTimeout(() => tries(n - 1), 500); else PENDING_OPEN = ''; };
+  tries(40);
+}
 const MOVED = { 'inbox/review': 'wish/inbox', 'inbox/saved': 'care/saved', 'wish/saved': 'care/saved', 'care/today': 'body/today', 'fit/today': 'body/today', 'kitchen/quit': 'body/clean', 'care/settings': 'plan/settings', 'fit/settings': 'plan/settings', 'body/settings': 'plan/settings', 'wish/settings': 'plan/settings', 'care/todo': 'plan/todo', 'fit/todo': 'plan/todo', 'body/todo': 'plan/todo', 'wish/todo': 'plan/todo' };
 function go(v) {
   v = MOVED[v] || v; // pages that moved
@@ -1109,7 +1118,7 @@ function go(v) {
   $('#main').innerHTML = ''; render(); window.scrollTo(0, 0);
 }
 // a typed or pasted #page link opens that page without a reload
-window.addEventListener('hashchange', () => { const v = (location.hash || '').slice(1), q = /^do=(\w+)/.exec(v); if (q) { try { history.replaceState(null, '', '#' + S.view); } catch {} quickAction(q[1]); return; } if (v && v !== S.view && okView(v)) go(v); });
+window.addEventListener('hashchange', () => { const [v, oid] = splitOpen((location.hash || '').slice(1)), q = /^do=(\w+)/.exec(v); if (oid) { PENDING_OPEN = oid; if (okView(v) && v !== S.view) go(v); else try { history.replaceState(null, '', '#' + S.view); } catch {} openPending(); return; } if (q) { try { history.replaceState(null, '', '#' + S.view); } catch {} quickAction(q[1]); return; } if (v && v !== S.view && okView(v)) go(v); });
 // only the tab buttons: the view container carries data-view too
 document.addEventListener('click', e => { const b = e.target.closest('nav [data-view]'); if (b) go(b.dataset.view); });
 // the ☰ menu: what isn't in the bar you're looking at (hidden sections, or on a phone what's not in the bottom bar), then Settings
@@ -2121,7 +2130,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v149';
+const APP_VERSION = 'hangtag-v150';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -3875,7 +3884,7 @@ function openDay(date, opts = {}) {
 /* ---------- boot ---------- */
 $('#addBtn').addEventListener('click', () => isLife(S.view) ? window.LIFE.add(S.view) : S.view === 'trips' ? openTripEditor(null) : openEditor(null, S.view === 'wishlist' ? { wish: true } : {}));
 S.fv = { closet: newFilter(pref.get('sort:closet', pref.get('sort', 'new'))), wishlist: newFilter(pref.get('sort:wishlist', 'new')) };
-const h0 = (location.hash || '').slice(1), h = MOVED[h0] || h0;
+const [h00, oid0] = splitOpen((location.hash || '').slice(1)), h0 = h00, h = MOVED[h0] || h0; PENDING_OPEN = oid0;
 // the app opens on the overview; a link with #page still opens that page
 S.view = okView(h) ? h : 'overview';
 
@@ -3924,6 +3933,8 @@ async function start(session) {
     closetPatch: (id, patch) => DB.put('items', id, { ...noId(S.byId[id]), ...patch, updated: Date.now() }),
     // closet wishes that left the list: bought (in the closet now) or let go (wishlist archive)
     closetDone: () => S.items.filter(it => it.wishSince && !isWish(it) && !isInbox(it)).map(it => isPassed(it) ? { name: it.name, price: it.price, out: 'dropped', date: it.passedDate || '' } : { name: it.name, price: it.price, out: 'bought', date: it.bought || '' }), openItem: id => openItem(id) });
+  // a notification link: keep trying in the background until its record has loaded
+  openPending();
   try { await loadAll(); await lifeLoad; purgePhotos(); } catch (e) { console.error(e); S.status = 'offline'; render(); }
   const qd = /^#do=(\w+)/.exec(location.hash || ''); if (qd) { try { history.replaceState(null, '', '#' + S.view); } catch {} quickAction(qd[1]); }
 }

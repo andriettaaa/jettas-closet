@@ -569,15 +569,15 @@ Deno.serve(async req => {
       return json({ items: open.map((r: any) => clean({ id: r.id, name: r.data.name, room: r.data.room, budget: r.data.budget, options: data.filter((o: any) => o.kind === 'invopts' && o.data?.item === r.id && !o.data?.archived && o.data?.url).map((o: any) => clean({ id: o.id, name: o.data.name, shop: o.data.shop, price: o.data.price, url: o.data.url })) })) });
     }
     if (body.action === 'moveprices') {
-      const now = new Date().toISOString(), drops: string[] = [];
+      const now = new Date().toISOString(), drops: string[] = [], dropItems: string[] = [];
       for (const u of (Array.isArray(body.updates) ? body.updates : []).slice(0, 100)) {
         const { data: o } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'invopts').eq('id', str(u?.id, 60)).maybeSingle(); if (!o) continue;
         const price = num(u?.price); if (price == null) continue;
         const old = num(o.data?.price), note = old != null && price < old ? `Van ${old} naar ${price} (${new Date().toISOString().slice(0, 10)})` : '';
-        if (note) drops.push(`${o.data?.name || 'Optie'}: ${old} → ${price}`);
+        if (note) { drops.push(`${o.data?.name || 'Optie'}: ${old} → ${price}`); dropItems.push(o.data?.item || ''); }
         await sb.from('records').update({ data: { ...o.data, price, wasPrice: old ?? o.data?.wasPrice, priceNote: note || o.data?.priceNote, checked: now.slice(0, 10), ...(u?.inStock === false ? { soldOut: true } : {}) }, updated_at: now }).eq('user_id', uid).eq('id', o.id);
       }
-      if (drops.length) await send(uid, { title: 'Prijsdaling op je verhuislijst', body: drops.slice(0, 4).join('\n'), url: './#home/inventory', tag: 'moveprices' });
+      if (drops.length) { const one = [...new Set(dropItems.filter(Boolean))]; await send(uid, { title: 'Prijsdaling op je verhuislijst', body: drops.slice(0, 4).join('\n'), url: one.length === 1 ? `./#home/inventory?open=${one[0]}` : './#home/inventory', tag: 'moveprices' }); }
       return json({ ok: true, drops: drops.length });
     }
     // a product link pasted in the move list: name, price, shop and photo, read from the page
