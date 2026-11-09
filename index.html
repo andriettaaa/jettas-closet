@@ -530,6 +530,15 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 /* notifications and Apple Pay in Settings */
 .setbtns { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 6px; }
 .notirow { flex-wrap: wrap; }
+.notigroup { border-top: 1px solid var(--line); padding: 4px 0; }
+.notigroup > summary { display: flex; align-items: center; gap: 10px; padding: 10px 0; cursor: pointer; list-style: none; }
+.notigroup > summary::-webkit-details-marker { display: none; }
+.notigroup > summary::before { content: '›'; font-size: 18px; transition: transform .15s; color: var(--muted); }
+.notigroup[open] > summary::before { transform: rotate(90deg); }
+.notigroup > summary .muted { font-size: 13px; }
+.notiwhen { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.notisend { font-size: 12.5px; padding: 0 2px; }
+#set-noti .lookopts { display: flex; flex-wrap: wrap; gap: 8px; }
 .notirow .setsub { flex-basis: 100%; font-size: 12.5px; margin: -2px 0 0 26px; }
 .settime { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 4px 8px; font: inherit; color: inherit; }
 .setsteps { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: 14px; }
@@ -2152,7 +2161,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v161';
+const APP_VERSION = 'hangtag-v162';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2314,6 +2323,8 @@ function renderSettings(host) {
     if (t.closest('[data-cexport]')) return exportBackup();
     if (t.closest('[data-fullbackup]')) return fullBackup(t.closest('[data-fullbackup]'));
     if (t.closest('[data-cimport]')) return $('[data-cimportfile]', host)?.click();
+    const nmo = t.closest('[data-nmode]'); if (nmo) { const c = notiCfg(); return DB.savePrefs({ notify: { ...c, tz: TZ(), bundle: { ...(typeof c.bundle === 'object' ? c.bundle : {}), on: nmo.dataset.nmode === 'bundle' } } }).catch(err => saveErr(err, 'Could not save. Try again.')); }
+    const ng = t.closest('[data-ngroup]'); if (ng) { e.preventDefault(); const c = notiCfg(), keys = NOTI_GROUPS.find(g => g[0] === ng.dataset.ngroup)?.[2] || [], on = ng.dataset.v === 'on'; L_OPEN.add(ng.dataset.ngroup); return DB.savePrefs({ notify: { ...c, tz: TZ(), ...Object.fromEntries(keys.map(k => [k, { ...(c[k] || {}), on }])) } }).catch(err => saveErr(err, 'Could not save. Try again.')); }
     const pa = t.closest('[data-push]'); if (pa) return pushAction(pa.dataset.push, pa, host);
     const cp = t.closest('[data-copy]'); if (cp) { navigator.clipboard?.writeText(cp.dataset.copy).then(() => toast('Copied'), () => toast('Select it and copy it by hand')); return; }
   });
@@ -2380,6 +2391,21 @@ const NOTI = [
   ['applepay', 'After each Apple Pay payment', 'Saved, with what is left in that category', '']
 ];
 const notiCfg = () => S.prefs.notify || {};
+// the same split as the notify function: with bundling on, each one rides along in one of four messages a day
+const NOTI_BUNDLE = { morning: 'morning', content: 'morning', reminders: 'morning', shopday: 'morning', eatbf: 'morning', payday: 'morning', skindiary: 'morning', freezer: 'morning', progress: 'morning', period: 'morning',
+  eatlunch: 'midday', eatsnack: 'midday', bills: 'midday', shopask: 'evening', weekly: 'evening', weekahead: 'evening', socialweek: 'evening', foodweek: 'evening', movelist: 'evening', bedtime: 'bedtime', evening: 'bedtime' };
+const BUNDLE_LABEL = { morning: '🌅 Morning', midday: '☀️ Midday', evening: '🌆 Evening', bedtime: '🌙 Bedtime' };
+const NOTI_SUNDAY = new Set(['weekly', 'weekahead', 'socialweek', 'skindiary', 'freezer', 'foodweek', 'shopask']);
+const NOTI_GROUPS = [
+  ['day', '🌅 Your day', ['morning', 'evening', 'bedtime']],
+  ['food', '🍳 Food and groceries', ['eatbf', 'eatlunch', 'eatsnack', 'shopday', 'shopask', 'freezer', 'foodweek']],
+  ['money', '💶 Money', ['payday', 'bills', 'budget', 'applepay', 'weekly', 'movelist']],
+  ['care', '💆🏾‍♀️ Body and care', ['progress', 'period', 'skindiary']],
+  ['social', '📱 Content', ['content', 'socialweek']],
+  ['plan', '🗓 Planning and reminders', ['reminders', 'weekahead']]
+];
+const notiOn = (c, k) => (c[k] || {}).on !== false;
+const notiBundled = c => c.bundle?.on !== false && c.bundle !== false;
 const TZ = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Amsterdam'; } catch { return 'Europe/Amsterdam'; } };
 const FN = name => String(CFG.url || '').replace(/\/$/, '') + '/functions/v1/' + name;
 const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -2424,12 +2450,27 @@ async function pushAction(a, btn, host) {
   } finally { btn.disabled = false; if (host.isConnected) renderSettings(host); }
 }
 function notiPanel() {
-  const c = notiCfg();
+  const c = notiCfg(), bundled = notiBundled(c), byK = Object.fromEntries(NOTI.map(n => [n[0], n]));
+  const when = k => { const d = byK[k][3], ev = !d && k !== 'bedtime';
+    if (ev) return { sort: -1, html: '<span class="notiwhen">⚡ When it happens</span>' };
+    if (bundled) { const b = NOTI_BUNDLE[k] || 'morning'; return { sort: ['morning', 'midday', 'evening', 'bedtime'].indexOf(b) * 600, html: `<span class="notiwhen">${BUNDLE_LABEL[b]}${NOTI_SUNDAY.has(k) ? ' · Sundays' : ''}</span>` }; }
+    if (k === 'bedtime') return { sort: 1400, html: '<span class="notiwhen">🌙 30 min before bed</span>' };
+    const t = (c[k] || {}).time || d, [h, m] = t.split(':').map(Number);
+    return { sort: h * 60 + m, html: `${NOTI_SUNDAY.has(k) ? '<span class="notiwhen">Sundays</span>' : ''}<input type="time" class="settime" data-ntime="${k}" value="${esc(t)}" aria-label="${esc(byK[k][1])} time">` }; };
+  const row = k => { const [, l, h] = byK[k], w = when(k); return `<div class="setrow notirow"><label class="settog"><input type="checkbox" data-non="${k}" ${notiOn(c, k) ? 'checked' : ''}> <b>${esc(l)}</b></label><div class="spacer"></div>${w.html}<span class="muted setsub">${esc(h)} <button type="button" class="chip link notisend" data-push="only:${k}">Send now</button></span></div>`; };
+  const groups = NOTI_GROUPS.map(([g, title, keys]) => {
+    const ks = keys.filter(k => byK[k]).sort((a, b) => when(a).sort - when(b).sort), on = ks.filter(k => notiOn(c, k)).length;
+    return `<details class="notigroup" ${L_OPEN.has(g) ? 'open' : ''} data-ngroupbox="${g}"><summary><b>${title}</b><span class="muted">${on} of ${ks.length} on</span><span class="spacer"></span><button type="button" class="btn small" data-ngroup="${g}" data-v="${on ? 'off' : 'on'}">${on ? 'All off' : 'All on'}</button></summary>${ks.map(row).join('')}</details>`;
+  }).join('');
   return `<section class="panel setpanel" id="set-noti"><h3>Notifications</h3><p class="muted" id="pushState">Checking this device…</p>
     <div class="setbtns"><button class="btn small primary" data-push="on" data-pushneed="off" hidden>Turn on for this device</button><button class="btn small" data-push="off" data-pushneed="on" hidden>Turn off</button><button class="btn small" data-push="test" data-pushneed="on" hidden>Send a test</button><button class="btn small" data-push="preview" data-pushneed="on" hidden>Send today’s now</button></div>
-    ${NOTI.map(([k, l, h, d]) => { const v = c[k] || {}; return `<div class="setrow notirow"><label class="settog"><input type="checkbox" data-non="${k}" ${v.on === false ? '' : 'checked'}> <b>${esc(l)}</b></label><div class="spacer"></div>${d ? `<input type="time" class="settime" data-ntime="${k}" value="${esc(v.time || d)}" aria-label="${esc(l)} time">` : ''}<span class="muted setsub">${esc(h)}</span><button type="button" class="btn small" data-push="only:${k}">Send now</button></div>`; }).join('')}
+    <div class="setgroup"><p class="dsub">How they arrive</p><div class="lookopts" role="group" aria-label="How notifications arrive"><button data-nmode="bundle" aria-pressed="${bundled}">📦 4 bundles a day</button><button data-nmode="own" aria-pressed="${!bundled}">⏰ Each at its own time</button></div>
+    <p class="muted">${bundled ? 'Everything that is due rides along in one message: 🌅 after you wake, ☀️ around lunch, 🌆 at 19:00 and 🌙 before bed. You only choose what goes in.' : 'Each notification comes at the time you set below. Sunday ones only come on Sundays.'}</p></div>
+    ${groups}
     <p class="muted">Only sent when there is something to say. Times follow this device’s time zone (${esc(c.tz || TZ())}).</p></section>`;
 }
+const L_OPEN = new Set();
+document.addEventListener('toggle', e => { const d = e.target; if (d?.dataset?.ngroupbox) d.open ? L_OPEN.add(d.dataset.ngroupbox) : L_OPEN.delete(d.dataset.ngroupbox); }, true);
 function spendPanel() {
   const url = FN('spend');
   return `<section class="panel setpanel" id="set-spend"><h3>Apple Pay to Spending</h3><p class="muted">Every Apple Pay payment lands in Money › Spending by itself. The category follows what you chose for that shop last time, so fix it once and it learns.</p>
