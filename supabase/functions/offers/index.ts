@@ -593,17 +593,42 @@ Deno.serve(async req => {
       const photo = pk.photo ? await keepPhoto(uid, pk.photo) : '';
       return json(clean({ name: str(pr.name || pk.title, 160), price: cur === 'EUR' ? price : undefined, priceNote: cur !== 'EUR' && price != null ? `${price} ${cur}` : undefined, brand: str(brand, 80), shop: str(pk.site, 60), photo, color: str(pr.color, 60), material: str(pr.material, 60) }));
     }
+    // the biggest version of a shop photo: CDNs put the size in the link, so ask for a large one first
+    const bigger = (u: string): string[] => {
+      const out: string[] = [];
+      try {
+        const x = new URL(u), h = x.hostname;
+        if (/static\.zara\.net$/.test(h) && /\/w\/\d+\//.test(x.pathname)) { x.pathname = x.pathname.replace(/\/w\/\d+\//, '/w/1500/'); out.push(x.href); }
+        else if (/(^|\.)mango\.com$|mngbcdn\.com$/.test(h)) { x.searchParams.set('wid', '2048'); x.searchParams.delete('hei'); out.push(x.href); }
+        else if (/image\.hm\.com$|lp2\.hm\.com$/.test(h)) { x.searchParams.set('imwidth', '2160'); out.push(x.href); }
+        else if (/ztat\.net$/.test(h)) { x.searchParams.set('imwidth', '1800'); out.push(x.href); }
+        else if (/lystit\.com$/.test(h) && /^\/\d+\/\d+\/[a-z]+\/photos\//.test(x.pathname)) { x.pathname = x.pathname.replace(/^\/\d+\/\d+\/[a-z]+\//, '/'); out.push(x.href); }
+        else if (/cloudfront\.net$/.test(h) && /\/[sm]_[a-z0-9]+\.(jpe?g|webp)$/.test(x.pathname)) { x.pathname = x.pathname.replace(/\/[sm]_/, '/l_'); out.push(x.href); }
+        else if (/superbalistcdn\.co\.za$/.test(h)) { x.pathname = x.pathname.replace(/^\/\d+x\d+\//, '/1000x1500/'); out.push(x.href); }
+        else if (/images\.asos-media\.com$/.test(h)) { x.search = '?wid=1500&fit=constrain'; out.push(x.href); }
+        else if (/cdn\.shopify\.com$|\/cdn\/shop\//.test(h + x.pathname)) { x.pathname = x.pathname.replace(/_(\d+x\d*|\d*x\d+)(?=\.[a-z]+$)/, ''); x.searchParams.delete('width'); x.searchParams.delete('height'); out.push(x.href); }
+        else {
+          let changed = false;
+          for (const k of ['w', 'width', 'wid', 'imwidth', 'sw']) if (x.searchParams.has(k) && Number(x.searchParams.get(k)) < 1500) { x.searchParams.set(k, k === 'sw' ? '1500' : '1600'); changed = true; }
+          for (const k of ['h', 'height', 'hei', 'sh']) if (changed && x.searchParams.has(k)) x.searchParams.delete(k);
+          if (changed) out.push(x.href);
+        }
+      } catch { /* not a URL we can improve */ }
+      return [...out.filter(v => v !== u), u];
+    };
     if (body.action === 'photourl') {
       const ua = { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36', 'Accept': 'image/avif,image/webp,image/png,image/jpeg,text/html;q=0.8,*/*;q=0.5' };
       let url = str(body.url, 2000), page = '';
       if (!/^https?:\/\//.test(url)) return json({ error: 'Paste a link that starts with https://' }, 400);
       let r = await fetch(url, { headers: ua, redirect: 'follow' });
       if (r.ok && (r.headers.get('content-type') || '').includes('html')) { page = url; const seen = await peek(url); if (!seen.photo) return json({ error: 'That page has no photo. Copy the image address itself.' }, 400); url = seen.photo; r = await fetch(url, { headers: ua, redirect: 'follow' }); }
+      // try the large version of the same photo first, then the link as it was
+      for (const big of bigger(url).slice(0, -1)) { try { const rb = await fetch(big, { headers: ua, redirect: 'follow' }); if (rb.ok && (rb.headers.get('content-type') || '').startsWith('image/')) { r = rb; url = big; break; } } catch { /* keep the original */ } }
       const type = r.headers.get('content-type') || '';
       if (!r.ok || !type.startsWith('image/')) return json({ error: 'That link is not an image' }, 400);
       const buf = new Uint8Array(await r.arrayBuffer()); if (buf.length > 8e6) return json({ error: 'That photo is too big (over 8 MB)' }, 400);
       let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-      return json({ data: btoa(bin), type, page });
+      return json({ data: btoa(bin), type, page, url });
     }
 
     // shops in Kitchen › Shops (kind shops) and Beauty › Deals › Beauty shops (kind bshops): list them, or add new ones by name
