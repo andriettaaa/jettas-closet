@@ -328,6 +328,11 @@ nav.bottom { display: none; }
 .field input, .field select, .field textarea { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 9px 11px; width: 100%; min-width: 0; }
 .field textarea { min-height: 70px; resize: vertical; }
 .togglegroup { display: flex; flex-wrap: wrap; gap: 6px; }
+.pctrows { display: grid; gap: 6px; margin-top: 8px; }
+.field .pctrow { display: grid; grid-template-columns: minmax(0, 1fr) 84px 18px; gap: 8px; align-items: center; font-family: var(--body); font-size: 14px; text-transform: none; letter-spacing: normal; color: var(--ink); }
+.pctrow input { width: 100%; box-sizing: border-box; text-align: right; }
+.pcttotal { font-size: 13px; color: var(--muted); margin: 4px 0 0; }
+.pcttotal.off { color: var(--warn, #9a5b12); }
 
 .pe { display: grid; grid-template-columns: minmax(0, 1fr) 230px; gap: 14px; align-items: start; }
 @media (max-width: 640px) { .pe { grid-template-columns: 1fr; } }
@@ -1205,6 +1210,18 @@ const TYPES = {
 };
 const FITS = ['Slim', 'Regular', 'Relaxed', 'Oversized', 'Fitted', 'Cropped', 'Longline', 'High-waisted', 'Mid-rise', 'Low-rise', 'Wide-leg', 'Straight', 'Skinny', 'Flared', 'Bootcut', 'Barrel', 'Baggy'];
 const MATERIALS = ['Cotton', 'Linen', 'Wool', 'Merino', 'Cashmere', 'Alpaca', 'Mohair', 'Silk', 'Satin', 'Denim', 'Leather', 'Faux leather', 'Suede', 'Polyester', 'Viscose', 'Lyocell', 'Nylon', 'Acrylic', 'Elastane', 'Knit', 'Mesh', 'Velvet', 'Corduroy', 'Fleece', 'Down', 'Faux fur', 'Poplin'];
+// how much of each material (60% cotton, 40% polyester), kept in matPct next to the materials list
+const matPctOf = it => (it.materials || []).filter(m => Number(it.matPct?.[m]) > 0).map(m => [m, Number(it.matPct[m])]);
+const matPctText = it => matPctOf(it).sort((a, b) => b[1] - a[1]).map(([m, n]) => `${n}% ${m.toLowerCase()}`).join(', ');
+function matPctTotal(it) {
+  const l = matPctOf(it), t = l.reduce((a, [, n]) => a + n, 0);
+  if (!l.length) return 'Add the percentages from the label, or leave them empty.';
+  return t === 100 ? 'Total 100% ✓' : t < 100 ? `Total ${t}%: ${100 - t}% still to go` : `Total ${t}%: that is ${t - 100}% too much`;
+}
+function matPctHTML(it) {
+  const ms = it.materials || []; if (!ms.length) return '';
+  return `<span class="lbl">How much of each · %</span><div class="pctrows">${ms.map(m => `<label class="pctrow"><span>${esc(m)}</span><input type="number" inputmode="decimal" min="0" max="100" step="0.5" data-matpct="${esc(m)}" value="${it.matPct?.[m] ?? ''}" placeholder="${ms.length === 1 ? '100' : ''}" aria-label="Percentage ${esc(m)}"><span>%</span></label>`).join('')}</div><p class="pcttotal${matPctOf(it).length && matPctOf(it).reduce((a, [, n]) => a + n, 0) !== 100 ? ' off' : ''}" id="pcttotal">${esc(matPctTotal(it))}</p>`;
+}
 // how the fabric looks and feels, and its pattern: two lists of their own next to material
 const TEXTURES = ['Pleated', 'Ribbed', 'Crochet', 'Cable knit', 'Waffle', 'Quilted', 'Ruched', 'Smocked', 'Lace', 'Sheer', 'Embroidered', 'Distressed', 'Fuzzy'];
 const PRINTS = ['Plain', 'Striped', 'Pinstripe', 'Checked', 'Plaid', 'Floral', 'Polka dot', 'Leopard', 'Zebra', 'Cow print', 'Snake', 'Camo', 'Graphic', 'Logo', 'Abstract', 'Paisley', 'Printed'];
@@ -2135,7 +2152,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v158';
+const APP_VERSION = 'hangtag-v159';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -3186,7 +3203,7 @@ function openItem(id) {
           ${row(wish ? 'Where to buy' : 'Where bought', cur.purchasePlace ? fchip('purchasePlace', cur.purchasePlace) : '')}
           ${row('Occasion', list('occasions', cur.occasions))}
           ${row('Season', list('seasons', cur.seasons) || 'All year')}
-          ${row('Material', [list('materials', cur.materials), cur.material ? `<span class="muted">${esc(cur.material)}</span>` : ''].filter(Boolean).join(' '))}
+          ${row('Material', [list('materials', cur.materials), matPctText(cur) ? `<span class="muted">${esc(matPctText(cur))}</span>` : cur.material ? `<span class="muted">${esc(cur.material)}</span>` : ''].filter(Boolean).join(' '))}
           ${row('Texture', list('textures', cur.textures))}
           ${row('Print', list('prints', cur.prints))}
           ${wish ? row('On list since', cur.wishSince ? niceDate(cur.wishSince) : '') : row('Bought', niceDate(cur.bought))}
@@ -3254,6 +3271,7 @@ function openEditor(id, opts = {}) {
   const base = id ? S.byId[id] : null;
   const it = base ? JSON.parse(JSON.stringify(base)) : { cat: FV().cat !== 'All' ? FV().cat : cats()[0], status: opts.wish ? 'wishlist' : 'closet', wishSince: opts.wish ? today() : '' };
   for (const k of ['colors', 'seasons', 'tags', 'occasions', 'fits', 'materials', 'textures', 'prints']) it[k] = it[k] || [];
+  it.matPct = { ...(it.matPct || {}) };
   it.care = it.care || {};
   const review = it.status === 'inbox';
   const buying = !!opts.buy;
@@ -3288,6 +3306,7 @@ function openEditor(id, opts = {}) {
         <div class="field full"><span class="lbl">Colours · tap all that apply</span><div class="togglegroup" id="f-colors">${optList('colors', COLORS.map(c => c[0]), it.colors).map(n => `<button type="button" class="chip" data-color="${esc(n)}" aria-pressed="${it.colors.includes(n)}"><i class="dot" style="background:${swatchBg(n)}"></i>${esc(n)}</button>`).join('')}${ownBtn('colors', 'color')}</div><span class="muted" id="f-colornames" style="font-size:12.5px"></span></div>
         <div class="field full"><span class="lbl">Fit · tap all that apply</span><div class="togglegroup">${optList('fits', FITS, it.fits).map(s => `<button type="button" class="chip" data-multi="fits" data-v="${esc(s)}" aria-pressed="${it.fits.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('fits', 'multi:fits')}</div></div>
         <div class="field full"><span class="lbl">Material · tap all that apply</span><div class="togglegroup">${optList('materials', MATERIALS, it.materials).map(s => `<button type="button" class="chip" data-multi="materials" data-v="${esc(s)}" aria-pressed="${it.materials.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('materials', 'multi:materials')}</div></div>
+        <div class="field full" id="matpct">${matPctHTML(it)}</div>
         <div class="field full"><span class="lbl">Texture · tap all that apply</span><div class="togglegroup">${optList('textures', TEXTURES, it.textures).map(s => `<button type="button" class="chip" data-multi="textures" data-v="${esc(s)}" aria-pressed="${it.textures.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('textures', 'multi:textures')}</div></div>
         <div class="field full"><span class="lbl">Print · tap all that apply</span><div class="togglegroup">${optList('prints', PRINTS, it.prints).map(s => `<button type="button" class="chip" data-multi="prints" data-v="${esc(s)}" aria-pressed="${it.prints.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('prints', 'multi:prints')}</div></div>
         <div class="field"><span class="lbl">New or secondhand</span><div class="togglegroup">${optList('acquired', ACQUIRED, it.acquired).map(v => `<button type="button" class="chip" data-one="acquired" data-v="${esc(v)}" aria-pressed="${it.acquired === v}">${esc(v)}</button>`).join('')}${ownBtn('acquired', 'one:acquired')}</div></div>
@@ -3346,13 +3365,14 @@ function openEditor(id, opts = {}) {
   for (const key of Object.keys(known)) { drawSug(key); $(`#f-${key}`, sh).addEventListener('input', () => drawSug(key)); }
   $('#f-cat', sh).addEventListener('change', () => drawSug('sub'));
   $('#f-brand', sh).addEventListener('input', () => drawSug('model'));
+  sh.addEventListener('input', e => { const k = e.target.dataset?.matpct; if (k == null) return; const v = parseFloat(String(e.target.value).replace(',', '.')); if (v > 0) it.matPct[k] = Math.min(100, v); else delete it.matPct[k]; const t = $('#pcttotal', sh); if (t) { t.textContent = matPctTotal(it); const sum = matPctOf(it).reduce((a, [, n]) => a + n, 0); t.classList.toggle('off', !!matPctOf(it).length && sum !== 100); } });
   sh.addEventListener('click', async e => {
     const sg = e.target.closest('[data-sug]'); if (sg) { const inp = $(`#f-${sg.dataset.sug}`, sh); inp.value = norm(inp.value) === norm(sg.dataset.v) ? '' : sg.dataset.v; drawSug(sg.dataset.sug); if (sg.dataset.sug === 'brand') drawSug('model'); return; }
     const wh = e.target.closest('[data-where]'); if (wh) { $('#f-where', sh).value = wh.dataset.where; sh.querySelectorAll('[data-where]').forEach(b => b.setAttribute('aria-pressed', b === wh)); sh.querySelectorAll('[data-loan]').forEach(x => x.hidden = wh.dataset.where !== 'Uitgeleend'); return; }
     const c = e.target.closest('[data-color]'); if (c) { toggleIn(it.colors, c.dataset.color); c.setAttribute('aria-pressed', it.colors.includes(c.dataset.color)); colorNames(); }
     const o1 = e.target.closest('[data-one]'); if (o1) { const k = o1.dataset.one; it[k] = it[k] === o1.dataset.v ? '' : o1.dataset.v; $$(`[data-one="${k}"]`, sh).forEach(b => b.setAttribute('aria-pressed', it[k] === b.dataset.v)); }
     const cd = e.target.closest('[data-cond]'); if (cd) { it.condition = it.condition === cd.dataset.cond ? '' : cd.dataset.cond; $$('[data-cond]', sh).forEach(b => b.setAttribute('aria-pressed', it.condition === b.dataset.cond)); }
-    const m = e.target.closest('[data-multi]'); if (m) { const arr = it[m.dataset.multi]; toggleIn(arr, m.dataset.v); m.setAttribute('aria-pressed', arr.includes(m.dataset.v)); }
+    const m = e.target.closest('[data-multi]'); if (m) { const arr = it[m.dataset.multi]; toggleIn(arr, m.dataset.v); m.setAttribute('aria-pressed', arr.includes(m.dataset.v)); if (m.dataset.multi === 'materials') $('#matpct', sh).innerHTML = matPctHTML(it); }
     const cr = e.target.closest('[data-care]'); if (cr) { const k = cr.dataset.care; it.care[k] = it.care[k] === cr.dataset.v ? '' : cr.dataset.v; $$(`[data-care="${k}"]`, sh).forEach(b => b.setAttribute('aria-pressed', it.care[k] === b.dataset.v)); }
     if (e.target.closest('#discard')) $('#discardConfirm', sh).hidden = false;
     if (e.target.closest('#discardNo')) $('#discardConfirm', sh).hidden = true;
@@ -3421,7 +3441,7 @@ function openEditor(id, opts = {}) {
         size: $('#f-size', sh).value.trim(), articleNo: $('#f-art', sh).value.trim(), price: num('#f-price'), origPrice: num('#f-orig'),
         bought: $('#f-bought', sh)?.value ?? it.bought ?? '', pastWears: Math.max(0, parseInt($('#f-past', sh)?.value, 10) || 0),
         material: $('#f-material', sh).value.trim(), colors: it.colors, seasons: it.seasons, occasions: it.occasions,
-        fits: it.fits, materials: it.materials, textures: it.textures, prints: it.prints, condition: it.condition || '', acquired: it.acquired || '', purchasePlace: it.purchasePlace || '',
+        fits: it.fits, materials: it.materials, matPct: Object.fromEntries(matPctOf(it)), textures: it.textures, prints: it.prints, condition: it.condition || '', acquired: it.acquired || '', purchasePlace: it.purchasePlace || '',
         tags: it.tags,
         care: it.care, careNotes: $('#f-carenotes', sh).value.trim(),
         why: $('#f-why', sh)?.value.trim() ?? it.why ?? '', wishSince: $('#f-since', sh)?.value ?? it.wishSince ?? '',
