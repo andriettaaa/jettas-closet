@@ -1192,19 +1192,22 @@ const CARE = [
 const careTags = it => CARE.map(([k]) => it.care?.[k]).filter(Boolean);
 // Ready-made options per category, so a piece is a tap away from its exact type
 const TYPES = {
-  tops: ['T-shirt', 'Top', 'Tank top', 'Blouse', 'Shirt', 'Longsleeve', 'Bodysuit', 'Crop top', 'Polo', 'Corset top'],
-  bottoms: ['Jeans', 'Trousers', 'Wide-leg trousers', 'Skirt', 'Mini skirt', 'Midi skirt', 'Maxi skirt', 'Shorts', 'Jorts', 'Leggings', 'Sweatpants', 'Cargo pants'],
+  tops: ['T-shirt', 'Top', 'Tank top', 'Blouse', 'Shirt', 'Longsleeve', 'Bodysuit', 'Crop top', 'Polo', 'Corset top', 'Off-shoulder top'],
+  bottoms: ['Jeans', 'Trousers', 'Wide-leg trousers', 'Skirt', 'Mini skirt', 'Midi skirt', 'Maxi skirt', 'Shorts', 'Jorts', 'Skort', 'Leggings', 'Sweatpants', 'Cargo pants'],
   dresses: ['Mini dress', 'Midi dress', 'Maxi dress', 'Slip dress', 'Shirt dress', 'Knit dress', 'Jumpsuit', 'Playsuit'],
   knitwear: ['Jumper', 'Cardigan', 'Vest', 'Turtleneck', 'Hoodie', 'Sweatshirt', 'Poncho', 'Knitted top'],
   outerwear: ['Coat', 'Trench coat', 'Puffer', 'Jacket', 'Blazer', 'Leather jacket', 'Bomber', 'Denim jacket', 'Gilet', 'Raincoat'],
-  shoes: ['Sneakers', 'Boots', 'Ankle boots', 'Loafers', 'Ballet flats', 'Heels', 'Sandals', 'Mules', 'Slippers'],
+  shoes: ['Sneakers', 'Boots', 'Ankle boots', 'Chelsea boots', 'Loafers', 'Ballet flats', 'Heels', 'Sandals', 'Mules', 'Slippers'],
   bags: ['Handbag', 'Shoulder bag', 'Crossbody', 'Tote', 'Clutch', 'Backpack', 'Wallet'],
   accessories: ['Belt', 'Scarf', 'Hat', 'Cap', 'Sunglasses', 'Necklace', 'Earrings', 'Bracelet', 'Ring', 'Watch', 'Hair accessory', 'Socks', 'Tights'],
   activewear: ['Sports bra', 'Leggings', 'Sports top', 'Running shorts', 'Track jacket', 'Sweatpants'],
   swim: ['Bikini', 'Swimsuit', 'Pyjamas', 'Robe', 'Loungewear set', 'Nightdress']
 };
-const FITS = ['Slim', 'Regular', 'Relaxed', 'Oversized', 'Fitted', 'Cropped', 'Longline', 'High-waisted', 'Mid-rise', 'Low-rise', 'Wide-leg', 'Straight', 'Skinny', 'Flared', 'Bootcut'];
-const MATERIALS = ['Cotton', 'Linen', 'Wool', 'Merino', 'Cashmere', 'Alpaca', 'Mohair', 'Silk', 'Satin', 'Denim', 'Leather', 'Faux leather', 'Suede', 'Polyester', 'Viscose', 'Lyocell', 'Nylon', 'Acrylic', 'Elastane', 'Knit', 'Mesh', 'Velvet', 'Corduroy', 'Fleece', 'Down'];
+const FITS = ['Slim', 'Regular', 'Relaxed', 'Oversized', 'Fitted', 'Cropped', 'Longline', 'High-waisted', 'Mid-rise', 'Low-rise', 'Wide-leg', 'Straight', 'Skinny', 'Flared', 'Bootcut', 'Barrel', 'Baggy'];
+const MATERIALS = ['Cotton', 'Linen', 'Wool', 'Merino', 'Cashmere', 'Alpaca', 'Mohair', 'Silk', 'Satin', 'Denim', 'Leather', 'Faux leather', 'Suede', 'Polyester', 'Viscose', 'Lyocell', 'Nylon', 'Acrylic', 'Elastane', 'Knit', 'Mesh', 'Velvet', 'Corduroy', 'Fleece', 'Down', 'Faux fur', 'Poplin'];
+// how the fabric looks and feels, and its pattern: two lists of their own next to material
+const TEXTURES = ['Pleated', 'Ribbed', 'Crochet', 'Cable knit', 'Waffle', 'Quilted', 'Ruched', 'Smocked', 'Lace', 'Sheer', 'Embroidered', 'Distressed', 'Fuzzy'];
+const PRINTS = ['Plain', 'Striped', 'Pinstripe', 'Checked', 'Plaid', 'Floral', 'Polka dot', 'Leopard', 'Zebra', 'Cow print', 'Snake', 'Camo', 'Graphic', 'Logo', 'Abstract', 'Paisley', 'Printed'];
 const ACQUIRED = ['New', 'Secondhand'];
 const PLACES = ['Online', 'In store'];
 const CONDITIONS = ['New with tags', 'New without tags', 'Like new', 'Very good', 'Good', 'Fair', 'Needs repair'];
@@ -1259,6 +1262,8 @@ const FACETS = [
   { k: 'size', label: 'Size', get: it => one(it.size) },
   { k: 'sub', label: 'Type', get: it => one(it.sub) },
   { k: 'fits', label: 'Fit', get: it => it.fits || [], az: true },
+  { k: 'textures', label: 'Texture', get: it => it.textures || [], az: true },
+  { k: 'prints', label: 'Print', get: it => it.prints || [], az: true },
   { k: 'occasions', label: 'Occasion', get: it => it.occasions || [], az: true },
   { k: 'seasons', label: 'Season', get: it => it.seasons || [], order: SEASONS },
   { k: 'care', label: 'Care', get: careTags, order: CARE.flatMap(c => c[2]) },
@@ -1307,7 +1312,7 @@ function matches(it, f, skipFacet) {
     if (!have.some(v => want.includes(v))) return false;
   }
   const q = norm(f.q);
-  return !q || [it.name, it.brand, it.sub, it.cat, it.material, it.shop, it.size, it.articleNo, it.why, it.notes, it.condition, it.acquired, it.purchasePlace, ...(it.tags || []), ...(it.colors || []), ...(it.occasions || []), ...(it.fits || []), ...(it.materials || [])].join(' ').toLowerCase().includes(q);
+  return !q || [it.name, it.brand, it.sub, it.cat, it.material, it.shop, it.size, it.articleNo, it.why, it.notes, it.condition, it.acquired, it.purchasePlace, ...(it.tags || []), ...(it.colors || []), ...(it.occasions || []), ...(it.fits || []), ...(it.materials || []), ...(it.textures || []), ...(it.prints || [])].join(' ').toLowerCase().includes(q);
 }
 // tapping any property in a piece's details opens the closet or wishlist filtered on it
 function goFilter(view, k, value) {
@@ -2104,7 +2109,7 @@ function arrangeDash() {
   });
 }
 /* ---------- settings: menu, tabs and choice lists ---------- */
-const CLOSET_LISTS = [['occasions', 'Occasion', OCCASIONS], ['fits', 'Fit', FITS], ['materials', 'Material', MATERIALS], ['condition', 'Condition', CONDITIONS],
+const CLOSET_LISTS = [['occasions', 'Occasion', OCCASIONS], ['fits', 'Fit', FITS], ['materials', 'Material', MATERIALS], ['textures', 'Texture', TEXTURES], ['prints', 'Print', PRINTS], ['condition', 'Condition', CONDITIONS],
   ['acquired', 'New or secondhand', ACQUIRED], ['purchasePlace', 'Where bought', PLACES], ['seasons', 'Season', SEASONS], ['tags', 'Tags', []], ['tripTypes', 'Trip type', TRIP_TYPES, true], ['slotLabels', 'Packing slots', SLOT_LABELS, true]];
 const SET = { tabs: 'closet', list: 'closet:occasions' };
 function listCatalog() {
@@ -2130,7 +2135,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v157';
+const APP_VERSION = 'hangtag-v158';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2842,7 +2847,8 @@ async function updateFromFile(items, progress) {
   let done = 0, skipped = 0;
   for (const raw of items) {
     const cur = S.items.find(i => i.id === raw.id); if (!cur) { skipped++; continue; }
-    const { id, photoData, catKey, cutout, ...rest } = raw;
+    if (raw.remove === true) { progress(`Removing ${cur.name || 'piece'}…`); await DB.del('items', cur.id); done++; continue; } // a piece that was in your closet twice
+    const { id, photoData, catKey, cutout, remove, ...rest } = raw;
     progress(`Updating ${done + 1} of ${items.length}: ${rest.name || cur.name || 'piece'}…`);
     const doc = { ...noId(cur), ...rest, updated: Date.now() };
     if (photoData) { const blob = await (await fetch(photoData)).blob(); doc.photo = await uploadPhoto(blob); if (cur.photo && !cur.prevPhoto) doc.prevPhoto = cur.photo; }
@@ -3181,6 +3187,8 @@ function openItem(id) {
           ${row('Occasion', list('occasions', cur.occasions))}
           ${row('Season', list('seasons', cur.seasons) || 'All year')}
           ${row('Material', [list('materials', cur.materials), cur.material ? `<span class="muted">${esc(cur.material)}</span>` : ''].filter(Boolean).join(' '))}
+          ${row('Texture', list('textures', cur.textures))}
+          ${row('Print', list('prints', cur.prints))}
           ${wish ? row('On list since', cur.wishSince ? niceDate(cur.wishSince) : '') : row('Bought', niceDate(cur.bought))}
           ${isPassed(cur) ? row('Archived on', cur.passedDate ? niceDate(cur.passedDate) : 'yes') : ''}
           ${!wish && !inCloset(cur) ? row(cur.status === 'sold' ? 'Sold on' : 'Donated on', niceDate(cur.goneDate) + (cur.status === 'sold' && cur.soldPrice > 0 ? ` · for <b>${eur(cur.soldPrice)}</b>` : '')) : ''}
@@ -3245,7 +3253,7 @@ const PE = { canvas: null, ctx: null, w: 0, h: 0, orig: null, cur: null, hist: [
 function openEditor(id, opts = {}) {
   const base = id ? S.byId[id] : null;
   const it = base ? JSON.parse(JSON.stringify(base)) : { cat: FV().cat !== 'All' ? FV().cat : cats()[0], status: opts.wish ? 'wishlist' : 'closet', wishSince: opts.wish ? today() : '' };
-  for (const k of ['colors', 'seasons', 'tags', 'occasions', 'fits', 'materials']) it[k] = it[k] || [];
+  for (const k of ['colors', 'seasons', 'tags', 'occasions', 'fits', 'materials', 'textures', 'prints']) it[k] = it[k] || [];
   it.care = it.care || {};
   const review = it.status === 'inbox';
   const buying = !!opts.buy;
@@ -3280,6 +3288,8 @@ function openEditor(id, opts = {}) {
         <div class="field full"><span class="lbl">Colours · tap all that apply</span><div class="togglegroup" id="f-colors">${optList('colors', COLORS.map(c => c[0]), it.colors).map(n => `<button type="button" class="chip" data-color="${esc(n)}" aria-pressed="${it.colors.includes(n)}"><i class="dot" style="background:${swatchBg(n)}"></i>${esc(n)}</button>`).join('')}${ownBtn('colors', 'color')}</div><span class="muted" id="f-colornames" style="font-size:12.5px"></span></div>
         <div class="field full"><span class="lbl">Fit · tap all that apply</span><div class="togglegroup">${optList('fits', FITS, it.fits).map(s => `<button type="button" class="chip" data-multi="fits" data-v="${esc(s)}" aria-pressed="${it.fits.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('fits', 'multi:fits')}</div></div>
         <div class="field full"><span class="lbl">Material · tap all that apply</span><div class="togglegroup">${optList('materials', MATERIALS, it.materials).map(s => `<button type="button" class="chip" data-multi="materials" data-v="${esc(s)}" aria-pressed="${it.materials.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('materials', 'multi:materials')}</div></div>
+        <div class="field full"><span class="lbl">Texture · tap all that apply</span><div class="togglegroup">${optList('textures', TEXTURES, it.textures).map(s => `<button type="button" class="chip" data-multi="textures" data-v="${esc(s)}" aria-pressed="${it.textures.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('textures', 'multi:textures')}</div></div>
+        <div class="field full"><span class="lbl">Print · tap all that apply</span><div class="togglegroup">${optList('prints', PRINTS, it.prints).map(s => `<button type="button" class="chip" data-multi="prints" data-v="${esc(s)}" aria-pressed="${it.prints.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('prints', 'multi:prints')}</div></div>
         <div class="field"><span class="lbl">New or secondhand</span><div class="togglegroup">${optList('acquired', ACQUIRED, it.acquired).map(v => `<button type="button" class="chip" data-one="acquired" data-v="${esc(v)}" aria-pressed="${it.acquired === v}">${esc(v)}</button>`).join('')}${ownBtn('acquired', 'one:acquired')}</div></div>
         <div class="field"><span class="lbl">${wishMode ? 'Where to buy' : 'Where bought'}</span><div class="togglegroup">${optList('purchasePlace', PLACES, it.purchasePlace).map(v => `<button type="button" class="chip" data-one="purchasePlace" data-v="${esc(v)}" aria-pressed="${it.purchasePlace === v}">${esc(v)}</button>`).join('')}${ownBtn('purchasePlace', 'one:purchasePlace')}</div></div>
         <div class="field full"><label for="f-shop">Shop or store name</label><input id="f-shop" value="${esc(it.shop)}" placeholder="e.g. Zara, Vinted, a vintage store" autocomplete="off">${sugRow('shop', [])}</div>
@@ -3411,7 +3421,7 @@ function openEditor(id, opts = {}) {
         size: $('#f-size', sh).value.trim(), articleNo: $('#f-art', sh).value.trim(), price: num('#f-price'), origPrice: num('#f-orig'),
         bought: $('#f-bought', sh)?.value ?? it.bought ?? '', pastWears: Math.max(0, parseInt($('#f-past', sh)?.value, 10) || 0),
         material: $('#f-material', sh).value.trim(), colors: it.colors, seasons: it.seasons, occasions: it.occasions,
-        fits: it.fits, materials: it.materials, condition: it.condition || '', acquired: it.acquired || '', purchasePlace: it.purchasePlace || '',
+        fits: it.fits, materials: it.materials, textures: it.textures, prints: it.prints, condition: it.condition || '', acquired: it.acquired || '', purchasePlace: it.purchasePlace || '',
         tags: it.tags,
         care: it.care, careNotes: $('#f-carenotes', sh).value.trim(),
         why: $('#f-why', sh)?.value.trim() ?? it.why ?? '', wishSince: $('#f-since', sh)?.value ?? it.wishSince ?? '',
