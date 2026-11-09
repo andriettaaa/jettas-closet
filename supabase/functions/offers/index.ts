@@ -635,6 +635,32 @@ Deno.serve(async req => {
       if (error) throw error;
       return json({ items: (data || []).map((r: any) => ({ id: r.id, kind: r.kind, data: r.data })) });
     }
+    // the fill-in page: every record of the kinds asked for, and saving what the user typed there
+    //   { "token": "...", "action": "scanlist", "kinds": ["beauty", "recipes", ...] } → {items: [{id, kind, data}]}
+    //   { "token": "...", "action": "usersave", "items": [{ "id": "...", "fields": { ... } }] } → sets these fields (the user's own answers)
+    if (body.action === 'scanlist') {
+      const kinds = (Array.isArray(body.kinds) ? body.kinds : []).map((k: unknown) => str(k, 30)).filter(Boolean).slice(0, 40);
+      if (!kinds.length) return json({ error: 'Send the kinds to list' }, 400);
+      const out: any[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', kinds).range(from, from + 999);
+        if (error) throw error; out.push(...(data || [])); if (!data || data.length < 1000) break;
+      }
+      return json({ items: out.map((r: any) => ({ id: r.id, kind: r.kind, data: r.data })) });
+    }
+    if (body.action === 'usersave') {
+      const items = (Array.isArray(body.items) ? body.items : []).slice(0, 200); let saved = 0;
+      for (const it of items) {
+        const id = str(it?.id, 60); if (!id || !it.fields || typeof it.fields !== 'object') continue;
+        const { data: row, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).eq('id', id).maybeSingle();
+        if (error) throw error; if (!row) continue;
+        const d = { ...row.data };
+        for (const [k, v] of Object.entries(it.fields)) { if (['id', 'kind'].includes(k)) continue; if (v === null) delete d[k]; else d[k] = k === 'photo' && typeof v === 'string' && /^https?:/.test(v) ? await keepPhoto(uid, v) : v; }
+        const { error: e2 } = await sb.from('records').upsert({ user_id: uid, id, kind: row.kind, data: d, updated_at: new Date().toISOString() });
+        if (e2) throw e2; saved++;
+      }
+      return json({ ok: true, saved });
+    }
     if (body.action === 'fillsave') {
       const KEEP = new Set(['id', 'kind', 'created', 'updated', 'needsFill', 'bought', 'rating', 'fav', 'left', 'opened', 'qty', 'finished', 'low', 'wish', 'status', 'archived', 'notes', 'own', 'given']);
       const PAID = new Set(['price', 'shop', 'store']), WANT = new Set(['wishes', 'fwait', 'gifts', 'offers', 'bdeals', 'deals', 'invopts', 'stays', 'fragsugs']);
