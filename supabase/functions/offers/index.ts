@@ -518,7 +518,7 @@ Deno.serve(async req => {
     const uid = Deno.env.get('SPEND_USER_ID')!;
     // the app itself may ask for an Instagram sync, signed in as you
     let viaApp = false;
-    if ((!token || token !== Deno.env.get('OFFERS_TOKEN')) && ['igsync', 'ttstart', 'ttconnect', 'ttsync', 'igpost', 'ttpost', 'photourl', 'pnstart', 'pnconnect', 'pnsync', 'pnpost'].includes(body.action)) {
+    if ((!token || token !== Deno.env.get('OFFERS_TOKEN')) && ['igsync', 'ttstart', 'ttconnect', 'ttsync', 'igpost', 'ttpost', 'photourl', 'linkinfo', 'pnstart', 'pnconnect', 'pnsync', 'pnpost'].includes(body.action)) {
       const jwt = req.headers.get('authorization')?.replace(/^Bearer /, '') || '';
       const { data: u } = await sb.auth.getUser(jwt); viaApp = !!u?.user && u.user.id === uid;
     }
@@ -591,7 +591,18 @@ Deno.serve(async req => {
       const price = num(off.price ?? off.lowPrice ?? (pr.offers as any)?.lowPrice), cur = String(off.priceCurrency || 'EUR');
       const brand = typeof pr.brand === 'string' ? pr.brand : pr.brand?.name;
       const photo = pk.photo ? await keepPhoto(uid, pk.photo) : '';
-      return json(clean({ name: str(pr.name || pk.title, 160), price: cur === 'EUR' ? price : undefined, priceNote: cur !== 'EUR' && price != null ? `${price} ${cur}` : undefined, brand: str(brand, 80), shop: str(pk.site, 60), photo, color: str(pr.color, 60), material: str(pr.material, 60) }));
+      // the list price next to the sale price, when the page gives one
+      const specs = [].concat(off.priceSpecification || []) as any[], list = specs.find(x => /list|strikethrough|msrp|regular/i.test(String(x?.priceType || x?.name || '')));
+      const origPrice = num(list?.price), size = typeof pr.size === 'string' ? pr.size : pr.size?.name;
+      // a recipe: name, times, servings, ingredient lines and steps
+      let recipe: any;
+      if (pk.recipe) {
+        const r = pk.recipe, lines = [].concat(r.recipeIngredient || r.ingredients || []).map((x: any) => String(x).trim()).filter(Boolean).slice(0, 80);
+        const steps = textOf(r.recipeInstructions).split('\n').map((x: string) => x.trim()).filter(Boolean).slice(0, 60);
+        recipe = clean({ servings: Number(String([].concat(r.recipeYield || [])[0] || '').match(/\d+/)?.[0]) || undefined, prep: isoMin(r.prepTime), cook: isoMin(r.cookTime), total: isoMin(r.totalTime), lines, steps, cuisine: str([].concat(r.recipeCuisine || [])[0], 40), category: str([].concat(r.recipeCategory || [])[0], 40) });
+      }
+      return json(clean({ name: str((pk.recipe?.name) || pr.name || pk.title, 160), price: cur === 'EUR' ? price : undefined, origPrice: cur === 'EUR' && origPrice && price && origPrice > price ? origPrice : undefined, priceNote: cur !== 'EUR' && price != null ? `${price} ${cur}` : undefined, brand: str(brand, 80), shop: str(pk.site, 60), photo, color: str(pr.color, 60), material: str(pr.material, 60),
+        about: str(pr.description || pk.recipe?.description || pk.desc, 700), size: str(size, 40), gtin: str(pr.gtin13 || pr.gtin || pr.gtin8 || pr.sku, 40), recipe }));
     }
     // the biggest version of a shop photo: CDNs put the size in the link, so ask for a large one first
     const bigger = (u: string): string[] => {
@@ -616,6 +627,34 @@ Deno.serve(async req => {
       } catch { /* not a URL we can improve */ }
       return [...out.filter(v => v !== u), u];
     };
+    // links you pasted in the app: the nightly Claude task fills in the rest of each record
+    //   { "token": "...", "action": "filllist" } → records marked needsFill (any kind), newest first
+    //   { "token": "...", "action": "fillsave", "items": [{ "id": "...", "fields": { ... }, "done": true }] } → only empty fields are filled
+    if (body.action === 'filllist') {
+      const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).eq('data->>needsFill', 'true').limit(200);
+      if (error) throw error;
+      return json({ items: (data || []).map((r: any) => ({ id: r.id, kind: r.kind, data: r.data })) });
+    }
+    if (body.action === 'fillsave') {
+      const KEEP = new Set(['id', 'kind', 'created', 'updated', 'needsFill', 'bought', 'rating', 'fav', 'left', 'opened', 'qty', 'finished', 'low', 'wish', 'status', 'archived', 'notes', 'own', 'given']);
+      const PAID = new Set(['price', 'shop', 'store']), WANT = new Set(['wishes', 'fwait', 'gifts', 'offers', 'bdeals', 'deals', 'invopts', 'stays', 'fragsugs']);
+      const items = (Array.isArray(body.items) ? body.items : []).slice(0, 100); let saved = 0;
+      for (const it of items) {
+        const id = str(it?.id, 60); if (!id) continue;
+        const { data: row, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).eq('id', id).maybeSingle();
+        if (error) throw error; if (!row) continue;
+        const d = { ...row.data }, f = it.fields && typeof it.fields === 'object' ? it.fields : {};
+        const empty = (v: any) => v == null || v === '' || (Array.isArray(v) && !v.length);
+        for (const [k, v] of Object.entries(f)) {
+          if (KEEP.has(k) || (PAID.has(k) && !WANT.has(row.kind)) || !empty(d[k]) || empty(v)) continue;
+          d[k] = k === 'photo' && typeof v === 'string' && /^https?:/.test(v) ? await keepPhoto(uid, v) : v;
+        }
+        if (it.done !== false) { delete d.needsFill; d.filledAt = new Date().toISOString().slice(0, 10); }
+        const { error: e2 } = await sb.from('records').upsert({ user_id: uid, id, kind: row.kind, data: d, updated_at: new Date().toISOString() });
+        if (e2) throw e2; saved++;
+      }
+      return json({ ok: true, saved });
+    }
     if (body.action === 'photourl') {
       const ua = { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36', 'Accept': 'image/avif,image/webp,image/png,image/jpeg,text/html;q=0.8,*/*;q=0.5' };
       let url = str(body.url, 2000), page = '';

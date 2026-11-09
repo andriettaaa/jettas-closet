@@ -30,6 +30,8 @@ const eyeBtn = () => `<button class="iconbtn moneyeye" data-moneyeye aria-presse
 document.addEventListener('click', e => { if (!e.target.closest?.('[data-moneyeye]') || !C) return; try { localStorage.setItem(hideMoneyKey, moneyHidden() ? '0' : '1'); } catch {} C.render(); });
 const eur = n => (n == null || n === '' || isNaN(n)) ? '' : money.format(n);
 const num = v => (v === '' || v == null || isNaN(Number(v))) ? null : Number(v);
+// what you type: "12,95", "1.234,50", "€ 7" or "12.95" all become a number
+const numIn = v => { let t = String(v ?? '').replace(/[\s€]/g, ''); if (!t) return null; if (t.includes(',')) t = t.replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'); return num(t); };
 const norm = s => String(s || '').trim().toLowerCase();
 const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
 const relDay = s => { const d = diffDays(today(), s); return d === 0 ? 'today' : d === 1 ? 'tomorrow' : d === -1 ? 'yesterday' : d > 1 ? `in ${d} days` : `${-d} days ago`; };
@@ -970,11 +972,13 @@ const KINDS = {
     fields: [F('name', 'Name'), F('amount', 'Amount', 'money', { half: 1 }), F('type', 'Type', 'select', { options: ['Bill', 'Subscription', 'Insurance', 'Debt'], half: 1 }),
       F('cadence', 'How often', 'select', { options: ['Monthly', 'Every N months', 'Yearly', 'Weekly'], half: 1 }), F('every', 'Every how many', 'num', { half: 1 }),
       F('anchor', 'First due', 'date', { half: 1 }), F('ends', 'Ends', 'date', { half: 1 }),
+      F('auto', 'Paid automatically (direct debit)', 'check'),
       F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 }), F('category', 'Category', 'rel', { to: 'fcats', half: 1 }),
-      F('debt', 'Pays off debt', 'rel', { to: 'fdebts', half: 1 }), F('pot', 'Saved up in pot', 'rel', { to: 'faccounts', half: 1 }), F('trialEnds', 'Free trial ends', 'date', { half: 1 }), F('active', 'Active', 'check', { half: 1 }), F('url', 'Link', 'url'), F('notes', 'Notes', 'long')],
+      F('debt', 'Pays off debt', 'rel', { to: 'fdebts', half: 1 }), F('pot', 'Comes out of pot', 'rel', { to: 'faccounts', half: 1 }), F('trialEnds', 'Free trial ends', 'date', { half: 1 }), F('active', 'Active', 'check', { half: 1 }), F('url', 'Link', 'url'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['-amount', 'Biggest']], hide: r => r.active === false, hideLabel: 'Show stopped',
-    sub: r => { const n = fNext(r); return [r.type, fCadence(r), n ? 'next ' + niceDate(n) : 'no next date'].filter(Boolean).join(' · '); },
+    sub: r => { const n = fNext(r); return [r.type, fCadence(r), r.auto ? 'automatic' : '', n ? 'next ' + niceDate(n) : 'no next date'].filter(Boolean).join(' · '); },
     side: r => eur(num(r.amount)),
+    quick: r => { const o = fOpenOcc(r); return o ? { on: false, label: 'Mark as paid', act: () => fPayOcc(o) } : null; },
     // what the repeats you see cost together; stopped ones don't count
     total: (l, u) => { const a = l.filter(b => b.active !== false), m = a.reduce((n, b) => n + fPerMonth(b), 0); return insMoveNote() + `<div class="tiles lt3 ltotal">${fTile(esc({ Bill: 'Bills', Subscription: 'Subscriptions', Insurance: 'Insurances', Debt: 'Debts' }[u.facet] || 'Repeats'), String(a.length), 'active')}${fTile('Per month', eur(m), 'all together')}${fTile('Per year', eur(12 * m), 'all together')}</div>`; }
   },
@@ -1359,6 +1363,39 @@ const KINDS = {
   }
 };
 for (const [k, K] of Object.entries(KINDS)) K.kind = k;
+// paid and original price on everything you buy; the difference is what you saved (on the piece, in reports and in Finance)
+const PRICED = { gear: ['price', 'bought'], beauty: ['price', 'bought'], supplements: ['price', 'bought'], appts: ['price', 'date'], inventory: ['price', 'bought'], movecosts: ['price', 'date'],
+  fwait: ['price', 'added'], fitgear: ['price', 'bought'], wishes: ['price', 'planBuy'], gifts: ['price', 'given'], stays: ['price', 'from'], orders: ['price', 'ordered'], repairs: ['cost', 'date'] };
+const PRICED_LABEL = { gear: 'Kitchen', beauty: 'Beauty', supplements: 'Supplements', appts: 'Appointments', inventory: 'Home', movecosts: 'Moving', fwait: 'Wait list', fitgear: 'Fitness', wishes: 'Wishlist', gifts: 'Gifts', stays: 'Trips', orders: 'Orders', repairs: 'Repairs' };
+for (const [k, [paid]] of Object.entries(PRICED)) {
+  const fs = KINDS[k]?.fields; if (!fs) continue;
+  const i = fs.findIndex(f => f.k === paid);
+  if (i >= 0 && !fs.some(f => f.k === 'origPrice')) fs.splice(i + 1, 0, F('origPrice', k === 'stays' ? 'Original price per night' : 'Original price', 'money', { half: 1 }));
+  if (['gear', 'beauty', 'supplements', 'fitgear'].includes(k) && !fs.some(f => ['shop', 'store'].includes(f.k))) fs.splice(fs.findIndex(f => f.k === 'origPrice') + 1, 0, F('shop', 'Bought at', 'text', { half: 1 }));
+}
+// paste a link and the record fills itself: what the page says right away, the rest by the nightly Claude task (needsFill)
+const LINKFILL = { recipes: 'link', ingredients: 'url', gear: 'url', supplements: 'url', beauty: 'url', inventory: 'url', invopts: 'url', fwait: 'url', fitgear: 'url', wishes: 'url', gifts: 'url', orders: 'url', books: 'url', stays: 'url', fragsugs: 'url', courses: 'url' };
+function linkFields(kind, info) {
+  const has = k => KINDS[kind].fields.some(f => f.k === k), out = {};
+  const put = (k, v) => { if (v != null && v !== '' && !(Array.isArray(v) && !v.length) && has(k)) out[k] = v; };
+  put('name', info.name); put('brand', info.brand); put('photo', info.photo); put('size', info.size); put('color', info.color); put('material', info.material);
+  put(kind === 'recipes' ? 'summary' : has('about') ? 'about' : 'summary', info.about);
+  if (['wishes', 'fwait', 'gifts', 'invopts', 'stays', 'fragsugs'].includes(kind)) { put('price', info.price); put('shop', info.shop); put('store', info.shop); }
+  put('origPrice', info.origPrice ?? (['wishes', 'fwait', 'gifts', 'invopts'].includes(kind) ? undefined : info.price));
+  const r = info.recipe;
+  if (kind === 'recipes' && r) {
+    put('servings', r.servings); put('prep', r.prep ?? (r.total && !r.cook ? r.total : undefined)); put('cook', r.cook);
+    if (r.lines?.length) out.ilines = r.lines.map(ilineParse); if (r.steps?.length) out.steps = r.steps;
+    const c = String(r.category || '').toLowerCase(), cat = /ontbijt|breakfast/.test(c) ? 'Breakfast' : /lunch/.test(c) ? 'Lunch' : /soep|soup/.test(c) ? 'Soup' : /dessert|nagerecht/.test(c) ? 'Dessert' : /bak|baking|cake|taart/.test(c) ? 'Baking' : /snack/.test(c) ? 'Snack' : /drink|drank/.test(c) ? 'Drink' : /diner|dinner|hoofd|main/.test(c) ? 'Dinner' : '';
+    put('category', cat);
+  }
+  return out;
+}
+const savedOf = r => { const c = PRICED[r.kind]; if (!c) return 0; const p = num(r[c[0]]), o = num(r.origPrice); return p != null && o > p ? o - p : 0; };
+const savedText = r => { const v = savedOf(r); return v ? `saved ${eur(v)} (${Math.round(v / num(r.origPrice) * 100)}%)` : ''; };
+const savedDate = r => { const c = PRICED[r.kind]; return c ? r[c[1]] || r.bought || r.date || (r.created ? iso(new Date(r.created)) : '') : ''; };
+// a wish only counts once you bought it
+const savedList = (from, to) => Object.keys(PRICED).flatMap(k => recs(k)).filter(r => savedOf(r) && (r.kind !== 'wishes' || r.status === 'Bought') && (!from || inR(savedDate(r), from, to)));
 const titleOf = r => { const K = KINDS[r.kind]; return (K?.title ? K.title(r) : r.name) || 'Untitled'; };
 
 /* ---------- overview tiles ----------
@@ -1637,6 +1674,7 @@ async function load() {
   L.missing = false; L.status = 'ok'; L.fresh = true;
   L.all = rows.map(r => ({ ...r.data, id: r.id, kind: r.kind })); index(); cacheSave(); C.render();
   movePostIdeas();
+  fAutoPay().catch(console.error);
   setTimeout(() => calFeedSync(), 3000);
 }
 function apply(id, kind, data) {
@@ -1650,6 +1688,7 @@ const ruleFor = name => { const n = norm(name); return n ? recs('frules').find(r
 // running low puts it on the grocery list; back in stock clears running low
 const useSoon = r => !!r.stock && !!r.expires && r.expires <= addDays(today(), 3);
 function applyRule(kind, id, data) {
+  if (kind === 'fbills') { const was = L.byId[id] || {}; if (data.auto && !was.auto) data = { ...data, autoSince: data.autoSince || today() }; }
   if (kind === 'stays' && data.to && data.to < today() && (!data.status || ['Saved', 'Shortlist', 'Booked'].includes(data.status))) data = { ...data, status: 'Stayed' };
   if (kind === 'ingredients') { const was = L.byId[id] || {}; if (data.low && !was.low) data = { ...data, list: true }; if (data.stock && !was.stock && was.low) data = { ...data, low: false }; return data; }
   if (kind !== 'ftx' || L.byId[id] || data.category) return data;
@@ -1780,7 +1819,7 @@ async function countStep(id, dir) {
 function row(r) {
   const K = KINDS[r.kind], q = K.quick?.(r), side = K.side?.(r);
   const ph = photoOf(r);
-  return `<div class="lrow ${K.hide?.(r) ? 'gone' : ''}">${ph ? `<button class="lthumb" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : ''}<button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b>${(() => { const t = [K.sub?.(r), WISHY[r.kind] ? wishLine(r.kind, r.id) : ''].filter(Boolean).join(' · '); return t ? `<span>${esc(t)}</span>` : ''; })()}</button>${side ? `<span class="lside ${/overdue|expired|today/.test(side) ? 'hot' : ''}">${esc(side)}</span>` : ''}${LEFT_KINDS.has(r.kind) ? leftChip(r) : ''}${COUNTED.has(r.kind) ? stepper(r) : q ? tick(q.label, q.on, `data-act="quick" data-id="${r.id}"`) : ''}</div>`;
+  return `<div class="lrow ${K.hide?.(r) ? 'gone' : ''}">${ph ? `<button class="lthumb" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : ''}<button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b>${(() => { const t = [K.sub?.(r), WISHY[r.kind] ? wishLine(r.kind, r.id) : '', savedText(r)].filter(Boolean).join(' · '); return t ? `<span>${esc(t)}</span>` : ''; })()}</button>${side ? `<span class="lside ${/overdue|expired|today/.test(side) ? 'hot' : ''}">${esc(side)}</span>` : ''}${LEFT_KINDS.has(r.kind) ? leftChip(r) : ''}${COUNTED.has(r.kind) ? stepper(r) : q ? tick(q.label, q.on, `data-act="quick" data-id="${r.id}"`) : ''}</div>`;
 }
 function leftChip(r) {
   const p = leftOf(r);
@@ -3062,11 +3101,36 @@ function fState() {
   const checks = recs('fchecks'), lastCheck = checks.reduce((m, c) => (c.at || '') > m ? c.at : m, '');
   return { t, pay, start, buf, accs, bal, safeIds, inAcc, due, overdue, billsBefore, until, days, perDay: until / days, counts, lastCheck };
 }
-function fPayOcc(o) {
-  const b = o.bill;
-  create('ftx', { name: b.name, amount: o.amount, date: today(), category: b.category || '', account: b.account || '', bill: o.key, debt: b.debt || '' })
-    .then(tx => create('fpaid', { occ: o.key, bill: b.id, date: o.date, paid: true, paidOn: today(), tx }))
-    .then(() => C.toast(`${b.name} marked paid`)).catch(() => C.toast('Could not save. Try again.'));
+async function fPayOcc(o, auto = false) {
+  const b = o.bill, on = auto ? o.date : today();
+  try {
+    const pot = b.pot && b.pot !== b.account && L.byId[b.pot]?.kind === 'faccounts' ? b.pot : '';
+    if (pot) {
+      await create('ftx', { name: `${b.name}: out of ${L.byId[pot].name || 'pot'}`, amount: o.amount, date: on, account: pot, transfer: true, potFor: o.key });
+      if (b.account) await create('fincome', { name: `${b.name}: from ${L.byId[pot].name || 'pot'}`, amount: o.amount, date: on, account: b.account, type: 'Other', transfer: true, confirmed: true, potFor: o.key });
+    }
+    const tx = await create('ftx', { name: b.name, amount: o.amount, date: on, category: b.category || '', account: b.account || '', bill: o.key, debt: b.debt || '', ...(auto ? { auto: true } : {}) });
+    await create('fpaid', { occ: o.key, bill: b.id, date: o.date, paid: true, paidOn: on, tx, ...(auto ? { auto: true } : {}) });
+    if (!auto) C.toast(`${b.name} marked paid`);
+  } catch { C.toast('Could not save. Try again.'); }
+}
+// the term of a repeat that is still open: the oldest unpaid one up to today, else the next one
+function fOpenOcc(b) {
+  if (b.active === false) return null;
+  const t = today(), l = fOccs(addDays(t, -62), addDays(t, 45)).filter(o => o.bill.id === b.id && !o.paid && !o.skipped);
+  return l.find(o => o.date <= t) || l[0] || null;
+}
+// direct debits: on the day itself (or the first time you open the app after it) they are marked paid
+let autoPayDay = '';
+async function fAutoPay() {
+  const t = today(); if (autoPayDay === t || L.status !== 'ok') return; autoPayDay = t;
+  const due = fOccs(addDays(t, -62), t).filter(o => o.bill.auto && o.bill.active !== false && !o.paid && !o.skipped && o.date >= (o.bill.autoSince || t));
+  for (const o of due) { if (recs('fpaid').some(p => p.occ === o.key)) continue; await fPayOcc(o, true); }
+  if (due.length) C.toast(due.length === 1 ? `${due[0].bill.name} was paid automatically` : `${due.length} direct debits marked paid`);
+}
+function billPayPanel(b) {
+  const o = fOpenOcc(b), last = recs('fpaid').filter(p => p.bill === b.id && p.paid).sort((x, y) => String(y.date).localeCompare(String(x.date)))[0];
+  return `<div class="lpostpub">${o ? `<button type="button" class="btn small primary" data-act="billpay" data-id="${b.id}">Mark as paid</button><span class="lnone">${esc(niceDate(o.date))} · ${esc(eur(o.amount))}${b.pot && L.byId[b.pot] ? ` · out of ${esc(L.byId[b.pot].name || 'pot')}` : ''}</span>` : '<span class="lnone">Nothing open right now.</span>'}${last ? `<span class="lnone">Last paid ${esc(niceDate(last.paidOn || last.date))}${last.auto ? ' (automatically)' : ''}</span>` : ''}</div>`;
 }
 function fQuick(src) {
   create('ftx', { name: src.name, amount: num(src.amount) || 0, date: today(), category: src.category || '', account: src.account || fAccs().find(a => a.safe && a.type === 'Spending')?.id || '' })
@@ -3107,6 +3171,18 @@ function moneyTile() {
 }
 
 const MP = (t, body, more, id = '') => `<section class="panel lpanel mpanel" ${id ? `id="m-${id}"` : ''}><div class="lph3"><h3 class="mh">${esc(t)}</h3>${more || ''}</div>${body}</section>`;
+function savedPanel() {
+  const all = savedList(); if (!all.length) return '';
+  const t = today(), months = [5, 4, 3, 2, 1, 0].map(k => { const d = new Date(t.slice(0, 7) + '-01T12:00:00'); d.setMonth(d.getMonth() - k); return iso(d).slice(0, 7); });
+  const per = months.map(m => [m, sumOf(all.filter(r => String(savedDate(r)).startsWith(m)).map(savedOf))]), max = Math.max(1, ...per.map(x => x[1]));
+  const byArea = new Map(); for (const r of all) byArea.set(PRICED_LABEL[r.kind] || r.kind, (byArea.get(PRICED_LABEL[r.kind] || r.kind) || 0) + savedOf(r));
+  const top = [...all].sort((a, b) => savedOf(b) - savedOf(a)).slice(0, 5);
+  const bar = (l, v) => `<div class="savem"><span>${esc(l)}</span><i class="leftbar savebar" style="--p:${Math.round(100 * v / max)}%"></i><b>${esc(eur(v))}</b></div>`;
+  return MP('🏷️ Saved on sales', `<p class="lnone">The difference between the original price and what you paid. ${esc(eur(sumOf(all.map(savedOf))))} in total.</p>
+    <p class="dsub">Per month</p><div class="savems">${per.map(([m, v]) => bar(new Date(m + '-01T12:00:00').toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), v)).join('')}</div>
+    <p class="dsub">Per part of your life</p><div class="lrows">${[...byArea.entries()].sort((a, b) => b[1] - a[1]).map(([l, v]) => `<div class="lrow"><span class="lmain"><b>${esc(l)}</b></span><span class="lside">${esc(eur(v))}</span></div>`).join('')}</div>
+    <p class="dsub">Biggest savings</p><div class="lrows">${top.map(r => `<div class="lrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(savedText(r))}</span></button></div>`).join('')}</div>`, '', 'saved');
+}
 const mLink = (label, v) => `<button class="chip link" data-act="go" data-v="${v}">${esc(label)}</button>`;
 const TYPE_COL = { Bill: 'var(--c8)', Subscription: 'var(--c6)', Debt: 'var(--c7)', Pay: 'var(--c5)', Wish: 'var(--c3)' };
 function fChart(pts, buf, pay) {
@@ -3496,6 +3572,7 @@ function moneyToday(host) {
   ${tiles}
   ${MP('Spending per category', bars + chipRow, mLink('Open spending', 'money/spending'), 'cats')}
   ${MP('Month by month', monthly, `<span class="lnone">money in and out, own transfers left out</span>`, 'months')}
+  ${savedPanel()}
   ${potsPanel()}
   ${subsPanel()}
   ${wishMoneyPanel()}
@@ -4800,7 +4877,7 @@ function fieldInner(kind, f, D) {
     case 'ilines': return span + ilinesEditor(D);
     case 'buys': return span + buysEditor(D);
     case 'steplist': return span + stepsEditor(D);
-    case 'num': case 'money': return lab + `<input id="${id}" type="number" inputmode="decimal" step="any" data-k="${f.k}" data-num value="${v ?? ''}">`;
+    case 'num': case 'money': return lab + `<input id="${id}" type="text" inputmode="decimal" autocomplete="off" data-k="${f.k}" data-num value="${v == null || v === '' ? '' : f.type === 'money' ? String(v).replace('.', ',') : v}">`;
     case 'date': return lab + `<input id="${id}" type="date" data-k="${f.k}" value="${esc(v || '')}">`;
     case 'time': return lab + `<input id="${id}" type="time" data-k="${f.k}" value="${esc(v || '')}">`;
     case 'url': return lab + `<div class="lurl"><input id="${id}" type="url" inputmode="url" data-k="${f.k}" value="${esc(v || '')}" placeholder="https://">${v ? `<a class="iconbtn" href="${esc(v)}" target="_blank" rel="noopener" aria-label="Open link">${svg(P.link)}</a>` : ''}</div>`;
@@ -4880,7 +4957,7 @@ function openEditor(kind, id, preset = {}) {
   if (!r) for (const f of K.fields) if (f.type === 'date' && D[f.k] === undefined && ['date', 'start'].includes(f.k)) D[f.k] = today();
   const sh = C.sheet({
     title: r ? titleOf(r) : 'New ' + K.one,
-    body: `${r && WISHY[kind] && kind !== 'inventory' ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${r && kind === 'beauty' ? beautyReviews(r) : ''}${r && kind === 'inventory' ? invOptionsPanel(r) : ''}${r && kind === 'recipes' ? cookedPanel(r) : ''}${kind === 'stips' ? '<div data-tipsteps></div>' : ''}${kind === 'posts' ? '<div data-postkit></div><div data-posttips></div>' : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}" ${f.when && !f.when(D) ? 'hidden' : ''}>${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
+    body: `${r && WISHY[kind] && kind !== 'inventory' ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${r && kind === 'beauty' ? beautyReviews(r) : ''}${r && kind === 'inventory' ? invOptionsPanel(r) : ''}${r && kind === 'fbills' ? billPayPanel(r) : ''}${r && savedOf(r) ? `<p class="lsaved">🏷️ You ${esc(savedText(r))} on this</p>` : ''}${r && kind === 'recipes' ? cookedPanel(r) : ''}${kind === 'stips' ? '<div data-tipsteps></div>' : ''}${kind === 'posts' ? '<div data-postkit></div><div data-posttips></div>' : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}" ${f.when && !f.when(D) ? 'hidden' : ''}>${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
     foot: `${r ? '<button class="btn danger" data-del>Delete</button>' : ''}<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save</button>`,
     onClose: () => { Object.values(D._previews).forEach(u => URL.revokeObjectURL(u)); }
   });
@@ -4910,7 +4987,7 @@ function openEditor(kind, id, preset = {}) {
   const pickRel = (k, rid) => { const f = fdef(k); D[k] = f.multi ? [...new Set([...[].concat(D[k] || []), rid])] : rid; redraw(k); };
   sh.addEventListener('input', e => {
     const t = e.target;
-    if (t.dataset.k) { D[t.dataset.k] = t.dataset.num !== undefined ? num(t.value) : t.value; if (t.dataset.photourl !== undefined) { delete D._blobs[t.dataset.k]; photoPreview(t); } }
+    if (t.dataset.k) { D[t.dataset.k] = t.dataset.num !== undefined ? numIn(t.value) : t.value; if (t.dataset.photourl !== undefined) { delete D._blobs[t.dataset.k]; photoPreview(t); } }
     if (t.dataset.relq) relOpts(t.dataset.relq, t.value);
     if (t.dataset.buyq !== undefined) { D._buyq = t.value; const box = sh.querySelector('[data-buyres]'); if (box) box.innerHTML = buysResults(D); }
     if (t.dataset.buyp !== undefined) { const e2 = D.items?.[+t.dataset.buyp]; if (e2) { const n = num(String(t.value).replace(/\s|€/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.')); n == null ? delete e2.p : (e2.p = n); } }
@@ -4930,8 +5007,21 @@ function openEditor(kind, id, preset = {}) {
     } else if (t.dataset.relq) { e.preventDefault(); sh.querySelector(`[data-relopts="${t.dataset.relq}"] button`)?.click(); }
   });
   sh.addEventListener('focusout', e => { const t = e.target; if (t.dataset?.addopt && t.value.trim()) { const k = t.dataset.addopt, f = fdef(k), v = t.value.trim(); D[k] = f.type === 'multi' ? [...new Set([...[].concat(D[k] || []), v])] : v; setTimeout(() => redraw(k), 0); } });
+  let linkDone = String(D[LINKFILL[kind]] || '');
+  const linkFill = async t => {
+    const url = t.value.trim(); if (!/^https?:\/\/\S+$/.test(url) || url === linkDone) return; linkDone = url;
+    const note = t.closest('.field')?.querySelector('.llinkfill') || t.closest('.field')?.appendChild(Object.assign(document.createElement('p'), { className: 'lnone llinkfill' }));
+    if (note) note.textContent = 'Reading the page…';
+    let info = {}; try { info = await C.callFn('offers', { action: 'linkinfo', url, kind }); } catch { info = {}; }
+    const f = linkFields(kind, info), done = [];
+    for (const [k, v] of Object.entries(f)) { const cur = D[k]; if (cur == null || cur === '' || (Array.isArray(cur) && !cur.filter(x => x && (x.n || x.h || typeof x === 'string')).length)) { D[k] = v; done.push(k); redraw(k); } }
+    D.needsFill = true;
+    if (note) note.textContent = done.length ? `Filled in ${done.length} field${done.length > 1 ? 's' : ''} from the page. Claude adds the rest tonight.` : 'The page gave nothing to fill in. Claude looks it up tonight and fills it in.';
+  };
+  sh.addEventListener('paste', e => { const t = e.target; if (t.dataset?.k && t.dataset.k === LINKFILL[kind]) setTimeout(() => linkFill(t), 30); });
   sh.addEventListener('change', e => {
     const t = e.target;
+    if (t.dataset.k && t.dataset.k === LINKFILL[kind]) linkFill(t);
     if (t.dataset.relsel && t.value) pickRel(t.dataset.relsel, t.value);
     if (t.dataset.optsel !== undefined) { const k = t.dataset.optsel, f = fdef(k); if (f.type === 'multi') { if (t.value) D[k] = [...new Set([...[].concat(D[k] || []), t.value])]; } else D[k] = t.value; redraw(k); }
   });
@@ -5019,6 +5109,7 @@ function openEditor(kind, id, preset = {}) {
       try { await create('invopts', data); C.toast(info.name ? 'Optie toegevoegd' : 'Optie toegevoegd. Vul naam en prijs zelf aan als ze ontbreken.'); C.closeSheet(); openEditor('inventory', d.id); } catch { C.toast('Opslaan lukte niet. Probeer het opnieuw.'); b.disabled = false; b.textContent = 'Toevoegen'; }
       return;
     }
+    if (d.act === 'billpay') { const b0 = L.byId[d.id], o = b0 && fOpenOcc(b0); if (!o) return; b.disabled = true; await fPayOcc(o); C.closeSheet(); return; }
     if (d.act === 'optadd') { C.closeSheet(); return openEditor('invopts', null, { item: d.id }); }
     if (d.act === 'optopen') { C.closeSheet(); return openEditor('invopts', d.id); }
     if (d.act === 'optbuy') { C.closeSheet(); return invBuy(d.id, d.v || null); }
@@ -5100,10 +5191,11 @@ function repSections(from, to) {
   const hair = recs('hairlog').filter(inP), nails = recs('naillog').filter(inP), cyl = recs('cyclelog').filter(inP), ci = recs('checkin').filter(inP), med = recs('meditation').filter(inP);
   const imp = recs('impulse').filter(inP), hl = recs('houselog').filter(inP), ideasN = recs('cideas').filter(x => inR(x.created ? iso(new Date(x.created)) : '', from, to));
   const noSpendN = days.filter(d => d <= today() && !spentOn(d)).length;
+  const savedL = savedList(from, to), savedN = sumOf(savedL.map(savedOf)) + (cl?.saved || 0);
   return [
     { k: 'money', t: '💶 Money', stats: [s('Spent', sumOf(tx.map(t => t.amount)), { fmt: 'eur', good: 'down' }), s('Groceries', sumOf(tx.filter(t => env && t.category === env.id).map(t => t.amount)), { fmt: 'eur', good: 'down' }),
       s('Money in', sumOf(recs('fincome').filter(x => inR(x.date, from, to)).map(x => x.amount)), { fmt: 'eur' }), s('Purchases', tx.length), s('Bills paid', recs('fpaid').filter(p => inR(p.paidOn || p.date, from, to)).length),
-      s('🚫💸 No-spend days', noSpendN, { good: 'up' }), s('💪 Not spent on impulses', sumOf(imp.filter(r => r.bought !== 'Bought').map(r => r.price)), { fmt: 'eur', good: 'up' }), s('🛍 Impulses bought', imp.filter(r => r.bought === 'Bought').length, { good: 'down' }),
+      s('🏷️ Saved on sales', savedN, { fmt: 'eur', good: 'up' }), s('🚫💸 No-spend days', noSpendN, { good: 'up' }), s('💪 Not spent on impulses', sumOf(imp.filter(r => r.bought !== 'Bought').map(r => r.price)), { fmt: 'eur', good: 'up' }), s('🛍 Impulses bought', imp.filter(r => r.bought === 'Bought').length, { good: 'down' }),
       s('✅ Money check', wk ? 100 * (wk.mcheck || []).length / MONEY_CHECK.length : null, { unit: '%', good: 'up' })],
       chart: [...byCat.entries()].sort((a, b) => b[1] - a[1]).slice(0, 7).map(([l, v]) => [l.replace(/[\p{Extended_Pictographic}\uFE0F]/gu, '').trim().slice(0, 12), Math.round(v)]), chartT: 'Spent per category (€)' },
     { k: 'food', t: '🍽 Food and drinks', stats: [s('Meals planned', meals.filter(m => !m.away).length, { good: 'up' }), s('Home-cooked dinners', meals.filter(m => m.slot === 'Dinner' && (m.recipe || m.what) && !m.away).length, { good: 'up' }),
@@ -5184,7 +5276,7 @@ async function makeReport(type, from, to, key) {
 }
 // the report of the week that ends today (Sunday) or ended last Sunday, and of the month that ends today or ended last month
 // raise this when the way a report counts changes, so saved reports are made again (your notes stay)
-const REP_V = 4;
+const REP_V = 5;
 async function ensureReports() {
   if (L.repBusy) return; L.repBusy = true;
   try {
