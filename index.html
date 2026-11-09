@@ -2130,7 +2130,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v156';
+const APP_VERSION = 'hangtag-v157';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2306,7 +2306,7 @@ function renderSettings(host) {
     if (t.matches('[data-cimportfile]')) {
       const file = t.files[0]; t.value = ''; if (!file) return;
       const say = msg => { const el = $('[data-cimportmsg]', host); if (el) el.textContent = msg; };
-      try { const r = await importFile(file, say); say(`Imported ${r.done} pieces${r.skipped ? `, skipped ${r.skipped} already here` : ''}.`); toast(`Imported ${r.done} pieces`); }
+      try { const r = await importFile(file, say); say(`${r.updated ? 'Updated' : 'Imported'} ${r.done} pieces${r.skipped ? `, skipped ${r.skipped} ${r.updated ? 'not in your closet' : 'already here'}` : ''}.`); toast(`${r.updated ? 'Updated' : 'Imported'} ${r.done} pieces`); }
       catch (err) { console.error(err); say("That file couldn't be imported. Use an A’s Life (or Jetta’s Closet) backup or import file."); }
       return;
     }
@@ -2732,7 +2732,7 @@ function statsOverview(host) {
     const file = e.target.files[0]; e.target.value = ''; if (!file) return;
     // the page redraws after every piece, so the message lives in state rather than in the element
     const say = msg => { S.importMsg = msg; const el = $('#importStatus'); if (el) el.textContent = msg; };
-    try { const r = await importFile(file, say); say(`Imported ${r.done} pieces${r.skipped ? `, skipped ${r.skipped} already here` : ''}.`); toast(`Imported ${r.done} pieces`); }
+    try { const r = await importFile(file, say); say(`${r.updated ? 'Updated' : 'Imported'} ${r.done} pieces${r.skipped ? `, skipped ${r.skipped} ${r.updated ? 'not in your closet' : 'already here'}` : ''}.`); toast(`${r.updated ? 'Updated' : 'Imported'} ${r.done} pieces`); }
     catch (err) { console.error(err); say("That file couldn't be imported. Use an A’s Life (or Jetta’s Closet) backup or import file."); }
   });
   $('#signOut', host).addEventListener('click', async () => { await sb.auth.signOut(); });
@@ -2812,6 +2812,7 @@ function statsMoney(host) {
 async function importFile(file, progress) {
   const data = JSON.parse(await file.text());
   const items = Array.isArray(data.items) ? data.items : [];
+  if (data.mode === 'update') return updateFromFile(items, progress);
   const haveKeys = new Set(S.items.map(i => i.importKey).filter(Boolean)), haveIds = new Set(S.items.map(i => i.id));
   const todo = items.filter(i => !(i.importKey && haveKeys.has(i.importKey)) && !(i.id && haveIds.has(i.id)));
   let done = 0;
@@ -2834,6 +2835,20 @@ async function importFile(file, progress) {
   }
   if (newBrands.length) await DB.savePrefs({ brands: [...(S.prefs.brands || []), ...newBrands] }).catch(console.error);
   return { done, skipped: items.length - todo.length };
+}
+// Updates pieces you already have (same id): only the fields in the file change; a new photo replaces the old one,
+// which stays stored as prevPhoto so "Use the old photo" on the piece brings it back
+async function updateFromFile(items, progress) {
+  let done = 0, skipped = 0;
+  for (const raw of items) {
+    const cur = S.items.find(i => i.id === raw.id); if (!cur) { skipped++; continue; }
+    const { id, photoData, catKey, cutout, ...rest } = raw;
+    progress(`Updating ${done + 1} of ${items.length}: ${rest.name || cur.name || 'piece'}…`);
+    const doc = { ...noId(cur), ...rest, updated: Date.now() };
+    if (photoData) { const blob = await (await fetch(photoData)).blob(); doc.photo = await uploadPhoto(blob); if (cur.photo && !cur.prevPhoto) doc.prevPhoto = cur.photo; }
+    await DB.put('items', cur.id, doc); done++;
+  }
+  return { done, skipped, updated: true };
 }
 // Import cut-out. A dark piece keeps about the same shape at any sensitivity; a white top on a white background
 // mostly disappears at the normal one, so then a much gentler fill is used. Background enclosed by the piece
@@ -3117,7 +3132,7 @@ function openItem(id) {
     <button class="btn danger" data-act="del">Delete</button>` : `
     ${inCloset(cur) ? `<button class="btn primary" data-act="worn">Worn today</button>
     <button class="btn" data-act="outfit">Style it</button>` : ''}
-    <button class="btn" data-act="edit">Edit</button><div class="spacer"></div>
+    <button class="btn" data-act="edit">Edit</button>${cur.prevPhoto ? '<button class="btn" data-act="oldphoto">Use the old photo</button>' : ''}<div class="spacer"></div>
     <button class="btn danger" data-act="del">Delete</button>`;
   const sh = sheet({ title: it.name || 'Piece', body: '<div id="itemBody"></div><div id="goneBox"></div>', foot: foot(it) });
   // sold / donated: an inline confirm with the date, kept out of draw() so a sync doesn't wipe what you typed
@@ -3189,6 +3204,7 @@ function openItem(id) {
     const a = e.target.closest('[data-act]')?.dataset.act; if (!a) return;
     if (a === 'worn') { try { await addToDay(today(), [id]); toast('Logged for today'); } catch (err) { saveErr(err, 'Could not log that. Try again.'); } }
     if (a === 'edit') openEditor(id);
+    if (a === 'oldphoto') { const cur = S.items.find(i => i.id === id); if (!cur?.prevPhoto) return; try { await DB.put('items', id, { ...noId(cur), photo: cur.prevPhoto, prevPhoto: cur.photo, updated: Date.now() }); closeSheet(); toast('Old photo back'); } catch (err) { saveErr(err, 'Could not change the photo. Try again.'); } }
     if (a === 'buy') openEditor(id, { buy: true });
     if (a === 'pass' || a === 'unpass') {
       const { id: _, passedDate, ...data } = S.byId[id];
