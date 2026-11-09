@@ -2152,7 +2152,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v159';
+const APP_VERSION = 'hangtag-v160';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -3400,7 +3400,10 @@ function openEditor(id, opts = {}) {
         const j = await callFn('offers', { action: 'photourl', url: u });
         const bin = atob(j.data), buf = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
         if (!it.link && !$('#f-link', sh).value.trim() && j.page) $('#f-link', sh).value = j.page;
-        await loadPhoto(new Blob([buf], { type: j.type || 'image/jpeg' }));
+        const blob = new Blob([buf], { type: j.type || 'image/jpeg' });
+        await loadPhoto(blob);
+        // a thumbnail (Google's previews, a small shop image) stays blurry: say so, so a bigger one can be pasted
+        try { const im = await loadImage(URL.createObjectURL(blob)); if (Math.max(im.naturalWidth, im.naturalHeight) < 600) toast(`This photo is small (${im.naturalWidth} × ${im.naturalHeight} px). Open the image itself and copy that link for a sharper photo.`); } catch { /* the photo itself loaded fine */ }
       } catch (err) { toast(/not an image|too big/i.test(String(err.message)) ? String(err.message) : "That link didn't give a photo. Copy the image address itself, not the page link."); btn.disabled = false; btn.textContent = 'Use photo'; }
     });
     const drop = $('#drop', photoArea), file = $('#file', photoArea);
@@ -3492,7 +3495,7 @@ function loadImage(src) {
 }
 async function peLoad(src) {
   const img = await loadImage(src);
-  const max = 900, s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+  const max = 1400, s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
   const w = Math.max(1, Math.round(img.naturalWidth * s)), h = Math.max(1, Math.round(img.naturalHeight * s));
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   const ctx = c.getContext('2d', { willReadFrequently: true });
