@@ -2451,14 +2451,13 @@ function recipeDeals(offers) {
    (finished, archived or done records never do). Tap a row to open it and fill it in. */
 const empty = v => v == null || v === '' || (Array.isArray(v) && !v.length);
 const need = (k, label, when) => [k, label, r => (when ? when(r) : true) && empty(r[k])];
+const needPrice = when => ['price', 'Price', r => (when ? when(r) : true) && empty(r.price) && empty(r.origPrice)];
 const RTODO = [
   ['photo', 'Photo', r => !r.photo], ['category', 'Category', r => !r.category], ['time', 'Time', r => !num(r.prep) && !num(r.cook)],
   // ingredients count from the list with amounts too (Albo recipes), not only from pantry links
   ['servings', 'Servings', r => !num(r.servings)], ['ingredients', 'Ingredients', r => ![].concat(r.ingredients || []).length && !parseRecipe(r).lines.length],
   ['amounts', 'Amounts', r => { const l = [].concat(r.ilines || []).filter(x => x && x.h == null && x.n); return l.length > 0 && !l.some(x => String(x.q ?? '').trim()); }],
-  ['steps', 'Steps', r => !parseRecipe(r).steps.length], ['summary', 'Summary', r => !String(r.summary || '').trim()], ['cuisine', 'Cuisine', r => !r.cuisine], ['link', 'Link', r => !r.link],
-  // protein is known when you typed it, entered your own value, or the estimate found some
-  ['protein', 'Protein', r => !String(r.protein || '').trim() && num(r.nprot) == null && !(nutriOf(r).per.p > 0)],
+  ['steps', 'Steps', r => !parseRecipe(r).steps.length], ['summary', 'Summary', r => !String(r.summary || '').trim()],
   // how it felt and how good it was only matter once you cooked it
   ['feel', 'Feels like', r => hasCooked(r) && ![].concat(r.feel || []).length], ['rating', 'Rating', r => hasCooked(r) && !num(r.rating)]
 ];
@@ -2468,29 +2467,29 @@ const TODO = {
   kitchen: {
     recipes: { checks: RTODO },
     ingredients: { checks: [need('category', 'Category'), need('location', 'Kept in'), need('photo', 'Photo')] },
-    gear: { checks: [need('category', 'Category'), need('photo', 'Photo'), need('price', 'Price'), need('url', 'Link'), need('bought', 'Bought on', r => !!r.own)] },
-    shops: { checks: [need('type', 'Type'), need('address', 'Address'), need('website', 'Website')] }
+    gear: { checks: [need('category', 'Category'), need('photo', 'Photo'), needPrice(r => !!r.own)] },
+    shops: { checks: [need('type', 'Type'), need('website', 'Website')] }
   },
   care: {
     // everything a product page can tell, plus what only you know for what you have at home: how many, when bought
-    beauty: { when: r => !r.finished && !r.archived, checks: [need('brand', 'Brand'), need('type', 'Type'), need('photo', 'Photo'), need('size', 'Size'), need('price', 'Price'), need('url', 'Link'), need('about', 'What it does'),
-      need('variant', 'Shade', r => r.type === 'Makeup'), need('qty', 'How many', r => !r.wish), need('bought', 'Bought on', r => !r.wish),
+    beauty: { when: r => !r.finished && !r.archived, checks: [need('brand', 'Brand'), need('type', 'Type'), need('photo', 'Photo'), need('size', 'Size'), needPrice(), need('url', 'Link'), need('about', 'What it does'),
+      need('variant', 'Shade', r => r.type === 'Makeup'),
       need('inci', 'Ingredients', r => ['Face', 'Body', 'Hair'].includes(r.type)), need('texture', 'Texture', r => ['Face', 'Body', 'Hair'].includes(r.type)), need('concern', 'Concern', r => ['Face', 'Body', 'Hair'].includes(r.type)),
       need('step', 'Step in your routine', r => r.type === 'Face'), need('family', 'Scent family', r => r.type === 'Fragrance'), ['scent', 'Scent notes', r => r.type === 'Fragrance' && !scentOf(r).length],
       // only products that were never planned: a product you took out of your routine has empty days on purpose
       ['days', 'Morning or evening', r => !r.wish && ['Face', 'Body'].includes(r.type) && !Array.isArray(r.amDays) && !Array.isArray(r.pmDays) && !r.am && !r.pm]] },
-    supplements: { when: r => !r.finished, checks: [need('brand', 'Brand'), need('form', 'Form'), need('amount', 'Amount', r => !r.wish), need('times', 'When to take', r => !r.wish), need('photo', 'Photo'), need('price', 'Price'), need('url', 'Link'), need('bought', 'Bought on', r => !r.wish), need('expiry', 'Use before', r => !r.wish)] },
-    bshops: { checks: [need('type', 'Type'), need('address', 'Address'), need('website', 'Website')] },
+    supplements: { when: r => !r.finished, checks: [need('brand', 'Brand'), need('form', 'Form'), need('amount', 'Amount', r => !r.wish), need('times', 'When to take', r => !r.wish), need('photo', 'Photo'), needPrice(), need('url', 'Link'), need('expiry', 'Use before', r => !r.wish)] },
+    bshops: { checks: [need('type', 'Type'), need('website', 'Website')] },
     appts: { when: r => !r.done, checks: [need('time', 'Time'), need('place', 'Where'), need('provider', 'With')] },
     stays: { checks: [need('city', 'City'), need('price', 'Price per night'), need('url', 'Link'), need('photo', 'Photo')] },
-    ideas: { checks: [need('area', 'Area'), need('what', 'What it is'), need('summary', 'Summary'), need('photo', 'Photo'), need('url', 'Link')] },
+    ideas: { checks: [need('area', 'Area'), need('what', 'What it is'), need('summary', 'Summary'), need('url', 'Link')] },
     gifts: { when: r => r.status !== 'Given', checks: [need('for', 'For'), need('occasion', 'Occasion'), need('price', 'Price')] },
     courses: { when: r => r.status !== 'Completed', checks: [need('category', 'Category'), need('platform', 'Platform'), need('url', 'Link')] },
     documents: { checks: [need('category', 'Category'), need('location', 'Where it is')] }
   },
   social: {
     posts: { when: r => r.stage !== 'Posted', checks: [need('date', 'Post date'), need('format', 'Format'), need('platforms', 'Platforms'), need('pillar', 'Pillar'), need('desc', 'What it is'), need('hook', 'Hook')] },
-    cideas: { when: r => !['Dropped', 'Planned'].includes(r.status), checks: [need('pillar', 'Pillar'), need('format', 'Format'), need('desc', 'What it is')] },
+    cideas: { when: r => !['Dropped', 'Planned'].includes(r.status), checks: [need('pillar', 'Pillar', r => !r.type || r.type === 'Post idea'), need('format', 'Format', r => !r.type || r.type === 'Post idea'), need('desc', 'What it is')] },
     stips: { checks: [need('category', 'Category'), need('summary', 'What it is'), need('steps', 'Steps')] },
     inspo: { checks: [need('type', 'Type'), need('photo', 'Picture'), need('why', 'What I like')] },
     deals: { when: r => !['Paid', 'Declined'].includes(r.status), checks: [need('type', 'Type'), need('fee', 'Fee', r => r.type === 'Paid'), need('contact', 'Contact'), need('deliverables', 'Deliverables'), ['dates', 'Deadline', r => !r.due && !r.postBy]] },
@@ -2507,7 +2506,7 @@ const TODO = {
   },
   home: {
     plants: { checks: [need('location', 'Where'), need('every', 'Water every'), need('light', 'Light'), need('photo', 'Photo')] },
-    inventory: { checks: [need('room', 'Room'), need('category', 'Category'), need('photo', 'Photo'), need('brand', 'Brand'), need('url', 'Link'), need('price', 'Price', r => !INV_WANT.includes(r.status)), need('budget', 'Budget', r => INV_WANT.includes(r.status)), need('shop', 'Shop', r => !INV_WANT.includes(r.status)), need('bought', 'Bought on', r => r.status === 'Gekocht')] },
+    inventory: { checks: [need('room', 'Room'), need('category', 'Category'), need('photo', 'Photo'), needPrice(r => !INV_WANT.includes(r.status)), need('shop', 'Shop', r => !INV_WANT.includes(r.status))] },
     chores: { checks: [need('space', 'Rooms'), need('freq', 'How often')] }
   },
   fit: {
