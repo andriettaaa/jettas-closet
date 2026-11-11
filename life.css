@@ -1276,3 +1276,19 @@ img.nophoto { background: var(--line); }
 .seasonmore > summary { list-style: none; display: inline-flex; margin-top: 6px; cursor: pointer; }
 .seasonmore > summary::-webkit-details-marker { display: none; }
 .seasonmore[open] > summary { display: none; }
+/* scores out of 10: a ring that fills up, red for low, amber in the middle, green for high */
+.sc0 { --sc: var(--line); } .sc1, .sc2, .sc3 { --sc: #C2412D; } .sc4, .sc5 { --sc: #D9822B; } .sc6 { --sc: #C9A227; } .sc7 { --sc: #7FA347; } .sc8 { --sc: #4E9A52; } .sc9, .sc10 { --sc: #2E8B57; }
+.sring { --p: 0; display: inline-grid; place-items: center; flex: none; border-radius: 50%; background: conic-gradient(var(--sc) calc(var(--p) * 1%), color-mix(in srgb, var(--line) 70%, transparent) 0); font-family: var(--display); font-weight: 800; color: var(--ink); }
+.sring b { display: grid; place-items: center; border-radius: 50%; background: var(--surface); font-weight: 800; line-height: 1; }
+.sring.sm { width: 34px; height: 34px; } .sring.sm b { width: 26px; height: 26px; font-size: 11.5px; }
+.sring.lg { width: 104px; height: 104px; } .sring.lg b { width: 80px; height: 80px; font-size: 30px; }
+.sring.onph { position: absolute; right: 8px; bottom: 8px; box-shadow: 0 2px 8px rgb(0 0 0 / .18); }
+.lrow .sring.sm { margin-left: 4px; }
+.lscore { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.lscorein { display: grid; gap: 8px; flex: 1 1 220px; min-width: 0; }
+.lscoretaps { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; }
+.lscoretaps button { aspect-ratio: 1; border-radius: 50%; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font: 700 13px var(--display); padding: 0; cursor: pointer; min-width: 0; }
+.lscoretaps button[aria-pressed="true"] { background: var(--sc); border-color: var(--sc); color: #fff; }
+.lscorebtns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.lscorebtns .iconbtn { font: 700 20px var(--display); }
+@media (max-width: 420px) { .lscoretaps { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
