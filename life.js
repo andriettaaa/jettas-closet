@@ -260,7 +260,13 @@ const invStatus = r => INV_OLD.status[r.status] || r.status || 'Gekocht';
 const FREQ = { 'Daily': 1, 'Every 2 days': 2, 'Twice a week': 3, 'Weekly': 7, 'Every 2 weeks': 14, 'Monthly': 30, 'Every 3 months': 91, 'Every 6 months': 182, 'Yearly': 365 };
 const mins = n => n ? (n >= 60 ? `${Math.floor(n / 60)} h${n % 60 ? ' ' + (n % 60) + ' min' : ''}` : `${n} min`) : '';
 const totalTime = r => (num(r.prep) || 0) + (num(r.cook) || 0);
-const stars = n => n ? '★'.repeat(n) : '';
+const RATE_KEY = k => { const f = KINDS[k]?.fields.find(f => f.type === 'rating' && ['rating', 'score'].includes(f.k)) || KINDS[k]?.fields.find(f => f.type === 'rating'); return f?.k; };
+const ringOf = (r, size) => { const k = RATE_KEY(r.kind); return k && num(r[k]) ? scoreRing(r[k], size) : ''; };
+const sc10 = v => { const n = num(v); return n ? Math.round(n * 4) / 2 : null; };
+const scFmt = x => String(x).replace('.', ',');
+const scCls = x => 'sc' + Math.max(1, Math.min(10, Math.round(x)));
+const scoreRing = (v5, size = 'sm') => { const x = sc10(v5); return x ? `<span class="sring ${size} ${scCls(x)}" style="--p:${x * 10}" title="${scFmt(x)} out of 10" aria-label="${scFmt(x)} out of 10"><b>${scFmt(x)}</b></span>` : ''; };
+const stars = n => n ? scFmt(sc10(n)) + '/10' : '';
 const relName = id => { const r = L.byId[id]; return r ? titleOf(r) : ''; };
 const relNames = ids => [].concat(ids || []).map(relName).filter(Boolean);
 
@@ -429,7 +435,7 @@ const KINDS = {
     sorts: [['name', 'A to Z'], ['-rating', 'Best rated'], ['-created', 'Newest'], ['time', 'Quickest']],
     filters: [['all', 'All'], ['fav', 'Favourites'], ['try', 'Still to try'], ['quick', '30 min or less'], ['prep', 'Meal prep'], ['freeze', 'Freezes well'], ['office', 'Office lunch'], ['now', 'Can make now']],
     filter: (r, f) => f === 'fav' ? !!r.fav : f === 'try' ? !!r.totry : f === 'quick' ? totalTime(r) > 0 && totalTime(r) <= 30 : f === 'prep' ? [].concat(r.good || []).includes('Meal prep') : f === 'freeze' ? [].concat(r.good || []).includes('Freezes well') : f === 'office' ? [].concat(r.good || []).includes('Office lunch') || r.category === 'Lunch' : f === 'now' ? canMakeNow(r) : true,
-    sub: r => [r.cuisine, r.dish || r.category, mins(totalTime(r)), [].concat(r.good || []).filter(g => NUTRI.includes(g)).join(', '), stars(r.rating)].filter(Boolean).join(' · ')
+    sub: r => [r.cuisine, r.dish || r.category, mins(totalTime(r)), [].concat(r.good || []).filter(g => NUTRI.includes(g)).join(', ')].filter(Boolean).join(' · ')
   },
   ingredients: {
     one: 'ingredient', many: 'Pantry', facet: 'category',
@@ -491,7 +497,7 @@ const KINDS = {
       F('reheat', 'Next day / reheated', 'select', { options: ['Great', 'OK', 'Not good', 'Didn’t try'], half: 1 }), F('mins', 'It really took', 'num', { unit: 'min', half: 1 }),
       F('photo', 'Photo of your dish', 'photo'), F('notes', 'What I’d change', 'long')],
     title: r => relName(r.recipe) || 'Review', sorts: [['-date', 'Newest']],
-    sub: r => [r.date && niceDate(r.date), r.score ? `${r.score}/5` : '', r.again ? `again: ${r.again.toLowerCase()}` : ''].filter(Boolean).join(' · ')
+    sub: r => [r.date && niceDate(r.date), r.score ? stars(r.score) : '', r.again ? `again: ${r.again.toLowerCase()}` : ''].filter(Boolean).join(' · ')
   },
   inbox: {
     one: 'link', many: 'Inbox', facet: 'status',
@@ -884,7 +890,7 @@ const KINDS = {
       F('url', 'Link', 'url'), F('photo', 'Foto', 'photo'), F('fav', 'Favoriet', 'check', { half: 1 }), F('archived', 'Gearchiveerd', 'check', { half: 1 }), F('notes', 'Notities', 'long')],
     sorts: [['price', 'Goedkoopste'], ['name', 'A tot Z']],
     hide: r => !!r.archived, hideLabel: 'Toon gearchiveerd',
-    sub: r => [relName(r.item), r.shop, num(r.price) ? eur(num(r.price)) : '', r.used ? 'tweedehands' : '', r.score ? '★'.repeat(r.score) : '', r.chosenFor ? 'gekozen' : ''].filter(Boolean).join(' · ')
+    sub: r => [relName(r.item), r.shop, num(r.price) ? eur(num(r.price)) : '', r.used ? 'tweedehands' : '', r.score ? stars(r.score) : '', r.chosenFor ? 'gekozen' : ''].filter(Boolean).join(' · ')
   },
   movecosts: {
     one: 'kostenpost', ones: 'kostenposten', many: 'Verhuiskosten', facet: 'type',
@@ -1094,7 +1100,7 @@ const KINDS = {
       F('pages', 'Pages', 'num', { half: 1 }), F('page', 'At page', 'num', { half: 1 }), F('start', 'Started', 'date', { half: 1 }), F('end', 'Finished', 'date', { half: 1 }),
       F('rating', 'Rating', 'rating'), F('highlights', 'Highlights', 'long', { rows: 4 }), F('lessons', 'What I take with me', 'long', { rows: 3 }), F('photo', 'Cover', 'photo'), F('url', 'Link', 'url')],
     sorts: [['status', 'By status'], ['-end', 'Finished last'], ['name', 'A to Z']],
-    sub: r => [r.author, r.status, num(r.pages) && num(r.page) ? Math.round(100 * num(r.page) / num(r.pages)) + '%' : '', r.rating ? '★'.repeat(r.rating) : ''].filter(Boolean).join(' · ')
+    sub: r => [r.author, r.status, num(r.pages) && num(r.page) ? Math.round(100 * num(r.page) / num(r.pages)) + '%' : '', r.rating ? stars(r.rating) : ''].filter(Boolean).join(' · ')
   },
   learnlog: {
     one: 'learning moment', many: 'Learning log', facet: 'type',
@@ -1873,7 +1879,7 @@ async function countStep(id, dir) {
 function row(r) {
   const K = KINDS[r.kind], q = K.quick?.(r), side = K.side?.(r);
   const ph = photoOf(r);
-  return `<div class="lrow ${K.hide?.(r) ? 'gone' : ''}">${ph ? `<button class="lthumb" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : ''}<button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b>${(() => { const t = [K.sub?.(r), WISHY[r.kind] ? wishLine(r.kind, r.id) : '', savedText(r)].filter(Boolean).join(' · '); return t ? `<span>${esc(t)}</span>` : ''; })()}</button>${side ? `<span class="lside ${/overdue|expired|today/.test(side) ? 'hot' : ''}">${esc(side)}</span>` : ''}${LEFT_KINDS.has(r.kind) ? leftChip(r) : ''}${COUNTED.has(r.kind) ? stepper(r) : q ? tick(q.label, q.on, `data-act="quick" data-id="${r.id}"`) : ''}</div>`;
+  return `<div class="lrow ${K.hide?.(r) ? 'gone' : ''}">${ph ? `<button class="lthumb" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : ''}<button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b>${(() => { const t = [K.sub?.(r), WISHY[r.kind] ? wishLine(r.kind, r.id) : '', savedText(r)].filter(Boolean).join(' · '); return t ? `<span>${esc(t)}</span>` : ''; })()}</button>${ringOf(r)}${side ? `<span class="lside ${/overdue|expired|today/.test(side) ? 'hot' : ''}">${esc(side)}</span>` : ''}${LEFT_KINDS.has(r.kind) ? leftChip(r) : ''}${COUNTED.has(r.kind) ? stepper(r) : q ? tick(q.label, q.on, `data-act="quick" data-id="${r.id}"`) : ''}</div>`;
 }
 function leftChip(r) {
   const p = leftOf(r);
@@ -1899,12 +1905,12 @@ function leftSheet(id) {
 function prodCard(r, act = 'open') {
   const K = KINDS[r.kind] || {}, ph = r.closet ? r.photo : photoOf(r), price = num(r.price);
   const sub = [...(r.closet ? [r.brand, price ? eur(price) : ''] : [K.sub?.(r), price && !String(K.sub?.(r) || '').includes(eur(price)) ? eur(price) : '']), WISHY[r.kind] || r.closet ? wishLine(r.closet ? 'closet' : r.kind, r.id, price, r.closet ? r.plan : undefined) : ''].filter(Boolean).join(' · ');
-  return `<button class="lcard prod" data-act="${act}" data-id="${r.id}"><div class="stage"><span class="pini">${esc(String(r.name || titleOf(r)).slice(0, 1))}</span>${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${r.fav ? '<i class="lfav" aria-label="Favourite">★</i>' : ''}</div><div class="meta"><b>${esc(r.closet ? r.name || 'Piece' : titleOf(r))}</b><span>${esc(sub)}</span></div></button>`;
+  return `<button class="lcard prod" data-act="${act}" data-id="${r.id}"><div class="stage"><span class="pini">${esc(String(r.name || titleOf(r)).slice(0, 1))}</span>${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${r.fav ? '<i class="lfav" aria-label="Favourite">★</i>' : ''}${r.closet ? '' : ringOf(r, 'sm onph')}</div><div class="meta"><b>${esc(r.closet ? r.name || 'Piece' : titleOf(r))}</b><span>${esc(sub)}</span></div></button>`;
 }
 function card(r) {
   if (PRODUCTS.has(r.kind)) return prodCard(r);
   const K = KINDS[r.kind], ph = photoOf(r);
-  return `<button class="lcard" data-act="open" data-id="${r.id}"><div class="lph"><span>${esc(titleOf(r).slice(0, 1))}</span>${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${r.fav ? '<i class="lfav" aria-label="Favourite">★</i>' : ''}</div><div class="meta"><b>${esc(titleOf(r))}</b><span>${esc(K.sub?.(r) || '')}</span></div></button>`;
+  return `<button class="lcard" data-act="open" data-id="${r.id}"><div class="lph"><span>${esc(titleOf(r).slice(0, 1))}</span>${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${r.fav ? '<i class="lfav" aria-label="Favourite">★</i>' : ''}${ringOf(r, 'sm onph')}</div><div class="meta"><b>${esc(titleOf(r))}</b><span>${esc(K.sub?.(r) || '')}</span></div></button>`;
 }
 const listHTML = (list, K) => !list.length ? '' : viewMode(K) === 'cards' ? `<div class="lgrid">${list.map(r => COUNTED.has(r.kind) ? `<div class="lcw">${card(r)}<div class="lcwc">${LEFT_KINDS.has(r.kind) ? leftChip(r) : ''}${stepper(r)}</div></div>` : card(r)).join('')}</div>` : `<div class="lrows">${list.map(row).join('')}</div>`;
 const panel = (title, body, more) => `<section class="panel lpanel"><div class="lph3"><h3>${esc(title)}</h3>${more ? `<button class="chip link" data-act="go" data-v="${more[0]}">${esc(more[1])}</button>` : ''}</div>${body}</section>`;
@@ -2256,7 +2262,7 @@ function tasteProfile() {
 }
 function reviewPanel(id) {
   const vs = reviewsOf(id), avg = vs.filter(v => v.score).reduce((n, v, _, a) => n + v.score / a.length, 0), last = vs[0];
-  return `<div class="wmoney"><p><b>${vs.length ? `${avg ? avg.toFixed(1) + '/5 · ' : ''}${plural(vs.length, 'review')}` : 'Not reviewed yet'}</b><span>${last ? esc([last.again ? `make again: ${last.again.toLowerCase()}` : '', last.notes || ''].filter(Boolean).join(' · ')) : 'Tap through a few questions after eating, and the app learns what you like.'}</span></p>
+  return `<div class="wmoney"><p><b>${vs.length ? `${avg ? stars(avg) + ' · ' : ''}${plural(vs.length, 'review')}` : 'Not reviewed yet'}</b><span>${last ? esc([last.again ? `make again: ${last.again.toLowerCase()}` : '', last.notes || ''].filter(Boolean).join(' · ')) : 'Tap through a few questions after eating, and the app learns what you like.'}</span></p>
     <div class="dbtns"><button type="button" class="btn small primary" data-rvw="${id}">Review</button>${vs.length ? `<button type="button" class="btn small" data-rvwall="${id}">All reviews</button>` : ''}</div></div>`;
 }
 // the review sheet: tappable blocks, ingredients cycle between neutral, liked and not liked
@@ -2269,7 +2275,7 @@ function openReview(recipeId, date = today()) {
   const sh = C.sheet({
     title: 'How was ' + titleOf(r) + '?',
     body: `<div class="rvw">
-      <div class="rvb"><p class="dsub">Overall</p><div class="lrating rvstars">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-rs="${n}" aria-label="${n} of 5" aria-pressed="false">${svg(P.star)}</button>`).join('')}</div></div>
+      <div class="rvb"><p class="dsub">Overall</p><div data-rvscore>${fieldInner('rreviews', { k: 'score', type: 'rating', label: '' }, {})}</div></div>
       ${one('again', 'Make it again?', ['Yes', 'Maybe', 'No'])}
       ${one('taste', 'Flavour', ['Too bland', 'Just right', 'Too strong'])}
       ${one('salt', 'Salt', ['Too little', 'Just right', 'Too much'])}
@@ -2286,7 +2292,7 @@ function openReview(recipeId, date = today()) {
   });
   sh.addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.rs) { D.score = Number(b.dataset.rs); sh.querySelectorAll('[data-rs]').forEach(x => x.setAttribute('aria-pressed', Number(x.dataset.rs) <= D.score)); }
+    if (b.dataset.rset) { const cur = sc10(D.score) || 0, v = b.dataset.v; const x = v === 'clear' ? 0 : /^[+-]/.test(v) ? Math.max(1, Math.min(10, (cur || 5) + Number(v))) : Number(v); D.score = x ? x / 2 : 0; sh.querySelector('[data-rvscore]').innerHTML = fieldInner('rreviews', { k: 'score', type: 'rating', label: '' }, { score: D.score }); }
     if (b.dataset.rk) { const k = b.dataset.rk; D[k] = D[k] === b.dataset.v ? '' : b.dataset.v; sh.querySelectorAll(`[data-rk="${k}"]`).forEach(x => x.setAttribute('aria-pressed', x.dataset.v === D[k])); }
     if (b.dataset.rm) { const k = b.dataset.rm, a = D[k], i = a.indexOf(b.dataset.v); i >= 0 ? a.splice(i, 1) : a.push(b.dataset.v); b.setAttribute('aria-pressed', i < 0); }
     if (b.dataset.ri) {
@@ -4943,7 +4949,10 @@ function fieldInner(kind, f, D) {
         <div class="lpctr"><input type="range" min="0" max="100" step="5" data-pctr="${f.k}" value="${p ?? 100}" ${p == null ? 'disabled' : ''} aria-label="${esc(f.label)}"><b data-pctv="${f.k}">${p == null ? 'Niet open' : p + '%'}</b></div></div>`;
     }
     case 'emo': { const sc = f.scale || EMO.mood; return span + `<div class="lemo">${sc.map(([n, e, l]) => `<button type="button" data-rate="${f.k}" data-v="${n}" aria-label="${esc(l)}" title="${esc(l)}" aria-pressed="${v === n}"><span>${e}</span><small>${esc(l)}</small></button>`).join('')}</div>`; }
-    case 'rating': return span + `<div class="lrating">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-rate="${f.k}" data-v="${n}" aria-label="${n} of 5" aria-pressed="${(v || 0) >= n}">${svg(P.star)}</button>`).join('')}</div>`;
+    case 'rating': { const x = sc10(v); return span + `<div class="lscore"><span class="sring lg ${x ? scCls(x) : 'sc0'}" style="--p:${(x || 0) * 10}"><b>${x ? scFmt(x) : '–'}</b></span>
+        <div class="lscorein"><div class="lscoretaps">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => `<button type="button" class="${scCls(n)}" data-rset="${f.k}" data-v="${n}" aria-pressed="${x != null && Math.floor(x) === n}" aria-label="${n} out of 10">${n}</button>`).join('')}</div>
+        <div class="lscorebtns"><button type="button" class="iconbtn" data-rset="${f.k}" data-v="-0.5" aria-label="Half a point less">−</button><button type="button" class="iconbtn" data-rset="${f.k}" data-v="+0.5" aria-label="Half a point more">+</button>${x ? `<button type="button" class="chip link" data-rset="${f.k}" data-v="clear">Clear</button>` : '<span class="lnone">Tap a number, then − or + for half points</span>'}</div></div></div>`; }
+    case 'oldrating': return span + `<div class="lrating">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-rate="${f.k}" data-v="${n}" aria-label="${n} of 5" aria-pressed="${(v || 0) >= n}">${svg(P.star)}</button>`).join('')}</div>`;
     case 'select': case 'multi': {
       if (f.dep && !D?.[f.dep] && !v) return span + `<p class="lnone">${esc(f.depHint || 'Kies eerst een categorie.')}</p>`;
       const sel = [].concat(v || []), opts = f.dep && D?.[f.dep] ? optsFor(kind, f, v, D) : sortOpts(kind, f, optsFor(kind, f, v, D));
@@ -5175,6 +5184,7 @@ function openEditor(kind, id, preset = {}) {
     if (d.opt) { const f = fdef(d.opt); if (f.type === 'multi') { const a = [].concat(D[d.opt] || []); const i = a.indexOf(d.v); i >= 0 ? a.splice(i, 1) : a.push(d.v); D[d.opt] = a; } else D[d.opt] = D[d.opt] === d.v ? '' : d.v; redraw(d.opt); }
     else if (d.chk) { D[d.chk] = !D[d.chk]; redraw(d.chk); }
     else if (d.rate) { const n = Number(d.v); D[d.rate] = D[d.rate] === n ? 0 : n; redraw(d.rate); }
+    else if (d.rset) { const k = d.rset, cur = sc10(D[k]) || 0; let x = d.v === 'clear' ? 0 : /^[+-]/.test(d.v) ? Math.max(1, Math.min(10, (cur || 5) + Number(d.v))) : Number(d.v); D[k] = x ? x / 2 : 0; redraw(k); }
     else if (d.pct) { D[d.pct] = d.v === '' ? null : Number(d.v); D.fill = ''; redraw(d.pct); }
     else if (d.relx) { const f = fdef(d.relx); D[d.relx] = f.multi ? [].concat(D[d.relx] || []).filter(x => x !== d.id) : ''; redraw(d.relx); }
     else if (d.relpick) pickRel(d.relpick, d.id);
@@ -7021,12 +7031,12 @@ function stayAnalysis(all) {
   const prices = all.map(r => num(r.price)).filter(n => n > 0), countries = new Set(been.map(r => r.country).filter(Boolean));
   const best = [...rated].sort((a, b) => stayScore(b) - stayScore(a)).slice(0, 3);
   const perCountry = [...been.reduce((m, r) => m.set(r.country || 'Somewhere else', (m.get(r.country || 'Somewhere else') || 0) + 1), new Map())].sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const star = n => n.toFixed(1) + ' ★';
+  const star = n => scFmt(Math.round(n * 20) / 10) + '/10';
   return `<div class="panels stayan">
     ${panel('Your stays', `<div class="tiles lt3">${fTile('Places stayed', String(been.length), plural(countries.size, 'country', 'countries'))}${fTile('Average review', rated.length ? star(avg(rated.map(stayScore))) : '–', plural(rated.length, 'review'))}${fTile('Would go back', asked.length ? Math.round(100 * again / asked.length) + '%' : '–', asked.length ? `${again} of ${asked.length}` : 'tick it in a review')}</div>
       ${prices.length ? `<p class="dline"><span>Average price per night</span><b>${eur(avg(prices))}</b></p>` : ''}
       ${best.length ? `<p class="dsub">Best reviewed</p><div class="lrows">${best.map(r => `<button class="lrow lmain" data-act="open" data-id="${r.id}"><b>${esc(r.name)}</b><span>${esc([r.city, r.country].filter(Boolean).join(', '))} · ${star(stayScore(r))}</span></button>`).join('')}</div>` : ''}`)}
-    ${parts.length ? panel('Average per part', vHBars(parts.sort((a, b) => b.v - a.v), { fmt: star, color: 'var(--c1)', max: 5 }) + '<p class="lnone">Out of 5 stars, across all your reviews. The lowest bar is what you notice most when it goes wrong.</p>') : ''}
+    ${parts.length ? panel('Average per part', vHBars(parts.sort((a, b) => b.v - a.v), { fmt: star, color: 'var(--c1)', max: 5 }) + '<p class="lnone">Out of 10, across all your reviews. The lowest bar is what you notice most when it goes wrong.</p>') : ''}
     ${perCountry.length > 1 ? panel('Where you stayed', vHBars(perCountry.map(([c, n]) => ({ label: c, v: n })), { fmt: n => plural(n, 'stay'), color: 'var(--c2)' })) : ''}
   </div>`;
 }
