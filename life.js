@@ -1373,6 +1373,59 @@ for (const [k, [paid]] of Object.entries(PRICED)) {
   if (i >= 0 && !fs.some(f => f.k === 'origPrice')) fs.splice(i + 1, 0, F('origPrice', k === 'stays' ? 'Original price per night' : 'Original price', 'money', { half: 1 }));
   if (['gear', 'beauty', 'supplements', 'fitgear'].includes(k) && !fs.some(f => ['shop', 'store'].includes(f.k))) fs.splice(fs.findIndex(f => f.k === 'origPrice') + 1, 0, F('shop', 'Bought at', 'text', { half: 1 }));
 }
+// what is in season in the Netherlands, month by month (Dutch outdoor and stored harvest, plus winter citrus from southern Europe)
+// [name, emoji, words in Dutch and English that find it in a recipe, months 1-12]
+const SEASONAL = [
+  ['Pompoen', '🎃', /pompoen|pumpkin|squash|butternut|flespompoen|hokkaido/i, [9, 10, 11, 12, 1, 2]],
+  ['Boerenkool', '🥬', /boerenkool|\bkale\b/i, [10, 11, 12, 1, 2, 3]],
+  ['Spruitjes', '🥬', /spruit|brussels? sprouts?/i, [10, 11, 12, 1, 2, 3]],
+  ['Rode kool', '🟣', /rode ?kool|red cabbage/i, [9, 10, 11, 12, 1, 2, 3]],
+  ['Witte en savooiekool', '🥬', /witte ?kool|savooi|savoy|\bcabbage\b|spitskool|pointed cabbage/i, [9, 10, 11, 12, 1, 2, 3]],
+  ['Prei', '🥬', /\bprei\b|\bleeks?\b/i, [9, 10, 11, 12, 1, 2, 3, 4]],
+  ['Pastinaak', '🥕', /pastinaak|parsnip/i, [10, 11, 12, 1, 2, 3]],
+  ['Knolselderij', '🥔', /knolselderij|celeriac/i, [10, 11, 12, 1, 2, 3]],
+  ['Rode biet', '🫐', /rode biet|bietjes|beetroot|\bbeets?\b/i, [8, 9, 10, 11, 12, 1, 2]],
+  ['Witlof', '🥬', /witlof|chicory|endive/i, [10, 11, 12, 1, 2, 3, 4]],
+  ['Schorseneren', '🥕', /schorsene|salsify/i, [10, 11, 12, 1, 2, 3]],
+  ['Winterpeen', '🥕', /winterpeen|\bwortel|\bcarrots?\b/i, [7, 8, 9, 10, 11, 12, 1, 2, 3]],
+  ['Paddenstoelen', '🍄', /paddenstoel|champignon|mushroom|oesterzwam|shiitake|portobello/i, [9, 10, 11, 12]],
+  ['Kastanjes', '🌰', /kastanje|chestnut/i, [10, 11, 12]],
+  ['Appel', '🍎', /\bappel(?!azijn|stroop)|\bapples?\b(?! ?cider)/i, [8, 9, 10, 11, 12, 1, 2, 3]],
+  ['Peer', '🍐', /\bpeer\b|peren|\bpears?\b/i, [8, 9, 10, 11, 12, 1, 2]],
+  ['Mandarijn en sinaasappel', '🍊', /mandarijn|clementine|sinaasappel|\boranges?\b|mandarin|bloedsinaasappel/i, [11, 12, 1, 2, 3]],
+  ['Rabarber', '🌱', /rabarber|rhubarb/i, [4, 5, 6]],
+  ['Asperges', '🌱', /asperge|asparagus/i, [4, 5, 6]],
+  ['Spinazie', '🥬', /spinazie|spinach/i, [4, 5, 6, 9, 10]],
+  ['Radijs', '🔴', /radijs|radish/i, [4, 5, 6, 7, 8, 9]],
+  ['Sla', '🥗', /\bsla\b|ijsbergsla|lettuce|romaine|rucola|arugula|veldsla/i, [5, 6, 7, 8, 9]],
+  ['Aardbeien', '🍓', /aardbei|strawberr/i, [5, 6, 7, 8]],
+  ['Doperwten en tuinbonen', '🫛', /doperwt|erwtjes|\bpeas\b|tuinbon|broad beans?|fava/i, [6, 7]],
+  ['Courgette', '🥒', /courgette|zucchini/i, [6, 7, 8, 9]],
+  ['Sperziebonen', '🫛', /sperzie|green beans?|haricots?/i, [7, 8, 9]],
+  ['Bloemkool en broccoli', '🥦', /bloemkool|cauliflower|broccoli/i, [6, 7, 8, 9, 10]],
+  ['Venkel', '🌿', /venkel|fennel/i, [6, 7, 8, 9, 10]],
+  ['Tomaat', '🍅', /tomaat(?!puree)|tomaten(?!puree|blokjes|saus)|tomato(es)?(?! ?(paste|purée|puree|sauce|ketchup))/i, [7, 8, 9]],
+  ['Komkommer', '🥒', /komkommer|cucumber/i, [6, 7, 8, 9]],
+  ['Paprika', '🫑', /(?<!(smoked|sweet|hot|gerookte|zoete) )paprika(?! ?(poeder|powder|flakes))|bell peppers?/i, [7, 8, 9]],
+  ['Aubergine', '🍆', /aubergine|eggplant/i, [7, 8, 9]],
+  ['Maïs', '🌽', /\bmais\b|maïs(?!zetmeel)|\bcorn\b(?! ?(starch|flour|syrup|flakes))|sweetcorn/i, [8, 9]],
+  ['Kersen', '🍒', /kersen|cherr(y|ies)/i, [6, 7]],
+  ['Zomerfruit', '🫐', /framboz|raspberr|bramen|blackberr|blauwe bes|blueberr|bosbes|aalbes|redcurrant/i, [6, 7, 8, 9]],
+  ['Pruimen', '🟣', /pruim|\bplums?\b/i, [8, 9]],
+  ['Druiven', '🍇', /druif|druiven|grapes?/i, [9, 10]]
+];
+const monthNow = () => Number(today().slice(5, 7));
+const inSeason = (m = monthNow()) => SEASONAL.filter(x => x[3].includes(m));
+// the words of a recipe that say what is in it: its name, ingredient lines and linked pantry items
+const recipeWords = r => [r.name, ...[].concat(r.ilines || []).map(x => typeof x === 'string' ? x : x?.n || ''), ...[].concat(r.ingredients || []).map(id => L.byId[id]?.name || ''), String(r.instructions || '').split(/bereiding|method|steps/i)[0]].join(' \n ');
+const seasonHits = (r, m = monthNow()) => { const t = recipeWords(r); return inSeason(m).filter(x => x[2].test(t)); };
+function seasonTop() {
+  const m = monthNow(), now = inSeason(m), month = new Date(today() + 'T12:00:00').toLocaleDateString('en-GB', { month: 'long' });
+  const picks = recs('recipes').map(r => ({ r, h: seasonHits(r, m) })).filter(x => x.h.length).sort((a, b) => b.h.length - a.h.length || (b.r.fav ? 1 : 0) - (a.r.fav ? 1 : 0) || (num(b.r.rating) || 0) - (num(a.r.rating) || 0) || Math.random() - .5);
+  return `<section class="panel lpanel seasonpanel"><div class="lph3"><h3>🍂 In season in ${esc(month)}</h3><span class="lnone">${picks.length} of your recipes use it</span></div>
+    ${(() => { const c = x => `<span class="chip">${x[1]} ${esc(x[0])}</span>`; return `<div class="lwrap">${now.slice(0, 8).map(c).join('')}</div>${now.length > 8 ? `<details class="seasonmore"><summary class="chip link">+ ${now.length - 8} more</summary><div class="lwrap">${now.slice(8).map(c).join('')}</div></details>` : ''}`; })()}
+    ${picks.length ? `<div class="lrows">${picks.slice(0, 6).map(({ r, h }) => `<div class="lrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(r.name || 'Recipe')}</b><span>${esc(h.map(x => x[1] + ' ' + x[0].toLowerCase()).join(' · '))}</span></button></div>`).join('')}</div><p class="lnone">Pick <b>🍂 In season</b> in the filters to see them all.</p>` : '<p class="lnone">None of your recipes use these yet. Add one with pumpkin, kale or leek and it shows up here.</p>'}</section>`;
+}
 // paste a link and the record fills itself: what the page says right away, the rest by the nightly Claude task (needsFill)
 const LINKFILL = { recipes: 'link', ingredients: 'url', gear: 'url', supplements: 'url', beauty: 'url', inventory: 'url', invopts: 'url', fwait: 'url', fitgear: 'url', wishes: 'url', gifts: 'url', orders: 'url', books: 'url', stays: 'url', fragsugs: 'url', courses: 'url' };
 function linkFields(kind, info) {
@@ -1391,6 +1444,7 @@ function linkFields(kind, info) {
   }
   return out;
 }
+{ const f0 = KINDS.recipes.filter; KINDS.recipes.filter = (r, f) => f === 'season' ? seasonHits(r).length > 0 : f0(r, f); KINDS.recipes.filters.splice(1, 0, ['season', '🍂 In season']); }
 const savedOf = r => { const c = PRICED[r.kind]; if (!c) return 0; const p = num(r[c[0]]), o = num(r.origPrice); return p != null && o > p ? o - p : 0; };
 const savedText = r => { const v = savedOf(r); return v ? `saved ${eur(v)} (${Math.round(v / num(r.origPrice) * 100)}%)` : ''; };
 const savedDate = r => { const c = PRICED[r.kind]; return c ? r[c[1]] || r.bought || r.date || (r.created ? iso(new Date(r.created)) : '') : ''; };
@@ -1548,7 +1602,7 @@ const PAGES = {
   'kitchen/today': { render: kitchenToday, adds: ['meals', 'recipes', 'ingredients', 'mealprep'] },
   'kitchen/deals': { render: dealsPage, adds: ['recipes'] },
   'kitchen/quit': { render: quitPage, adds: ['recipes', 'ingredients'] },
-  'kitchen/recipes': { title: 'Recipes', segs: [{ kind: 'recipes' }] },
+  'kitchen/recipes': { title: 'Recipes', segs: [{ kind: 'recipes', top: seasonTop }] },
   'kitchen/foodlog': { render: foodLog, adds: ['meals', 'nlog', 'rreviews'] },
   'kitchen/cooked': { title: 'Cooking log', segs: [{ kind: 'rreviews' }] },
   'care/hair': { render: hairPage, adds: ['hairlog', 'beauty', 'reslinks'] },
@@ -2273,6 +2327,7 @@ function chooseScore(r, q, ctx) {
   const vs = reviewsOf(r.id), last = vs[0];
   if (last?.again === 'No') s -= 6; else if (last?.again === 'Yes') { s += 1.5; why.push('you wanted it again'); }
   if (r.rating) s += (r.rating - 3) * .8; if (r.fav) s += 1;
+  const sh = seasonHits(r); if (sh.length) { s += Math.min(3, sh.length) * 1.2; why.push(`in season: ${sh.slice(0, 2).map(x => x[0].toLowerCase()).join(', ')}`); }
   const lastAte = recs('meals').filter(m => m.recipe === r.id && m.date <= today()).map(m => m.date).sort().pop();
   if (lastAte && diffDays(lastAte, today()) < 5) s -= 3;
   return { r, s: s + Math.random() * .3, why };
