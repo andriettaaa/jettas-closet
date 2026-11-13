@@ -673,6 +673,25 @@ Deno.serve(async req => {
       }
       return json({ ok: true, saved });
     }
+    // a finished photo (for example a product cut out on a transparent background) straight into a record
+    if (body.action === 'photoput') {
+      const items = (Array.isArray(body.items) ? body.items : []).slice(0, 20); let saved = 0; const failed: string[] = [];
+      for (const it of items) {
+        const id = str(it?.id, 60), type = str(it?.type, 30) || 'image/png';
+        if (!id || !/^image\/(png|jpeg|webp)$/.test(type) || typeof it?.data !== 'string') { failed.push(id); continue; }
+        let buf: Uint8Array; try { const bin = atob(it.data); buf = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i); } catch { failed.push(id); continue; }
+        if (buf.length < 100 || buf.length > 4e6) { failed.push(id); continue; }
+        const { data: row, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).eq('id', id).maybeSingle();
+        if (error) throw error; if (!row) { failed.push(id); continue; }
+        const path = `${uid}/${crypto.randomUUID()}.${type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg'}`;
+        const { error: e1 } = await sb.storage.from('photos').upload(path, buf, { contentType: type, cacheControl: '31536000', upsert: false });
+        if (e1) { failed.push(id); continue; }
+        const d: any = { ...row.data, photo: path }; const credit = str(it.credit, 300); if (credit) d.photoCredit = credit; else delete d.photoCredit;
+        const { error: e2 } = await sb.from('records').upsert({ user_id: uid, id, kind: row.kind, data: d, updated_at: new Date().toISOString() });
+        if (e2) throw e2; saved++;
+      }
+      return json({ ok: true, saved, failed });
+    }
     if (body.action === 'fillsave') {
       const KEEP = new Set(['id', 'kind', 'created', 'updated', 'needsFill', 'bought', 'rating', 'fav', 'left', 'opened', 'qty', 'finished', 'low', 'wish', 'status', 'archived', 'notes', 'own', 'given']);
       const PAID = new Set(['price', 'shop', 'store']), WANT = new Set(['wishes', 'fwait', 'gifts', 'offers', 'bdeals', 'deals', 'invopts', 'stays', 'fragsugs']);
