@@ -381,7 +381,7 @@ async function pnSync(uid: string) {
   let me: any; try { me = await call('/user_account'); } catch (e: any) { return { error: e.message }; }
   const boards: any[] = []; let book = '';
   for (let i = 0; i < 5; i++) { const j = await call(`/boards?page_size=100${book ? '&bookmark=' + encodeURIComponent(book) : ''}`); boards.push(...(j.items || [])); book = j.bookmark; if (!book) break; }
-  const { data: have, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['accounts', 'moodboard', 'inspo', 'posts']);
+  const { data: have, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['accounts', 'moodboard', 'inspo', 'vision', 'ideas', 'posts']);
   if (error) throw error;
   const acc = have.find((r: any) => r.kind === 'accounts' && r.data.platform === 'Pinterest');
   const d: any = { ...(acc?.data || { platform: 'Pinterest', active: true, created: Date.now() }) };
@@ -399,15 +399,27 @@ async function pnSync(uid: string) {
   // the affirmations board: kept on the account, Today shows one a day
   if (roles.affirm && known.has(roles.affirm)) d.pnAffirm = (await pnPins(call, roles.affirm, 120)).map(p => ({ id: p.id, img: pnImg(p), text: pnText(p).slice(0, 300) })).filter(p => p.img);
   else delete d.pnAffirm;
-  const byPin = new Map(have.filter((r: any) => r.data.pnId && ['moodboard', 'inspo'].includes(r.kind)).map((r: any) => [r.kind + ':' + r.data.pnId, r]));
-  for (const [kind, list] of [['moodboard', [].concat(roles.mood || [])], ['inspo', [].concat(roles.inspo || [])]] as [string, string[]][]) {
+  // closet and travel boards: kept on the account as rows of pins, the app shows them in Outfits and Trips
+  const strip = async (ids: string[], max: number) => {
+    const out: any[] = [];
+    for (const bid of ids.filter(b => known.has(b))) { const board = boards.find(b => b.id === bid)?.name || ''; for (const p of await pnPins(call, bid, 60)) { const img = pnImg(p); if (img) out.push({ id: p.id, img, text: pnText(p).slice(0, 200), board }); } }
+    return out.slice(0, max);
+  };
+  for (const [role, key, max] of [['closet', 'pnCloset', 120], ['travel', 'pnTravel', 150]] as [string, string, number][]) { const ids = [].concat(roles[role] || []); if (ids.length) d[key] = await strip(ids, max); else delete d[key]; }
+  const byPin = new Map(have.filter((r: any) => r.data.pnId && ['moodboard', 'inspo', 'vision', 'ideas'].includes(r.kind)).map((r: any) => [r.kind + ':' + r.data.pnId, r]));
+  // boards that become records: the moodboard, Social inspiration, the vision board and self-care ideas per area
+  const SETS: [string, string, string[]][] = [['moodboard', '', roles.mood], ['inspo', '', roles.inspo], ['vision', '', roles.vision], ['ideas', 'Hair', roles.hair], ['ideas', 'Nails', roles.nails], ['ideas', 'Beauty', roles.beauty]].map(([k, a, l]: any) => [k, a, [].concat(l || [])]);
+  for (const [kind, area, list] of SETS) {
     for (const bid of list.filter(b => known.has(b))) {
       const bname = boards.find(b => b.id === bid)?.name || '', room = PN_ROOMS.find(r => bname.toLowerCase().includes(r.toLowerCase()));
       for (const p of await pnPins(call, bid, 100)) {
         if (byPin.has(kind + ':' + p.id)) continue;
         const name = (pnText(p).split('\n')[0] || bname || 'Pin').slice(0, 80), link = 'https://www.pinterest.com/pin/' + p.id + '/';
-        const data = kind === 'moodboard' ? { name, photo: pnImg(p), room: room || 'Overig', link, why: p.description || '', pnId: p.id, pnBoard: bname, created: Date.now() }
-          : { name, photo: pnImg(p), type: 'Post', link, why: p.description || '', pnId: p.id, pnBoard: bname, created: Date.now() };
+        const base = { name, photo: pnImg(p), pnId: p.id, pnBoard: bname, created: Date.now() };
+        const data = kind === 'moodboard' ? { ...base, room: room || 'Overig', link, why: p.description || '' }
+          : kind === 'vision' ? { ...base, url: link, why: p.description || '' }
+          : kind === 'ideas' ? { ...base, area, what: 'Look', url: link, summary: p.description || '' }
+          : { ...base, type: 'Post', link, why: p.description || '' };
         rows.push({ user_id: uid, id: crypto.randomUUID(), kind, data: clean(data), updated_at: nowS }); added++;
       }
     }
@@ -421,7 +433,7 @@ async function pnSync(uid: string) {
   }
   rows.push({ user_id: uid, id: acc?.id || crypto.randomUUID(), kind: 'accounts', data: clean(d), updated_at: nowS });
   while (rows.length) { const { error: e } = await sb.from('records').upsert(rows.splice(0, 25)); if (e) throw e; }
-  return { ok: true, handle: me.username, boards: boards.length, added, affirmations: d.pnAffirm?.length || 0, stats: !!d.pnStats };
+  return { ok: true, handle: me.username, boards: boards.length, added, affirmations: d.pnAffirm?.length || 0, closet: d.pnCloset?.length || 0, travel: d.pnTravel?.length || 0, stats: !!d.pnStats };
 }
 async function pnPost(uid: string, id: string, board: string, link: string) {
   const rec = await postRec(uid, id); if (!rec) return { error: 'Post not found' };
