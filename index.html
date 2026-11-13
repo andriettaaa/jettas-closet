@@ -1512,6 +1512,7 @@ function renderOutfits(host) {
       <div class="tools" style="margin:0"><button class="btn" data-shuffle>${I.shuffle} Shuffle an outfit</button><button class="btn primary" data-newoutfit>${I.plus} New outfit</button></div></div>
       <div id="wxHost"></div>
       <div id="looksHost"></div>
+      <div id="pnHost"></div>
       <div id="outGrid"></div>`;
     host.addEventListener('click', e => {
       if (e.target.closest('[data-shuffle]')) return shuffleOutfit();
@@ -1526,6 +1527,7 @@ function renderOutfits(host) {
   const looks = lookPhotos().slice(0, 24);
   $('#looksHost', host).innerHTML = `<div class="looks"><div class="viewhead" style="margin-bottom:8px"><h2 style="font-size:20px">Your looks</h2><span class="sub">${looks.length ? `${lookPhotos().length} photos of you wearing it` : 'a mirror selfie or any photo of you in an outfit'}</span></div>
     <div class="row"><button class="look add" data-addlook>${I.camera}<span>Add a look</span></button>${looks.map(l => `<button class="look" data-day="${l.date}">${pimg(l.path, 'Your look', 'loading="lazy"')}<span>${shortDate(l.date)}${l.outfit && S.outById[l.outfit] ? ' · ' + esc(S.outById[l.outfit].name) : ''}</span></button>`).join('')}</div></div>`;
+  const pnH = $('#pnHost', host); if (pnH) pnH.innerHTML = window.LIFE?.pnStrip?.('pnCloset', 'Outfit-inspiratie van Pinterest') || '';
   const g = $('#outGrid', host);
   if (!S.outfits.length) {
     g.className = '';
@@ -2161,7 +2163,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v165';
+const APP_VERSION = 'hangtag-v166';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
