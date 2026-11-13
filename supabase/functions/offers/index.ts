@@ -681,13 +681,15 @@ Deno.serve(async req => {
         if (!id || !/^image\/(png|jpeg|webp)$/.test(type) || typeof it?.data !== 'string') { failed.push(id); continue; }
         let buf: Uint8Array; try { const bin = atob(it.data); buf = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i); } catch { failed.push(id); continue; }
         if (buf.length < 100 || buf.length > 4e6) { failed.push(id); continue; }
-        const { data: row, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).eq('id', id).maybeSingle();
+        // closet pieces live in "items", everything else in "records"
+        const table = it.table === 'items' ? 'items' : 'records';
+        const { data: row, error } = await sb.from(table).select(table === 'items' ? 'id,data' : 'id,kind,data').eq('user_id', uid).eq('id', id).maybeSingle();
         if (error) throw error; if (!row) { failed.push(id); continue; }
         const path = `${uid}/${crypto.randomUUID()}.${type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg'}`;
         const { error: e1 } = await sb.storage.from('photos').upload(path, buf, { contentType: type, cacheControl: '31536000', upsert: false });
         if (e1) { failed.push(id); continue; }
         const d: any = { ...row.data, photo: path }; const credit = str(it.credit, 300); if (credit) d.photoCredit = credit; else delete d.photoCredit;
-        const { error: e2 } = await sb.from('records').upsert({ user_id: uid, id, kind: row.kind, data: d, updated_at: new Date().toISOString() });
+        const { error: e2 } = await sb.from(table).upsert(table === 'items' ? { user_id: uid, id, data: d, updated_at: new Date().toISOString() } : { user_id: uid, id, kind: row.kind, data: d, updated_at: new Date().toISOString() });
         if (e2) throw e2; saved++;
       }
       return json({ ok: true, saved, failed });
@@ -959,7 +961,7 @@ Deno.serve(async req => {
     if (body.action === 'closetlist') {
       const { data, error } = await sb.from('items').select('id,data').eq('user_id', uid).limit(5000);
       if (error) throw error;
-      return json({ items: data.map((r: any) => clean({ id: r.id, name: r.data.name, cat: r.data.cat, sub: r.data.sub, brand: r.data.brand, colors: r.data.colors, status: r.data.status, source: r.data.source, batch: r.data.batch, importKey: r.data.importKey })) });
+      return json({ items: data.map((r: any) => clean({ id: r.id, name: r.data.name, cat: r.data.cat, sub: r.data.sub, brand: r.data.brand, colors: r.data.colors, status: r.data.status, source: r.data.source, batch: r.data.batch, importKey: r.data.importKey, photo: r.data.photo, link: r.data.link || r.data.url, shop: r.data.shop })) });
     }
     if (body.action === 'closetadd') {
       const batch = str(body.batch, 60); if (!batch) return json({ error: 'batch is needed, e.g. "video-1"' }, 400);
