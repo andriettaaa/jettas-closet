@@ -1298,3 +1298,8 @@ img.nophoto { background: var(--line); }
 .lscorebtns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .lscorebtns .iconbtn { font: 700 20px var(--display); }
 @media (max-width: 420px) { .lscoretaps { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+
+/* a manual or a proof of purchase: a file or a link */
+.ldoc{display:grid;gap:8px}
+.ldoc .lphb{display:flex;flex-wrap:wrap;gap:8px}
+.ldocname{font-size:14px;overflow-wrap:anywhere}

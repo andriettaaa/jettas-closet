@@ -439,14 +439,14 @@ const KINDS = {
   },
   ingredients: {
     one: 'ingredient', many: 'Pantry', facet: 'category',
-    fields: [F('name', 'Name'), F('category', 'Category', 'select', { options: Object.values(CAT_NL.ingredients) }),
+    fields: [F('name', 'Name'), F('brand', 'Merk', 'text', { half: 1 }), F('variant', 'Variant', 'text', { half: 1 }), F('category', 'Category', 'select', { options: Object.values(CAT_NL.ingredients) }),
       F('type', 'Soort', 'select', { options: [...new Set(Object.values(ING_TYPES).flat())], dep: 'category', depOpts: ING_TYPES }),
       F('variety', 'Variëteit', 'select', { options: [...new Set(Object.values(ING_VARIANTS).flat())], dep: 'type', depOpts: ING_VARIANTS, depHint: 'Kies eerst een soort.', half: 1 }), F('form', 'Vorm', 'select', { options: ING_FORMS, half: 1 }),
       F('location', 'Kept in', 'select', { options: ['Koelkast', 'Vriezer', 'Voorraadkast', 'Keukenkast', 'Fruitmand', 'Broodtrommel', 'Kelder / Berging', 'Overig'] }),
       F('stock', 'In stock', 'check', { half: 1 }), F('low', 'Running low', 'check', { half: 1 }), F('list', 'On grocery list', 'check', { half: 1 }),
       F('expires', 'Best before', 'date', { half: 1 }), F('frozen', 'Frozen on', 'date', { half: 1 }), F('portions', 'Portions', 'num', { half: 1 }), F('shop', 'Buy at', 'select', { options: STORES, more: () => shopNames('shops'), half: 1 }), F('amount', 'How much is left', 'num', { half: 1 }), F('unit', 'Counted in', 'select', { options: UNITS, half: 1 }), F('min', 'Minimum to keep', 'num', { half: 1 }), F('staple', 'Basic: always keep in stock', 'check', { half: 1 }), F('helps', 'Helps with', 'multi', { options: HELPS }),
-      F('qty', 'Amount', 'text', { half: 1 }), F('left', 'Open: hoeveel zit er nog in', 'pct'), F('brand', 'Merk', 'text', { half: 1 }), F('variant', 'Variant', 'text', { half: 1 }), F('price', 'Last price', 'money', { half: 1 }), F('bought', 'Last bought', 'date', { half: 1 }), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
-    sorts: [['name', 'A to Z'], ['category', 'Category'], ['type', 'Soort'], ['form', 'Vorm'], ['location', 'Where it is']],
+      F('qty', 'Amount', 'text', { half: 1 }), F('left', 'Open: hoeveel zit er nog in', 'pct'), F('price', 'Last price', 'money', { half: 1 }), F('bought', 'Last bought', 'date', { half: 1 }), F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
+    sorts: [['name', 'A to Z'], ['brand', 'Merk'], ['category', 'Category'], ['type', 'Soort'], ['form', 'Vorm'], ['location', 'Where it is']],
     filters: [['all', 'All'], ['in', 'In stock'], ['low', 'Running low'], ['soon', 'Use soon'], ['out', 'Out of stock'], ['basic', 'Basics']],
     filter: (r, f) => f === 'basic' ? !!r.staple : f === 'in' ? !!r.stock : f === 'out' ? !r.stock : f === 'low' ? !!r.low : f === 'soon' ? useSoon(r) : true,
     sub: r => [r.brand, r.variant, r.category, r.location, r.frozen ? 'frozen ' + shortDate(r.frozen) : '', num(r.portions) ? plural(num(r.portions), 'portion') : '', r.low ? 'running low' : '', r.expires ? (r.expires < today() ? 'past its date' : 'best before ' + shortDate(r.expires)) : '', r.list ? 'on grocery list' : ''].filter(Boolean).join(' · '),
@@ -532,7 +532,7 @@ const KINDS = {
   },
   gear: {
     one: 'item', many: 'Kitchen gear', facet: 'category',
-    fields: [F('name', 'Name'), F('category', 'Category', 'select', { options: Object.values(CAT_NL.gear) }),
+    fields: [F('name', 'Name'), F('brand', 'Brand', 'text', { half: 1 }), F('category', 'Category', 'select', { options: Object.values(CAT_NL.gear), half: 1 }),
       F('own', 'I have this', 'check'), F('price', 'Price', 'money', { half: 1 }), F('bought', 'Bought on', 'date', { half: 1 }),
       F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['category', 'Category']],
@@ -873,7 +873,7 @@ const KINDS = {
       F('priority', 'Prioriteit', 'select', { options: INV_PRIO, half: 1 }), F('category', 'Categorie', 'select', { options: INV_CATS, half: 1 }),
       F('budget', 'Budget', 'money', { half: 1 }), F('price', 'Betaald', 'money', { half: 1 }), F('qty', 'Aantal', 'text', { half: 1 }), F('brand', 'Merk', 'text', { half: 1 }),
       F('shop', 'Winkel', 'text', { half: 1 }), F('bought', 'Gekocht op', 'date', { half: 1 }), F('warranty', 'Garantie tot', 'date', { half: 1 }),
-      F('chosen', 'Gekozen optie', 'rel', { to: 'invopts', half: 1 }), F('receipt', 'Bon', 'photo'),
+      F('chosen', 'Gekozen optie', 'rel', { to: 'invopts', half: 1 }), F('manual', 'Handleiding', 'doc'), F('receipt', 'Aankoopbewijs', 'doc'),
       F('rating', 'Beoordeling', 'rating'), F('url', 'Link', 'url'), F('photo', 'Foto', 'photo'), F('notes', 'Notities', 'long')],
     sorts: [['prio', 'Prioriteit'], ['name', 'A tot Z'], ['-bought', 'Nieuwste'], ['-budget', 'Hoogste budget']],
     filters: [['want', 'Nog kopen'], ['have', 'Gekocht'], ['all', 'Alles']],
@@ -1183,7 +1183,7 @@ const KINDS = {
   },
   fitgear: {
     one: 'item', many: 'Fitness gear', facet: 'category',
-    fields: [F('name', 'Name'), F('category', 'Category', 'select', { options: ['Weights', 'Mats & Props', 'Cardio', 'Bands', 'Clothing', 'Tech', 'Recovery', 'Other'] }),
+    fields: [F('name', 'Name'), F('brand', 'Brand', 'text', { half: 1 }), F('category', 'Category', 'select', { options: ['Weights', 'Mats & Props', 'Cardio', 'Bands', 'Clothing', 'Tech', 'Recovery', 'Other'], half: 1 }),
       F('own', 'I have this', 'check'), F('price', 'Price', 'money', { half: 1 }), F('bought', 'Bought on', 'date', { half: 1 }),
       F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z']], filters: [['all', 'All'], ['own', 'I have'], ['want', 'Wishlist']],
@@ -1378,6 +1378,11 @@ for (const [k, [paid]] of Object.entries(PRICED)) {
   const i = fs.findIndex(f => f.k === paid);
   if (i >= 0 && !fs.some(f => f.k === 'origPrice')) fs.splice(i + 1, 0, F('origPrice', k === 'stays' ? 'Original price per night' : 'Original price', 'money', { half: 1 }));
   if (['gear', 'beauty', 'supplements', 'fitgear'].includes(k) && !fs.some(f => ['shop', 'store'].includes(f.k))) fs.splice(fs.findIndex(f => f.k === 'origPrice') + 1, 0, F('shop', 'Bought at', 'text', { half: 1 }));
+}
+// a manual and a proof of purchase on things you own: a link, a PDF or a photo, kept together on the item
+for (const k of ['gear', 'fitgear', 'beauty']) {
+  const K = KINDS[k]; if (!K || K.fields.some(f => f.k === 'receipt')) continue;
+  const at = K.fields.findIndex(f => f.k === 'url'); K.fields.splice(at < 0 ? K.fields.length : at + 1, 0, F('manual', 'Manual', 'doc'), F('receipt', 'Proof of purchase', 'doc'));
 }
 // things you own can be a gift you received: a tick plus who gave it, shown as 🎁 on the piece; a gift adds nothing to what you saved
 const GIFTABLE = ['beauty', 'supplements', 'gear', 'fitgear', 'inventory', 'books', 'plants'];
@@ -5003,6 +5008,11 @@ function fieldInner(kind, f, D) {
       const src = D._previews?.[f.k] || (v ? C.photoURL(v) : '');
       return span + `<div class="lphoto">${src ? `<img referrerpolicy="no-referrer" src="${esc(src)}" alt="">` : ''}<div class="lphb"><label class="btn small">Choose photo<input type="file" accept="image/*" class="vh" data-photo="${f.k}"></label>${src ? `<button type="button" class="btn small ghost" data-photox="${f.k}">Remove</button>` : ''}</div><input type="url" inputmode="url" data-k="${f.k}" data-photourl value="${esc(/^https?:/.test(v || '') ? v : '')}" placeholder="or paste an image link (https://…)" aria-label="Image link"><p class="lphnote">Found it online? Right-click or long-press the product photo, choose Copy image address and paste it here.</p></div>`;
     }
+    case 'doc': {
+      const b = D._blobs?.[f.k], link = /^https?:/.test(v || '') ? v : '', file = v && !link ? C.photoURL(v) : '';
+      const now = b ? `<span class="ldocname">📎 ${esc(b.name || 'File')} <small class="muted">saved when you tap Save</small></span>` : file ? `<a class="btn small" href="${esc(file)}" target="_blank" rel="noopener">📄 Open file</a>` : '';
+      return span + `<div class="ldoc">${now}<div class="lphb"><label class="btn small">${file || b ? 'Replace file' : 'Add PDF or photo'}<input type="file" accept="application/pdf,image/*" class="vh" data-doc="${f.k}"></label>${file || b ? `<button type="button" class="btn small ghost" data-photox="${f.k}">Remove</button>` : ''}</div>${b || file ? '' : `<div class="lurl"><input type="url" inputmode="url" data-k="${f.k}" value="${esc(link)}" placeholder="or paste a link (https://…)" aria-label="${esc(f.label)} link">${link ? `<a class="iconbtn" href="${esc(link)}" target="_blank" rel="noopener" aria-label="Open link">${svg(P.link)}</a>` : ''}</div>`}</div>`;
+    }
     case 'video': {
       const src = D._previews?.[f.k] || (v ? C.photoURL(v) : '');
       return span + `<div class="lphoto lvideo">${src ? `<video src="${esc(src)}" controls playsinline preload="metadata"></video>` : ''}<div class="lphb"><label class="btn small">Choose video<input type="file" accept="video/*" class="vh" data-video="${f.k}"></label>${src ? `<button type="button" class="btn small ghost" data-photox="${f.k}">Remove</button>` : ''}</div><span class="lphnote muted">Up to 50 MB. A phone video of a minute or two fits.</span></div>`;
@@ -5123,6 +5133,12 @@ function openEditor(kind, id, preset = {}) {
     if (t.dataset.optsel !== undefined) { const k = t.dataset.optsel, f = fdef(k); if (f.type === 'multi') { if (t.value) D[k] = [...new Set([...[].concat(D[k] || []), t.value])]; } else D[k] = t.value; redraw(k); }
   });
   sh.addEventListener('change', e => {
+    const t = e.target; if (!t.dataset.doc) return;
+    const file = t.files?.[0], k = t.dataset.doc; if (!file) return;
+    if (file.size > 20e6) { C.toast(`That file is ${Math.round(file.size / 1e6)} MB; the limit is 20 MB.`); t.value = ''; return; }
+    D._blobs[k] = file; redraw(k);
+  });
+  sh.addEventListener('change', e => {
     const t = e.target; if (!t.dataset.video) return;
     const file = t.files?.[0], k = t.dataset.video; if (!file) return;
     if (file.size > 50e6) { C.toast(`That video is ${Math.round(file.size / 1e6)} MB; the limit is 50 MB. Shorten or compress it first.`); t.value = ''; return; }
@@ -5237,8 +5253,8 @@ function openEditor(kind, id, preset = {}) {
           if (D._blobs[pf.k]) { msg.textContent = 'Uploading photo…'; const old = r?.[pf.k]; D[pf.k] = await skinUpload(D._blobs[pf.k]); if (old && old !== D[pf.k]) skinRemove(old); }
           else if (r?.[pf.k] && r[pf.k] !== D[pf.k]) skinRemove(r[pf.k]);
         }
-        for (const pf of K.fields.filter(f => f.type === 'photo' || f.type === 'video')) {
-          if (D._blobs[pf.k]) { msg.textContent = pf.type === 'video' ? 'Uploading video… this can take a minute' : 'Uploading photo…'; const old = r?.[pf.k]; D[pf.k] = pf.type === 'video' ? await C.uploadFile(D._blobs[pf.k]) : await C.uploadPhoto(D._blobs[pf.k]); if (old && old !== D[pf.k]) C.deletePhoto(old); }
+        for (const pf of K.fields.filter(f => f.type === 'photo' || f.type === 'video' || f.type === 'doc')) {
+          if (D._blobs[pf.k]) { msg.textContent = pf.type === 'video' ? 'Uploading video… this can take a minute' : pf.type === 'doc' ? 'Uploading file…' : 'Uploading photo…'; const old = r?.[pf.k]; D[pf.k] = pf.type === 'video' || pf.type === 'doc' ? await C.uploadFile(D._blobs[pf.k]) : await C.uploadPhoto(D._blobs[pf.k]); if (old && old !== D[pf.k]) C.deletePhoto(old); }
           else if (r?.[pf.k] && r[pf.k] !== D[pf.k] && !/^https?:/.test(r[pf.k])) C.deletePhoto(r[pf.k]);
         }
         if (kind === 'beauty') { D.amDays = [].concat(D.amDays || []); D.pmDays = [].concat(D.pmDays || []); D.am = D.amDays.length > 0; D.pm = D.pmDays.length > 0; }

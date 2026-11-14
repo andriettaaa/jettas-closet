@@ -578,6 +578,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .iconpick { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 8px; margin-top: 8px; }
 .iconopt { aspect-ratio: 1; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 12px; display: grid; place-items: center; cursor: pointer; padding: 0; }
 .iconopt[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink, #fff); border-color: transparent; }
+.rcbox{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 </style>
 <link rel="stylesheet" href="life.css">
 </head>
@@ -2163,7 +2164,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v167';
+const APP_VERSION = 'hangtag-v168';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -3242,6 +3243,7 @@ function openItem(id) {
           ${row('Article no.', cur.articleNo ? `<span class="mono">${esc(cur.articleNo)}</span> <button class="chip link" data-copy="${esc(cur.articleNo)}">copy</button>` : '')}
           ${row('Fit', list('fits', cur.fits))}
           ${row('Condition', cur.condition ? fchip('condition', cur.condition) : '')}
+          ${row('Proof of purchase', cur.receipt ? `<a class="chip link" href="${esc(/^https?:/.test(cur.receipt) ? cur.receipt : photoURL(cur.receipt))}" target="_blank" rel="noopener">📄 Open</a>` : '')}
           ${row('New, 2nd-hand or gift', cur.acquired ? fchip('acquired', cur.acquired) + (cur.acquired === 'Gift' && cur.giftFrom ? ` <span class="muted">from ${esc(cur.giftFrom)}</span>` : '') : '')}
           ${row(wish ? 'Where to buy' : 'Where bought', cur.purchasePlace ? fchip('purchasePlace', cur.purchasePlace) : '')}
           ${row('Occasion', list('occasions', cur.occasions))}
@@ -3367,6 +3369,7 @@ function openEditor(id, opts = {}) {
         <div class="field" id="goneF" hidden><label for="f-gone">Sold or donated on</label><input id="f-gone" type="date" value="${esc(it.goneDate)}"></div>
         <div class="field" id="soldF" hidden><label for="f-sold">Sold for (€)</label><input id="f-sold" inputmode="decimal" value="${money2(it.soldPrice)}" placeholder="optional"></div>
         <div class="field full"><label for="f-link">Shop link</label><input id="f-link" type="url" value="${esc(it.link)}" placeholder="https://"></div>
+        ${wishMode ? '' : `<div class="field full" id="f-rcrow"><span class="lbl">Proof of purchase</span><div class="rcbox">${it.receipt && !/^https?:/.test(it.receipt) ? `<a class="btn small" href="${esc(photoURL(it.receipt))}" target="_blank" rel="noopener">📄 Open file</a> <button type="button" class="btn small ghost" data-rcx>Remove</button>` : ''}<label class="btn small">${it.receipt && !/^https?:/.test(it.receipt) ? 'Replace file' : 'Add PDF or photo'}<input type="file" id="f-rcfile" class="vh" accept="application/pdf,image/*"></label><span class="muted" id="f-rcname"></span></div>${it.receipt && !/^https?:/.test(it.receipt) ? '' : `<input id="f-receipt" type="url" value="${esc(it.receipt || '')}" placeholder="or paste a link to the receipt or order (https://…)" style="margin-top:8px">`}</div>`}
         <div class="field full"><label for="f-notes">Notes</label><textarea id="f-notes" placeholder="Fit, what it goes with">${esc(it.notes)}</textarea></div>
       </div>
       <h3 style="font-size:17px">Care</h3>
@@ -3408,6 +3411,7 @@ function openEditor(id, opts = {}) {
   };
   for (const key of Object.keys(known)) { drawSug(key); $(`#f-${key}`, sh).addEventListener('input', () => drawSug(key)); }
   $('#f-cat', sh).addEventListener('change', () => drawSug('sub'));
+  sh.addEventListener('change', e => { if (e.target.id === 'f-rcfile') { const n = $('#f-rcname', sh); if (n) n.textContent = e.target.files[0] ? '📎 ' + e.target.files[0].name + ' · saved when you tap Save' : ''; } });
   $('#f-brand', sh).addEventListener('input', () => drawSug('model'));
   sh.addEventListener('input', e => { const k = e.target.dataset?.matpct; if (k == null) return; const v = parseFloat(String(e.target.value).replace(',', '.')); if (v > 0) it.matPct[k] = Math.min(100, v); else delete it.matPct[k]; const t = $('#pcttotal', sh); if (t) { t.textContent = matPctTotal(it); const sum = matPctOf(it).reduce((a, [, n]) => a + n, 0); t.classList.toggle('off', !!matPctOf(it).length && sum !== 100); } });
   sh.addEventListener('click', async e => {
@@ -3415,6 +3419,7 @@ function openEditor(id, opts = {}) {
     const wh = e.target.closest('[data-where]'); if (wh) { $('#f-where', sh).value = wh.dataset.where; sh.querySelectorAll('[data-where]').forEach(b => b.setAttribute('aria-pressed', b === wh)); sh.querySelectorAll('[data-loan]').forEach(x => x.hidden = wh.dataset.where !== 'Uitgeleend'); return; }
     const c = e.target.closest('[data-color]'); if (c) { toggleIn(it.colors, c.dataset.color); c.setAttribute('aria-pressed', it.colors.includes(c.dataset.color)); colorNames(); }
     const o1 = e.target.closest('[data-one]'); if (o1) { const k = o1.dataset.one; it[k] = it[k] === o1.dataset.v ? '' : o1.dataset.v; $$(`[data-one="${k}"]`, sh).forEach(b => b.setAttribute('aria-pressed', it[k] === b.dataset.v)); if (k === 'acquired') { const g = $('#f-giftrow', sh); if (g) g.hidden = it[k] !== 'Gift'; } }
+    if (e.target.closest('[data-rcx]')) { it.receipt = ''; const row = $('#f-rcrow .rcbox', sh); row.innerHTML = `<label class="btn small">Add PDF or photo<input type="file" id="f-rcfile" class="vh" accept="application/pdf,image/*"></label><span class="muted" id="f-rcname"></span>`; row.insertAdjacentHTML('afterend', '<input id="f-receipt" type="url" placeholder="or paste a link to the receipt or order (https://…)" style="margin-top:8px">'); }
     const cd = e.target.closest('[data-cond]'); if (cd) { it.condition = it.condition === cd.dataset.cond ? '' : cd.dataset.cond; $$('[data-cond]', sh).forEach(b => b.setAttribute('aria-pressed', it.condition === b.dataset.cond)); }
     const m = e.target.closest('[data-multi]'); if (m) { const arr = it[m.dataset.multi]; toggleIn(arr, m.dataset.v); m.setAttribute('aria-pressed', arr.includes(m.dataset.v)); if (m.dataset.multi === 'materials') $('#matpct', sh).innerHTML = matPctHTML(it); }
     const cr = e.target.closest('[data-care]'); if (cr) { const k = cr.dataset.care; it.care[k] = it.care[k] === cr.dataset.v ? '' : cr.dataset.v; $$(`[data-care="${k}"]`, sh).forEach(b => b.setAttribute('aria-pressed', it.care[k] === b.dataset.v)); }
@@ -3492,7 +3497,7 @@ function openEditor(id, opts = {}) {
         tags: it.tags,
         care: it.care, careNotes: $('#f-carenotes', sh).value.trim(),
         why: $('#f-why', sh)?.value.trim() ?? it.why ?? '', wishSince: $('#f-since', sh)?.value ?? it.wishSince ?? '',
-        status, notes: $('#f-notes', sh).value.trim(), link: $('#f-link', sh).value.trim(), shop: $('#f-shop', sh).value.trim(),
+        status, notes: $('#f-notes', sh).value.trim(), link: $('#f-link', sh).value.trim(), shop: $('#f-shop', sh).value.trim(), receipt: $('#f-receipt', sh) ? $('#f-receipt', sh).value.trim() : (it.receipt || ''),
         importKey: it.importKey || '', photo: it.photo || '',
         created: review || buying ? Date.now() : (it.created || Date.now()), updated: Date.now()
       };
@@ -3501,6 +3506,7 @@ function openEditor(id, opts = {}) {
       if (status === 'sold' || status === 'donated') { doc.goneDate = $('#f-gone', sh)?.value || it.goneDate || today(); if (status === 'sold') doc.soldPrice = num('#f-sold'); }
       const oldPhoto = it.photo;
       if (PE.cur && PE.changed) { st.textContent = 'Uploading photo…'; doc.photo = await uploadPhoto(await peExport()); }
+      { const rf = $('#f-rcfile', sh)?.files?.[0]; if (rf) { st.textContent = 'Uploading file…'; doc.receipt = await uploadFile(rf); } }
       st.textContent = 'Saving…';
       // "cos" and "COS" are the same brand: keep the spelling you used first
       const kb = doc.brand && allBrands().find(b => sameBrand(b.name, doc.brand));
