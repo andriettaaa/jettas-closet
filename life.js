@@ -2243,6 +2243,7 @@ async function inboxAcceptAll(only) {
     C.toast(`${plural(list.length, 'card')} accepted`);
   } catch { C.toast('Could not save them all. Try again.'); }
 }
+document.addEventListener('change', e => { const t = e.target; if (!C || !t.matches?.('[data-dealsort]')) return; L.dealsSort = t.value; C.render(); C.savePrefs({ food: { ...food(), dealSort: t.value } }).catch(() => {}); });
 document.addEventListener('change', e => { const t = e.target; if (!C || !t.matches?.('[data-ibxto]') || !t.value) return; inboxAccept(t.dataset.ibxto, t.value); });
 document.addEventListener('submit', e => {
   if (!e.target.matches?.('[data-ibxadd]')) return; e.preventDefault();
@@ -3015,6 +3016,7 @@ function dealsPage(host) {
   const cost = fSum(shopping.filter(x => !x.have), 'price'), bud = groceryBudget();
   const saved = fSum(offers.filter(o => num(o.was) > num(o.price)).map(o => ({ amount: num(o.was) - num(o.price) })));
   host.innerHTML = `${head('Deals of the week')}<div class="ldeals">
+  ${offers.length ? myDealsPanel(offers) + allDealsPanel(offers, saved) : ''}
   <div class="tiles">${fTile('Deals', String(offers.length), byStore.map(([s, l]) => `${s} ${l.length}`).join(' · ') || 'none yet')}${fTile('Dinners', String((plan?.dinners || []).length), plan ? `each for 2 days · ${esc(shortDate(plan.start))} to ${esc(shortDate(plan.end))}` : 'no plan yet')}${fTile('Shared', String((plan?.shared || []).length), 'deal ingredients used in more than one recipe')}${bud ? fTile('Budget this week', fEur0(bud.week), `${eur(bud.spentWeek)} spent since Wednesday${cost ? ` · plan about ${eur(cost)}` : ''}`) : fTile('Plan costs', cost ? eur(cost) : '–', saved ? `${eur(saved)} saved with deals` : 'from the shopping list')}</div>
   ${shopPickAll()}<div class="dday"><span class="rowlbl">Usually I shop on</span><div class="seg fseg" role="group">${[['Wed', 'Wednesday'], ['Fri', 'Friday'], ['Sat', 'Saturday']].map(([k, l]) => `<button data-act="shopday" data-v="${k}" aria-pressed="${food().shopDay === k}">${l}</button>`).join('')}</div><span class="lnone">${mkt ? `Fruit and vegetables go on the ${esc(mktName)} list: buy small amounts.` : sday ? 'No market today: fruit and vegetables stay at the shop.' : 'On Wednesday and Saturday fruit and vegetables move to the market list.'}</span></div>
   ${awayRow()}
@@ -3030,37 +3032,99 @@ function dealsPage(host) {
   <div class="mrow2 dmrow">${plan?.shared?.length ? panel('Used in several recipes', `<div class="lrows">${plan.shared.map(x => `<div class="lrow"><span class="lmain"><b>${esc(x.name)}</b><span>${esc([x.store, x.deal, num(x.price) ? eur(num(x.price)) : '', (x.in || []).length ? 'in ' + x.in.join(', ') : ''].filter(Boolean).join(' · '))}</span></span></div>`).join('')}</div>`) : ''}
     ${shopping.length ? panel('Shopping list', `${shopBy.map(([s, l]) => `<p class="dsub">${esc(s)}</p><div class="lrows">${l.map(x => { const k = shopping.indexOf(x), on = dealPicked(x, k); return `<label class="lrow dpick ${x.have ? 'gone' : ''}"><input type="checkbox" data-dpick="${k}" ${on ? 'checked' : ''} aria-label="Put ${esc(x.name)} on the list"><span class="lmain"><b>${esc(x.name)}</b><span>${esc([x.qty, x.deal, num(x.price) ? eur(num(x.price)) : '', x.have ? 'you have this' : '', x.left ? 'left over: ' + x.left : ''].filter(Boolean).join(' · '))}</span></span></label>`; }).join('')}</div>`).join('')}<p class="lnone">Untick what you don't want.</p><button class="btn small primary" data-act="dgroc">Put ${plural(shopping.filter(dealPicked).length, 'thing')} on my grocery list</button>`) : ''}</div>
   ${mine.length ? panel('Your recipes with deals', `<div class="lrows">${mine.map(({ r, hits }) => `<div class="lrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(hits.slice(0, 4).map(o => `${o.name} (${o.store})`).join(', '))}${hits.length > 4 ? ` and ${hits.length - 4} more` : ''}</span></button><span class="lside">${plural(hits.length, 'deal')}</span></div>`).join('')}</div>`) : ''}
-  ${offers.length ? allDealsPanel(offers, saved) : ''}</div>`;
+</div>`;
 }
 // All deals: grouped per shop or per product group, with filter chips and a button on each deal that puts it on your grocery list
 const DEAL_CATS = ['Groente', 'Fruit', 'Vlees', 'Vis', 'Kaas', 'Zuivel', 'Brood', 'Diepvries', 'Voorraad', 'Snacks', 'Dranken'];
 const dealCat = o => String(o.category || '').trim() || 'Overig';
 const dealCatCmp = (a, b) => { const i = DEAL_CATS.indexOf(a), j = DEAL_CATS.indexOf(b); return (i < 0 ? 99 : i) - (j < 0 ? 99 : j) || a.localeCompare(b); };
 const dealIng = o => { const n = deUml(o.name); return recs('ingredients').find(i => deUml(i.name) === n); };
-function dealCard(o) {
-  const on = !!dealIng(o)?.list;
-  return `<div class="dcw">${prodCard(o)}<button class="btn small ${on ? 'ghost' : ''} dadd" data-act="dealtolist" data-id="${o.id}" aria-pressed="${on}" aria-label="${on ? 'Take ' + esc(o.name) + ' off' : 'Put ' + esc(o.name) + ' on'} your grocery list">${on ? '✓ On your list' : '+ Grocery list'}</button></div>`;
+// what a deal costs per kilo or litre, read from its amount ("Los. 500 gram", "2 x 250 ml", "1,5 liter")
+function dealPerUnit(o) {
+  const t = String(o.unit || o.name || '').toLowerCase().replace(',', '.'), price = num(o.price); if (!price) return null;
+  const m = t.match(/(?:(\d+)\s*[x×]\s*)?(\d+(?:\.\d+)?)\s*(kilo|kg|gram|gr|g|liter|ltr|l|ml|cl)\b/); if (!m) return null;
+  const n = (m[1] ? +m[1] : 1) * +m[2], u = m[3], q = /^(kilo|kg)$/.test(u) ? n : /^(gram|gr|g)$/.test(u) ? n / 1000 : /^(liter|ltr|l)$/.test(u) ? n : u === 'cl' ? n / 100 : n / 1000;
+  return q > 0 ? { v: price / q, per: /^(kilo|kg|gram|gr|g)$/.test(u) ? 'kg' : 'l' } : null;
+}
+const dealPct = o => { const p = num(o.price), w = num(o.was); if (p && w > p) return Math.round(100 * (1 - p / w)); const m = String(o.deal || '').match(/(\d{1,2})\s*%/); return m ? +m[1] : 0; };
+const dealKey = o => deUml(o.name);
+const dealHidden = o => (food().hideDeals || []).includes(dealKey(o)) || (food().hideCats || []).includes(dealCat(o));
+function dealRecipes(offers) { const m = new Map(); for (const { r, hits } of recipeDeals(offers)) for (const o of hits) m.set(o.id, [...(m.get(o.id) || []), r]); m.pantry = new Set(recs('ingredients').filter(i => i.stock).flatMap(i => dealsFor(i.name, offers).map(o => o.id))); return m; }
+function dealCard(o, rmap) {
+  const ing = dealIng(o), on = !!ing?.list, pct = dealPct(o), pu = dealPerUnit(o), rs = rmap?.get(o.id) || [];
+  const notes = [pu ? `${eur(pu.v)} per ${pu.per}` : '', ing?.stock || rmap?.pantry?.has(o.id) ? '🏠 in your pantry' : '', rs.length ? `🍳 in ${rs.length === 1 ? titleOf(rs[0]) : plural(rs.length, 'recipe')}` : ''].filter(Boolean);
+  return `<div class="dcw">${pct ? `<span class="dpct" aria-label="${pct}% off">-${pct}%</span>` : ''}${prodCard(o)}${notes.length ? `<p class="dnotes">${notes.map(esc).join('<br>')}</p>` : ''}<div class="dcbtns"><button class="btn small ${on ? 'ghost' : ''} dadd" data-act="dealtolist" data-id="${o.id}" aria-pressed="${on}">${on ? '✓ On your list' : '+ Grocery list'}</button><button class="iconbtn small dhide" data-act="dealhide" data-id="${o.id}" aria-label="Not for me: hide ${esc(o.name)}" title="Not for me">×</button></div></div>`;
+}
+const DEAL_SORTS = [['pct', 'Biggest discount'], ['price', 'Lowest price'], ['unit', 'Price per kg or litre'], ['name', 'A to Z']];
+function dealSortFn() {
+  const k = L.dealsSort || food().dealSort || 'pct', nm = (a, b) => norm(a.name).localeCompare(norm(b.name));
+  if (k === 'price') return (a, b) => (num(a.price) ?? 1e9) - (num(b.price) ?? 1e9) || nm(a, b);
+  if (k === 'unit') return (a, b) => (dealPerUnit(a)?.v ?? 1e9) - (dealPerUnit(b)?.v ?? 1e9) || nm(a, b);
+  if (k === 'name') return nm;
+  return (a, b) => dealPct(b) - dealPct(a) || nm(a, b);
+}
+// your products on sale: basics, things on your list or running low, and what you bought in the last three months
+function myDealIngs() { const since = addDays(today(), -90); return recs('ingredients').filter(i => i.staple || i.list || i.low || (i.bought && i.bought >= since)); }
+function myDeals(offers) {
+  const seen = new Map();
+  for (const i of myDealIngs()) for (const o of dealsFor(i.name, offers)) if (!dealHidden(o) && !seen.has(o.id)) seen.set(o.id, { o, i });
+  return [...seen.values()].sort((a, b) => dealPct(b.o) - dealPct(a.o));
+}
+function myDealsPanel(offers) {
+  const l = myDeals(offers); if (!l.length) return '';
+  return panel('Your products on sale', `<p class="lnone">Your basics, what is on your list or running low, and what you bought lately.</p><div class="lrows">${l.slice(0, L.myDealsAll ? 60 : 8).map(({ o, i }) => { const on = !!dealIng(o)?.list, pct = dealPct(o); return `<div class="lrow"><button class="lmain" data-act="open" data-id="${o.id}"><b>${esc(o.name)}</b><span>${esc([o.store, pct ? `-${pct}%` : o.deal, num(o.price) ? eur(num(o.price)) : '', 'for ' + i.name].filter(Boolean).join(' · '))}</span></button><button class="btn small ${on ? 'ghost' : ''}" data-act="dealtolist" data-id="${o.id}" aria-pressed="${on}">${on ? '✓ On list' : '+ List'}</button></div>`; }).join('')}</div>${l.length > 8 ? `<button class="btn small" data-act="mydealsall">${L.myDealsAll ? 'Show fewer' : `See all ${l.length}`}</button>` : ''}`);
 }
 function allDealsPanel(offers, saved) {
-  const g = L.dealsGroup || 'store', fs = L.dealsStore || '', fc = L.dealsCat || '';
-  const stores = [...new Set(offers.map(o => o.store).filter(Boolean))].sort(azCmp), cats = [...new Set(offers.map(dealCat))].sort(dealCatCmp);
-  const list = offers.filter(o => (!fs || o.store === fs) && (!fc || dealCat(o) === fc));
-  const nameCmp = (a, b) => norm(a.name).localeCompare(norm(b.name));
+  const f = food(), mine = (f.dealShops || []).filter(Boolean), g = L.dealsGroup || 'store', fc = L.dealsCat || '';
+  const allStores = [...new Set(offers.map(o => o.store).filter(Boolean))].sort(azCmp);
+  const fs = L.dealsStore ?? (mine.length ? '*mine' : ''), inStore = o => fs === '*mine' ? mine.includes(o.store) : !fs || o.store === fs;
+  const visible = offers.filter(o => !dealHidden(o)), hiddenN = offers.length - visible.length;
+  const cats = [...new Set(visible.map(dealCat))].sort(dealCatCmp), list = visible.filter(o => inStore(o) && (!fc || dealCat(o) === fc));
+  const sortFn = dealSortFn(), rmap = dealRecipes(offers);
   const chip = (act, v, label, n, on) => `<button class="chip" data-act="${act}" data-v="${esc(v)}" aria-pressed="${on}">${esc(label)}${n != null ? ` <small>${n}</small>` : ''}</button>`;
-  const top = g === 'store' ? stores.filter(s => !fs || s === fs) : cats.filter(c => !fc || c === fc);
+  const stores = (fs === '*mine' ? mine : allStores).filter(s => allStores.includes(s));
+  const top = g === 'store' ? stores.filter(s => !fs || fs === '*mine' || s === fs) : cats.filter(c => !fc || c === fc);
   const keyOf = o => g === 'store' ? o.store : dealCat(o), subOf = o => g === 'store' ? dealCat(o) : o.store || 'Other';
-  const all = L.dealsAll || fs || fc, onList = offers.filter(o => dealIng(o)?.list).length;
+  const all = L.dealsAll || (fs && fs !== '*mine') || fc, onList = visible.filter(o => dealIng(o)?.list).length;
   const groups = top.map(t => {
     const l = list.filter(o => keyOf(o) === t); if (!l.length) return '';
+    if (!all) return `<p class="dsub dtop">${esc(t)} · ${l.length}</p><div class="lgrid dgrid">${[...l].sort(sortFn).slice(0, 6).map(o => dealCard(o, rmap)).join('')}</div>`;
     const subs = [...new Set(l.map(subOf))].sort(g === 'store' ? dealCatCmp : azCmp);
-    const shown = all ? l : [];
-    return `<p class="dsub dtop">${esc(t)} · ${l.length}</p>${all ? subs.map(sb => { const ll = shown.filter(o => subOf(o) === sb).sort(nameCmp); return ll.length ? `<p class="dsub2">${esc(sb)} · ${ll.length}</p><div class="lgrid dgrid">${ll.map(dealCard).join('')}</div>` : ''; }).join('') : `<div class="lgrid dgrid">${l.sort((a, b) => (g === 'store' ? dealCatCmp(dealCat(a), dealCat(b)) : azCmp(a.store || '', b.store || '')) || nameCmp(a, b)).slice(0, 6).map(dealCard).join('')}</div>`}`;
+    return `<p class="dsub dtop">${esc(t)} · ${l.length}</p>${subs.map(sb => { const ll = l.filter(o => subOf(o) === sb).sort(sortFn); return ll.length ? `<p class="dsub2">${esc(sb)} · ${ll.length}</p><div class="lgrid dgrid">${ll.map(o => dealCard(o, rmap)).join('')}</div>` : ''; }).join('')}`;
   }).join('');
-  return panel('All deals', `<div class="dgroupby"><div class="seg fseg" role="group" aria-label="Group deals"><button data-act="dealsgroup" data-v="store" aria-pressed="${g === 'store'}">Per shop</button><button data-act="dealsgroup" data-v="cat" aria-pressed="${g === 'cat'}">Per product group</button></div>${onList ? `<span class="lnone">${plural(onList, 'deal')} on your grocery list</span>` : ''}</div>
-    <div class="lwrap dfilt"><span class="rowlbl">Shop</span>${chip('dealsstore', '', 'All', null, !fs)}${stores.map(s => chip('dealsstore', s, s, offers.filter(o => o.store === s && (!fc || dealCat(o) === fc)).length, fs === s)).join('')}</div>
-    <div class="lwrap dfilt"><span class="rowlbl">Group</span>${chip('dealscat', '', 'All', null, !fc)}${cats.map(c => chip('dealscat', c, c, offers.filter(o => dealCat(o) === c && (!fs || o.store === fs)).length, fc === c)).join('')}</div>
-    ${groups || quiet('No deals in this shop and group.')}
-    ${!fs && !fc && offers.length > 6 ? `<button class="btn small" data-act="dealsall">${L.dealsAll ? 'Show fewer deals' : `See all ${offers.length} deals`}</button>` : ''}${saved ? `<p class="mmuted">Together about ${fEur0(saved)} off the normal prices.</p>` : ''}`);
+  const nIn = (s, c) => visible.filter(o => (s == null || (s === '*mine' ? mine.includes(o.store) : o.store === s)) && (!c || dealCat(o) === c)).length;
+  return panel('All deals', `<div class="dgroupby"><div class="seg fseg" role="group" aria-label="Group deals"><button data-act="dealsgroup" data-v="store" aria-pressed="${g === 'store'}">Per shop</button><button data-act="dealsgroup" data-v="cat" aria-pressed="${g === 'cat'}">Per product group</button></div>
+      <label class="dsort"><span class="vh">Sort deals</span><select data-dealsort aria-label="Sort deals">${DEAL_SORTS.map(([k, l]) => `<option value="${k}" ${(L.dealsSort || f.dealSort || 'pct') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      ${onList ? `<span class="lnone">${plural(onList, 'deal')} on your grocery list</span>` : ''}</div>
+    ${mine.length ? '' : `<p class="lnone dhint">Pick your regular shops and the deals open with only those. <button class="chip link" data-act="dealshops">Pick my shops</button></p>`}
+    <div class="lwrap dfilt"><span class="rowlbl">Shop</span>${mine.length ? chip('dealsstore', '*mine', 'My shops', nIn('*mine', fc), fs === '*mine') : ''}${chip('dealsstore', '', 'All', nIn(null, fc), !fs)}${allStores.map(s => chip('dealsstore', s, (mine.includes(s) ? '★ ' : '') + s, nIn(s, fc), fs === s)).join('')}${mine.length ? '<button class="chip link" data-act="dealshops">Edit my shops</button>' : ''}</div>
+    <div class="lwrap dfilt"><span class="rowlbl">Group</span>${chip('dealscat', '', 'All', null, !fc)}${cats.map(c => chip('dealscat', c, c, nIn(fs === '*mine' ? '*mine' : fs || null, c), fc === c)).join('')}<button class="chip link" data-act="dealhidden">${hiddenN || (f.hideCats || []).length ? `Hidden (${hiddenN})` : 'Hide groups'}</button></div>
+    ${groups || quiet(fs === '*mine' ? 'None of your regular shops has deals in this group. Tap All to see every shop.' : 'No deals in this shop and group.')}
+    ${!all && list.length > 6 ? `<button class="btn small" data-act="dealsall">${L.dealsAll ? 'Show fewer deals' : `See all ${list.length} deals`}</button>` : L.dealsAll ? '<button class="btn small" data-act="dealsall">Show fewer deals</button>' : ''}${saved ? `<p class="mmuted">Together about ${fEur0(saved)} off the normal prices.</p>` : ''}`);
+}
+// pick the shops you go to; the deals open with only those
+function dealShopsSheet() {
+  const stores = [...new Set([...kitchenStores(), ...liveOffers().map(o => o.store).filter(Boolean)])].sort(azCmp), sel = new Set(food().dealShops || []);
+  const sh = C.sheet({ title: 'My regular shops', body: `<p class="lnone">The deals open with only these shops. You still see the others under All.</p><div class="lwrap" data-dshops>${stores.map(s => `<button type="button" class="chip" data-dshop="${esc(s)}" aria-pressed="${sel.has(s)}">${esc(s)}</button>`).join('')}</div><div class="lpostpub"><button type="button" class="btn primary" data-ok>Save</button></div>` });
+  sh.addEventListener('click', e => { const b = e.target.closest('[data-dshop]'); if (!b) return; const s = b.dataset.dshop; sel.has(s) ? sel.delete(s) : sel.add(s); b.setAttribute('aria-pressed', sel.has(s)); });
+  sh.querySelector('[data-ok]').onclick = async () => { try { await C.savePrefs({ food: { ...food(), dealShops: stores.filter(s => sel.has(s)) } }); L.dealsStore = undefined; C.closeSheet(); C.toast(sel.size ? `Deals open with ${plural(sel.size, 'shop')}` : 'Deals show every shop'); } catch { C.toast('Could not save. Try again.'); } };
+}
+// hidden deals and groups: hide whole groups, and bring back what you hid
+function dealHiddenSheet() {
+  const f = food(), cats = [...new Set([...DEAL_CATS, ...liveOffers().map(dealCat)])], hc = new Set(f.hideCats || []), hd = new Set(f.hideDeals || []);
+  const draw = () => `<p class="dsub">Groups</p><p class="lnone">Switch a group off and its deals stay out of sight, this week and the next.</p><div class="lwrap">${cats.map(c => `<button type="button" class="chip" data-hcat="${esc(c)}" aria-pressed="${!hc.has(c)}">${esc(c)}</button>`).join('')}</div>
+    <p class="dsub">Products you hid</p>${hd.size ? `<div class="lrows">${[...hd].sort(azCmp).map(k => `<div class="lrow"><span class="lmain"><b>${esc(k)}</b></span><button type="button" class="btn small" data-hdeal="${esc(k)}">Show again</button></div>`).join('')}</div>` : quiet('No products hidden. Tap × on a deal to hide it.')}
+    <div class="lpostpub"><button type="button" class="btn primary" data-ok>Save</button></div>`;
+  const sh = C.sheet({ title: 'Hidden deals', body: '<div data-hbody></div>' }), host = sh.querySelector('[data-hbody]'); host.innerHTML = draw();
+  sh.addEventListener('click', async e => {
+    const c = e.target.closest('[data-hcat]'); if (c) { const v = c.dataset.hcat; hc.has(v) ? hc.delete(v) : hc.add(v); c.setAttribute('aria-pressed', !hc.has(v)); return; }
+    const d = e.target.closest('[data-hdeal]'); if (d) { hd.delete(d.dataset.hdeal); host.innerHTML = draw(); return; }
+    if (e.target.closest('[data-ok]')) { try { await C.savePrefs({ food: { ...food(), hideCats: [...hc], hideDeals: [...hd] } }); C.closeSheet(); C.toast('Saved'); } catch { C.toast('Could not save. Try again.'); } }
+  });
+}
+async function dealHide(id) {
+  const o = L.byId[id]; if (!o) return; const f = food(), k = dealKey(o), was = f.hideDeals || [];
+  try { await C.savePrefs({ food: { ...f, hideDeals: [...new Set([...was, k])].slice(-500) } }); C.undoPush?.(`Hid ${o.name}`, () => C.savePrefs({ food: { ...food(), hideDeals: was } }), true); C.toast(`${o.name} is hidden. Find it under Hidden.`); } catch { C.toast('Could not save. Try again.'); }
 }
 async function dealToList(id) {
   const o = L.byId[id]; if (!o) return;
@@ -6370,6 +6434,10 @@ document.addEventListener('click', async e => {
     case 'dealsstore': L.dealsStore = d.v; C.render(); break;
     case 'dealscat': L.dealsCat = d.v; C.render(); break;
     case 'dealtolist': dealToList(d.id); break;
+    case 'dealhide': dealHide(d.id); break;
+    case 'dealshops': dealShopsSheet(); break;
+    case 'dealhidden': dealHiddenSheet(); break;
+    case 'mydealsall': L.myDealsAll = !L.myDealsAll; C.render(); break;
     case 'ibxok': inboxAccept(d.id); break;
     case 'ibxall': inboxAcceptAll(d.v); break;
     case 'ibxmore': L.ibxMore = (L.ibxMore || 60) + 60; C.render(); break;

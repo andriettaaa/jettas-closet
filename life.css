@@ -1312,3 +1312,11 @@ img.nophoto { background: var(--line); }
 .dsub2 { margin: 10px 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
 .dcw { display: grid; gap: 6px; align-content: start; min-width: 0; }
 .dcw .dadd { width: 100%; justify-content: center; }
+.dcw { position: relative; }
+.dpct { position: absolute; z-index: 2; top: 8px; left: 8px; padding: 2px 7px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dnotes { margin: 0; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.dcbtns { display: flex; gap: 6px; align-items: center; }
+.dcbtns .dadd { flex: 1; min-width: 0; }
+.dhide { flex: none; }
+.dsort select { font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.dhint { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
