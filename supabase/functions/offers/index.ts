@@ -1055,7 +1055,19 @@ Deno.serve(async req => {
       if (autoOld.length) { const { error } = await sb.from('records').delete().eq('user_id', uid).in('id', autoOld); if (error) throw error; }
       if (mrows.length) { const { error } = await sb.from('records').insert(mrows); if (error) throw error; }
       const n = (plan.dinners as unknown[] | undefined)?.length || 0;
+      // your own products on sale: basics, things on your list or running low, and what you bought in the last 90 days
+      const fold = (t: unknown) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const SKIP = new Set(['vers', 'verse', 'stuks', 'gram', 'kilo', 'pakje', 'blik']);
+      const since = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
+      const { data: ings } = await sb.from('records').select('data').eq('user_id', uid).eq('kind', 'ingredients');
+      const mineIngs = (ings || []).map((r: any) => r.data || {}).filter((i: any) => i.name && (i.staple || i.list || i.low || (i.bought && i.bought >= since)));
+      const hits: string[] = [];
+      for (const o of offers as any[]) {
+        const on = fold(o.name);
+        if (mineIngs.some((i: any) => fold(i.name).split(/[^a-z]+/).filter((w: string) => w.length >= 4 && !SKIP.has(w)).some((w: string) => on.includes(w)))) hits.push(`${o.name} (${o.store})`);
+      }
       await send(uid, { title: 'Deals of the week are in', body: `${offers.length} deals at ${[...new Set(offers.map((o: any) => o.store))].slice(0, 4).join(', ')}${n ? `, and ${n} dinners that use them` : ''}.`, url: './#kitchen/deals', tag: 'deals' });
+      if (hits.length) await send(uid, { title: `${hits.length === 1 ? 'One of your products is' : hits.length + ' of your products are'} on sale`, body: hits.slice(0, 4).join(', ') + (hits.length > 4 ? ` and ${hits.length - 4} more` : '') + '.', url: './#kitchen/deals', tag: 'mydeals' });
       return json({ ok: true, offers: offers.length, plan: planId, meals: mrows.length });
     }
     return json({ error: 'unknown action' }, 400);
