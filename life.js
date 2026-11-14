@@ -1379,6 +1379,14 @@ for (const [k, [paid]] of Object.entries(PRICED)) {
   if (i >= 0 && !fs.some(f => f.k === 'origPrice')) fs.splice(i + 1, 0, F('origPrice', k === 'stays' ? 'Original price per night' : 'Original price', 'money', { half: 1 }));
   if (['gear', 'beauty', 'supplements', 'fitgear'].includes(k) && !fs.some(f => ['shop', 'store'].includes(f.k))) fs.splice(fs.findIndex(f => f.k === 'origPrice') + 1, 0, F('shop', 'Bought at', 'text', { half: 1 }));
 }
+// things you own can be a gift you received: a tick plus who gave it, shown as 🎁 on the piece; a gift adds nothing to what you saved
+const GIFTABLE = ['beauty', 'supplements', 'gear', 'fitgear', 'inventory', 'books', 'plants'];
+for (const k of GIFTABLE) {
+  const K = KINDS[k]; if (!K || K.fields.some(f => f.k === 'gifted')) continue;
+  const at = K.fields.findIndex(f => ['shop', 'store', 'origPrice', 'price'].includes(f.k)), i = at < 0 ? K.fields.length : at + 1;
+  K.fields.splice(i, 0, F('gifted', '🎁 Received as a gift', 'check', { half: 1 }), F('giftFrom', 'Gift from', 'text', { half: 1, when: D => D.gifted }));
+  const sub = K.sub; K.sub = r => [r.gifted ? '🎁 gift' + (r.giftFrom ? ' from ' + r.giftFrom : '') : '', sub?.(r)].filter(Boolean).join(' · ');
+}
 // what is in season in the Netherlands, month by month (Dutch outdoor and stored harvest, plus winter citrus from southern Europe)
 // [name, emoji, words in Dutch and English that find it in a recipe, months 1-12]
 const SEASONAL = [
@@ -1451,7 +1459,7 @@ function linkFields(kind, info) {
   return out;
 }
 { const f0 = KINDS.recipes.filter; KINDS.recipes.filter = (r, f) => f === 'season' ? seasonHits(r).length > 0 : f0(r, f); KINDS.recipes.filters.splice(1, 0, ['season', '🍂 In season']); }
-const savedOf = r => { const c = PRICED[r.kind]; if (!c) return 0; const p = num(r[c[0]]), o = num(r.origPrice); return p != null && o > p ? o - p : 0; };
+const savedOf = r => { const c = PRICED[r.kind]; if (!c || r.gifted) return 0; const p = num(r[c[0]]), o = num(r.origPrice); return p != null && o > p ? o - p : 0; };
 const savedText = r => { const v = savedOf(r); return v ? `saved ${eur(v)} (${Math.round(v / num(r.origPrice) * 100)}%)` : ''; };
 const savedDate = r => { const c = PRICED[r.kind]; return c ? r[c[1]] || r.bought || r.date || (r.created ? iso(new Date(r.created)) : '') : ''; };
 // a wish only counts once you bought it
@@ -3642,10 +3650,36 @@ function moneyToday(host) {
 }
 
 function weekStart(offset) { const d = new Date(); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd + offset * 7); return iso(d); }
+// meal plan clean-up: a second copy of the same dish on the same day and meal, and empty meals (no dish and not eating out)
+const mealKey = m => [m.date, m.slot, m.away ? 'away' : m.recipe || String(m.what || '').trim().toLowerCase()].join('|');
+const mealEmpty = m => !m.away && !m.recipe && !String(m.what || '').trim() && !m.leftover;
+function mealJunk() {
+  const seen = new Set(), out = [];
+  for (const m of [...recs('meals')].sort((a, b) => (a.created || 0) - (b.created || 0))) {
+    if (mealEmpty(m)) { out.push(m); continue; }
+    const k = mealKey(m); if (seen.has(k)) out.push(m); else seen.add(k);
+  }
+  return out;
+}
+const mealCleanBtn = () => { const n = mealJunk().length; return n ? `<button class="chip" data-act="mealclean">🧹 Clean up (${n})</button>` : ''; };
+function mealClean() {
+  const junk = mealJunk(); if (!junk.length) { C.toast('Nothing to clean up'); return; }
+  const line = m => `${niceDate(m.date)} · ${m.slot || 'Meal'} · ${mealEmpty(m) ? 'empty' : 'double: ' + titleOf(m)}`;
+  const sh = C.sheet({ title: 'Clean up the meal plan', body: `<p class="lnone">These meals are a second copy of the same dish on the same day, or empty. Clean up removes them; the first copy stays.</p><div class="lrows">${junk.map(m => `<div class="lrow"><span class="lmain"><b>${esc(line(m))}</b></span></div>`).join('')}</div><div class="lpostpub"><button type="button" class="btn primary" data-ok>Remove ${plural(junk.length, 'meal')}</button></div>` });
+  sh.querySelector('[data-ok]').onclick = async () => {
+    const befores = junk.map(m => [m.id, dataOf(m)]);
+    L.batch = true;
+    try { for (const m of junk) await del(m.id); }
+    catch { C.toast('Could not remove everything. Try again.'); return; }
+    finally { L.batch = false; }
+    C.undoPush?.(`Removed ${plural(junk.length, 'meal')}`, async () => { for (const [id, d] of befores) await put('meals', id, d); }, true);
+    C.closeSheet(); C.toast(`Removed ${plural(junk.length, 'meal')}`);
+  };
+}
 function weekFill(fill) {
   const start = weekStart(L.week), days = Array.from({ length: 7 }, (_, i) => addDays(start, i)), t = today();
   const meals = recs('meals');
-  fill.innerHTML = `<div class="lweeknav"><button class="iconbtn" data-act="week" data-v="-1" aria-label="Previous week">${svg(P.left)}</button><b>${shortDate(days[0])} to ${shortDate(days[6])}</b><button class="iconbtn" data-act="week" data-v="1" aria-label="Next week">${svg(P.right)}</button>${L.week ? '<button class="chip" data-act="week" data-v="0">This week</button>' : ''}</div>
+  fill.innerHTML = `<div class="lweeknav"><button class="iconbtn" data-act="week" data-v="-1" aria-label="Previous week">${svg(P.left)}</button><b>${shortDate(days[0])} to ${shortDate(days[6])}</b><button class="iconbtn" data-act="week" data-v="1" aria-label="Next week">${svg(P.right)}</button>${L.week ? '<button class="chip" data-act="week" data-v="0">This week</button>' : ''}${mealCleanBtn()}</div>
   <div class="lweek">${days.map(d => `<div class="lday ${d === t ? 'now' : ''}"><div class="ldh"><b>${dayName(d)}</b><span>${shortDate(d)}</span></div>${MEALS.map(s => { const m = meals.filter(x => x.date === d && x.slot === s); return `<div class="lslot"><span class="rowlbl">${s}</span>${m.map(x => `<button class="chip" data-act="open" data-id="${x.id}">${esc(titleOf(x))}</button>`).join('')}${m.length ? '' : `<button class="chip ghost" data-act="slot" data-date="${d}" data-slot="${s}" aria-label="Plan ${s.toLowerCase()} on ${dayName(d)}">+</button>`}</div>`; }).join('')}</div>`).join('')}</div>`;
 }
 // a month at a glance: what is planned, and the days you don't eat at home (tap a day to mark it)
@@ -3654,7 +3688,7 @@ function monthFill(fill) {
   const lead = (first.getDay() + 6) % 7, n = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
   const cells = [...Array(lead).fill(''), ...Array.from({ length: n }, (_, i) => addDays(m0, i))];
   const away = meals.filter(x => x.away && x.date?.startsWith(m0.slice(0, 7))).length;
-  fill.innerHTML = `<div class="lweeknav"><button class="iconbtn" data-act="mmonth" data-v="-1" aria-label="Previous month">${svg(P.left)}</button><b>${esc(fromISO(m0).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }))}</b><button class="iconbtn" data-act="mmonth" data-v="1" aria-label="Next month">${svg(P.right)}</button></div>
+  fill.innerHTML = `<div class="lweeknav"><button class="iconbtn" data-act="mmonth" data-v="-1" aria-label="Previous month">${svg(P.left)}</button><b>${esc(fromISO(m0).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }))}</b><button class="iconbtn" data-act="mmonth" data-v="1" aria-label="Next month">${svg(P.right)}</button>${mealCleanBtn()}</div>
   <p class="lnone">Tap a day to mark the meals you eat out. ${away ? plural(away, 'meal') + ' away this month.' : ''}</p>
   <div class="mcal mealcal">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<b class="mdow">${d}</b>`).join('')}${cells.map(d => { if (!d) return '<span></span>'; const ms = meals.filter(x => x.date === d).sort((a, b) => MEALS.indexOf(a.slot) - MEALS.indexOf(b.slot));
     return `<button class="mday ${d < t ? 'past' : ''} ${d === t ? 'now' : ''} ${ms.some(x => x.away) ? 'away' : ''}" data-act="mday" data-v="${d}" aria-label="${esc(niceDate(d))}: ${esc(ms.map(x => x.slot + ' ' + titleOf(x)).join(', ') || 'nothing planned')}"><span>${fromISO(d).getDate()}</span>${ms.slice(0, 3).map(x => `<em class="${x.away ? 'aw' : ''}">${esc(x.away ? (x.slot || 'Meal').slice(0, 1) + ' · out' : titleOf(x))}</em>`).join('')}${ms.length > 3 ? `<em>+${ms.length - 3}</em>` : ''}</button>`; }).join('')}</div>`;
@@ -6275,6 +6309,7 @@ document.addEventListener('click', async e => {
     case 'tripopen': case 'tripnew': case 'tripedit': case 'trippack': case 'tripck': case 'tripckdel': case 'tripcksug': case 'tripidea': case 'tripideadel': case 'tripideaday': case 'tripagdel': case 'tripbudget': case 'tripcost': case 'tripdet': tripAct(d.act, d.v); break;
     case 'mmonth': L.mealMonth = (L.mealMonth || 0) + Number(d.v); C.render(); break;
     case 'mday': mealDay(d.v); break;
+    case 'mealclean': mealClean(); break;
     case 'mallsrc': uiOf('wish/master').allSrc = d.v; C.render(); break;
     case 'tidy': tidyRun(); break;
     case 'dealsall': L.dealsAll = !L.dealsAll; C.render(); break;
@@ -7536,7 +7571,7 @@ function calEvents(from, to, all) {
   });
   // Kitchen
   safe('Kitchen', () => {
-  for (const m of recs('meals')) if (inR(m.date, from, to)) add({ id: 'meal:' + m.id, cat: 'kitchen', date: m.date, title: `${({ Breakfast: 'Ontbijt', Lunch: 'Lunch', Dinner: 'Diner', Snack: 'Snack' })[m.slot] || m.slot || 'Maaltijd'}: ${m.away ? 'uit eten' : relName(m.recipe) || m.what || ''}`, move: d => sv(m, { date: d }), open: m.id });
+  for (const m of recs('meals')) if (inR(m.date, from, to)) add({ id: 'meal:' + m.id, cat: 'kitchen', date: m.date, title: `${({ Breakfast: 'Ontbijt', Lunch: 'Lunch', Dinner: 'Dinner', Snack: 'Snack' })[m.slot] || m.slot || 'Maaltijd'}: ${m.away ? 'uit eten' : relName(m.recipe) || m.what || ''}`, move: d => sv(m, { date: d }), open: m.id });
   });
   safe('Kitchen', () => {
   for (const m of recs('mealprep')) if (inR(m.prepDay, from, to)) add({ id: 'prep:' + m.id, cat: 'kitchen', date: m.prepDay, title: 'Meal prep: ' + (titleOf(m) || ''), move: d => sv(m, { prepDay: d }), open: m.id });
