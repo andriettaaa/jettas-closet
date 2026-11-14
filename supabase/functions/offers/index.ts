@@ -674,6 +674,18 @@ Deno.serve(async req => {
       return json({ ok: true, saved });
     }
     // a finished photo (for example a product cut out on a transparent background) straight into a record
+    // your taste profile from the chat: what you never eat, only when hidden, what you love, extra notes, and the full answers
+    if (body.action === 'foodset') {
+      const f = body.food && typeof body.food === 'object' ? body.food : {};
+      const { data: pr, error } = await sb.from('prefs').select('data').eq('user_id', uid).maybeSingle();
+      if (error) throw error;
+      const cur = pr?.data || {}, food = { ...(cur.food || {}) };
+      for (const k of ['no', 'hidden', 'love', 'notes']) if (typeof f[k] === 'string') food[k] = str(f[k], 4000);
+      if (f.taste && typeof f.taste === 'object') { const t = JSON.stringify(f.taste); if (t.length <= 60000) food.taste = JSON.parse(t); }
+      const { error: e2 } = await sb.from('prefs').upsert({ user_id: uid, data: { ...cur, food }, updated_at: new Date().toISOString() });
+      if (e2) throw e2;
+      return json({ ok: true, food: { no: food.no, hidden: food.hidden, love: food.love, notes: food.notes } });
+    }
     if (body.action === 'photoput') {
       const items = (Array.isArray(body.items) ? body.items : []).slice(0, 20); let saved = 0; const failed: string[] = [];
       for (const it of items) {
