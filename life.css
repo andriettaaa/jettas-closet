@@ -1320,3 +1320,5 @@ img.nophoto { background: var(--line); }
 .dhide { flex: none; }
 .dsort select { font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
 .dhint { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.dcw .dhide { position: absolute; z-index: 2; top: 6px; right: 6px; width: 28px; height: 28px; min-height: 0; padding: 0; background: var(--surface); }
+.dcbtns .dlink { flex: none; }
