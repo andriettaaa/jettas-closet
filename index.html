@@ -1234,7 +1234,7 @@ function matPctHTML(it) {
 // how the fabric looks and feels, and its pattern: two lists of their own next to material
 const TEXTURES = ['Pleated', 'Ribbed', 'Crochet', 'Cable knit', 'Waffle', 'Quilted', 'Ruched', 'Smocked', 'Lace', 'Sheer', 'Embroidered', 'Distressed', 'Fuzzy'];
 const PRINTS = ['Plain', 'Striped', 'Pinstripe', 'Checked', 'Plaid', 'Floral', 'Polka dot', 'Leopard', 'Zebra', 'Cow print', 'Snake', 'Camo', 'Graphic', 'Logo', 'Abstract', 'Paisley', 'Printed'];
-const ACQUIRED = ['New', 'Secondhand'];
+const ACQUIRED = ['New', 'Secondhand', 'Gift'];
 const PLACES = ['Online', 'In store'];
 const CONDITIONS = ['New with tags', 'New without tags', 'Like new', 'Very good', 'Good', 'Fair', 'Needs repair'];
 const one = v => (v == null || String(v).trim() === '') ? [] : [String(v).trim()];
@@ -1295,7 +1295,7 @@ const FACETS = [
   { k: 'care', label: 'Care', get: careTags, order: CARE.flatMap(c => c[2]) },
   { k: 'materials', label: 'Material', get: it => it.materials || [], az: true },
   { k: 'condition', label: 'Condition', get: it => one(it.condition), order: CONDITIONS },
-  { k: 'acquired', label: 'New/secondhand', get: it => one(it.acquired), az: true },
+  { k: 'acquired', label: 'New, secondhand or gift', get: it => one(it.acquired), az: true },
   { k: 'purchasePlace', label: 'Where bought', get: it => one(it.purchasePlace), az: true },
   { k: 'shop', label: 'Shop', get: it => one(it.shop) },
   { k: 'tags', label: 'Tag', get: it => it.tags || [], az: true }
@@ -1353,7 +1353,7 @@ function itemCard(it, extraCls = '') {
   const w = wearCount(it), c = cpw(it), inbox = isInbox(it), wish = isWishAll(it);
   const sub = inbox ? [it.brand || it.shop, it.price ? eur(it.price) : ''].filter(Boolean).join(' · ')
     : wish ? [it.brand, it.price > 0 ? eur(it.price) + (saving(it) ? ` (was ${eur0(it.origPrice)})` : '') : '', daysOn(it) != null ? `${daysOn(it)} days on list` : '', isWish(it) ? window.LIFE?.wishLine?.('closet', it.id, it.price, it.planBuy) || '' : ''].filter(Boolean).join(' · ')
-    : [it.brand, it.price > 0 ? eur(it.price) : '', c != null ? `${eur(c)} per wear` : '', w ? `worn ${w}×` : 'not worn yet'].filter(Boolean).join(' · ');
+    : [it.acquired === 'Gift' ? '🎁 gift' : '', it.brand, it.price > 0 ? eur(it.price) : '', c != null ? `${eur(c)} per wear` : '', w ? `worn ${w}×` : 'not worn yet'].filter(Boolean).join(' · ');
   // prices never sit on the hangtag; they live in the line under the name
   const tag = inbox ? `<div class="hangtag"><small>from</small>${esc((it.shop || 'link').slice(0, 14))}</div>` : '';
   return `<button class="card ${inCloset(it) || inbox || wish ? '' : 'gone'} ${wish ? 'wish' : ''} ${extraCls}" data-item="${esc(it.id)}">
@@ -2163,7 +2163,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v166';
+const APP_VERSION = 'hangtag-v167';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -3242,7 +3242,7 @@ function openItem(id) {
           ${row('Article no.', cur.articleNo ? `<span class="mono">${esc(cur.articleNo)}</span> <button class="chip link" data-copy="${esc(cur.articleNo)}">copy</button>` : '')}
           ${row('Fit', list('fits', cur.fits))}
           ${row('Condition', cur.condition ? fchip('condition', cur.condition) : '')}
-          ${row('New or 2nd-hand', cur.acquired ? fchip('acquired', cur.acquired) : '')}
+          ${row('New, 2nd-hand or gift', cur.acquired ? fchip('acquired', cur.acquired) + (cur.acquired === 'Gift' && cur.giftFrom ? ` <span class="muted">from ${esc(cur.giftFrom)}</span>` : '') : '')}
           ${row(wish ? 'Where to buy' : 'Where bought', cur.purchasePlace ? fchip('purchasePlace', cur.purchasePlace) : '')}
           ${row('Occasion', list('occasions', cur.occasions))}
           ${row('Season', list('seasons', cur.seasons) || 'All year')}
@@ -3352,7 +3352,8 @@ function openEditor(id, opts = {}) {
         <div class="field full" id="matpct">${matPctHTML(it)}</div>
         <div class="field full"><span class="lbl">Texture · tap all that apply</span><div class="togglegroup">${optList('textures', TEXTURES, it.textures).map(s => `<button type="button" class="chip" data-multi="textures" data-v="${esc(s)}" aria-pressed="${it.textures.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('textures', 'multi:textures')}</div></div>
         <div class="field full"><span class="lbl">Print · tap all that apply</span><div class="togglegroup">${optList('prints', PRINTS, it.prints).map(s => `<button type="button" class="chip" data-multi="prints" data-v="${esc(s)}" aria-pressed="${it.prints.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('prints', 'multi:prints')}</div></div>
-        <div class="field"><span class="lbl">New or secondhand</span><div class="togglegroup">${optList('acquired', ACQUIRED, it.acquired).map(v => `<button type="button" class="chip" data-one="acquired" data-v="${esc(v)}" aria-pressed="${it.acquired === v}">${esc(v)}</button>`).join('')}${ownBtn('acquired', 'one:acquired')}</div></div>
+        <div class="field"><span class="lbl">New, secondhand or gift</span><div class="togglegroup">${optList('acquired', ACQUIRED, it.acquired).map(v => `<button type="button" class="chip" data-one="acquired" data-v="${esc(v)}" aria-pressed="${it.acquired === v}">${v === 'Gift' ? '🎁 ' : ''}${esc(v)}</button>`).join('')}${ownBtn('acquired', 'one:acquired')}</div></div>
+        <div class="field" id="f-giftrow" ${it.acquired === 'Gift' ? '' : 'hidden'}><label for="f-giftfrom">Gift from</label><input id="f-giftfrom" value="${esc(it.giftFrom || '')}" placeholder="e.g. Mama, Sanne" autocomplete="off"></div>
         <div class="field"><span class="lbl">${wishMode ? 'Where to buy' : 'Where bought'}</span><div class="togglegroup">${optList('purchasePlace', PLACES, it.purchasePlace).map(v => `<button type="button" class="chip" data-one="purchasePlace" data-v="${esc(v)}" aria-pressed="${it.purchasePlace === v}">${esc(v)}</button>`).join('')}${ownBtn('purchasePlace', 'one:purchasePlace')}</div></div>
         <div class="field full"><label for="f-shop">Shop or store name</label><input id="f-shop" value="${esc(it.shop)}" placeholder="e.g. Zara, Vinted, a vintage store" autocomplete="off">${sugRow('shop', [])}</div>
         ${wishMode ? '' : `<div class="field full"><span class="lbl">Condition</span><div class="togglegroup">${optList('condition', CONDITIONS, it.condition).map(c => `<button type="button" class="chip" data-cond="${esc(c)}" aria-pressed="${it.condition === c}">${esc(c)}</button>`).join('')}${ownBtn('condition', 'cond')}</div></div>`}
@@ -3413,7 +3414,7 @@ function openEditor(id, opts = {}) {
     const sg = e.target.closest('[data-sug]'); if (sg) { const inp = $(`#f-${sg.dataset.sug}`, sh); inp.value = norm(inp.value) === norm(sg.dataset.v) ? '' : sg.dataset.v; drawSug(sg.dataset.sug); if (sg.dataset.sug === 'brand') drawSug('model'); return; }
     const wh = e.target.closest('[data-where]'); if (wh) { $('#f-where', sh).value = wh.dataset.where; sh.querySelectorAll('[data-where]').forEach(b => b.setAttribute('aria-pressed', b === wh)); sh.querySelectorAll('[data-loan]').forEach(x => x.hidden = wh.dataset.where !== 'Uitgeleend'); return; }
     const c = e.target.closest('[data-color]'); if (c) { toggleIn(it.colors, c.dataset.color); c.setAttribute('aria-pressed', it.colors.includes(c.dataset.color)); colorNames(); }
-    const o1 = e.target.closest('[data-one]'); if (o1) { const k = o1.dataset.one; it[k] = it[k] === o1.dataset.v ? '' : o1.dataset.v; $$(`[data-one="${k}"]`, sh).forEach(b => b.setAttribute('aria-pressed', it[k] === b.dataset.v)); }
+    const o1 = e.target.closest('[data-one]'); if (o1) { const k = o1.dataset.one; it[k] = it[k] === o1.dataset.v ? '' : o1.dataset.v; $$(`[data-one="${k}"]`, sh).forEach(b => b.setAttribute('aria-pressed', it[k] === b.dataset.v)); if (k === 'acquired') { const g = $('#f-giftrow', sh); if (g) g.hidden = it[k] !== 'Gift'; } }
     const cd = e.target.closest('[data-cond]'); if (cd) { it.condition = it.condition === cd.dataset.cond ? '' : cd.dataset.cond; $$('[data-cond]', sh).forEach(b => b.setAttribute('aria-pressed', it.condition === b.dataset.cond)); }
     const m = e.target.closest('[data-multi]'); if (m) { const arr = it[m.dataset.multi]; toggleIn(arr, m.dataset.v); m.setAttribute('aria-pressed', arr.includes(m.dataset.v)); if (m.dataset.multi === 'materials') $('#matpct', sh).innerHTML = matPctHTML(it); }
     const cr = e.target.closest('[data-care]'); if (cr) { const k = cr.dataset.care; it.care[k] = it.care[k] === cr.dataset.v ? '' : cr.dataset.v; $$(`[data-care="${k}"]`, sh).forEach(b => b.setAttribute('aria-pressed', it.care[k] === b.dataset.v)); }
@@ -3487,7 +3488,7 @@ function openEditor(id, opts = {}) {
         size: $('#f-size', sh).value.trim(), articleNo: $('#f-art', sh).value.trim(), price: num('#f-price'), origPrice: num('#f-orig'),
         bought: $('#f-bought', sh)?.value ?? it.bought ?? '', pastWears: Math.max(0, parseInt($('#f-past', sh)?.value, 10) || 0),
         material: $('#f-material', sh).value.trim(), colors: it.colors, seasons: it.seasons, occasions: it.occasions,
-        fits: it.fits, materials: it.materials, matPct: Object.fromEntries(matPctOf(it)), textures: it.textures, prints: it.prints, condition: it.condition || '', acquired: it.acquired || '', purchasePlace: it.purchasePlace || '',
+        fits: it.fits, materials: it.materials, matPct: Object.fromEntries(matPctOf(it)), textures: it.textures, prints: it.prints, condition: it.condition || '', acquired: it.acquired || '', giftFrom: it.acquired === 'Gift' ? ($('#f-giftfrom', sh)?.value || '').trim() : '', purchasePlace: it.purchasePlace || '',
         tags: it.tags,
         care: it.care, careNotes: $('#f-carenotes', sh).value.trim(),
         why: $('#f-why', sh)?.value.trim() ?? it.why ?? '', wishSince: $('#f-since', sh)?.value ?? it.wishSince ?? '',
