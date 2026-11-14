@@ -1303,3 +1303,12 @@ img.nophoto { background: var(--line); }
 .ldoc{display:grid;gap:8px}
 .ldoc .lphb{display:flex;flex-wrap:wrap;gap:8px}
 .ldocname{font-size:14px;overflow-wrap:anywhere}
+/* All deals: group per shop or product group, filter chips, and a grocery list button under each deal */
+.dgroupby { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
+.dfilt { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.dfilt .rowlbl { min-width: 46px; }
+.dfilt .chip small { opacity: .7; font-variant-numeric: tabular-nums; }
+.dsub.dtop { margin: 16px 0 6px; font-size: 13px; color: var(--ink); }
+.dsub2 { margin: 10px 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.dcw { display: grid; gap: 6px; align-content: start; min-width: 0; }
+.dcw .dadd { width: 100%; justify-content: center; }
