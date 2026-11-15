@@ -1322,3 +1322,14 @@ img.nophoto { background: var(--line); }
 .dhint { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .dcw .dhide { position: absolute; z-index: 2; top: 6px; right: 6px; width: 28px; height: 28px; min-height: 0; padding: 0; background: var(--surface); }
 .dcbtns .dlink { flex: none; }
+
+/* In season on Recipes: folded by default, the header opens it */
+.seasonpanel > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.seasonpanel > summary::-webkit-details-marker { display: none; }
+.seasonpanel > summary h3 { margin: 0; }
+.seasonpanel > summary .lnone { margin: 0; }
+.seasonchev { margin-left: auto; display: inline-flex; transition: transform .2s; }
+.seasonchev svg { width: 18px; height: 18px; }
+.seasonpanel[open] .seasonchev { transform: rotate(90deg); }
+.seasonbody { display: grid; gap: 10px; margin-top: 12px; }
+@media (prefers-reduced-motion: reduce) { .seasonchev { transition: none; } }
