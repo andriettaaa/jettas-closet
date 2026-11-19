@@ -1349,6 +1349,12 @@ img.nophoto { background: var(--line); }
 
 /* In season on Recipes: folded by default, the header opens it */
 .seasonpanel > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* a panel you fold open: title with its caption underneath on the left, the arrow on the right, all on one compact row */
+.panel > summary.foldsum { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; margin: 0; }
+.foldtt { display: grid; gap: 2px; min-width: 0; }
+.foldtt h3 { overflow-wrap: anywhere; }
+.foldtt .lnone { font-size: 13.5px; }
+details.panel:not([open]):has(> summary.foldsum) { padding-top: 14px; padding-bottom: 14px; }
 .seasonpanel > summary::-webkit-details-marker { display: none; }
 .seasonpanel > summary h3 { margin: 0; }
 .seasonpanel > summary .lnone { margin: 0; }
