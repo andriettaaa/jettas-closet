@@ -33,6 +33,26 @@ const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { sta
 const str = (v: unknown, n = 200) => String(v ?? '').trim().slice(0, n);
 const num = (v: unknown) => (v === '' || v == null || isNaN(Number(v))) ? null : Math.round(Number(v) * 100) / 100;
 const day = (v: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? String(v) : '';
+// today in the Netherlands (the server runs on UTC, which is a day behind just after midnight)
+const nlToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Amsterdam' }).format(new Date());
+/* a number from Apple Health as a Shortcut sends it: "12.345" and "12,345" are twelve thousand (a Dutch or English
+   thousands mark), "7,5" is seven and a half, and a list of samples ("523\n1200", ["523", "1200"]) is added up */
+function healthNum(v: unknown): number | null {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  const parts = (Array.isArray(v) ? v.map(String) : String(v).split(/[\n;|]+|,\s+/)).map(x => x.trim()).filter(Boolean);
+  if (!parts.length) return null;
+  let sum = 0, any = false;
+  for (const raw of parts) {
+    let x = raw.replace(/[^0-9.,-]/g, ''); if (!x) continue;
+    if (/^-?\d{1,3}([.,]\d{3})+$/.test(x)) x = x.replace(/[.,]/g, '');
+    else if (/^-?\d+,\d+$/.test(x)) x = x.replace(',', '.');
+    else x = x.replace(/,/g, '');
+    const n = Number(x); if (!isFinite(n)) continue;
+    sum += n; any = true;
+  }
+  return any ? sum : null;
+}
 const clean = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== '' && v != null && !(Array.isArray(v) && !v.length)));
 const SHOP_TYPES = ['Supermarket', 'Toko', 'Butcher', 'Fishmonger', 'Greengrocer', 'Market', 'Household', 'Drugstore', 'Perfumery', 'Brand store', 'Webshop', 'Other'];
 const shopOut = (a: any) => clean({ name: str(a?.name, 80), type: SHOP_TYPES.includes(a?.type) ? a.type : undefined, address: str(a?.address, 160), website: str(a?.website, 300), dealsUrl: str(a?.dealsUrl, 300), readDeals: a?.readDeals === true ? true : undefined, mine: a?.mine === true ? true : undefined, notes: str(a?.notes, 400) });
@@ -340,6 +360,9 @@ async function ttSync(uid: string) {
    Secrets: PINTEREST_APP_ID, PINTEREST_APP_SECRET. */
 const PN = 'https://api.pinterest.com/v5';
 const PN_ROOMS = ['Entree', 'Woonkamer', 'Keuken', 'Slaapkamer', 'Werkkamer', 'Badkamer', 'Toilet', 'Wasruimte', 'Balkon'];
+// a board named in English or Dutch ("Living room", "bedroom ideas", "hal") finds its room too
+const PN_ROOM_WORDS: [string, RegExp][] = [['Entree', /entree|entrance|hallway|\bhal\b/i], ['Woonkamer', /woonkamer|living ?room|lounge/i], ['Keuken', /keuken|kitchen/i], ['Slaapkamer', /slaapkamer|bedroom/i], ['Werkkamer', /werkkamer|office|desk|study/i], ['Badkamer', /badkamer|bathroom/i], ['Toilet', /toilet|\bwc\b/i], ['Wasruimte', /wasruimte|laundry/i], ['Balkon', /balkon|balcony|terras|garden|tuin/i]];
+const pnRoom = (name: string) => PN_ROOM_WORDS.find(([, re]) => re.test(name))?.[0];
 async function pnToken(form: Record<string, string>) {
   const id = Deno.env.get('PINTEREST_APP_ID') || '', secret = Deno.env.get('PINTEREST_APP_SECRET') || '';
   const r = await fetch(`${PN}/oauth/token`, { method: 'POST', headers: { Authorization: 'Basic ' + btoa(id + ':' + secret), 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(form) });
@@ -411,7 +434,7 @@ async function pnSync(uid: string) {
   const SETS: [string, string, string[]][] = [['moodboard', '', roles.mood], ['inspo', '', roles.inspo], ['vision', '', roles.vision], ['ideas', 'Hair', roles.hair], ['ideas', 'Nails', roles.nails], ['ideas', 'Beauty', roles.beauty]].map(([k, a, l]: any) => [k, a, [].concat(l || [])]);
   for (const [kind, area, list] of SETS) {
     for (const bid of list.filter(b => known.has(b))) {
-      const bname = boards.find(b => b.id === bid)?.name || '', room = PN_ROOMS.find(r => bname.toLowerCase().includes(r.toLowerCase()));
+      const bname = boards.find(b => b.id === bid)?.name || '', room = pnRoom(bname);
       for (const p of await pnPins(call, bid, 100)) {
         if (byPin.has(kind + ':' + p.id)) continue;
         const name = (pnText(p).split('\n')[0] || bname || 'Pin').slice(0, 80), link = 'https://www.pinterest.com/pin/' + p.id + '/';
@@ -550,19 +573,20 @@ Deno.serve(async req => {
     // and hands it back (nothing is stored). A page link instead of an image link gets the page's main picture.
     // Apple Health, sent each morning by an iPhone Shortcut: sleep, steps, workouts and period
     if (body.action === 'health') {
-      const date = day(body.date) || new Date().toISOString().slice(0, 10), now = new Date().toISOString(), out: Record<string, unknown> = {};
+      const date = day(body.date) || nlToday(), now = new Date().toISOString(), out: Record<string, unknown> = {};
       const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['sleep', 'nlog', 'workouts', 'cycles']);
       if (error) throw error;
       const up = async (kind: string, match: (r: any) => boolean, patch: Record<string, unknown>) => { const hit = data.find((r: any) => r.kind === kind && match(r.data || {})); const row = { user_id: uid, id: hit?.id || crypto.randomUUID(), kind, data: { ...(hit?.data || { created: Date.now() }), ...clean(patch) }, updated_at: now }; const { error: e } = await sb.from('records').upsert(row); if (e) throw e; };
       // sleep may come in hours, minutes or seconds, depending on how the Shortcut adds it up
-      const rawSleep = num(body.sleepHours ?? body.sleep), hrs = rawSleep == null ? null : rawSleep > 1440 ? rawSleep / 3600 : rawSleep > 24 ? rawSleep / 60 : rawSleep;
+      const rawSleep = healthNum(body.sleepHours ?? body.sleep), hrs = rawSleep == null ? null : rawSleep > 1440 ? rawSleep / 3600 : rawSleep > 24 ? rawSleep / 60 : rawSleep;
       if (hrs != null && hrs > 0 && hrs < 16) { await up('sleep', r => r.date === date, { date, hours: Math.round(hrs * 10) / 10, bed: str(body.bed, 5), up: str(body.wake, 5), source: 'Apple Health' }); out.sleep = hrs; }
-      const steps = num(String(body.steps ?? '').replace(/[^0-9.,]/g, '').replace(',', '.') || null); if (steps != null) { await up('nlog', r => r.date === date, { date, steps: Math.round(steps) }); out.steps = steps; }
+      // the evening run sends the whole day: the newest number for a day replaces the one before; nonsense is left out
+      const steps = healthNum(body.steps); if (steps != null && steps >= 0 && steps < 150000) { await up('nlog', r => r.date === date, { date, steps: Math.round(steps) }); out.steps = steps; }
       const TYPES: Record<string, string> = { walking: 'Walk', running: 'Run', cycling: 'Cycling', yoga: 'Yoga', pilates: 'Pilates', hiit: 'HIIT', strength: 'Strength', 'traditional strength training': 'Strength', 'functional strength training': 'Strength', 'high intensity interval training': 'HIIT', dance: 'Cardio', elliptical: 'Cardio', rowing: 'Cardio', flexibility: 'Stretching', 'core training': 'Strength' };
       const wos = (Array.isArray(body.workouts) ? body.workouts : String(body.workouts || '').split('\n').filter(Boolean).map((l: string) => { const [t, m, d] = l.split(/[;,]/).map(x => x.trim()); return { type: t, minutes: m, date: d }; })).slice(0, 10);
       let wn = 0;
       for (const w of wos as any[]) {
-        const wd = day(w.date) || date, raw = str(w.type, 60), type = TYPES[raw.toLowerCase()] || 'Other', min = num(w.minutes), hk = `${wd}|${raw}|${min}`;
+        const wd = day(w.date) || date, raw = str(w.type, 60), type = TYPES[raw.toLowerCase()] || 'Other', min = healthNum(w.minutes) == null ? null : Math.round(healthNum(w.minutes)! * 10) / 10, hk = `${wd}|${raw}|${min}`;
         if (!raw || data.some((r: any) => r.kind === 'workouts' && r.data?.hk === hk)) continue;
         const plan = data.find((r: any) => r.kind === 'workouts' && r.data?.date === wd && !r.data?.done && !r.data?.skipped);
         if (plan) await up('workouts', r => r === plan.data, { done: true, minutes: min ?? plan.data.minutes, hk, source: 'Apple Health' });
@@ -577,6 +601,23 @@ Deno.serve(async req => {
       return json({ ok: true, ...out });
     }
     // the move list for the weekly price check: open products and their options with a link
+    // shop photos for the move list: items without an approved photo get a few candidates from web shops, she approves one in the app
+    if (body.action === 'invphotolist') {
+      const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['inventory', 'invopts']);
+      if (error) throw error;
+      const todo = data.filter((r: any) => r.kind === 'inventory' && !r.data?.photoOk && !(Array.isArray(r.data?.photoOpts) && r.data.photoOpts.length) && !r.data?.photoNone);
+      return json({ left: todo.length, items: todo.slice(0, Math.min(40, Number(body.limit) || 25)).map((r: any) => clean({ id: r.id, name: r.data.name, room: r.data.room, category: r.data.category, brand: r.data.brand, budget: r.data.budget, notes: str(r.data.notes, 300), rejected: Array.isArray(r.data.photoNo) ? r.data.photoNo.slice(-20) : undefined, options: data.filter((o: any) => o.kind === 'invopts' && o.data?.item === r.id && o.data?.url).map((o: any) => clean({ name: o.data.name, shop: o.data.shop, url: o.data.url })) })) });
+    }
+    if (body.action === 'invphotosave') {
+      let n = 0;
+      for (const it of (Array.isArray(body.items) ? body.items : []).slice(0, 40)) {
+        const { data: r } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'inventory').eq('id', str(it?.id, 60)).maybeSingle(); if (!r || r.data?.photoOk) continue;
+        const opts = (Array.isArray(it.options) ? it.options : []).map((o: any) => clean({ img: str(o?.img, 800), shop: str(o?.shop, 60), url: str(o?.url, 800), price: num(o?.price), name: str(o?.name, 120) })).filter((o: any) => /^https:\/\//.test(String(o.img || ''))).slice(0, 6);
+        const d = { ...r.data, photoOpts: opts, photoAsked: new Date().toISOString().slice(0, 10) }; if (!opts.length) d.photoNone = true;
+        await sb.from('records').update({ data: d, updated_at: new Date().toISOString() }).eq('user_id', uid).eq('id', r.id); n++;
+      }
+      return json({ ok: true, saved: n });
+    }
     if (body.action === 'movelist') {
       const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['inventory', 'invopts']);
       if (error) throw error;
@@ -884,7 +925,8 @@ Deno.serve(async req => {
     if (body.action === 'vwlist') {
       const { data, error } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'vworkouts');
       if (error) throw error;
-      const todo = data.filter((r: any) => !(Array.isArray(r.data?.steps) && r.data.steps.length) && !r.data?.noSteps);
+      // also the ones with draft steps (written from the title and caption): the round watches the video and improves them
+      const todo = data.filter((r: any) => (!(Array.isArray(r.data?.steps) && r.data.steps.length) || r.data?.stepsDraft) && !r.data?.noSteps);
       return json({ left: todo.length, items: todo.slice(0, Math.min(25, Number(body.limit) || 10)).map((r: any) => clean({ id: r.id, name: r.data.name, url: r.data.url, type: r.data.type, minutes: r.data.minutes, level: r.data.level, materials: r.data.materials, instructor: r.data.instructor, notes: r.data.notes })) });
     }
     if (body.action === 'vwfill') {
@@ -894,7 +936,7 @@ Deno.serve(async req => {
       for (const w of (Array.isArray(body.items) ? body.items : []).slice(0, 25)) {
         const { data: r } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'vworkouts').eq('id', str(w?.id, 60)).maybeSingle(); if (!r) continue;
         const d = { ...r.data }, steps = (Array.isArray(w.steps) ? w.steps : []).map((x: unknown) => str(x, 600)).filter(Boolean).slice(0, 40);
-        if (steps.length) d.steps = steps; else if (w.problem) d.noSteps = true;
+        if (steps.length) { d.steps = steps; delete d.stepsDraft; } else if (w.problem) { if (d.stepsDraft) delete d.stepsDraft; else d.noSteps = true; }
         if (!d.type && VW.includes(w.type)) d.type = w.type;
         if (!d.minutes && num(w.minutes)) d.minutes = num(w.minutes);
         if (!d.level && LV.includes(w.level)) d.level = w.level;
