@@ -4940,13 +4940,13 @@ function invLine(r) {
   return `<div class="lrow">${ph ? `<button class="lthumb" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : ''}<button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(r.name || 'Product')}</b><span>${esc([r.room, invStatus(r), r.priority, n ? plural(n, 'optie', 'opties') : ''].filter(Boolean).join(' · '))}</span></button><span class="lside">${esc(invMoney(r))}</span>${INV_WANT.includes(invStatus(r)) ? `<button class="lquick" data-act="invbuy" data-id="${r.id}">Gekocht</button>` : ''}</div>`;
 }
 const invSum = (l, k) => l.reduce((n, r) => n + (num(r[k]) || 0), 0);
-function invGroups(fill, keyOf, order) {
+function invGroups(fill, keyOf, order, pins) {
   invMigrate();
   const l = invLive(), g = {};
   for (const r of l) (g[keyOf(r) || 'Geen'] ||= []).push(r);
   const keys = [...order.filter(k => g[k]), ...Object.keys(g).filter(k => !order.includes(k)).sort()];
   fill.innerHTML = invTools() + (l.length ? keys.map(k => { const rs = g[k].sort((a, b) => (INV_STATUS.indexOf(invStatus(a)) - INV_STATUS.indexOf(invStatus(b))) || norm(a.name).localeCompare(norm(b.name))), done = rs.filter(r => invStatus(r) === 'Gekocht');
-    return `<div class="lgh gshop"><h3>${esc(k)} · ${done.length}/${rs.length}</h3><span class="lnone">${esc([invSum(rs, 'budget') ? 'budget ' + eur(invSum(rs, 'budget')) : '', invSum(done, 'price') ? 'betaald ' + eur(invSum(done, 'price')) : ''].filter(Boolean).join(' · '))}</span></div><div class="lrows">${rs.map(invLine).join('')}</div>`; }).join('') : invEmpty());
+    return `${pins ? invPinStrip(k) : ''}<div class="lgh gshop"><h3>${esc(k)} · ${done.length}/${rs.length}</h3><span class="lnone">${esc([invSum(rs, 'budget') ? 'budget ' + eur(invSum(rs, 'budget')) : '', invSum(done, 'price') ? 'betaald ' + eur(invSum(done, 'price')) : ''].filter(Boolean).join(' · '))}</span></div><div class="lrows">${rs.map(invLine).join('')}</div>`; }).join('') : invEmpty());
 }
 const invTools = () => { const l = recs('inventory'), opts = l.filter(r => (r.photoOpts || []).length && !r.photoOk).length, old = l.filter(r => r.photo && !r.photoOk).length;
   return `<div class="ltools"><button class="btn small primary" data-act="new" data-v="inventory">+ Product</button><button class="btn small" data-act="invhave">+ Al gekocht</button>${opts ? `<button class="btn small primary" data-act="invphotos">📸 Foto's kiezen (${opts})</button>` : ''}${old ? `<button class="btn small" data-act="invphotoclear">🗑 Alle foto's weghalen (${old})</button>` : ''}</div>`; };
@@ -4979,15 +4979,25 @@ function invPhotoPick() {
   });
 }
 const invEmpty = () => `<div class="banner">${quiet('Je verhuislijst is nog leeg. Begin met een startlijst per kamer, of voeg zelf producten toe.')}<button class="btn small primary" data-act="invstart">Startlijst toevoegen</button></div>`;
-function invRooms(fill) { invGroups(fill, r => r.room, ROOMS); }
+function invRooms(fill) { invGroups(fill, r => r.room, ROOMS, true); }
 function invByStatus(fill) { invGroups(fill, r => invStatus(r), INV_STATUS); }
 function invByPrio(fill) { invGroups(fill, r => r.priority, INV_PRIO); }
+// pins from your Pinterest boards (role Moodboard), per room: a board named after a room fills that room, the rest waits under Overig
+const invPins = room => recs('moodboard').filter(m => m.pnId && m.photo && (!room || (m.room || 'Overig') === room));
+const invPinStrip = room => { const l = invPins(room).slice(0, 12); return l.length ? `<div class="pnstrip invpins">${l.map(m => `<a href="${esc(m.link || '#')}" target="_blank" rel="noopener" title="${esc(m.name || 'Pin')}"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(m.photo))}" alt="${esc(m.name || 'Pin')}" loading="lazy" onerror="this.parentNode.remove()"></a>`).join('')}</div>` : ''; };
+function invPinBoard() {
+  const pins = invPins(), on = (pnAcc()?.pnBoards?.mood || []).length;
+  if (!pins.length) return `<div class="banner"><p class="lnone">${on ? 'Je woonborden hebben nog geen pins met een foto. Tik in Social › Pinterest op Bijwerken.' : 'Koppel je Pinterest-woonborden: kies bij een bord “Moodboard (Home)”. Een bord met de naam van een kamer (Woonkamer, Bedroom) komt vanzelf bij die kamer.'}</p><a class="btn small" href="#social/pinterest">Pinterest-borden</a></div>`;
+  const rooms = [...ROOMS.filter(r => pins.some(m => (m.room || 'Overig') === r)), ...new Set(pins.map(m => m.room || 'Overig').filter(r => !ROOMS.includes(r)))];
+  return `<h3 class="lgh">📌 Van Pinterest</h3>${rooms.map(room => `<p class="dsub">${esc(room)}</p><div class="iboard">${invPins(room).map(m => `<div class="itile ipin"><a href="${esc(m.link || '#')}" target="_blank" rel="noopener"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(m.photo))}" alt="${esc(m.name || 'Pin')}" loading="lazy"></a><select class="pill" data-pinroom="${m.id}" aria-label="Kamer voor deze pin">${ROOMS.map(r => `<option ${r === (m.room || 'Overig') ? 'selected' : ''}>${r}</option>`).join('')}</select></div>`).join('')}</div>`).join('')}`;
+}
 function invBoard(fill) {
   invMigrate();
   const items = invLive().filter(r => INV_WANT.includes(invStatus(r)) || invOpts(r.id).length);
   const tiles = items.flatMap(r => invOpts(r.id).filter(o => o.photo || o.url).map(o => ({ r, o })));
-  fill.innerHTML = tiles.length ? [...new Set(tiles.map(t => t.r.room || 'Overig'))].map(room => `<h3 class="lgh">${esc(room)}</h3><div class="iboard">${tiles.filter(t => (t.r.room || 'Overig') === room).map(({ r, o }) => `<button class="itile ${o.chosenFor ? 'on' : ''}" data-act="open" data-id="${r.id}">${o.photo ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(o.photo))}" alt="" loading="lazy" onerror="this.remove()">` : ''}<span><b>${esc(r.name)}</b>${esc([o.name, num(o.price) ? eur(num(o.price)) : ''].filter(Boolean).join(' · '))}</span></button>`).join('')}</div>`).join('')
-    : quiet('Voeg opties met een foto toe aan je producten, dan verschijnen ze hier als moodboard.');
+  const pinsHTML = invPinBoard();
+  fill.innerHTML = pinsHTML + (tiles.length ? [...new Set(tiles.map(t => t.r.room || 'Overig'))].map(room => `<h3 class="lgh">${esc(room)}</h3><div class="iboard">${tiles.filter(t => (t.r.room || 'Overig') === room).map(({ r, o }) => `<button class="itile ${o.chosenFor ? 'on' : ''}" data-act="open" data-id="${r.id}">${o.photo ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(o.photo))}" alt="" loading="lazy" onerror="this.remove()">` : ''}<span><b>${esc(r.name)}</b>${esc([o.name, num(o.price) ? eur(num(o.price)) : ''].filter(Boolean).join(' · '))}</span></button>`).join('')}</div>`).join('')
+    : quiet('Voeg opties met een foto toe aan je producten, dan verschijnen ze hier als moodboard.'));
 }
 const MOVE_START = { Woonkamer: ['Bank', 'Salontafel', 'Tv-meubel', 'Televisie', 'Vloerkleed', 'Gordijnen woonkamer', 'Staande lamp', 'Plafondlamp', 'Boekenkast'], Keuken: ['Pannenset', 'Koekenpan', 'Snijplank', 'Bestek', 'Servies', 'Glazen', 'Waterkoker', 'Magnetron', 'Airfryer', 'Afwasrek', 'Vuilnisbak', 'Vershoudbakjes', 'Ovenschaal'], Slaapkamer: ['Bed', 'Matras', 'Dekbed', 'Kussens', 'Dekbedovertrek', 'Kledingkast', 'Nachtkastje', 'Gordijnen slaapkamer', 'Passpiegel'], Werkkamer: ['Bureau', 'Bureaustoel', 'Bureaulamp', 'Kledingrek', 'Grote spiegel', 'Ringlamp', 'Achtergrond voor filmen', 'Opbergkast', 'Statief'], Badkamer: ['Handdoeken', 'Badmat', 'Douchewisser', 'Badkamerrek', 'Wc-borstel'], Entree: ['Kapstok', 'Schoenenrek', 'Deurmat'], Wasruimte: ['Wasmachine', 'Droogrek', 'Wasmand', 'Strijkijzer'], Schoonmaak: ['Stofzuiger', 'Emmer en dweil', 'Schoonmaakmiddelen'], Overig: ['Gereedschapset', 'Trapje', 'Verlengsnoeren', 'Rookmelder', 'Verbanddoos'] };
 const MOVE_COSTS_START = [['Borg', 'Borg en huur'], ['Eerste maand huur', 'Borg en huur'], ['Verhuisbus', 'Verhuizen'], ['Verhuisdozen', 'Verhuizen'], ['Verf en kwasten', 'Klussen'], ['Vloer', 'Klussen'], ['Gordijnrails', 'Klussen'], ['Lampen ophangen', 'Klussen'], ['Internet aansluiten', 'Aansluitingen'], ['Energie en water', 'Aansluitingen']];
@@ -7587,6 +7597,7 @@ document.addEventListener('change', e => {
   if (t.matches?.('[data-cleanset]')) { const k = t.dataset.cleanset; cleanSet({ [k]: k === 'date' ? t.value : num(t.value) }); }
   if (t.matches?.('[data-intent]')) C.savePrefs({ intent: { week: weekMon(addDays(today(), new Date().getDay() === 0 ? 1 : 0)), text: t.value.trim() } }).then(() => C.toast('Je focus staat op Today')).catch(() => {});
   if (t.matches?.('[data-dayset]')) C.savePrefs({ day: { ...(C.prefs().day || {}), [t.dataset.dayset]: t.type === 'number' ? num(t.value) : t.value } }).catch(() => C.toast('Opslaan lukte niet.'));
+  if (t.matches?.('[data-pinroom]')) { const m = L.byId[t.dataset.pinroom]; if (m) save(m, { room: t.value }); }
   if (t.matches?.('[data-stepgoal]')) { const v = Math.round(Number(t.value)); if (v >= 0 && v < 100000) C.savePrefs({ stepGoals: { ...(C.prefs().stepGoals || {}), [t.dataset.stepgoal]: v } }).catch(() => C.toast('Could not save. Try again.')); }
   if (t.matches?.('[data-top3pin]')) { const d = today(); try { localStorage.setItem('top3:' + d, t.value.trim()); } catch {} C.render(); }
 });

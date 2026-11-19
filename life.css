@@ -1413,3 +1413,11 @@ details.panel:not([open]):has(> summary.foldsum) { padding-top: 14px; padding-bo
 .ipopt b { font-size: 14px; }
 .ipopt span { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 .ipopt em { font-style: normal; font-weight: 700; font-size: 13px; justify-self: start; padding: 4px 10px; border-radius: 99px; background: var(--ink); color: var(--bg); }
+
+/* move list: Pinterest pins per room */
+.invpins { margin: 4px 0 8px; }
+.invpins a { flex-basis: 96px; }
+.ipin { display: grid; gap: 6px; padding: 6px; }
+.ipin a { display: block; aspect-ratio: 2 / 3; border-radius: 10px; overflow: hidden; background: var(--stage); }
+.ipin img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ipin .pill { width: 100%; font-size: 13px; }

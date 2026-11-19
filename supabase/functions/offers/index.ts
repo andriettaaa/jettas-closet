@@ -360,6 +360,9 @@ async function ttSync(uid: string) {
    Secrets: PINTEREST_APP_ID, PINTEREST_APP_SECRET. */
 const PN = 'https://api.pinterest.com/v5';
 const PN_ROOMS = ['Entree', 'Woonkamer', 'Keuken', 'Slaapkamer', 'Werkkamer', 'Badkamer', 'Toilet', 'Wasruimte', 'Balkon'];
+// a board named in English or Dutch ("Living room", "bedroom ideas", "hal") finds its room too
+const PN_ROOM_WORDS: [string, RegExp][] = [['Entree', /entree|entrance|hallway|\bhal\b/i], ['Woonkamer', /woonkamer|living ?room|lounge/i], ['Keuken', /keuken|kitchen/i], ['Slaapkamer', /slaapkamer|bedroom/i], ['Werkkamer', /werkkamer|office|desk|study/i], ['Badkamer', /badkamer|bathroom/i], ['Toilet', /toilet|\bwc\b/i], ['Wasruimte', /wasruimte|laundry/i], ['Balkon', /balkon|balcony|terras|garden|tuin/i]];
+const pnRoom = (name: string) => PN_ROOM_WORDS.find(([, re]) => re.test(name))?.[0];
 async function pnToken(form: Record<string, string>) {
   const id = Deno.env.get('PINTEREST_APP_ID') || '', secret = Deno.env.get('PINTEREST_APP_SECRET') || '';
   const r = await fetch(`${PN}/oauth/token`, { method: 'POST', headers: { Authorization: 'Basic ' + btoa(id + ':' + secret), 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(form) });
@@ -431,7 +434,7 @@ async function pnSync(uid: string) {
   const SETS: [string, string, string[]][] = [['moodboard', '', roles.mood], ['inspo', '', roles.inspo], ['vision', '', roles.vision], ['ideas', 'Hair', roles.hair], ['ideas', 'Nails', roles.nails], ['ideas', 'Beauty', roles.beauty]].map(([k, a, l]: any) => [k, a, [].concat(l || [])]);
   for (const [kind, area, list] of SETS) {
     for (const bid of list.filter(b => known.has(b))) {
-      const bname = boards.find(b => b.id === bid)?.name || '', room = PN_ROOMS.find(r => bname.toLowerCase().includes(r.toLowerCase()));
+      const bname = boards.find(b => b.id === bid)?.name || '', room = pnRoom(bname);
       for (const p of await pnPins(call, bid, 100)) {
         if (byPin.has(kind + ':' + p.id)) continue;
         const name = (pnText(p).split('\n')[0] || bname || 'Pin').slice(0, 80), link = 'https://www.pinterest.com/pin/' + p.id + '/';
