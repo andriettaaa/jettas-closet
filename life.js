@@ -807,6 +807,8 @@ const KINDS = {
       F('ramp', 'Plan: one line per step, like 2026-11-22: Sun', 'long', { rows: 4 }), F('days', 'Or simply on', 'multi', { options: WEEKDAYS }), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z']], sub: r => [r.type, r.when || 'Evening', r.minutes ? r.minutes + ' min' : ''].filter(Boolean).join(' · ')
   },
+  restips: { one: 'tip', many: 'Tips', title: r => r.title || 'Tip', fields: [F('title', 'Title'), F('text', 'Text', 'long', { rows: 6 }), F('url', 'Link (optional)', 'url'), F('group', 'Block', 'text')], sorts: [['order', 'Your order']], sub: r => [r.area, r.group].filter(Boolean).join(' · ') },
+  resarea: { one: 'resources tab', many: 'Resources tabs', fields: [F('area', 'Tab')], title: r => r.area || 'Resources' },
   skinlinks: { one: 'link', many: 'Skin links', fields: [F('name', 'Title'), F('url', 'Link', 'url'), F('topic', 'Topic', 'select', { options: ['Acne', 'Dark marks', 'Retinoids and acids', 'Barrier', 'Sun', 'Lifestyle', 'Techniques', 'Products', 'Other'] }), F('notes', 'Why it matters', 'long')], sorts: [['name', 'A to Z']] },
   fragprofile: {
     one: 'scent profile', many: 'Scent profile',
@@ -6561,6 +6563,7 @@ document.addEventListener('click', async e => {
     case 'frulesapply': fRulesApply(); break;
     case 'funsorted': fUnsorted(); break;
     case 'exvids': exVidSheet(); break;
+    case 'resedit': case 'resdone': case 'resdel': case 'resmv': case 'resadd': case 'resgroup': case 'resreset': case 'resnew': resAct(d.act, d); break;
     case 'faccorder': fAccOrder(); break;
     case 'fsink': { const b = L.byId[d.id]; if (b) save(b, { sink: !b.sink }); break; }
     case 'fall': L.fall = (L.fall || 50) + 50; C.render(); break;
@@ -8596,7 +8599,7 @@ function skinResources(host) {
   host.innerHTML = `<div class="viewhead"><h1>Skin resources</h1><span class="sub">Articles and research behind your routine</span></div>
     <div class="lplanhead"><button class="btn small primary" data-act="new" data-v="skinlinks">+ Your own link</button></div>
     <div class="panels">${own.length ? panel('Your links', `<div class="lrows">${own.map(r => `<div class="lrow"><a class="lmain" href="${esc(r.url || '#')}" target="_blank" rel="noopener"><b>${esc(r.name)}</b><span>${esc([r.topic, r.notes].filter(Boolean).join(' · '))}</span></a><button class="chip link" data-act="open" data-id="${r.id}">Edit</button></div>`).join('')}</div>`) : ''}
-    ${resLinks('Skin')}${SKIN_RES.map(([t, l]) => panel(t, `<div class="lrows">${l.map(([n, src, u, why]) => `<div class="lrow"><a class="lmain" href="${esc(u)}" target="_blank" rel="noopener"><b>${esc(n)}</b><span>${esc(src)} · ${esc(why)}</span></a></div>`).join('')}</div>`)).join('')}</div>
+    ${resLinks('Skin')}${resTips(SKIN_TIPS(), 'Skin')}</div>
     <p class="lnone">Research summaries open on PubMed. Information, not medical advice: for deep or painful spots that keep coming back, see your GP or a dermatologist.</p>`;
 }
 /* ---------- routines and logbooks everywhere: hair, nails, sleep, cycle, check-ins, learning, food, money, home ---------- */
@@ -8613,7 +8616,67 @@ function resLinks(area) {
   const l = recs('reslinks').filter(r => r.area === area).sort((a, b) => azCmp(titleOf(a), titleOf(b)));
   return panel('Your links', `${l.length ? `<div class="lrows">${l.map(r => `<div class="lrow"><a class="lmain" href="${esc(r.url || '#')}" target="_blank" rel="noopener"><b>${esc(titleOf(r))}</b><span>${esc([r.topic, r.notes].filter(Boolean).join(' · '))}</span></a><button class="chip link" data-act="open" data-id="${r.id}">Edit</button></div>`).join('')}</div>` : quiet('Share a link with “Naar A’s Life” and pick this tab, or add one here.')}<div class="dbtns">${newBtn('reslinks', '+ Link', { area })}</div>`);
 }
-const resTips = list => list.map(([t, l]) => panel(t, l.map(([h, x]) => `<details class="fitres"><summary><b>${esc(h)}</b></summary><p>${esc(x)}</p></details>`).join(''))).join('');
+/* tips and resources you can edit: a tab starts with the app's tips; once you change something, the tab's tips become
+   records of your own (kind restips), and tips the app adds later wait until you pick them (kind resarea keeps what you saw) */
+const resKey = (area, g, t) => `${area}|${g}|${t}`;
+const resDefaults = (list, area) => list.flatMap(([g, l], gi) => l.map(([t, x, u], i) => ({ key: resKey(area, g, t), area, group: g, title: t, text: x || '', url: u || '', order: gi * 1000 + i })));
+const resMark = area => recs('resarea').find(r => r.area === area);
+const resOwn = area => recs('restips').filter(r => r.area === area).sort((a, b) => (num(a.order) ?? 0) - (num(b.order) ?? 0));
+function resTips(list, area, extra) {
+  const mark = area && resMark(area), edit = area && L.resEdit === area;
+  const tips = mark ? resOwn(area) : resDefaults(list, area || '');
+  const groups = []; for (const t of tips) { let g = groups.find(x => x.g === (t.group || 'Tips')); if (!g) groups.push(g = { g: t.group || 'Tips', l: [] }); g.l.push(t); }
+  const fresh = mark ? resDefaults(list, area).filter(d => !(mark.seen || []).includes(d.key)) : [];
+  const tip = t => edit ? `<div class="lrow resedit"><span class="lmain"><b>${esc(t.title)}</b><span>${esc(String(t.text || t.url || '').slice(0, 90))}</span></span><button class="btn small" data-act="resmv" data-id="${t.id}" data-v="-1" aria-label="Move up">↑</button><button class="btn small" data-act="resmv" data-id="${t.id}" data-v="1" aria-label="Move down">↓</button><button class="btn small" data-act="open" data-id="${t.id}" aria-label="Edit">✏️</button><button class="btn small" data-act="resdel" data-id="${t.id}" aria-label="Delete">🗑</button></div>`
+    : t.url ? `<div class="lrow"><a class="lmain" href="${esc(t.url)}" target="_blank" rel="noopener"><b>${esc(t.title)}</b>${t.text ? `<span>${esc(t.text)}</span>` : ''}</a></div>`
+    : `<details class="fitres"><summary><b>${esc(t.title)}</b></summary><p class="lpre">${esc(t.text)}</p>${extra ? extra(t) : ''}</details>`;
+  const bar = area ? `<div class="resbar">${edit ? `<button class="btn small primary" data-act="resdone">Done</button><button class="btn small" data-act="resgroup" data-v="${esc(area)}">+ Block</button><button class="btn small" data-act="resreset" data-v="${esc(area)}">Back to the original</button>` : `<button class="btn small" data-act="resedit" data-v="${esc(area)}">✏️ Edit tips</button>`}${fresh.length ? `<button class="btn small primary" data-act="resnew" data-v="${esc(area)}">${plural(fresh.length, 'new tip')} from the app</button>` : ''}</div>` : '';
+  return bar + groups.map(({ g, l }) => panel(g, edit ? `<div class="lrows">${l.map(tip).join('')}</div><button class="btn small mmore" data-act="resadd" data-v="${esc(area)}" data-g="${esc(g)}">+ Tip</button>` : l.map(tip).join(''))).join('');
+}
+// the app's tips per tab, so a tab can be turned into your own and new tips can be offered later
+const RES_LISTS = () => ({ Hair: HAIR_RES, Nails: NAIL_RES, Sleep: SLEEP_RES, Training: FIT_TIPS, Muscles: MUSCLE_TIPS(), Skin: SKIN_TIPS() });
+async function resMake(area) {
+  if (resMark(area)) return;
+  const d = resDefaults(RES_LISTS()[area] || [], area);
+  await putMany([...d.map(t => ({ id: C.uuid(), kind: 'restips', data: { area, key: t.key, group: t.group, title: t.title, text: t.text, ...(t.url ? { url: t.url } : {}), order: t.order } })), { id: C.uuid(), kind: 'resarea', data: { area, seen: d.map(t => t.key) } }], null, `Made the ${area} tips your own`);
+}
+async function resAct(act, d) {
+  const area = d.v, mark = area && resMark(area);
+  if (act === 'resedit') { try { await resMake(area); L.resEdit = area; C.render(); } catch { C.toast('Could not save. Try again.'); } return; }
+  if (act === 'resdone') { L.resEdit = ''; C.render(); return; }
+  if (act === 'resdel') { const r = L.byId[d.id]; if (r && confirm(`Delete “${r.title}”? You can undo it right after.`)) del(r.id).catch(() => {}); return; }
+  if (act === 'resmv') {
+    const r = L.byId[d.id]; if (!r) return;
+    const l = resOwn(r.area).filter(x => (x.group || 'Tips') === (r.group || 'Tips')), i = l.findIndex(x => x.id === r.id), o = l[i + Number(d.v)]; if (!o) return;
+    putMany([{ id: r.id, kind: 'restips', data: { ...dataOf(r), order: o.order } }, { id: o.id, kind: 'restips', data: { ...dataOf(o), order: r.order } }], null, 'Moved a tip').catch(() => C.toast('Could not save. Try again.'));
+    return;
+  }
+  if (act === 'resadd' || act === 'resgroup') {
+    const g = act === 'resgroup' ? (prompt('Name of the new block?', '') || '').trim() : d.g; if (!g) return;
+    const max = Math.max(0, ...resOwn(area).map(x => num(x.order) || 0));
+    const id = await create('restips', { area, group: g, title: 'New tip', text: '', order: max + 1 }).catch(() => null);
+    if (id) openEditor('restips', id);
+    return;
+  }
+  if (act === 'resreset') {
+    if (!confirm(`Put the ${area} tips back to the original? Your own changes in this tab go. You can undo it right after.`)) return;
+    const gone = [...resOwn(area), ...(mark ? [mark] : [])].map(r => ({ id: r.id, kind: r.kind, data: dataOf(r) }));
+    L.batch = true;
+    try { for (const r of gone) await del(r.id); } catch { C.toast('Could not reset everything. Try again.'); } finally { L.batch = false; }
+    L.resEdit = ''; C.undoPush?.(`Put the ${area} tips back`, () => putMany(gone, null, 'restore'), true); C.render();
+    return;
+  }
+  if (act === 'resnew') {
+    const fresh = resDefaults(RES_LISTS()[area] || [], area).filter(t => !(mark?.seen || []).includes(t.key)); if (!fresh.length || !mark) return;
+    const sh = C.sheet({ title: `New ${area} tips`, body: `<p class="lnone">The app has new tips for this tab. Tick the ones you want; the others won't be offered again.</p><div class="lrows">${fresh.map((t, i) => `<label class="lrow"><input type="checkbox" data-rn="${i}" checked><span class="lmain"><b>${esc(t.title)}</b><span>${esc(t.group)} · ${esc(String(t.text || t.url).slice(0, 80))}</span></span></label>`).join('')}</div>`,
+      foot: '<div class="spacer"></div><button class="btn" data-close>Later</button><button class="btn primary" data-go>Save</button>' });
+    sh.querySelector('[data-go]').onclick = async () => {
+      const pick = [...sh.querySelectorAll('[data-rn]')].filter(x => x.checked).map(x => fresh[Number(x.dataset.rn)]), max = Math.max(0, ...resOwn(area).map(x => num(x.order) || 0));
+      try { await putMany([...pick.map((t, i) => ({ id: C.uuid(), kind: 'restips', data: { area, key: t.key, group: t.group, title: t.title, text: t.text, ...(t.url ? { url: t.url } : {}), order: max + 1 + i } })), { id: mark.id, kind: 'resarea', data: { ...dataOf(mark), seen: [...new Set([...(mark.seen || []), ...fresh.map(t => t.key)])] } }], null, `Added ${plural(pick.length, 'new tip')}`); C.closeSheet(); }
+      catch { C.toast('Could not save. Try again.'); }
+    };
+  }
+}
 // the routine steps of one part of your life, ticked off right here (the same steps show on Today)
 function areaRoutines(area) {
   const rs = recs('routines').filter(r => r.area === area); if (!rs.length) return '';
@@ -8674,7 +8737,7 @@ function hairPage(host) {
       ${panel('🧴 What works', pr.length ? `<div class="lrows">${pr.map(([n, v, c]) => `<div class="lrow"><span class="lmain"><b>${esc(n)}</b><span>${c} wash ${c === 1 ? 'day' : 'days'}</span></span><span class="lside">${emoOf('hair', v)} ${r1(v)}/5</span></div>`).join('')}</div><p class="lnone">How your hair felt on wash days with each product (moisture, breakage, detangling, shine).</p>` : quiet('Log your wash days with the products you used and how your hair felt.'))}
       ${panel('💇🏾‍♀️ Styles', pairs.length ? `<div class="lrows">${pairs.reverse().map(x => `<div class="lrow"><span class="lmain"><b>${esc(x.i.style || 'Style')}</b><span>${esc(niceDate(x.i.date))} · ${x.days} days${x.o ? '' : ' (still in)'}</span></span><span class="lside">${x.score != null ? emoOf('hair', x.score) + ' after' : ''}</span></div>`).join('')}</div>` : quiet('Log Style in and Style out to see how long your styles stay in.'))}
       ${withP.length > 1 ? panel('📸 Before and after', ['front', 'back', 'side'].map(k => a[k] && z[k] ? `<p class="dsub">${k}</p><div class="sdcompare">${fig(a, k)}${fig(z, k)}</div>` : '').join('') || quiet('Take photos from the same side to compare.')) : ''}</div>`;
-  } else body = `<div class="panels">${resTips(HAIR_RES)}${resLinks('Hair')}</div>`;
+  } else body = `<div class="panels">${resTips(HAIR_RES, 'Hair')}${resLinks('Hair')}</div>`;
   host.innerHTML = `<div class="viewhead"><h1>Hair</h1><span class="sub">4c, wash day every ${N.every} days</span></div>${tabsHTML('data-hairt', H, [['routine', 'Routine'], ['diary', 'Diary'], ['stats', 'Analysis'], ['res', 'Resources']])}${body}`;
   fillSigned(host);
   if (host.dataset.hairw) return; host.dataset.hairw = '1';
@@ -8696,7 +8759,7 @@ function nailsPage(host) {
   const body = T === 'log' ? `<div class="tiles lt3"><div class="tile"><div class="k">💅 Sets</div><div class="v">${l.filter(r => ['Full set', 'Fill'].includes(r.kind)).length}</div><div class="h">full sets and fills</div></div><div class="tile"><div class="k">⏳ They last</div><div class="v">${lasted.length ? Math.round(avgOf(lasted)) : '–'}</div><div class="h">days on average</div></div><div class="tile"><div class="k">⏱ Time</div><div class="v">${mins.length ? Math.round(avgOf(mins)) : '–'}</div><div class="h">minutes on average</div></div></div>
       <div class="lplanhead">${newBtn('naillog', '+ Full set', { kind: 'Full set' })}${newBtn('naillog', '+ Fill', { kind: 'Fill' })}${newBtn('naillog', 'Removed or broke', { kind: 'Removed' })}</div>${l.length ? `<div class="lgrid">${l.map(card).join('')}</div>` : quiet('Log your nails with a photo after each set.')}`
     : T === 'inspo' ? `<div class="lplanhead">${newBtn('ideas', '+ Inspiration', { area: 'Nails', what: 'Look' })}</div>${ins.length ? `<div class="lgrid">${ins.map(r => `<button class="lcard" data-act="open" data-id="${r.id}"><div class="lph"><span>✨</span>${r.photo ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(r.photo))}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div><div class="meta"><b>${esc(titleOf(r))}</b><span>${r.tried ? 'tried ✓' : ''}</span></div></button>`).join('')}</div>` : quiet('Share nail designs with “Naar A’s Life”: they land here.')}`
-    : `<div class="panels">${resTips(NAIL_RES)}${resLinks('Nails')}</div>`;
+    : `<div class="panels">${resTips(NAIL_RES, 'Nails')}${resLinks('Nails')}</div>`;
   host.innerHTML = `<div class="viewhead"><h1>Nails</h1><span class="sub">Your own sets, inspiration and tips</span></div>${tabsHTML('data-nailt', T, [['log', 'Log'], ['inspo', 'Inspiration'], ['res', 'Resources']])}${body}`;
   if (host.dataset.nailw) return; host.dataset.nailw = '1';
   host.addEventListener('click', e => { const b = e.target.closest('[data-nailt]'); if (b) { L.nailT = b.dataset.nailt; nailsPage(host); } });
@@ -8729,7 +8792,7 @@ function sleepPage(host) {
       ${panel('🌙 Sleep and your cycle', ph.some(x => x[3]) ? `<table class="atable"><thead><tr><th>Phase</th><th>Hours</th><th>Rested</th></tr></thead><tbody>${ph.map(([p, h, r, n]) => `<tr><td>${esc(PHASE_NL?.[p] || p)}</td><td>${h != null ? r1(h) : '–'}</td><td>${r != null ? emoOf('rested', r) + ' ' + r1(r) : '–'}</td></tr>`).join('')}</tbody></table>` : quiet('Log your period in Cycle to see your sleep per phase.'))}
       ${panel('✅ Routines done', `<div class="tiles lt3">${['Morning', 'Evening'].map(k => { const v = rt(k); return `<div class="tile"><div class="k">${k === 'Morning' ? '🌅' : '🌙'} ${k} routine</div><div class="v">${v == null ? '–' : v + '%'}</div><div class="h">last 14 days</div></div>`; }).join('')}</div>${areaRoutines('Body')}`)}
       ${panel('Your nights', logRows(l.slice(0, 30)) || quiet('Log your first night.'))}
-      ${resTips(SLEEP_RES)}${resLinks('Sleep')}
+      ${resTips(SLEEP_RES, 'Sleep')}${resLinks('Sleep')}
     </div>`;
 }
 
@@ -9112,6 +9175,9 @@ function fitStats(host) {
   host.addEventListener('click', e => { const b = e.target.closest('[data-fsm]'); if (b) { L.fitS.m = b.dataset.fsm; fitStats(host); } });
 }
 // resources: muscle groups with the best exercises and your own videos, technique, posture and your cycle
+// the muscle groups and the skin research as tips, so you can edit them like the other tabs
+const MUSCLE_TIPS = () => [['Muscle groups', MUSCLES.map(([n, what, best]) => [n, `${what}\nBest exercises: ${best.join(', ')}`])]];
+const SKIN_TIPS = () => SKIN_RES.map(([t, l]) => [t, l.map(([n, src, u, why]) => [n, `${src} · ${why}`, u])]);
 const MUSCLES = [
   ['Glutes', 'Your biggest muscle: it straightens your hips, keeps your pelvis level when you walk and protects your lower back and knees. Sitting all day makes it lazy.', ['Hip thrust', 'Romanian deadlift', 'Bulgarian split squat', 'Cable kickback', 'Hip abduction', 'Step-up'], /glute|billen|hip thrust|kickback|abduct|bulgarian|step.?up|bridge/i],
   ['Hamstrings', 'The back of your thighs: they bend your knee and help your glutes straighten your hip. Tight hamstrings pull on your lower back.', ['Romanian deadlift', 'Leg curl', 'Good morning', 'Single-leg RDL'], /hamstring|rdl|romanian|deadlift|leg curl|good morning/i],
@@ -9144,12 +9210,12 @@ const FIT_TIPS = [
     ['Listen to your logbook', 'Everybody is different. Your analysis shows your own energy and effort per phase, so after a few months you know your own pattern.']]]
 ];
 function fitRes(host) {
-  const pool = [...recs('exercises').filter(e => e.link).map(e => ({ n: titleOf(e), u: e.link, id: e.id })), ...recs('vworkouts').filter(v => v.url).map(v => ({ n: titleOf(v), u: v.url, id: v.id }))];
+  const pool = [...recs('exercises').filter(e => e.link || (e.vw && L.byId[e.vw])).map(e => ({ n: titleOf(e), u: e.link || L.byId[e.vw].url, id: e.id })), ...recs('vworkouts').filter(v => v.url).map(v => ({ n: titleOf(v), u: v.url, id: v.id }))];
   const own = re => pool.filter(x => re.test(x.n)).slice(0, 6);
   host.innerHTML = `<div class="viewhead"><h1>Training resources</h1><span class="sub">Muscle groups, technique, posture and your cycle</span></div>
     <div class="panels">
-      ${panel('Muscle groups', MUSCLES.map(([n, what, best, re]) => { const vids = own(re); return `<details class="fitres"><summary><b>${esc(n)}</b></summary><p>${esc(what)}</p><p class="lnone"><b>Best exercises:</b> ${esc(best.join(', '))}</p>${vids.length ? `<p class="dsub">Your videos</p><div class="lrows">${vids.map(v => `<div class="lrow"><button class="lmain" data-act="open" data-id="${v.id}"><b>${esc(v.n)}</b></button>${vidBtn(v.u)}</div>`).join('')}</div>` : ''}</details>`; }).join(''))}
-      ${FIT_TIPS.map(([t, l]) => panel(t, l.map(([h, x]) => `<details class="fitres"><summary><b>${esc(h)}</b></summary><p>${esc(x)}</p></details>`).join(''))).join('')}
+      ${resTips(MUSCLE_TIPS(), 'Muscles', t => { const m = MUSCLES.find(x => norm(x[0]) === norm(t.title)), vids = m ? own(m[3]) : []; return vids.length ? `<p class="dsub">Your videos</p><div class="lrows">${vids.map(v => `<div class="lrow"><button class="lmain" data-act="open" data-id="${v.id}"><b>${esc(v.n)}</b></button>${vidBtn(v.u)}</div>`).join('')}</div>` : ''; })}
+      ${resTips(FIT_TIPS, 'Training')}
       ${resLinks('Training')}
     </div>
     <p class="lnone">General information, not medical advice. With pain that does not go away, see your GP or a physiotherapist.</p>`;

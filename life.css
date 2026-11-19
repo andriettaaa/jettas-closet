@@ -1381,3 +1381,9 @@ details.panel:not([open]):has(> summary.foldsum) { padding-top: 14px; padding-bo
 .stepbar i { display: block; height: 100%; background: var(--c2); border-radius: 99px; }
 .stepgoals { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
 .stepgoals .field span { font-size: 13px; color: var(--muted); }
+
+/* editable tips: the bar on top of a Resources tab and the rows while editing */
+.resbar { display: flex; flex-wrap: wrap; gap: 8px; grid-column: 1 / -1; }
+.resedit .btn.small { padding: 6px 9px; }
+.resedit .lmain { min-width: 0; flex: 1 1 140px; }
+@media (max-width: 520px) { .resedit { flex-wrap: wrap; } .resedit .lmain { flex: 1 1 100%; } .resedit .lmain b, .resedit .lmain span { white-space: normal; } }
