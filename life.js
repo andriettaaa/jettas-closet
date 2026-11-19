@@ -946,8 +946,8 @@ const KINDS = {
     one: 'account', many: 'Accounts', facet: 'type',
     fields: [F('name', 'Name'), F('type', 'Type', 'select', { options: ['Spending', 'Savings', 'Pot', 'Card'], half: 1 }),
       F('safe', 'Counts toward safe to spend', 'check', { half: 1 }), F('potGoal', 'Pot goal (optional)', 'money', { half: 1 }), F('cards', 'Apple Wallet cards (names, comma separated)', 'text'), F('archived', 'Archived', 'check', { half: 1 }), F('iban', 'IBAN (for bank imports)'), F('notes', 'Notes', 'long')],
-    sorts: [['name', 'A to Z']], hide: r => r.archived, hideLabel: 'Show archived',
-    sub: r => [r.type, r.safe ? 'in safe to spend' : ''].filter(Boolean).join(' · '),
+    sorts: [['order', 'Your order'], ['name', 'A to Z']], hide: r => r.archived, hideLabel: 'Show archived',
+    sub: r => [r.type, r.iban ? '…' + String(r.iban).replace(/\s+/g, '').slice(-4) : '', r.safe ? 'in safe to spend' : ''].filter(Boolean).join(' · '),
     side: r => { const b = fBalance(r); return b == null ? 'not checked' : eur(b); }
   },
   fchecks: {
@@ -3218,7 +3218,25 @@ const fset = () => recs('fset')[0] || {};
 const fBuffer = () => num(fset().buffer) ?? 100;
 const fSeq = r => num(r.seq) ?? (r.created || 0);
 const fSum = (list, k = 'amount') => list.reduce((n, x) => n + (num(x[k]) || 0), 0);
-const fAccs = () => recs('faccounts').filter(a => !a.archived);
+// your own order (Arrange, like in your bank app); without one: everyday, savings, pots, cards, then A to Z
+const ACC_TYPES = ['Spending', 'Savings', 'Pot', 'Card'];
+const accCmp = (a, b) => (num(a.order) ?? 1e9) - (num(b.order) ?? 1e9) || ACC_TYPES.indexOf(a.type || 'Spending') - ACC_TYPES.indexOf(b.type || 'Spending') || norm(a.name).localeCompare(norm(b.name));
+const fAccs = () => recs('faccounts').filter(a => !a.archived).sort(accCmp);
+// what tells two accounts apart at a glance: the kind, the last digits of the IBAN and the balance
+const accHint = a => { const b = fBalance(a), ib = String(a.iban || '').replace(/\s+/g, ''); return [a.type === 'Pot' ? 'Pot' : a.type === 'Savings' ? 'Savings' : a.type === 'Card' ? 'Card' : 'Everyday', ib ? '…' + ib.slice(-4) : '', b == null ? 'not checked' : eur(b)].filter(Boolean).join(' · '); };
+function fAccOrder() {
+  const list = fAccs(); if (list.length < 2) { C.toast('Add a second account first.'); return; }
+  const rows = () => list.map((a, i) => `<div class="lrow facc"><span class="lmain"><b>${accIcon(a)} ${esc(a.name || 'Account')}</b><span>${esc(accHint(a))}</span></span><button class="btn small" data-mv="${i}" data-d="-1" aria-label="Move ${esc(a.name || 'account')} up" ${i ? '' : 'disabled'}>↑</button><button class="btn small" data-mv="${i}" data-d="1" aria-label="Move ${esc(a.name || 'account')} down" ${i < list.length - 1 ? '' : 'disabled'}>↓</button></div>`).join('');
+  const sh = C.sheet({ title: 'Arrange accounts', body: `<p class="lnone">Put your accounts and pots in the same order as your bank app. Finance shows them in this order everywhere.</p><div class="lrows" data-ordlist>${rows()}</div>`,
+    foot: '<div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-go>Save</button>' });
+  sh.addEventListener('click', e => { const b = e.target.closest('[data-mv]'); if (!b) return; const i = Number(b.dataset.mv), j = i + Number(b.dataset.d); if (!list[j]) return; [list[i], list[j]] = [list[j], list[i]]; sh.querySelector('[data-ordlist]').innerHTML = rows(); sh.querySelector(`[data-mv="${j}"][data-d="${b.dataset.d}"]`)?.focus(); });
+  sh.querySelector('[data-go]').onclick = async e => {
+    const ch = list.map((a, i) => [a, i + 1]).filter(([a, o]) => num(a.order) !== o).map(([a, o]) => ({ id: a.id, kind: 'faccounts', data: { ...dataOf(a), order: o } }));
+    if (!ch.length) { C.closeSheet(); return; }
+    e.target.disabled = true;
+    try { await putMany(ch, null, 'Arranged your accounts'); C.closeSheet(); C.toast('Saved. Your accounts are in this order now.'); } catch (err) { console.error(err); e.target.disabled = false; C.toast('Could not save. Try again.'); }
+  };
+}
 const fEur0 = n => (n < 0 && !masked() ? '−' : '') + money.format(Math.abs(n)).replace(/\.00$/, '');
 const fSigned = n => (n < 0 && !masked() ? '−' : '') + eur(Math.abs(n));
 /* your paydays. The dates you entered for a year win; any other month uses your usual day of the month,
@@ -3528,9 +3546,9 @@ function fNetFill(fill) {
   const owned = accs.reduce((n, a) => n + (a.type !== 'Card' ? st.bal.get(a.id) || 0 : 0), 0), owed = debts.reduce((n, d) => n + Math.max(0, fDebtBal(d)), 0);
   const line = (name, v, id, sub = '') => `<div class="lrow"><button class="lmain" data-act="open" data-id="${id}"><b>${esc(name)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</button><span class="lside">${v}</span></div>`;
   fill.innerHTML = `<div class="tiles lt3">${fTile('Net worth', fSigned(owned - owed), 'what you own minus what you owe', owned - owed < 0 ? 'mneg' : '')}${fTile('Owned', eur(owned), plural(accs.filter(a => a.type !== 'Card').length, 'account'))}${fTile('Owed', eur(owed), plural(debts.length, 'debt'))}</div>
-    <div class="panels">${panel('What you own', `<div class="lrows">${accs.filter(a => a.type !== 'Card').sort((a, b) => (st.bal.get(b.id) || 0) - (st.bal.get(a.id) || 0)).map(a => { const b = st.bal.get(a.id); return line(a.name, b == null ? 'not checked' : fSigned(b), a.id, [a.type, a.safe ? 'in safe to spend' : ''].filter(Boolean).join(' · ')); }).join('')}</div>`)}
+    <div class="panels">${panel('What you own', `<div class="lrows">${accs.filter(a => a.type !== 'Card').map(a => { const b = st.bal.get(a.id); return line(a.name, b == null ? 'not checked' : fSigned(b), a.id, [a.type, a.safe ? 'in safe to spend' : ''].filter(Boolean).join(' · ')); }).join('')}</div>`)}
     ${panel('What you owe', debts.length ? `<div class="lrows">${debts.map(d => line(d.name, eur(fDebtBal(d)), d.id, num(d.payment) ? eur(num(d.payment)) + ' a month' : '')).join('')}</div>` : quiet('Nothing owed.'))}</div>
-    <button class="btn small" data-act="fcheck">Check my money</button>`;
+    <div class="dbtns"><button class="btn small" data-act="fcheck">Check my money</button><button class="btn small" data-act="faccorder">↕ Arrange</button></div>`;
 }
 /* reviews */
 function fMonthData(m) {
@@ -3638,7 +3656,7 @@ function subsPanel() {
     <div class="lrows">${subs.map(x => `<button class="lrow lmain" data-act="open" data-id="${x.b.id}"><b>${esc(x.b.name)}</b><span>${eur(num(x.b.amount))} ${esc(fCadence(x.b))} · ${eur(x.y)} a year${x.b.trialEnds && x.b.trialEnds >= t ? ' · trial until ' + esc(shortDate(x.b.trialEnds)) : ''}</span></button>`).join('')}</div>`, mLink('Repeats', 'money/repeats'), 'subs');
 }
 function potsPanel() {
-  const pots = recs('faccounts').filter(a => a.type === 'Pot' && !a.archived); if (!pots.length && !recs('fbills').some(b => b.pot)) return '';
+  const pots = fAccs().filter(a => a.type === 'Pot'); if (!pots.length && !recs('fbills').some(b => b.pot)) return '';
   const t = today(), body = pots.map(p => {
     const bills = recs('fbills').filter(b => b.pot === p.id && b.active !== false), bal = fBalance(p), need = bills.reduce((n, b) => n + perMonth(b), 0);
     const next = bills.map(b => ({ b, d: fNext(b) })).filter(x => x.d).sort((a, c) => a.d.localeCompare(c.d))[0];
@@ -6459,6 +6477,7 @@ document.addEventListener('click', async e => {
     case 'periodstart': create('cycles', { start: today() }).then(() => C.toast('Logged. Tap “Period ended” when it’s over.')).catch(() => {}); break;
     case 'periodend': { const r = L.byId[d.id]; if (r) save(r, { end: today() }); break; }
     case 'fcheck': fCheckSheet(); break;
+    case 'faccorder': fAccOrder(); break;
     case 'fsink': { const b = L.byId[d.id]; if (b) save(b, { sink: !b.sink }); break; }
     case 'fall': L.fall = (L.fall || 50) + 50; C.render(); break;
     case 'fafford': fAfford(fState()); break;
@@ -6627,16 +6646,16 @@ function fWaitFill(fill) {
 }
 /* finance settings */
 const CURRENCIES = [['EUR', 'EUR €'], ['USD', 'USD $'], ['GBP', 'GBP £'], ['CHF', 'CHF'], ['SEK', 'SEK kr'], ['DKK', 'DKK kr'], ['NOK', 'NOK kr']];
-const accIcon = a => a.type === 'Card' ? '💳' : a.type === 'Savings' ? '🐖' : '🏦';
+const accIcon = a => a.type === 'Card' ? '💳' : a.type === 'Savings' ? '🐖' : a.type === 'Pot' ? '🫙' : '🏦';
 function accRow(a) {
   const b = fBalance(a), debt = a.type === 'Card' ? recs('fdebts').find(d => d.account === a.id) : null;
   if (a.type === 'Card') return `<div class="lrow facc"><span class="lmain"><b>${accIcon(a)} ${esc(a.name || 'Card')}</b><span>Credit card · its charges are held back until paid</span></span>${debt ? '<button class="btn small" data-act="go" data-v="money/debt">On Debt</button>' : ''}<button class="btn small" data-act="open" data-id="${a.id}">Edit</button></div>`;
-  return `<div class="lrow facc ${a.archived ? 'gone' : ''}"><span class="lmain"><b>${accIcon(a)} ${esc(a.name || 'Account')}</b><span>${a.type === 'Savings' ? 'Savings' : 'Everyday account'} · ${b == null ? 'no balance yet' : 'about ' + fSigned(b) + ' now'}</span></span><label class="settog"><input type="checkbox" data-accsafe="${a.id}" ${a.safe ? 'checked' : ''}> Counts</label><button class="btn small" data-act="acchist" data-id="${a.id}">History</button><button class="btn small" data-act="open" data-id="${a.id}">Edit</button></div>`;
+  return `<div class="lrow facc ${a.archived ? 'gone' : ''}"><span class="lmain"><b>${accIcon(a)} ${esc(a.name || 'Account')}</b><span>${esc(accHint(a))}</span></span><label class="settog"><input type="checkbox" data-accsafe="${a.id}" ${a.safe ? 'checked' : ''}> Counts</label><button class="btn small" data-act="acchist" data-id="${a.id}">History</button><button class="btn small" data-act="open" data-id="${a.id}">Edit</button></div>`;
 }
 function fSettings() {
   const s = fset(), list = (kind, empty, add) => `${recs(kind).length ? `<div class="lrows">${sortList(recs(kind), KINDS[kind], defSort(KINDS[kind])).map(row).join('')}</div>` : quiet(empty)}<button class="btn small mmore" data-act="new" data-v="${kind}">${add}</button>`;
   const fld = (label, help, input) => `<div class="fset"><div><b>${label}</b>${help ? `<span>${help}</span>` : ''}</div>${input}</div>`;
-  const accs = recs('faccounts').sort((a, b) => (a.archived ? 1 : 0) - (b.archived ? 1 : 0) || ['Spending', 'Savings', 'Card'].indexOf(a.type || 'Spending') - ['Spending', 'Savings', 'Card'].indexOf(b.type || 'Spending') || norm(a.name).localeCompare(norm(b.name)));
+  const accs = recs('faccounts').sort((a, b) => (a.archived ? 1 : 0) - (b.archived ? 1 : 0) || accCmp(a, b));
   return `<div class="fsetgrid">
     ${MP('Your money', `
       ${fld('Your name', 'Shown in the greeting. Optional.', `<input class="finp" data-fset="name" value="${esc(s.name || '')}" placeholder="Your name">`)}
@@ -6648,7 +6667,7 @@ function fSettings() {
       ${fld('Paydates for the year', (() => { const y = today().slice(0, 4), n = fPayList().filter(d => d.startsWith(y)).length, nx = fPayday(); return `${n ? `${plural(n, 'date')} entered for ${y}.` : 'Enter the real dates once a year, for holidays and weekends.'}${nx ? ` Next payday: ${esc(niceDate(nx))}.` : ''}`; })(), `<button class="btn small" data-act="fpaydates">Enter paydates</button>`)}
       ${fld('Safety buffer', 'Kept back from safe to spend, for surprises.', `<input class="finp" type="number" inputmode="decimal" step="1" data-fset="buffer" value="${s.buffer ?? 100}">`)}
       ${wishBudgetField()}`)}
-    ${MP('Your accounts', `${accs.length ? `<div class="lrows facclist">${accs.map(accRow).join('')}</div>` : quiet('Add your bank accounts to see balances and safe to spend.')}<p class="lnone">Counts: the account is part of safe to spend. Add the IBAN to an account so bank imports land on it by themselves.</p><div class="dbtns"><button class="btn small" data-act="fcheck">Update balances</button><button class="btn small" data-act="fmove">⇄ Move money</button></div>`, '<button class="chip link" data-act="new" data-v="faccounts">+ Add an account</button>')}
+    ${MP('Your accounts', `${accs.length ? `<div class="lrows facclist">${accs.map(accRow).join('')}</div>` : quiet('Add your bank accounts to see balances and safe to spend.')}<p class="lnone">Counts: the account is part of safe to spend. Add the IBAN to an account so bank imports land on it by themselves.</p><div class="dbtns"><button class="btn small" data-act="fcheck">Update balances</button><button class="btn small" data-act="fmove">⇄ Move money</button><button class="btn small" data-act="faccorder">↕ Arrange</button></div>`, '<button class="chip link" data-act="new" data-v="faccounts">+ Add an account</button>')}
     ${(() => { const pd = recs('fpaid').sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))); return MP('Paid bills', pd.length ? `<p class="lnone">Your history of repeats you marked paid or skipped, newest first.</p><div class="lrows">${pd.slice(0, L.paidLim || 20).map(row).join('')}</div>${pd.length > (L.paidLim || 20) ? '<button class="btn small mmore" data-act="paidmore">Show more</button>' : ''}` : quiet('Nothing marked paid yet. Tap Mark paid under Repeats › Coming up.')); })()}
     ${MP('Import and backup', `<p class="lnone">Bank statements from ING or Rabobank (CSV). Duplicates are skipped, own transfers are recognised and your sort rules pick the categories.</p><div class="dbtns"><button class="btn small primary" data-act="fcsv">Import bank CSV</button><button class="btn small" data-act="import">Import budget backup</button><button class="btn small" data-act="fdups">Find duplicates</button></div><p class="lnone">Imported something twice? Find duplicates keeps one copy of everything and removes the rest.</p><div class="dbtns"><button class="btn small danger" data-act="fclear">Clear all finance data</button></div><p class="lnone">Removes everything in Finance so you can import again from scratch.</p>`)}
     ${MP('Categories', list('fcats', 'No categories yet.', '+ Category') + '<p class="lnone">Open one to set its budget, let it roll over, or mark it as not spending.</p>')}
