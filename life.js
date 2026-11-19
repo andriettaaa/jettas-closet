@@ -5254,6 +5254,7 @@ function textSugs(kind, f) {
 // every shop you used anywhere in the app, for the closet's shop buttons
 const allShops = () => { const out = []; for (const r of L.all || []) for (const k of SUG_SHOP) if (r[k] && String(r[k]).trim().length <= 40) out.push(String(r[k]).trim()); return out; };
 function openEditor(kind, id, preset = {}) {
+  if (kind === 'plans' && !preset.raw) { planBuilder(id); return; }
   const K = KINDS[kind], r = id ? L.byId[id] : null;
   const D = r ? JSON.parse(JSON.stringify(dataOf(r))) : { created: Date.now(), ...preset };
   if (kind === 'skinlog' && !r) { const wd = wdOf(); D.used = D.used || [...new Set([...skinSlot(wd, false), ...skinSlot(wd, true)].map(b => b.id))]; D.time = D.time || (new Date().getHours() < 15 ? 'Morning' : 'Evening'); const cy = cycleStats(); if (cy.last && !cy.guessed && cy.day) D.cycle = D.cycle ?? cy.day; }
@@ -8959,8 +8960,91 @@ function planOn(d) {
 }
 // "1. Hip thrust 4 × 8–10" in the plan's notes belongs to its first exercise, and so on
 function planRx(p) {
+  if (Array.isArray(p?.items)) return planItems(p).filter(x => x.t === 'ex').map(x => ({ id: x.id, rx: num(x.sets) ? `${x.sets} × ${x.reps || '?'}` : '', sets: num(x.sets) || 3, reps: num(String(x.reps).match(/\d+/)?.[0]) || '' }));
+  return planRxOld(p);
+}
+function planRxOld(p) {
   const lines = String(p?.notes || '').split('\n').map(l => l.match(/^\s*\d+\.\s*(.+?)\s+(\d+\s*×\s*[^\n]+)$/)).filter(Boolean);
   return [].concat(p?.exercises || []).map((id, i) => ({ id, rx: lines[i]?.[2] || '', sets: Number(lines[i]?.[2]?.match(/^(\d+)/)?.[1]) || 3, reps: Number(lines[i]?.[2]?.match(/×\s*(\d+)/)?.[1]) || '' }));
+}
+/* ---------- workout plans built from your library ----------
+   A plan is a row of items: an exercise with sets and reps, or a whole video from your Video library (a warm-up, a glute
+   routine) with its minutes. Older plans (exercises plus "1. Hip thrust 4 × 8" lines in the notes) still read the same. */
+function planItems(p) {
+  if (Array.isArray(p?.items)) return p.items.filter(x => x && L.byId[x.id]);
+  return planRxOld(p).filter(x => L.byId[x.id]).map(x => ({ t: 'ex', id: x.id, sets: x.sets, reps: x.reps || '' }));
+}
+const PB_GOALS = ['Glutes', 'Hamstrings', 'Quads', 'Back', 'Chest', 'Shoulders', 'Arms', 'Core', 'Full body', 'Mobility'];
+const pbMatch = (r, goal) => {
+  if (!goal) return true;
+  const g = norm(goal), m = MUSCLES.find(x => norm(x[0]) === g), txt = norm([titleOf(r), ...[].concat(r.muscles || []), ...[].concat(r.moves || []), r.type || ''].join(' '));
+  if (g === 'mobility') return /mobil|stretch|yoga|hip open|pigeon|splits|flex/.test(txt) || r.type === 'Stretching' || r.type === 'Yoga';
+  if (g === 'full body') return /full body/.test(txt) || [].concat(r.muscles || []).length >= 3;
+  if (g === 'arms') return /bicep|tricep|arm|curl/.test(txt);
+  return new RegExp(`\\b${g.replace(/s$/, '')}`).test(txt) || (m ? m[3].test(txt) : false);
+};
+// a first plan for a goal and a time: a warm-up video, then exercises at 3 × 10 (about 6 minutes each), topped up with videos
+function pbSuggest(goal, minutes) {
+  const ex = recs('exercises').filter(e => pbMatch(e, goal)), vids = recs('vworkouts').filter(v => v.url && pbMatch(v, goal));
+  const warm = recs('vworkouts').find(v => v.url && (v.type === 'Stretching' || /warm|mobil|stretch/i.test(titleOf(v))) && pbMatch(v, goal === 'Mobility' ? goal : '') && num(v.minutes) <= 12);
+  const items = [], left = () => minutes - items.reduce((n, x) => n + (x.t === 'vw' ? num(x.min) || 0 : 6), 0);
+  if (warm && goal !== 'Mobility') items.push({ t: 'vw', id: warm.id, min: num(warm.minutes) || 8 });
+  for (const e of ex) { if (left() < 6) break; items.push({ t: 'ex', id: e.id, sets: 3, reps: 10 }); }
+  for (const v of vids) { if (left() < 5) break; if (items.some(x => x.id === v.id)) continue; const m = num(v.minutes) || 10; if (m <= left() + 3) items.push({ t: 'vw', id: v.id, min: m }); }
+  return items;
+}
+function planBuilder(id) {
+  const p = id ? L.byId[id] : null, days = FITCFG().days;
+  const S = { name: p?.name || '', type: p?.type || 'Lower body', items: planItems(p).map(x => ({ ...x })), days: FIT_DAYS.filter(d => p && days[d] === p.id), q: '', show: 'all', goal: '', sug: false, sgoal: 'Glutes', smin: 45 };
+  const exSub = e => [[].concat(e.muscles || []).slice(0, 2).join(', '), [].concat(e.equipment || []).slice(0, 1).join('')].filter(Boolean).join(' · ');
+  const pool = () => [...(S.show !== 'vw' ? recs('exercises').map(e => ({ t: 'ex', r: e, sub: exSub(e) || 'Exercise' })) : []), ...(S.show !== 'ex' ? recs('vworkouts').filter(v => v.url).map(v => ({ t: 'vw', r: v, sub: ['▶', v.type, v.minutes ? v.minutes + ' min' : ''].filter(Boolean).join(' ') })) : [])]
+    .filter(x => pbMatch(x.r, S.goal) && (!S.q || norm(titleOf(x.r) + ' ' + x.sub + ' ' + [].concat(x.r.moves || []).join(' ')).includes(norm(S.q)))).sort((a, b) => azCmp(titleOf(a.r), titleOf(b.r)));
+  const total = () => S.items.reduce((n, x) => n + (x.t === 'vw' ? num(x.min) || 0 : (num(x.sets) || 3) * 2), 0);
+  const item = (x, i) => { const r = L.byId[x.id]; return `<div class="lrow pbitem"><span class="lmain"><b>${x.t === 'vw' ? '▶ ' : ''}${esc(titleOf(r))}</b><span>${x.t === 'vw' ? 'Video' : esc(exSub(r) || 'Exercise')}</span></span>
+    ${x.t === 'ex' ? `<label class="pbnum"><input class="finp" inputmode="numeric" data-pbset="${i}" value="${esc(x.sets ?? 3)}" aria-label="Sets"><span>×</span><input class="finp" inputmode="text" data-pbreps="${i}" value="${esc(x.reps ?? 10)}" aria-label="Reps"></label>` : `<label class="pbnum"><input class="finp" inputmode="numeric" data-pbmin="${i}" value="${esc(x.min ?? r.minutes ?? '')}" aria-label="Minutes"><span>min</span></label>`}
+    <span class="pbmv"><button class="btn small" data-pbmv="${i}" data-d="-1" aria-label="Move up" ${i ? '' : 'disabled'}>↑</button><button class="btn small" data-pbmv="${i}" data-d="1" aria-label="Move down" ${i < S.items.length - 1 ? '' : 'disabled'}>↓</button><button class="btn small" data-pbdel="${i}" aria-label="Remove">✕</button></span></div>`; };
+  const draw = () => {
+    const tiles = pool(), on = new Set(S.items.map(x => x.id));
+    sh.querySelector('[data-pbbody]').innerHTML = `<div class="pbtop"><input class="finp" data-pbname placeholder="Name, like Gym A: glutes" value="${esc(S.name)}" aria-label="Plan name"><select class="pill" data-pbtype aria-label="Type">${KINDS.plans.fields.find(f => f.k === 'type')?.options?.map(o => `<option ${o === S.type ? 'selected' : ''}>${esc(o)}</option>`).join('') || ''}</select></div>
+      <p class="dsub">On these days</p><div class="lwrap">${FIT_DAYS.map(d => `<button class="chip ${S.days.includes(d) ? 'on' : ''}" data-pbday="${d}" aria-pressed="${S.days.includes(d)}">${d}</button>`).join('')}</div>
+      <p class="dsub">Your plan · ${plural(S.items.length, 'part')} · about ${total()} min</p>
+      ${S.items.length ? `<div class="lrows">${S.items.map(item).join('')}</div>` : quiet('Tap exercises and videos below, or let the app suggest a plan.')}
+      <div class="pbsug">${S.sug ? `<select class="pill" data-pbsgoal aria-label="Goal">${PB_GOALS.map(g => `<option ${g === S.sgoal ? 'selected' : ''}>${g}</option>`).join('')}</select><select class="pill" data-pbsmin aria-label="Minutes">${[20, 30, 45, 60, 75].map(m => `<option value="${m}" ${m === S.smin ? 'selected' : ''}>${m} min</option>`).join('')}</select><button class="btn small primary" data-pbsuggo>Suggest</button>` : '<button class="btn small" data-pbsug>✨ Suggest a plan</button>'}</div>
+      <p class="dsub">Add from your library</p>
+      <input class="finp" type="search" data-pbq placeholder="Search exercises and videos" value="${esc(S.q)}" aria-label="Search">
+      <div class="lwrap pbfilt">${[['all', 'All'], ['ex', 'Exercises'], ['vw', 'Videos']].map(([k, l]) => `<button class="chip ${S.show === k ? 'on' : ''}" data-pbshow="${k}">${l}</button>`).join('')}<span class="pbsep"></span>${PB_GOALS.map(g => `<button class="chip ${S.goal === g ? 'on' : ''}" data-pbgoal="${g}">${g}</button>`).join('')}</div>
+      <div class="pbtiles">${tiles.slice(0, 120).map(x => `<button class="pbtile ${on.has(x.r.id) ? 'on' : ''}" data-pbadd="${x.t}|${x.r.id}" aria-pressed="${on.has(x.r.id)}"><b>${esc(titleOf(x.r))}</b><span>${esc(x.sub)}</span></button>`).join('') || quiet('Nothing matches. Try another filter.')}</div>`;
+  };
+  const sh = C.sheet({ title: p ? 'Change your plan' : 'Build a plan', body: '<div data-pbbody></div>', foot: `${p ? '<button class="btn" data-pbform>All fields</button>' : ''}<div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-pbsave>Save</button>` });
+  draw();
+  sh.addEventListener('input', e => { const t = e.target, d = t.dataset;
+    if ('pbname' in d) S.name = t.value; else if ('pbq' in d) { S.q = t.value; const pos = t.selectionStart; draw(); const q = sh.querySelector('[data-pbq]'); q.focus(); q.setSelectionRange(pos, pos); }
+    else if ('pbset' in d) S.items[+d.pbset].sets = num(t.value) ?? ''; else if ('pbreps' in d) S.items[+d.pbreps].reps = t.value.trim(); else if ('pbmin' in d) S.items[+d.pbmin].min = num(t.value) ?? ''; });
+  sh.addEventListener('change', e => { const t = e.target, d = t.dataset; if ('pbtype' in d) S.type = t.value; if ('pbsgoal' in d) S.sgoal = t.value; if ('pbsmin' in d) S.smin = Number(t.value); });
+  sh.addEventListener('click', async e => {
+    const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
+    if (d.pbadd) { const [t, rid] = d.pbadd.split('|'), i = S.items.findIndex(x => x.id === rid); if (i >= 0) S.items.splice(i, 1); else S.items.push(t === 'ex' ? { t, id: rid, sets: 3, reps: 10 } : { t, id: rid, min: num(L.byId[rid]?.minutes) || '' }); draw(); return; }
+    if (d.pbmv) { const i = +d.pbmv, j = i + +d.d; [S.items[i], S.items[j]] = [S.items[j], S.items[i]]; draw(); return; }
+    if (d.pbdel) { S.items.splice(+d.pbdel, 1); draw(); return; }
+    if (d.pbday) { S.days = S.days.includes(d.pbday) ? S.days.filter(x => x !== d.pbday) : [...S.days, d.pbday]; draw(); return; }
+    if (d.pbshow) { S.show = d.pbshow; draw(); return; }
+    if (d.pbgoal) { S.goal = S.goal === d.pbgoal ? '' : d.pbgoal; draw(); return; }
+    if ('pbsug' in d) { S.sug = true; draw(); return; }
+    if ('pbsuggo' in d) { const l = pbSuggest(S.sgoal, S.smin); if (!l.length) { C.toast(`Nothing in your library for ${S.sgoal} yet.`); return; } S.items = l; if (!S.name) S.name = `${S.sgoal} ${S.smin} min`; S.sug = false; draw(); return; }
+    if ('pbform' in d) { C.closeSheet(); openEditor('plans', id, { raw: true }); return; }
+    if ('pbsave' in d) {
+      if (!S.items.length) { C.toast('Add at least one exercise or video.'); return; }
+      const name = S.name.trim() || 'My plan', exIds = S.items.filter(x => x.t === 'ex').map(x => x.id);
+      const data = { ...(p ? dataOf(p) : { created: Date.now() }), name, type: S.type, items: S.items.map(x => x.t === 'ex' ? { t: 'ex', id: x.id, sets: num(x.sets) ?? 3, reps: x.reps ?? '' } : { t: 'vw', id: x.id, min: num(x.min) ?? '' }), exercises: exIds };
+      b.disabled = true;
+      try {
+        const pid = p?.id || C.uuid(); await put('plans', pid, data);
+        const cur = { ...FITCFG().days }; for (const dd of FIT_DAYS) { if (S.days.includes(dd)) cur[dd] = pid; else if (cur[dd] === pid) delete cur[dd]; }
+        await C.savePrefs({ fitweek: { ...(C.prefs().fitweek || {}), days: cur } });
+        C.closeSheet(); C.toast(`${name} saved`);
+      } catch (err) { console.error(err); b.disabled = false; C.toast('Could not save. Try again.'); }
+    }
+  });
 }
 // what you lifted last time on an exercise, from your logbook
 function lastOf(exId) {
@@ -9006,8 +9090,10 @@ function stretchCard(id, when) {
 }
 function planCard(pid, d, title) {
   const p = L.byId[pid]; if (!p) return '';
-  const rows = planRx(p).map(({ id, rx }) => { const e = L.byId[id]; if (!e) return ''; const last = lastOf(id), pr = prOf(id);
-    return `<div class="fitex"><div class="lrow"><button class="lmain" data-act="open" data-id="${id}"><b>${esc(titleOf(e))}</b><span>${esc([rx, last?.top?.kg != null ? `last ${last.top.kg} kg × ${last.top.reps || '?'}` : '', pr ? `PR ${pr.weight} kg` : ''].filter(Boolean).join(' · '))}</span></button>${exVidBtn(e)}</div>${e.notes ? `<details class="fitform"><summary>How to do it</summary><p>${esc(e.notes)}</p></details>` : ''}</div>`; }).join('');
+  const rxs = planRx(p), vrow = x => { const v = L.byId[x.id]; return `<div class="fitex"><div class="lrow"><button class="lmain" data-act="open" data-id="${v.id}"><b>▶ ${esc(titleOf(v))}</b><span>${esc([x.min || v.minutes ? (x.min || v.minutes) + ' min' : '', v.type].filter(Boolean).join(' · '))}</span></button>${vidBtn(v.url)}</div></div>`; };
+  const order = Array.isArray(p.items) ? planItems(p) : rxs.map(x => ({ t: 'ex', id: x.id }));
+  const rows = order.map(x => x.t === 'vw' ? vrow(x) : rxs.find(r => r.id === x.id)).map(x => typeof x === 'string' ? x : x ? (({ id, rx }) => { const e = L.byId[id]; if (!e) return ''; const last = lastOf(id), pr = prOf(id);
+    return `<div class="fitex"><div class="lrow"><button class="lmain" data-act="open" data-id="${id}"><b>${esc(titleOf(e))}</b><span>${esc([rx, last?.top?.kg != null ? `last ${last.top.kg} kg × ${last.top.reps || '?'}` : '', pr ? `PR ${pr.weight} kg` : ''].filter(Boolean).join(' · '))}</span></button>${exVidBtn(e)}</div>${e.notes ? `<details class="fitform"><summary>How to do it</summary><p>${esc(e.notes)}</p></details>` : ''}</div>`; })(x) : '').join('');
   const done = recs('workouts').find(x => x.date === d && x.plan === pid && x.done);
   return panel(title, `<div class="lrow"><button class="lmain" data-act="open" data-id="${p.id}"><b>${esc(titleOf(p))}</b><span>${esc(p.type || '')}</span></button></div>${rows}
     ${p.notes ? `<details class="fitform"><summary>Warm-up, rest and tips</summary><p class="lpre">${esc(p.notes)}</p></details>` : ''}

@@ -1387,3 +1387,19 @@ details.panel:not([open]):has(> summary.foldsum) { padding-top: 14px; padding-bo
 .resedit .btn.small { padding: 6px 9px; }
 .resedit .lmain { min-width: 0; flex: 1 1 140px; }
 @media (max-width: 520px) { .resedit { flex-wrap: wrap; } .resedit .lmain { flex: 1 1 100%; } .resedit .lmain b, .resedit .lmain span { white-space: normal; } }
+/* plan builder */
+.pbtop { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.pbitem { flex-wrap: wrap; }
+.pbitem .lmain { flex: 1 1 160px; min-width: 0; }
+.pbnum { display: inline-flex; align-items: center; gap: 4px; }
+.pbnum .finp { width: 54px; text-align: center; padding: 6px; }
+.pbmv { display: inline-flex; gap: 4px; }
+.pbmv .btn.small { padding: 6px 9px; }
+.pbfilt { margin: 8px 0; }
+.pbsep { width: 1px; align-self: stretch; background: var(--line); margin: 0 2px; }
+.pbsug { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.pbtiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.pbtile { display: grid; gap: 3px; text-align: left; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: inherit; font: inherit; min-width: 0; }
+.pbtile b { font-size: 14px; overflow-wrap: anywhere; }
+.pbtile span { font-size: 12px; color: var(--muted); }
+.pbtile.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
