@@ -5627,7 +5627,10 @@ const WP_DEFAULT_Q = ['Laundry basket empty?', 'Fridge cleaned out?', 'Plants wa
   'Who do I want to see or call this week?', 'Messages answered?', 'Work bag packed?', 'Chargers, keys and pass ready?', 'Gym bag ready?'];
 const WPCFG = () => ({ off: [], order: WP_STEPS.map(x => x[0]), custom: WP_DEFAULT_Q, checks: {}, done: {}, weeks: {}, bins: [], moveGoal: 3, ...(C?.prefs?.().wplan || {}) });
 const saveWp = patch => C.savePrefs({ wplan: { ...WPCFG(), ...patch } }).catch(() => C.toast('Could not save. Try again.'));
-const wpWeek = () => shopAskWeek();
+// the week you plan: this one (from Sunday the next), or one you picked ahead with the arrows, up to 8 weeks out
+const WP_AHEAD = 8;
+const wpWeek = () => { const base = shopAskWeek(), w = L.wpWk; return w && w > base && w <= addDays(base, 7 * WP_AHEAD) ? w : base; };
+const wpWeekName = wk => { const n = Math.round(diffDays(shopAskWeek(), wk) / 7); return n <= 0 ? 'This week' : n === 1 ? 'Next week' : `In ${n} weeks`; };
 const MONEY_CHECK = ['Looked at every purchase of last week', 'Fixed the categories', 'Linked purchases to what I bought', 'Put money aside for my goals', 'Checked the bills of this week', 'Logged my impulses'];
 const WK = (wk = wpWeek()) => ({ days: {}, top3: ['', '', ''], todo: {}, chores: {}, skip: [], laundry: [], hair: [], mcheck: [], extra: '', ...(WPCFG().weeks[wk] || {}) });
 const saveWk = (patch, wk = wpWeek()) => { const c = WPCFG(), weeks = { ...c.weeks, [wk]: { ...WK(wk), ...patch } }; for (const k of Object.keys(weeks)) if (k < addDays(weekMon(), -35)) delete weeks[k]; return saveWp({ weeks }); };
@@ -5651,7 +5654,9 @@ const HOUSE_CATS = ['Huishouden', 'Verzorging'];
 const STOCK_KEEP = { ingredients: r => !!r.stock || !!r.list || !!r.low, beauty: r => !r.wish && !r.finished && !r.archived && r.type !== 'Fragrance', supplements: r => !r.wish && !r.finished };
 function wpFlow() {
   const c = WPCFG(), order = [...(c.order.includes('report') ? [] : ['report']), ...c.order, ...WP_STEPS.map(x => x[0]).filter(k => !c.order.includes(k) && k !== 'report')];
-  return order.filter(k => WP_STEPS.some(x => x[0] === k) && !c.off.includes(k)).flatMap(k => k === 'stock' ? wpStock().map(s => ({ k, sub: s })) : [{ k }]);
+  // a week ahead has nothing to look back on yet: the review of last week only comes with this week
+  const ahead = wpWeek() > shopAskWeek();
+  return order.filter(k => WP_STEPS.some(x => x[0] === k) && !c.off.includes(k) && !(ahead && k === 'report')).flatMap(k => k === 'stock' ? wpStock().map(s => ({ k, sub: s })) : [{ k }]);
 }
 // pantry: out means not in stock and on the shopping list; beauty and supplements: none left
 const isOut = r => r.kind === 'ingredients' ? !r.stock && !!r.list : (num(cntOf(r)) === 0 && !!r.low);
@@ -5968,7 +5973,9 @@ function weekPlanPage(host) {
   const i = L.wpIdx, step = flow[i], k = step?.k, label = k ? WP_STEPS.find(x => x[0] === k)[1] : 'Your week, day by day';
   const bigs = [...new Set(flow.map(s => s.k))], bi = k ? bigs.indexOf(k) : bigs.length;
   const subs = k === 'stock' ? flow.filter(s => s.k === 'stock') : [], si = subs.indexOf(step);
+  const base = shopAskWeek();
   host.innerHTML = `<div class="viewhead"><h1>Plan my week</h1><span class="sub">${esc(niceDate(wk))} to ${esc(niceDate(addDays(wk, 6)))}</span></div>
+    <div class="wpweeknav" role="group" aria-label="Which week"><button class="btn small" data-wpwk="-1" aria-label="Week before" ${wk <= base ? 'disabled' : ''}>‹</button><b>${esc(wpWeekName(wk))}</b><button class="btn small" data-wpwk="1" aria-label="Week after" ${wk >= addDays(base, 7 * WP_AHEAD) ? 'disabled' : ''}>›</button>${wk > base ? '<button class="btn small" data-wpwk="0">Back to this week</button>' : ''}</div>
     <div class="wpbar" role="progressbar" aria-valuemin="0" aria-valuemax="${flow.length}" aria-valuenow="${i}"><span style="width:${Math.round(100 * i / Math.max(1, flow.length))}%"></span></div>
     <h2 class="wph">${k ? `${bi + 1}. ` : ''}${esc(label)}${subs.length ? ` <span class="muted">${si + 1} of ${subs.length}</span>` : ''}</h2>
     <div class="wpbody">${k ? wpBody(step, wk) : weekOverview(wk) + `<div class="dbtns">${linkBtn('plan/settings', 'Change the steps')}${linkBtn('overview', 'Overview')}</div>`}</div>
@@ -5980,6 +5987,7 @@ function weekPlanPage(host) {
     try { cur ? await put('workouts', cur.id, { ...dataOf(cur), ...data }) : await create('workouts', data); } catch { C.toast('Could not save. Try again.'); } };
   host.addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
+    if (d.wpwk) { L.wpWk = d.wpwk === '0' ? '' : addDays(wpWeek(), 7 * Number(d.wpwk)); L.wpIdx = 0; L.wpQ = ''; L.wpMeal = ''; L.wpWork = ''; L.wpAdd = ''; L.wpUsual = {}; again(); return; }
     if (d.wpstep) { const fl = wpFlow(); if (d.wpstep === 'restart') L.wpIdx = 0; else { L.wpIdx = (L.wpIdx || 0) + Number(d.wpstep); if (L.wpIdx >= fl.length) await saveWp({ done: { ...WPCFG().done, [WKN()]: today() } }); } L.wpQ = ''; L.wpMeal = ''; L.wpWork = ''; L.wpAdd = ''; L.wpUsual = {}; again(); scrollTo(0, 0); return; }
     if (b.hasAttribute('data-wpskipcat')) { const fl = wpFlow(), cur = fl[L.wpIdx]; let j = L.wpIdx + 1; while (j < fl.length && fl[j].k === 'stock' && fl[j].sub[0] === cur.sub[0] && fl[j].sub[2] === cur.sub[2]) j++; L.wpIdx = j; L.wpQ = ''; L.wpUsual = {}; again(); scrollTo(0, 0); return; }
     if (d.wpmark) { const r = L.byId[d.id]; if (r) { await wpMark(r, d.wpmark); again(); } return; }
