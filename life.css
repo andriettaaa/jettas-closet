@@ -1333,3 +1333,7 @@ img.nophoto { background: var(--line); }
 .seasonpanel[open] .seasonchev { transform: rotate(90deg); }
 .seasonbody { display: grid; gap: 10px; margin-top: 12px; }
 @media (prefers-reduced-motion: reduce) { .seasonchev { transition: none; } }
+
+/* Not sorted: the amount stays readable next to the category choice */
+.funs .pill { max-width: 46%; min-width: 0; flex: 0 1 auto; }
+.funs .lmain { min-width: 0; flex: 1 1 auto; }
