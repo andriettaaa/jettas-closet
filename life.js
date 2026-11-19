@@ -6325,6 +6325,8 @@ async function importFile(file) {
   } catch { rows = null; }
   if (!rows?.length) { C.toast('That file has no lists this app can read.'); return; }
   const mt = importMatch(rows); rows = mt.rows;
+  // a video already in your library keeps its own name, and draft steps never replace steps it already has
+  rows = rows.map(r => { const have = L.byId[r.id]; if (r.kind !== 'vworkouts' || !have || !r.data?.stepsDraft) return r; const { steps, stepsDraft, name, ...d } = r.data; return { ...r, data: (have.steps || []).length ? d : { ...d, steps, stepsDraft } }; });
   if (fill) { fill = fillMatch(rows); rows = fill.rows; if (!rows.length) { C.toast(`Nothing to add: all ${plural(fill.same, 'record')} are already complete.`); return; } }
   const keep = rows.filter(r => !r.photoData && /^https?:/.test(r.data.photo || '') && L.byId[r.id]?.photo && !/^https?:/.test(L.byId[r.id].photo));
   keep.forEach(r => { r.data.photo = L.byId[r.id].photo; });
@@ -6786,6 +6788,10 @@ function refCounts() {
 function importMatch(rows) {
   const have = new Map(), map = new Map(), none = new Map();
   for (const k of DUP_LOOK) for (const r of recs(k)) { const key = k + '#' + dupKey(r, none); if (!have.has(key)) have.set(key, r.id); }
+  // a video that is already in your Video library (the same link) is updated, not added again
+  const vUrl = u => String(u || '').replace(/^https?:\/\/(www\.)?/, '').replace(/[?#].*$/, '').replace(/\/$/, '').toLowerCase();
+  const vids = new Map(recs('vworkouts').filter(v => v.url).map(v => [vUrl(v.url), v.id]));
+  for (const r of rows) if (r.kind === 'vworkouts' && !L.byId[r.id] && r.data?.url && vids.has(vUrl(r.data.url))) map.set(r.id, vids.get(vUrl(r.data.url)));
   for (const r of rows) {
     if (!DUP_LOOK.includes(r.kind) || L.byId[r.id]) continue;
     const key = r.kind + '#' + dupKey({ ...r.data, kind: r.kind }, none), hit = have.get(key);
