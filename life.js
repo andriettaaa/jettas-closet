@@ -6513,6 +6513,7 @@ document.addEventListener('click', async e => {
     case 'pnsync': pnSync(); break;
     case 'pnpin': pnPinSheet(d.id); break;
     case 'pnnext': L.pnShift = (L.pnShift || 0) + 1; C.render(); break;
+    case 'afflook': C.savePrefs({ affLook: d.v }).catch(() => C.toast('Opslaan lukte niet. Probeer het opnieuw.')); break;
     case 'quitset': quitSet(); break;
     case 'chfree': { const c = C.prefs().chores || {}, f = new Set(c.free || []); f.has(d.v) ? f.delete(d.v) : f.add(d.v); C.savePrefs({ chores: { ...c, free: WDAYS.filter(x => f.has(x)) } }).catch(() => C.toast('Could not save. Try again.')); break; }
     case 'potmove': { const b = L.byId[d.v], n = b && fNext(b); if (!b) break; const to = b.account || fMainAcc()?.id; moveMoney({ from: d.id, to, amt: num(b.amount) || '', date: n ? (addDays(n, -1) < today() ? today() : addDays(n, -1)) : today() }); break; }
@@ -7690,9 +7691,17 @@ function pnAffirmToday(shift = 0) {
   const l = (pnAcc()?.pnAffirm || []).filter(p => p.img); if (!l.length) return null;
   const n = Math.floor(Date.parse(today()) / 864e5) + shift; return l[((n % l.length) + l.length) % l.length];
 }
+// three looks for the pin of the day, switched on the card itself: big with a blurred fill, a cropped strip, or a row of pins
+const AFF_LOOKS = [['big', 'Groot'], ['strip', 'Strook'], ['row', 'Rij']];
+const affLook = () => { const v = C.prefs?.().affLook; return AFF_LOOKS.some(x => x[0] === v) ? v : 'big'; };
 function pnAffirmHTML() {
   const p = pnAffirmToday(L.pnShift || 0); if (!p) return '';
-  return `<section class="panel pnaff"><a href="https://www.pinterest.com/pin/${esc(p.id)}/" target="_blank" rel="noopener" class="pnaffimg"><img referrerpolicy="no-referrer" src="${esc(p.img)}" alt="${esc(p.text || 'Affirmatie van je Pinterest-bord')}" loading="lazy" onerror="this.closest('.pnaff').remove()"></a><div class="pnafftxt"><span>Affirmatie van vandaag</span>${p.text ? `<b>${esc(p.text)}</b>` : ''}<button class="chip link" data-act="pnnext">Een andere</button></div></section>`;
+  const look = affLook(), pin = (x, cls = '') => `<a href="https://www.pinterest.com/pin/${esc(x.id)}/" target="_blank" rel="noopener" class="pnaffimg ${cls}"><img referrerpolicy="no-referrer" src="${esc(x.img)}" alt="${esc(x.text || 'Affirmatie van je Pinterest-bord')}" loading="lazy"></a>`;
+  const all = (pnAcc()?.pnAffirm || []).filter(x => x.img), start = all.indexOf(p);
+  const media = look === 'row' ? `<div class="pnaffrow">${Array.from({ length: Math.min(all.length, 8) }, (_, i) => all[(start + i) % all.length]).map(x => pin(x)).join('')}</div>`
+    : look === 'strip' ? pin(p, 'pnaffstrip')
+    : `<div class="pnaffbig"><img class="pnaffbg" referrerpolicy="no-referrer" src="${esc(p.img)}" alt="" aria-hidden="true">${pin(p)}</div>`;
+  return `<section class="panel pnaff pnaff-${look}">${media}<div class="pnafftxt"><span>Affirmatie van vandaag</span>${p.text && look !== 'row' ? `<small>${esc(p.text)}</small>` : ''}<div class="pnaffbar"><button class="chip link" data-act="pnnext">Een andere</button><div class="seg pnaffseg" role="group" aria-label="Weergave">${AFF_LOOKS.map(([k, l]) => `<button data-act="afflook" data-v="${k}" aria-pressed="${look === k}">${l}</button>`).join('')}</div></div></div></section>`;
 }
 const pnRedirect = () => location.origin + location.pathname.replace(/index\.html$/, '');
 async function pnConnect() {
