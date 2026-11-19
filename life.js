@@ -3591,7 +3591,8 @@ function fNetFill(fill) {
 }
 /* reviews */
 function fMonthData(m) {
-  const tx = recs('ftx').filter(x => fMonth(x.date) === m), inc = recs('fincome').filter(x => fMonth(x.date) === m);
+  // your own money moving (own transfers, money moved to savings) is not spending and not income
+  const tx = recs('ftx').filter(x => fMonth(x.date) === m && !x.transfer && !fMoved(x)), inc = recs('fincome').filter(x => fMonth(x.date) === m && !x.transfer);
   return { tx, inc, out: fSum(tx), in: fSum(inc), every: tx.filter(fEveryday) };
 }
 function fHealth(m) {
@@ -3755,7 +3756,7 @@ function moneyToday(host) {
   const heat = `<div class="mheat">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(d => `<b>${d}</b>`).join('')}${'<span></span>'.repeat(lead)}${Array.from({ length: mDays }, (_, i) => { const d = addDays(m0, i), v = perDayMap.get(d) || 0; return `<button class="mh${d > t ? 'f' : lvl(v)} ${d === t ? 'now' : ''}" data-act="go" data-v="money/spending" title="${esc(shortDate(d))}: ${eur(v)}">${fromISO(d).getDate()}</button>`; }).join('')}</div>
     <p class="mlegend2"><span class="mscale">${[0, 1, 2, 3, 4].map(i => `<i class="mh${i}"></i>`).join('')}</span><span>${plural(zero, 'day')} with nothing spent</span></p>`;
   /* where the money went */
-  const monthTx = tx.filter(x => x.date >= m0 && x.date <= t), groups = new Map();
+  const monthTx = tx.filter(x => x.date >= m0 && x.date <= t && !x.transfer && !fMoved(x)), groups = new Map();
   for (const x of monthTx) { const b = x.bill ? L.byId[x.bill.split('@')[0]] : null; const k = x.debt ? 'Debt' : b ? (b.type === 'Subscription' ? 'Subscriptions' : b.type === 'Debt' ? 'Debt' : 'Bills') : (relName(x.category) || 'Other'); groups.set(k, (groups.get(k) || 0) + (num(x.amount) || 0)); }
   const COLS = ['var(--c1)', 'var(--c6)', 'var(--c3)', 'var(--c2)', 'var(--c4)', 'var(--c5)', 'var(--c7)', 'var(--c8)'];
   const parts = [...groups.entries()].sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({ k, v, c: COLS[i % COLS.length] })), mTot = fSum(monthTx);
