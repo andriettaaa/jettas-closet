@@ -2850,6 +2850,18 @@ const NL_MAX = 8, VEG_GOAL = 250;
 // soda and juice: a goal that steps down by one glass every two weeks, from 5 to 1
 const sodaGoal = () => { const c = { from: 5, to: 1, ...(C?.prefs?.().soda || {}) }; if (!c.start) return c.from; return Math.max(c.to, c.from - Math.floor(diffDays(c.start, today()) / 7)); };
 const nlOn = d => recs('nlog').find(x => x.date === d);
+// steps come in from Apple Health on your food log; the goal depends on the kind of day (Fitness settings)
+const STEP_GOALS = { office: 10000, home: 6000, off: 8000, weekend: 8000 };
+const stepGoals = () => ({ ...STEP_GOALS, ...(C?.prefs?.().stepGoals || {}) });
+const stepsOn = d => num(nlOn(d)?.steps);
+const stepGoal = d => num(stepGoals()[dayType(d)]) || 8000;
+const fmtSteps = n => n == null ? '–' : Math.round(n).toLocaleString('nl-NL');
+function stepsPanel() {
+  const t = today(), y = addDays(t, -1), days = [...Array(7).keys()].map(i => addDays(t, i - 6));
+  const box = (d, label) => { const v = stepsOn(d), g = stepGoal(d), pct = v == null ? 0 : Math.min(100, Math.round(100 * v / g)); return `<div class="stepbox"><span>${label} · ${esc(DAYTYPE_LABEL[dayType(d)] || '')}</span><b>${fmtSteps(v)}</b><div class="stepbar"><i style="width:${pct}%"></i></div><small>${v == null ? 'not in yet' : `${pct}% of ${fmtSteps(g)}`}</small></div>`; };
+  const hit = days.filter(d => (stepsOn(d) ?? -1) >= stepGoal(d)).length;
+  return panel('👣 Steps', `<div class="stepgrid">${box(y, 'Yesterday')}${box(t, 'Today')}</div><p class="lnone">Goal reached on ${hit} of the last 7 days.</p>`, ['fit/stats', 'More']);
+}
 const waterOn = d => recs('water').find(w => w.date === d);
 const nlScore = (r, d = r?.date) => { if (!r && !waterOn(d)) return 0; const m = [].concat(r?.meals || []); const wg = Number(C?.prefs?.().waterGoal) || 8; return m.length + (r?.snack ? 1 : 0) + ((num(r?.veg) || 0) >= VEG_GOAL ? 1 : 0) + ((num(r?.fruit) || 0) >= 1 ? 1 : 0) + (r?.nosoda ? 1 : 0) + ((waterOn(d)?.glasses || 0) >= wg ? 1 : 0); };
 async function nlSet(patch, d = today()) {
@@ -5079,6 +5091,7 @@ function fitToday(host) {
     <div class="tile"><div class="k">Active time</div><div class="v">${minsWeek}</div><div class="h">minutes this week</div></div>
     <div class="tile"><div class="k">Weight</div><div class="v">${last ? last.weight : '–'}</div><div class="h">${last ? (ref && ref !== last ? `kg, ${(last.weight - ref.weight > 0 ? '+' : '') + (Math.round((last.weight - ref.weight) * 10) / 10)} since ${shortDate(ref.date)}` : 'kg on ' + shortDate(last.date)) : 'log it under Body'}</div></div></div>
   <div class="panels">
+    ${stepsPanel()}
     ${(() => { const vw = todayVW(); return vw ? panel('Today’s video', `<div class="lrows">${row(vw)}</div>`, ['fit/library', 'Library']) : ''; })()}
     ${recs('fitgoals').some(g => !g.done) ? panel('Goals', `<div class="lrows">${recs('fitgoals').filter(g => !g.done).slice(0, 4).map(g => `<div class="lrow"><button class="lmain" data-act="open" data-id="${g.id}"><b>${esc(g.name || 'Goal')}</b><span>${esc(KINDS.fitgoals.sub(g))}</span><span class="lprog"><i style="width:${fitPct(g)}%"></i></span></button><span class="lside">${fitPct(g)}%</span></div>`).join('')}</div>`, ['fit/fgoals', 'All goals']) : ''}
     ${panel('Planned', planned.length ? `<div class="lrows">${planned.map(row).join('')}</div>` : `${quiet('No workouts planned.')}<button class="btn small" data-act="new" data-v="workouts">Plan a workout</button>`, ['fit/workouts', 'All workouts'])}
@@ -7413,7 +7426,9 @@ function secOwn(sec) {
       <div class="fset"><div><b>Skincare week</b><span>${esc(wk ? KINDS.bsched.sub(wk) : 'Which night is acid, retinoid or recovery.')}</span></div><button class="btn small" data-act="${wk ? 'open' : 'new'}" ${wk ? `data-id="${wk.id}"` : 'data-v="bsched"'}>${wk ? 'Change' : 'Plan it'}</button></div></section>`);
   }
   if (sec === 'health') return wrap(healthPanel());
-  if (sec === 'fit') { const wk = recs('fsched')[0]; return wrap(`<section class="panel setpanel"><h3>Fitness</h3><div class="fset"><div><b>Workout week</b><span>${esc(wk ? KINDS.fsched.sub(wk) : 'One video workout per day.')}</span></div><button class="btn small" data-act="${wk ? 'open' : 'new'}" ${wk ? `data-id="${wk.id}"` : 'data-v="fsched"'}>${wk ? 'Change' : 'Plan it'}</button></div></section>`); }
+  if (sec === 'fit') { const wk = recs('fsched')[0]; return wrap(`<section class="panel setpanel"><h3>Fitness</h3><div class="fset"><div><b>Workout week</b><span>${esc(wk ? KINDS.fsched.sub(wk) : 'One video workout per day.')}</span></div><button class="btn small" data-act="${wk ? 'open' : 'new'}" ${wk ? `data-id="${wk.id}"` : 'data-v="fsched"'}>${wk ? 'Change' : 'Plan it'}</button></div>
+    <div class="fset"><div><b>👣 Step goal per kind of day</b><span>Office, home and free days come from Plan my week.</span></div></div>
+    <div class="stepgoals">${Object.keys(STEP_GOALS).map(k => `<label class="field"><span>${esc(DAYTYPE_LABEL[k])}</span><input class="finp" type="number" inputmode="numeric" min="0" step="500" data-stepgoal="${k}" value="${stepGoals()[k]}"></label>`).join('')}</div></section>`); }
   if (sec === 'social') { const acc = recs('accounts'); return wrap(`<section class="panel setpanel"><h3>LTK and income</h3><div class="fset"><div><b>LTK profile link</b><span>Shown on Income, to share with followers.</span></div><input class="finp" type="url" data-ltkset="ltk" value="${esc(C.prefs().ltk || '')}" placeholder="https://www.shopltk.com/explore/..."></div><div class="fset"><div><b>Tax reserve</b><span>Percentage of content income to put aside.</span></div><input class="finp" type="number" min="0" max="60" data-ltkset="contentTax" value="${esc(C.prefs().contentTax ?? 30)}"></div></section><section class="panel setpanel"><h3>Accounts</h3>${acc.length ? `<div class="lrows">${acc.map(row).join('')}</div>` : quiet('Add your Instagram and TikTok so the feed planner shows your profile.')}<button class="btn small mmore" data-act="new" data-v="accounts">+ Account</button></section>`); }
   return '';
 }
@@ -7530,6 +7545,7 @@ document.addEventListener('change', e => {
   if (t.matches?.('[data-cleanset]')) { const k = t.dataset.cleanset; cleanSet({ [k]: k === 'date' ? t.value : num(t.value) }); }
   if (t.matches?.('[data-intent]')) C.savePrefs({ intent: { week: weekMon(addDays(today(), new Date().getDay() === 0 ? 1 : 0)), text: t.value.trim() } }).then(() => C.toast('Je focus staat op Today')).catch(() => {});
   if (t.matches?.('[data-dayset]')) C.savePrefs({ day: { ...(C.prefs().day || {}), [t.dataset.dayset]: t.type === 'number' ? num(t.value) : t.value } }).catch(() => C.toast('Opslaan lukte niet.'));
+  if (t.matches?.('[data-stepgoal]')) { const v = Math.round(Number(t.value)); if (v >= 0 && v < 100000) C.savePrefs({ stepGoals: { ...(C.prefs().stepGoals || {}), [t.dataset.stepgoal]: v } }).catch(() => C.toast('Could not save. Try again.')); }
   if (t.matches?.('[data-top3pin]')) { const d = today(); try { localStorage.setItem('top3:' + d, t.value.trim()); } catch {} C.render(); }
 });
 async function cleanMoveWeek() {
@@ -7971,7 +7987,6 @@ const ciAvg = (d, k) => { const v = recs('checkin').filter(x => x.date === d).ma
 const moodOn = d => { const c = ciAvg(d, 'mood'); if (c != null) return c; const n = nlOn(d); if (n?.mood && MOOD_V[n.mood]) return MOOD_V[n.mood]; const j = recs('journal').find(x => x.date === d && JMOOD_V[x.mood]); return j ? JMOOD_V[j.mood] : null; };
 const energyOn = d => ciAvg(d, 'energy') ?? ENERGY_V[nlOn(d)?.energy] ?? null;
 const sleepOn = d => num(recs('sleep').find(x => x.date === d)?.hours);
-const stepsOn = d => num(nlOn(d)?.steps);
 const workedOut = d => recs('workouts').some(w => w.date === d && w.done);
 const SKIN_V = { None: 4, 'A little': 3, Some: 2, 'A lot': 1 };
 const skinOn = d => { const l = recs('skinlog').find(x => x.date === d); if (!l) return null; return avgOf(SKIN_SCORES.map(([k]) => SKIN_V[l[k]])); };
@@ -8269,6 +8284,7 @@ function bodyToday(host) {
   host.innerHTML = `${head('Body')}
   <div class="tiles">${fTile('Slaap', slept ? `${num(slept.hours) || '?'} uur` : '–', slept ? slept.quality || 'vannacht' : 'nog niet ingevuld')}${fTile('Training', `${done} van 3`, 'deze week')}${fTile('Clean', cs.start ? (cs.before ? `over ${cs.toGo} d` : `${cs.streak} d`) : '–', cs.start ? eur(cs.saved) + ' bespaard' : 'kies een stopdatum')}${fTile('Cyclus', cy.last ? `dag ${cy.day}` : '–', ph ? ph[0] : 'log je menstruatie')}</div>
   <div class="panels">
+    ${stepsPanel()}
     ${panel('Hoe voel je je?', `<p class="dsub">Energie</p><div class="lwrap">${['Laag', 'Oké', 'Goed', 'Top'].map(v => moodChip('energy', v)).join('')}</div><p class="dsub">Stemming</p><div class="lwrap">${['Down', 'Gestrest', 'Rustig', 'Blij'].map(v => moodChip('mood', v)).join('')}</div>`)}
     ${panel('Training vandaag', `${poor ? '<p class="lnone">Je sliep niet zo goed. Kies vandaag iets lichters: wandelen, stretchen of yoga.</p>' : ph ? `<p class="lnone">${esc(ph[1])}</p>` : ''}<p class="lnone">Eet op trainingsdagen een eiwitrijk tussendoortje, zoals ei, kipfilet of kaas.</p>`, ['fit/library', 'Weekplan'])}
     ${panel('Slaap', slept ? `<p class="lbig">${num(slept.hours) || '?'} uur</p><p class="lnone">${esc([slept.quality, slept.wake].filter(Boolean).join(' · '))}</p>` : `<p class="lnone">Hoe sliep je? Vanavond naar bed om ${hm(bedOn(t))}.</p><button class="btn small" data-act="new" data-v="sleep">Vul je nacht in</button>`, ['care/health', 'Alles'])}
@@ -8908,6 +8924,7 @@ function fitRoutine(host) {
   host.innerHTML = `<div class="viewhead"><h1>Training routine</h1><span class="sub">${esc(dayName(t))}: ${esc(pid ? relName(pid) : 'rest day')}</span></div>
     <div class="lplanhead"><button class="btn small" data-act="go" data-v="fit/log">Logbook</button><button class="btn small" data-act="go" data-v="fit/res">Resources</button></div>
     <div class="panels">
+      ${stepsPanel()}
       ${stretchCard(c.am, 'Morning stretch')}
       ${pid ? planCard(pid, t, 'Gym today') : panel('Today', `<p class="lnone">No gym today. Your evening stretch is the training of the day.</p>`)}
       ${stretchCard(pid ? c.pmGym : c.pmRest, pid ? 'Evening stretch: after the gym' : 'Evening stretch')}
@@ -9008,10 +9025,11 @@ const avgPain = r => { const v = PAIN_AREAS.map(([k]) => num(r['p' + k] ?? r['pb
 function fitLog(host) {
   const t = today(), pid = planOn(t), fg = firstGymDay(t), mon = weekMon(t);
   const photosDue = fg && fg <= t && !recs('body').some(b => b.date >= mon && (b.front || b.side || b.back));
-  const items = [...recs('workouts').filter(w => w.done && w.date).map(r => ({ d: r.date, k: 'w', r })), ...recs('paincheck').filter(r => r.date).map(r => ({ d: r.date, k: 'p', r })), ...recs('body').filter(r => r.date).map(r => ({ d: r.date, k: 'b', r }))]
+  const items = [...recs('workouts').filter(w => w.done && w.date).map(r => ({ d: r.date, k: 'w', r })), ...recs('paincheck').filter(r => r.date).map(r => ({ d: r.date, k: 'p', r })), ...recs('body').filter(r => r.date).map(r => ({ d: r.date, k: 'b', r })), ...recs('nlog').filter(r => r.date && num(r.steps) != null).map(r => ({ d: r.date, k: 's', r }))]
     .sort((a, b) => b.d.localeCompare(a.d) || a.k.localeCompare(b.k)).slice(0, 60);
   const painTxt = r => PAIN_AREAS.map(([k, l]) => { const a = r['pb' + k], b2 = r['pa' + k]; return a != null || b2 != null ? `${l.toLowerCase()} ${a ?? '?'}→${b2 ?? '?'}` : ''; }).filter(Boolean).join(', ');
   const row = ({ k, r }) => k === 'w' ? `<button class="lrow" data-act="open" data-id="${r.id}"><span class="lmain"><b>🏋 ${esc(titleOf(r))}</b><span>${esc([niceDate(r.date), r.minutes ? r.minutes + ' min' : '', Array.isArray(r.log) ? plural(r.log.reduce((n, x) => n + (x.sets || []).filter(s => s.done).length, 0), 'set') : '', r.energy ? 'energy ' + r.energy : '', r.rpe ? 'hard ' + r.rpe : '', r.mood || '', painTxt(r)].filter(Boolean).join(' · '))}</span>${r.notes ? `<span>${esc(r.notes.slice(0, 120))}</span>` : ''}</span></button>`
+    : k === 's' ? `<div class="lrow"><span class="lmain"><b>👣 ${fmtSteps(num(r.steps))} steps</b><span>${esc(niceDate(r.date))} · ${Math.round(100 * num(r.steps) / stepGoal(r.date))}% of your ${esc((DAYTYPE_LABEL[dayType(r.date)] || '').toLowerCase())} goal</span></span></div>`
     : k === 'p' ? `<button class="lrow" data-act="open" data-id="${r.id}"><span class="lmain"><b>✓ ${esc(r.time || 'Check')}</b><span>${esc([niceDate(r.date), KINDS.paincheck.sub(r)].filter(Boolean).join(' · '))}</span></span></button>`
     : `<div class="sdrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>📏 Progress</b><span>${esc([niceDate(r.date), KINDS.body.sub(r), r.glutes ? 'glutes ' + r.glutes : '', r.thigh ? 'thigh ' + r.thigh : ''].filter(Boolean).join(' · '))}</span></button><div class="sdthumbs">${['front', 'side', 'back'].map(a => r[a] ? `<img data-spath="${esc(r[a])}" alt="${a}" loading="lazy">` : '').join('')}</div></div>`;
   host.innerHTML = `<div class="viewhead"><h1>Training logbook</h1><span class="sub">Every training, check and measurement</span></div>
@@ -9042,8 +9060,11 @@ function fitStats(host) {
   S.m = M.some(m => m[0] === S.m) ? S.m : 'glutes';
   const withP = bodyL.filter(b => b.front || b.side || b.back), a = withP[0], z = withP[withP.length - 1];
   const fig = (b, side) => b?.[side] ? `<figure class="sdfig"><img data-spath="${esc(b[side])}" alt=""><figcaption>${esc(niceDate(b.date))}</figcaption></figure>` : '';
+  const sd = [...Array(30).keys()].map(i => addDays(today(), i - 29)), sv = sd.map(d => stepsOn(d)).filter(v => v != null);
+  const stepCols = sd.map(d => ({ label: String(fromISO(d).getDate()), title: shortDate(d), v: stepsOn(d) || 0, g: stepGoal(d) }));
   host.innerHTML = `<div class="viewhead"><h1>Training analysis</h1><span class="sub">How you grow, and how your body feels</span></div>
     <div class="panels">
+      ${panel('👣 Steps, last 30 days', sv.length ? `<p class="lbig">${fmtSteps(avgOf(sv))} a day</p><p class="lnone">Goal reached on ${sd.filter(d => (stepsOn(d) ?? -1) >= stepGoal(d)).length} of ${sv.length} days with steps.</p>${vCols(stepCols, [{ k: 'v', label: 'Steps', color: 'var(--c2)' }, { k: 'g', label: 'Goal', color: 'var(--line)' }], { fmt: v => fmtSteps(v) })}` : quiet('Your steps show up here once the Apple Health shortcut sends them.'))}
       ${panel('Strength per exercise', setEx.length ? `<select class="pill" data-fsex aria-label="Exercise">${setEx.map(id => `<option value="${id}" ${id === S.ex ? 'selected' : ''}>${esc(relName(id))}</option>`).join('')}</select>
         ${pr ? `<p class="lbig">PR ${pr.weight} kg × ${pr.reps || '?'}</p><p class="lnone">on ${esc(niceDate(pr.date))}${top.length > 1 ? ` · ${top[top.length - 1] - top[0] >= 0 ? '+' : ''}${r1(top[top.length - 1] - top[0])} kg since ${esc(niceDate(days[0]))}` : ''}</p>` : ''}${aLine(days, top, { label: 'Heaviest set', unit: ' kg' })}` : quiet('Save a training in your logbook: your weights show up here.'))}
       ${panel('Back, neck and shoulders', `${PAIN_AREAS.map(([k, l]) => `<p class="dsub">${l}</p>${aLine(wk, painWeek(k), { label: l, unit: '', max: 10 })}`).join('')}<p class="dsub">Days you stretched</p>${aBars(stretchDays, { unit: ' days' })}<p class="lnone">Weekly average, 0 = no pain and 10 = a lot. From your daily checks and how you felt before each training.</p>`)}

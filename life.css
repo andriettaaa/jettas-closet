@@ -1371,3 +1371,13 @@ details.panel:not([open]):has(> summary.foldsum) { padding-top: 14px; padding-bo
 /* Plan my week: pick the week to plan */
 .wpweeknav { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
 .wpweeknav b { min-width: 6.5em; text-align: center; }
+
+/* steps in Fitness */
+.stepgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stepbox { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
+.stepbox span, .stepbox small { color: var(--muted); font-size: 12.5px; }
+.stepbox b { font-size: 22px; }
+.stepbar { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.stepbar i { display: block; height: 100%; background: var(--c2); border-radius: 99px; }
+.stepgoals { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.stepgoals .field span { font-size: 13px; color: var(--muted); }
