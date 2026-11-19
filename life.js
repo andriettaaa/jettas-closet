@@ -3345,6 +3345,23 @@ function fQuick(src) {
 // a credit card's balance is what you owe on it: the debt that belongs to the card
 const cardDebt = a => recs('fdebts').find(d => d.account === a.id) || null;
 const cardOwed = a => { const d = cardDebt(a); return d ? fDebtBal(d) : null; };
+// purchases this pay without a category: pick one per line; other unsorted lines with the same name get it too
+function fUnsorted() {
+  const s = fStart(), t = today(), cats = recs('fcats').sort((a, b) => (a.nospend ? 1 : 0) - (b.nospend ? 1 : 0) || norm(titleOf(a)).localeCompare(norm(titleOf(b))));
+  const list = () => recs('ftx').filter(x => fEveryday(x) && x.date >= s && x.date <= t && (!x.category || !L.byId[x.category])).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (num(b.amount) || 0) - (num(a.amount) || 0));
+  const opts = `<option value="">Category</option>${cats.map(c => `<option value="${c.id}">${esc(titleOf(c))}${c.nospend ? ' (not spending)' : ''}</option>`).join('')}`;
+  const body = () => { const l = list(); return l.length ? `<p class="lnone">${plural(l.length, 'purchase')} this pay without a category. Pick one: other purchases with the same name get it too.</p><div class="lrows">${l.map(x => `<div class="lrow funs"><span class="lmain"><b>${esc(x.name || 'Purchase')}</b><span>${esc(niceDate(x.date))} · ${eur(num(x.amount) || 0)}</span></span><select class="pill" data-unscat="${x.id}" aria-label="Category for ${esc(x.name || 'purchase')}">${opts}</select></div>`).join('')}</div>` : quiet('Everything this pay has a category. 🎉'); };
+  const sh = C.sheet({ title: 'Not sorted', body: '<div data-unsbody></div>', foot: '<div class="spacer"></div><button class="btn" data-close>Done</button>' });
+  const draw = () => { sh.querySelector('[data-unsbody]').innerHTML = body(); };
+  draw();
+  sh.addEventListener('change', async e => {
+    const sel = e.target.closest('[data-unscat]'); if (!sel || !sel.value) return;
+    const x = L.byId[sel.dataset.unscat]; if (!x) return;
+    const same = list().filter(y => norm(y.name) === norm(x.name));
+    try { await putMany(same.map(y => ({ id: y.id, kind: 'ftx', data: { ...dataOf(y), category: sel.value } })), null, `Sorted ${plural(same.length, 'purchase')} into ${relName(sel.value)}`); C.toast(`${plural(same.length, 'purchase')} in ${relName(sel.value)}`); draw(); }
+    catch (err) { console.error(err); C.toast('Could not save. Try again.'); }
+  });
+}
 // your sort rules on what is already here: own transfers, debt payments, and a category where there is none
 function fRulesApply() {
   if (notFresh()) return;
@@ -3781,7 +3798,7 @@ function moneyToday(host) {
   const unsorted = fSum(payTx.filter(x => !x.category || !L.byId[x.category]));
   const catBtn = c => `<button data-act="open" data-id="${c.id}">${esc(titleOf(c))}</button>`;
   const bars = spendPay > 0 || spendCats.length ? `<div class="vsplit"><div>${vDonut([...spendCats.map(({ c, s }) => ({ label: titleOf(c), v: s })), ...(unsorted ? [{ label: 'Not sorted', v: unsorted, none: true }] : [])], { unit: 'this pay', empty: 'Nothing spent this pay yet.' })}</div>
-    <div>${lTbl(['Category', 'Budget', 'Spent', 'Left'], [...spendCats.map(({ c, s, b }) => [catBtn(c), b ? fEur0(b) : '–', eur(s), b ? `<span class="${s > b ? 'mneg' : ''}">${fSigned(b - s)}</span>` : '–']), ...(unsorted ? [['Not sorted', '–', eur(unsorted), '–']] : [])], ['All', fEur0(fSum(spendCats.map(x => ({ amount: x.b })))), eur(spendPay), (() => { const B = spendCats.reduce((n, x) => n + x.b, 0); return B ? `<span class="${spendPay > B ? 'mneg' : ''}">${fSigned(B - spendPay)}</span>` : '–'; })()])}</div></div>` : quiet('Nothing spent this pay yet.');
+    <div>${lTbl(['Category', 'Budget', 'Spent', 'Left'], [...spendCats.map(({ c, s, b }) => [catBtn(c), b ? fEur0(b) : '–', eur(s), b ? `<span class="${s > b ? 'mneg' : ''}">${fSigned(b - s)}</span>` : '–']), ...(unsorted ? [['<button data-act="funsorted">Not sorted</button>', '–', eur(unsorted), '–']] : [])], ['All', fEur0(fSum(spendCats.map(x => ({ amount: x.b })))), eur(spendPay), (() => { const B = spendCats.reduce((n, x) => n + x.b, 0); return B ? `<span class="${spendPay > B ? 'mneg' : ''}">${fSigned(B - spendPay)}</span>` : '–'; })()])}</div></div>` : quiet('Nothing spent this pay yet.');
   /* month by month: money in against money out, own transfers and moved money left out */
   const mm = lastMonths(12).map(m => ({ ...m, in: 0, out: 0 }));
   for (const x of tx) { if (x.transfer || fMoved(x)) continue; const m = mm.find(y => y.key === (x.date || '').slice(0, 7)); if (m) m.out += num(x.amount) || 0; }
@@ -6518,6 +6535,7 @@ document.addEventListener('click', async e => {
     case 'periodend': { const r = L.byId[d.id]; if (r) save(r, { end: today() }); break; }
     case 'fcheck': fCheckSheet(); break;
     case 'frulesapply': fRulesApply(); break;
+    case 'funsorted': fUnsorted(); break;
     case 'faccorder': fAccOrder(); break;
     case 'fsink': { const b = L.byId[d.id]; if (b) save(b, { sink: !b.sink }); break; }
     case 'fall': L.fall = (L.fall || 50) + 50; C.render(); break;
