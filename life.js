@@ -938,8 +938,8 @@ const KINDS = {
     one: 'exercise', many: 'Exercises', facet: 'muscles',
     fields: [F('name', 'Name'), F('muscles', 'Muscles', 'multi', { options: ['Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Core', 'Glutes', 'Quads', 'Hamstrings', 'Calves', 'Full body', 'Cardio'] }),
       F('equipment', 'Equipment', 'multi', { options: ['Bodyweight', 'Dumbbells', 'Barbell', 'Kettlebell', 'Machine', 'Cable', 'Resistance band', 'Mat', 'Bench', 'Pull-up bar', 'Other'] }),
-      F('link', 'Video or how-to', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
-    sorts: [['name', 'A to Z']], sub: r => [[].concat(r.muscles || []).join(', '), [].concat(r.equipment || []).join(', ')].filter(Boolean).join(' · '),
+      F('vw', 'Video from your library', 'rel', { to: 'vworkouts' }), F('link', 'Other video or how-to link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
+    sorts: [['name', 'A to Z']], sub: r => [[].concat(r.muscles || []).join(', '), [].concat(r.equipment || []).join(', '), r.vw && L.byId[r.vw] ? '▶ ' + relName(r.vw) : ''].filter(Boolean).join(' · '),
     side: r => { const p = prOf(r.id); return p ? `PR ${p.weight} kg × ${p.reps || 1}` : ''; }
   },
   faccounts: {
@@ -1723,7 +1723,7 @@ const PAGES = {
   'fit/library': { title: 'Video workouts', segs: [{ kind: 'vworkouts' }, { key: 'week', label: 'Week plan', kind: 'fsched', fill: fitWeekFill, tools: false }] },
   'fit/fgoals': { title: 'Fitness goals', segs: [{ kind: 'fitgoals' }] },
   'fit/plans': { title: 'Workout plans', segs: [{ kind: 'plans' }] },
-  'fit/exercises': { title: 'Exercises', segs: [{ kind: 'exercises' }, { kind: 'sets' }] },
+  'fit/exercises': { title: 'Exercises', segs: [{ kind: 'exercises', top: () => exVidNote() }, { kind: 'sets' }] },
   'fit/body': { title: 'Body', segs: [{ kind: 'body', top: bodyTop }] },
   'fit/gear': { title: 'Fitness gear', segs: [{ kind: 'fitgear' }] }
 };
@@ -2538,7 +2538,7 @@ const TODO = {
     chores: { checks: [need('space', 'Rooms'), need('freq', 'How often')] }
   },
   fit: {
-    exercises: { checks: [need('muscles', 'Muscles'), need('equipment', 'Equipment'), ['how', 'Photo or link', r => !r.photo && !r.link]] },
+    exercises: { checks: [need('muscles', 'Muscles'), need('equipment', 'Equipment'), ['how', 'Photo or video', r => !r.photo && !r.link && !r.vw]] },
     workouts: { when: r => !r.skipped, checks: [need('minutes', 'Minutes'), need('intensity', 'Intensity', r => r.done)] },
     vworkouts: { checks: [need('type', 'Type'), need('minutes', 'Minutes'), need('level', 'Level')] },
     fitgear: { checks: [need('category', 'Category'), need('photo', 'Photo')] },
@@ -6558,6 +6558,7 @@ document.addEventListener('click', async e => {
     case 'fcheck': fCheckSheet(); break;
     case 'frulesapply': fRulesApply(); break;
     case 'funsorted': fUnsorted(); break;
+    case 'exvids': exVidSheet(); break;
     case 'faccorder': fAccOrder(); break;
     case 'fsink': { const b = L.byId[d.id]; if (b) save(b, { sink: !b.sink }); break; }
     case 'fall': L.fall = (L.fall || 50) + 50; C.render(); break;
@@ -8900,6 +8901,33 @@ function lastOf(exId) {
   return s ? { date: s.date, sets: [], top: { kg: s.weight, reps: s.reps } } : null;
 }
 const vidBtn = (url, label = 'Video') => url ? `<a class="chip link" href="${esc(url)}" target="_blank" rel="noopener">▶ ${esc(label)}</a>` : '';
+/* example videos for your exercises: the old links go, a video from your Video library (with steps) takes their place.
+   A video matches an exercise when one of its moves, or its name, is the exercise's name (or the other way round). */
+const exKey = v => norm(v).replace(/[^a-z0-9]+/g, ' ').replace(/\b(the|a|an|with|on|for|tutorial|form|guide|how to)\b/g, ' ').replace(/s\b/g, '').replace(/\s+/g, ' ').trim();
+function exMatches(e) {
+  const k = exKey(titleOf(e)); if (!k) return [];
+  const score = v => { const moves = [].concat(v.moves || []).map(exKey), n = exKey(titleOf(v)); const i = moves.findIndex(m => m === k);
+    if (i >= 0) return 100 - i * 5 - moves.length; if (moves.some(m => m && (m.includes(k) || k.includes(m)))) return 50 - moves.length; if (n.includes(k)) return 30; return 0; };
+  return recs('vworkouts').filter(v => v.url).map(v => ({ v, s: score(v) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s).map(x => x.v);
+}
+const exVidNote = () => { const ex = recs('exercises'); if (!ex.length || !recs('vworkouts').length) return ''; const old = ex.filter(e => e.link).length, open = ex.filter(e => !e.vw && exMatches(e).length).length;
+  return old || open ? `<div class="note tnote"><span>${old ? `${plural(old, 'exercise')} still ${old === 1 ? 'has' : 'have'} an old example link. ` : ''}${open ? `${plural(open, 'exercise')} can get a video from your library.` : ''}</span><button class="btn small primary" data-act="exvids">Choose videos</button></div>` : ''; };
+function exVidSheet() {
+  const ex = recs('exercises').sort((a, b) => azCmp(titleOf(a), titleOf(b))), pick = new Map(ex.map(e => [e.id, e.vw && L.byId[e.vw] ? e.vw : exMatches(e)[0]?.id || '']));
+  const all = recs('vworkouts').filter(v => v.url).sort((a, b) => azCmp(titleOf(a), titleOf(b)));
+  const row = e => { const m = exMatches(e), rest = all.filter(v => !m.includes(v)); return `<div class="lrow funs"><span class="lmain"><b>${esc(titleOf(e))}</b><span>${e.link ? 'old link goes' : 'no old link'} · ${m.length ? plural(m.length, 'match', 'matches') : 'no match'}</span></span><select class="pill" data-exvid="${e.id}" aria-label="Video for ${esc(titleOf(e))}"><option value="">No video</option>${m.length ? `<optgroup label="Matches">${m.map(v => `<option value="${v.id}" ${pick.get(e.id) === v.id ? 'selected' : ''}>${esc(titleOf(v))}</option>`).join('')}</optgroup>` : ''}<optgroup label="All videos">${rest.map(v => `<option value="${v.id}" ${pick.get(e.id) === v.id ? 'selected' : ''}>${esc(titleOf(v))}</option>`).join('')}</optgroup></select></div>`; };
+  const sh = C.sheet({ title: 'Videos for your exercises', body: `<p class="lnone">Every old example link goes. The exercises stay. Check the video per exercise: the best match from your Video library is already picked, with its written steps.</p><div class="lrows">${ex.map(row).join('')}</div>`,
+    foot: '<div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-go>Save</button>' });
+  sh.addEventListener('change', e => { const s2 = e.target.closest('[data-exvid]'); if (s2) pick.set(s2.dataset.exvid, s2.value); });
+  sh.querySelector('[data-go]').onclick = async ev => {
+    const ch = ex.map(e => { const d = { ...dataOf(e) }; delete d.link; const v = pick.get(e.id); if (v) d.vw = v; else delete d.vw; return { id: e.id, kind: 'exercises', data: d }; }).filter(c => JSON.stringify(c.data) !== JSON.stringify(dataOf(L.byId[c.id])));
+    if (!ch.length) { C.closeSheet(); return; }
+    ev.target.disabled = true;
+    try { await putMany(ch, null, `Videos for ${plural(ch.length, 'exercise')}`); C.closeSheet(); C.toast(`${plural(ch.length, 'exercise')} updated`); } catch (err) { console.error(err); ev.target.disabled = false; C.toast('Could not save. Try again.'); }
+  };
+}
+// an exercise's video: the one from your Video library (with its written steps), else its own link
+const exVidBtn = e => { const v = e?.vw && L.byId[e.vw]; return v ? `${vidBtn(v.url)}<button class="chip link" data-act="open" data-id="${v.id}">Steps</button>` : vidBtn(e?.link); };
 function stretchCard(id, when) {
   const v = L.byId[id]; if (!v) return panel(when, quiet('Pick a stretch routine under Your week below.'));
   const steps = [].concat(v.steps || []);
@@ -8910,7 +8938,7 @@ function stretchCard(id, when) {
 function planCard(pid, d, title) {
   const p = L.byId[pid]; if (!p) return '';
   const rows = planRx(p).map(({ id, rx }) => { const e = L.byId[id]; if (!e) return ''; const last = lastOf(id), pr = prOf(id);
-    return `<div class="fitex"><div class="lrow"><button class="lmain" data-act="open" data-id="${id}"><b>${esc(titleOf(e))}</b><span>${esc([rx, last?.top?.kg != null ? `last ${last.top.kg} kg × ${last.top.reps || '?'}` : '', pr ? `PR ${pr.weight} kg` : ''].filter(Boolean).join(' · '))}</span></button>${vidBtn(e.link)}</div>${e.notes ? `<details class="fitform"><summary>How to do it</summary><p>${esc(e.notes)}</p></details>` : ''}</div>`; }).join('');
+    return `<div class="fitex"><div class="lrow"><button class="lmain" data-act="open" data-id="${id}"><b>${esc(titleOf(e))}</b><span>${esc([rx, last?.top?.kg != null ? `last ${last.top.kg} kg × ${last.top.reps || '?'}` : '', pr ? `PR ${pr.weight} kg` : ''].filter(Boolean).join(' · '))}</span></button>${exVidBtn(e)}</div>${e.notes ? `<details class="fitform"><summary>How to do it</summary><p>${esc(e.notes)}</p></details>` : ''}</div>`; }).join('');
   const done = recs('workouts').find(x => x.date === d && x.plan === pid && x.done);
   return panel(title, `<div class="lrow"><button class="lmain" data-act="open" data-id="${p.id}"><b>${esc(titleOf(p))}</b><span>${esc(p.type || '')}</span></button></div>${rows}
     ${p.notes ? `<details class="fitform"><summary>Warm-up, rest and tips</summary><p class="lpre">${esc(p.notes)}</p></details>` : ''}
@@ -8964,7 +8992,7 @@ function trainSheet(pid, d, after) {
     <div class="fset fsetcol"><div><b>Energy</b><span>1 = empty, 5 = full of energy</span></div><div class="painrow">${[1, 2, 3, 4, 5].map(n => `<button type="button" class="chip small ${D.energy === n ? 'on' : ''}" data-tset="energy" data-v="${n}">${n}</button>`).join('')}</div></div>
     <p class="dsub">Your exercises</p>
     ${D.log.map((x, i) => { const e = L.byId[x.ex], rx = planRx(p).find(r => r.id === x.ex)?.rx || '';
-      return `<div class="trex"><div class="lrow"><span class="lmain"><b>${esc(e ? titleOf(e) : 'Exercise')}</b><span>${esc(rx)}</span></span>${vidBtn(e?.link)}</div>
+      return `<div class="trex"><div class="lrow"><span class="lmain"><b>${esc(e ? titleOf(e) : 'Exercise')}</b><span>${esc(rx)}</span></span>${exVidBtn(e)}</div>
       ${x.sets.map((st, j) => `<div class="trset ${st.done ? 'done' : ''}"><span class="muted">Set ${j + 1}</span><input class="finp" inputmode="decimal" data-tkg="${i}|${j}" value="${esc(st.kg ?? '')}" placeholder="kg" aria-label="Kilo set ${j + 1}"><input class="finp" inputmode="numeric" data-treps="${i}|${j}" value="${esc(st.reps ?? '')}" placeholder="reps" aria-label="Reps set ${j + 1}"><button type="button" class="chip ${st.done ? 'on' : ''}" data-tdone="${i}|${j}" aria-pressed="${st.done}">${st.done ? '✓' : 'Done'}</button></div>`).join('')}
       <button type="button" class="chip small" data-tadd="${i}">+ Set</button></div>`; }).join('')}
     <p class="dsub">After</p>${painPick('pa', D)}

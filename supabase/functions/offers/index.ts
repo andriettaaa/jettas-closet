@@ -905,7 +905,8 @@ Deno.serve(async req => {
     if (body.action === 'vwlist') {
       const { data, error } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'vworkouts');
       if (error) throw error;
-      const todo = data.filter((r: any) => !(Array.isArray(r.data?.steps) && r.data.steps.length) && !r.data?.noSteps);
+      // also the ones with draft steps (written from the title and caption): the round watches the video and improves them
+      const todo = data.filter((r: any) => (!(Array.isArray(r.data?.steps) && r.data.steps.length) || r.data?.stepsDraft) && !r.data?.noSteps);
       return json({ left: todo.length, items: todo.slice(0, Math.min(25, Number(body.limit) || 10)).map((r: any) => clean({ id: r.id, name: r.data.name, url: r.data.url, type: r.data.type, minutes: r.data.minutes, level: r.data.level, materials: r.data.materials, instructor: r.data.instructor, notes: r.data.notes })) });
     }
     if (body.action === 'vwfill') {
@@ -915,7 +916,7 @@ Deno.serve(async req => {
       for (const w of (Array.isArray(body.items) ? body.items : []).slice(0, 25)) {
         const { data: r } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'vworkouts').eq('id', str(w?.id, 60)).maybeSingle(); if (!r) continue;
         const d = { ...r.data }, steps = (Array.isArray(w.steps) ? w.steps : []).map((x: unknown) => str(x, 600)).filter(Boolean).slice(0, 40);
-        if (steps.length) d.steps = steps; else if (w.problem) d.noSteps = true;
+        if (steps.length) { d.steps = steps; delete d.stepsDraft; } else if (w.problem) { if (d.stepsDraft) delete d.stepsDraft; else d.noSteps = true; }
         if (!d.type && VW.includes(w.type)) d.type = w.type;
         if (!d.minutes && num(w.minutes)) d.minutes = num(w.minutes);
         if (!d.level && LV.includes(w.level)) d.level = w.level;
