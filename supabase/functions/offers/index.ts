@@ -33,6 +33,26 @@ const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { sta
 const str = (v: unknown, n = 200) => String(v ?? '').trim().slice(0, n);
 const num = (v: unknown) => (v === '' || v == null || isNaN(Number(v))) ? null : Math.round(Number(v) * 100) / 100;
 const day = (v: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? String(v) : '';
+// today in the Netherlands (the server runs on UTC, which is a day behind just after midnight)
+const nlToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Amsterdam' }).format(new Date());
+/* a number from Apple Health as a Shortcut sends it: "12.345" and "12,345" are twelve thousand (a Dutch or English
+   thousands mark), "7,5" is seven and a half, and a list of samples ("523\n1200", ["523", "1200"]) is added up */
+function healthNum(v: unknown): number | null {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  const parts = (Array.isArray(v) ? v.map(String) : String(v).split(/[\n;|]+|,\s+/)).map(x => x.trim()).filter(Boolean);
+  if (!parts.length) return null;
+  let sum = 0, any = false;
+  for (const raw of parts) {
+    let x = raw.replace(/[^0-9.,-]/g, ''); if (!x) continue;
+    if (/^-?\d{1,3}([.,]\d{3})+$/.test(x)) x = x.replace(/[.,]/g, '');
+    else if (/^-?\d+,\d+$/.test(x)) x = x.replace(',', '.');
+    else x = x.replace(/,/g, '');
+    const n = Number(x); if (!isFinite(n)) continue;
+    sum += n; any = true;
+  }
+  return any ? sum : null;
+}
 const clean = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== '' && v != null && !(Array.isArray(v) && !v.length)));
 const SHOP_TYPES = ['Supermarket', 'Toko', 'Butcher', 'Fishmonger', 'Greengrocer', 'Market', 'Household', 'Drugstore', 'Perfumery', 'Brand store', 'Webshop', 'Other'];
 const shopOut = (a: any) => clean({ name: str(a?.name, 80), type: SHOP_TYPES.includes(a?.type) ? a.type : undefined, address: str(a?.address, 160), website: str(a?.website, 300), dealsUrl: str(a?.dealsUrl, 300), readDeals: a?.readDeals === true ? true : undefined, mine: a?.mine === true ? true : undefined, notes: str(a?.notes, 400) });
@@ -550,19 +570,20 @@ Deno.serve(async req => {
     // and hands it back (nothing is stored). A page link instead of an image link gets the page's main picture.
     // Apple Health, sent each morning by an iPhone Shortcut: sleep, steps, workouts and period
     if (body.action === 'health') {
-      const date = day(body.date) || new Date().toISOString().slice(0, 10), now = new Date().toISOString(), out: Record<string, unknown> = {};
+      const date = day(body.date) || nlToday(), now = new Date().toISOString(), out: Record<string, unknown> = {};
       const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['sleep', 'nlog', 'workouts', 'cycles']);
       if (error) throw error;
       const up = async (kind: string, match: (r: any) => boolean, patch: Record<string, unknown>) => { const hit = data.find((r: any) => r.kind === kind && match(r.data || {})); const row = { user_id: uid, id: hit?.id || crypto.randomUUID(), kind, data: { ...(hit?.data || { created: Date.now() }), ...clean(patch) }, updated_at: now }; const { error: e } = await sb.from('records').upsert(row); if (e) throw e; };
       // sleep may come in hours, minutes or seconds, depending on how the Shortcut adds it up
-      const rawSleep = num(body.sleepHours ?? body.sleep), hrs = rawSleep == null ? null : rawSleep > 1440 ? rawSleep / 3600 : rawSleep > 24 ? rawSleep / 60 : rawSleep;
+      const rawSleep = healthNum(body.sleepHours ?? body.sleep), hrs = rawSleep == null ? null : rawSleep > 1440 ? rawSleep / 3600 : rawSleep > 24 ? rawSleep / 60 : rawSleep;
       if (hrs != null && hrs > 0 && hrs < 16) { await up('sleep', r => r.date === date, { date, hours: Math.round(hrs * 10) / 10, bed: str(body.bed, 5), up: str(body.wake, 5), source: 'Apple Health' }); out.sleep = hrs; }
-      const steps = num(String(body.steps ?? '').replace(/[^0-9.,]/g, '').replace(',', '.') || null); if (steps != null) { await up('nlog', r => r.date === date, { date, steps: Math.round(steps) }); out.steps = steps; }
+      // the evening run sends the whole day: the newest number for a day replaces the one before; nonsense is left out
+      const steps = healthNum(body.steps); if (steps != null && steps >= 0 && steps < 150000) { await up('nlog', r => r.date === date, { date, steps: Math.round(steps) }); out.steps = steps; }
       const TYPES: Record<string, string> = { walking: 'Walk', running: 'Run', cycling: 'Cycling', yoga: 'Yoga', pilates: 'Pilates', hiit: 'HIIT', strength: 'Strength', 'traditional strength training': 'Strength', 'functional strength training': 'Strength', 'high intensity interval training': 'HIIT', dance: 'Cardio', elliptical: 'Cardio', rowing: 'Cardio', flexibility: 'Stretching', 'core training': 'Strength' };
       const wos = (Array.isArray(body.workouts) ? body.workouts : String(body.workouts || '').split('\n').filter(Boolean).map((l: string) => { const [t, m, d] = l.split(/[;,]/).map(x => x.trim()); return { type: t, minutes: m, date: d }; })).slice(0, 10);
       let wn = 0;
       for (const w of wos as any[]) {
-        const wd = day(w.date) || date, raw = str(w.type, 60), type = TYPES[raw.toLowerCase()] || 'Other', min = num(w.minutes), hk = `${wd}|${raw}|${min}`;
+        const wd = day(w.date) || date, raw = str(w.type, 60), type = TYPES[raw.toLowerCase()] || 'Other', min = healthNum(w.minutes) == null ? null : Math.round(healthNum(w.minutes)! * 10) / 10, hk = `${wd}|${raw}|${min}`;
         if (!raw || data.some((r: any) => r.kind === 'workouts' && r.data?.hk === hk)) continue;
         const plan = data.find((r: any) => r.kind === 'workouts' && r.data?.date === wd && !r.data?.done && !r.data?.skipped);
         if (plan) await up('workouts', r => r === plan.data, { done: true, minutes: min ?? plan.data.minutes, hk, source: 'Apple Health' });
