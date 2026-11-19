@@ -1337,3 +1337,7 @@ img.nophoto { background: var(--line); }
 /* Not sorted: the amount stays readable next to the category choice */
 .funs .pill { max-width: 46%; min-width: 0; flex: 0 1 auto; }
 .funs .lmain { min-width: 0; flex: 1 1 auto; }
+
+/* Plan my week: pick the week to plan */
+.wpweeknav { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.wpweeknav b { min-width: 6.5em; text-align: center; }
