@@ -1016,9 +1016,10 @@ const KINDS = {
   },
   frules: {
     one: 'sort rule', many: 'Sort rules',
-    fields: [F('contains', 'When the name contains'), F('category', 'Put it in', 'rel', { to: 'fcats', half: 1 }), F('rename', 'Rename it to', 'text', { half: 1 })],
+    fields: [F('contains', 'When the name contains'), F('category', 'Put it in', 'rel', { to: 'fcats', half: 1 }), F('rename', 'Rename it to', 'text', { half: 1 }),
+      F('transfer', 'Own transfer (not spending)', 'check', { half: 1 }), F('debt', 'Pays off debt', 'rel', { to: 'fdebts', half: 1 })],
     title: r => r.contains ? `“${r.contains}”` : 'Sort rule', sorts: [['contains', 'A to Z']],
-    sub: r => ['→ ' + (relName(r.category) || 'no category'), r.rename && 'renamed to ' + r.rename].filter(Boolean).join(' · ')
+    sub: r => [r.transfer ? '⇄ own transfer' : r.debt ? '→ pays off ' + (relName(r.debt) || 'a debt') : '→ ' + (relName(r.category) || 'no category'), r.rename && 'renamed to ' + r.rename].filter(Boolean).join(' · ')
   },
   fset: {
     one: 'setting', many: 'Money settings',
@@ -1765,6 +1766,11 @@ function apply(id, kind, data) {
 }
 // Changes show at once and are rolled back if Supabase says no
 // a sort rule fills in the category (and a cleaner name) of a new purchase that has none
+// money to your own ING savings always has this name, often without an IBAN
+const OWN_NAMES = /^oranje spaarrekening\b/i;
+const isOwnName = name => OWN_NAMES.test(String(name || '').trim());
+// a line that is your own money moving: the built-in names, or a sort rule marked own transfer
+const ownByName = name => isOwnName(name) || !!ruleFor(name)?.transfer;
 const ruleFor = name => { const n = norm(name); return n ? recs('frules').find(r => r.contains && n.includes(norm(r.contains))) : null; };
 // running low puts it on the grocery list; back in stock clears running low
 const useSoon = r => !!r.stock && !!r.expires && r.expires <= addDays(today(), 3);
@@ -1773,8 +1779,8 @@ function applyRule(kind, id, data) {
   if (kind === 'stays' && data.to && data.to < today() && (!data.status || ['Saved', 'Shortlist', 'Booked'].includes(data.status))) data = { ...data, status: 'Stayed' };
   if (kind === 'ingredients') { const was = L.byId[id] || {}; if (data.low && !was.low) data = { ...data, list: true }; if (data.stock && !was.stock && was.low) data = { ...data, low: false }; return data; }
   if (kind !== 'ftx' || L.byId[id] || data.category) return data;
-  const r = ruleFor(data.name); if (!r) return data;
-  return { ...data, category: r.category || '', ...(r.rename ? { name: r.rename } : {}) };
+  const r = ruleFor(data.name); if (!r) return isOwnName(data.name) ? { ...data, transfer: true } : data;
+  return { ...data, category: r.category || '', ...(r.rename ? { name: r.rename } : {}), ...(r.transfer || isOwnName(data.name) ? { transfer: true } : {}), ...(r.debt && !data.debt ? { debt: r.debt } : {}) };
 }
 // what to say in the undo list
 const undoName = (kind, d) => { const K = KINDS[kind]; const t = K ? ((K.title ? K.title({ ...d, kind }) : d.name) || K.one) : 'item'; return String(t).slice(0, 40); };
@@ -3339,6 +3345,28 @@ function fQuick(src) {
 // a credit card's balance is what you owe on it: the debt that belongs to the card
 const cardDebt = a => recs('fdebts').find(d => d.account === a.id) || null;
 const cardOwed = a => { const d = cardDebt(a); return d ? fDebtBal(d) : null; };
+// your sort rules on what is already here: own transfers, debt payments, and a category where there is none
+function fRulesApply() {
+  if (notFresh()) return;
+  const ch = [];
+  for (const x of [...recs('ftx'), ...recs('fincome')]) {
+    const r = ruleFor(x.name), own = !!r?.transfer || isOwnName(x.name), d = { ...dataOf(x) };
+    if (own && !x.transfer) { d.transfer = true; delete d.debt; }
+    else if (!own && x.kind === 'ftx' && r?.debt && !x.debt && !x.transfer && !x.bill) d.debt = r.debt;
+    if (x.kind === 'ftx' && r?.category && !x.category && !d.transfer) d.category = r.category;
+    if (JSON.stringify(d) !== JSON.stringify(dataOf(x))) ch.push({ id: x.id, kind: x.kind, data: d });
+  }
+  if (!ch.length) { C.toast('Everything already follows your rules.'); return; }
+  const tr = ch.filter(c => c.data.transfer && !L.byId[c.id].transfer).length, db = ch.filter(c => c.data.debt && !L.byId[c.id].debt).length;
+  const sh = C.sheet({ title: 'Apply rules to past purchases', body: `<p class="lnone">Your sort rules change ${plural(ch.length, 'line')} that are already here. You can undo this right after.</p>
+    <div class="lrows">${[['Own transfers (not spending)', tr], ['Debt payments', db], ['Gets a category', ch.length - tr - db]].filter(([, n]) => n > 0).map(([l, n]) => `<div class="lrow"><span class="lmain"><b>${l}</b></span><span class="lside">${n}</span></div>`).join('')}</div>
+    <p class="dsub">For example</p><div class="lrows">${ch.slice(0, 5).map(c => `<div class="lrow"><span class="lmain"><b>${esc(c.data.name || '')}</b><span>${esc(niceDate(c.data.date))}${c.data.transfer ? ' · own transfer' : c.data.debt ? ' · pays off ' + esc(relName(c.data.debt) || 'a debt') : ''}</span></span><span class="lside">${eur(num(c.data.amount) || 0)}</span></div>`).join('')}</div>`,
+    foot: '<div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-go>Apply</button>' });
+  sh.querySelector('[data-go]').onclick = async e => {
+    e.target.disabled = true;
+    try { await putMany(ch, null, `Applied your rules to ${plural(ch.length, 'line')}`); C.closeSheet(); C.toast(`${plural(ch.length, 'line')} updated`); } catch (err) { console.error(err); e.target.disabled = false; C.toast('Could not save. Try again.'); }
+  };
+}
 function fCheckSheet() {
   const accs = fAccs().filter(a => a.type !== 'Card'), cards = fAccs().filter(a => a.type === 'Card'), v2 = b => b == null ? '' : (Math.round(b * 100) / 100).toFixed(2);
   const sh = C.sheet({
@@ -6488,6 +6516,7 @@ document.addEventListener('click', async e => {
     case 'periodstart': create('cycles', { start: today() }).then(() => C.toast('Logged. Tap “Period ended” when it’s over.')).catch(() => {}); break;
     case 'periodend': { const r = L.byId[d.id]; if (r) save(r, { end: today() }); break; }
     case 'fcheck': fCheckSheet(); break;
+    case 'frulesapply': fRulesApply(); break;
     case 'faccorder': fAccOrder(); break;
     case 'fsink': { const b = L.byId[d.id]; if (b) save(b, { sink: !b.sink }); break; }
     case 'fall': L.fall = (L.fall || 50) + 50; C.render(); break;
@@ -6682,7 +6711,7 @@ function fSettings() {
     ${(() => { const pd = recs('fpaid').sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))); return MP('Paid bills', pd.length ? `<p class="lnone">Your history of repeats you marked paid or skipped, newest first.</p><div class="lrows">${pd.slice(0, L.paidLim || 20).map(row).join('')}</div>${pd.length > (L.paidLim || 20) ? '<button class="btn small mmore" data-act="paidmore">Show more</button>' : ''}` : quiet('Nothing marked paid yet. Tap Mark paid under Repeats › Coming up.')); })()}
     ${MP('Import and backup', `<p class="lnone">Bank statements from ING or Rabobank (CSV). Duplicates are skipped, own transfers are recognised and your sort rules pick the categories.</p><div class="dbtns"><button class="btn small primary" data-act="fcsv">Import bank CSV</button><button class="btn small" data-act="import">Import budget backup</button><button class="btn small" data-act="fdups">Find duplicates</button></div><p class="lnone">Imported something twice? Find duplicates keeps one copy of everything and removes the rest.</p><div class="dbtns"><button class="btn small danger" data-act="fclear">Clear all finance data</button></div><p class="lnone">Removes everything in Finance so you can import again from scratch.</p>`)}
     ${MP('Categories', list('fcats', 'No categories yet.', '+ Category') + '<p class="lnone">Open one to set its budget, let it roll over, or mark it as not spending.</p>')}
-    ${MP('Sort rules', list('frules', 'No rules yet. A rule puts every purchase whose name contains a word in a category.', '+ Sort rule'))}
+    ${MP('Sort rules', list('frules', 'No rules yet. A rule puts every purchase whose name contains a word in a category, or marks it as your own transfer or a debt payment.', '+ Sort rule') + '<p class="lnone">Rules work on new purchases. To use them on what is already here too, apply them.</p><button class="btn small" data-act="frulesapply">Apply rules to past purchases</button>')}
     ${MP('Quick adds', list('fchips', 'No quick adds yet.', '+ Quick add'))}
   </div>`;
 }
@@ -6942,7 +6971,7 @@ async function fCsvImport(file) {
       // an Apple Pay or hand-written purchase with the same amount within 3 days is the same payment
       const same = r.out && tx.find(x => !x.bankRef && Math.abs((num(x.amount) || 0) - r.amount) < 0.005 && (!x.account || x.account === acc) && Math.abs(diffDays(x.date, r.date)) <= 3 && !out.patch.some(p => p.id === x.id));
       if (same) { out.dup.push(r); out.patch.push({ id: same.id, ref: r.ref }); continue; }
-      out.add.push({ ...r, acc, transfer: !!ownAcc(r) });
+      out.add.push({ ...r, acc, transfer: !!ownAcc(r) || ownByName(r.name) });
     }
     return out;
   };
@@ -6973,7 +7002,7 @@ async function fCsvImport(file) {
       const payName = new Set(recs('fincome').filter(i => i.type === 'Pay').map(i => norm(i.name)));
       chrono.forEach((r, k) => {
         const common = { date: r.date, amount: r.amount, account: r.acc, seq: base + k, bankRef: r.ref, source: bank + ' CSV', notes: r.desc ? r.desc.slice(0, 240) : '', created: base + k, ...(r.transfer ? { transfer: true } : {}) };
-        if (r.out) { const rule = ruleFor(r.name); recsOut.push({ id: C.uuid(), kind: 'ftx', data: { ...common, name: rule?.rename || r.name, category: rule?.category || learned(r.name) } }); }
+        if (r.out) { const rule = ruleFor(r.name); recsOut.push({ id: C.uuid(), kind: 'ftx', data: { ...common, name: rule?.rename || r.name, category: rule?.category || learned(r.name), ...(rule?.debt && !r.transfer ? { debt: rule.debt } : {}) } }); }
         else recsOut.push({ id: C.uuid(), kind: 'fincome', data: { ...common, name: r.name, type: payName.has(norm(r.name)) ? 'Pay' : 'Other', confirmed: true } });
       });
       // the bank's balance after the newest line becomes a balance check, so account balances match the bank
