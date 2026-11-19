@@ -1403,3 +1403,13 @@ details.panel:not([open]):has(> summary.foldsum) { padding-top: 14px; padding-bo
 .pbtile b { font-size: 14px; overflow-wrap: anywhere; }
 .pbtile span { font-size: 12px; color: var(--muted); }
 .pbtile.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+
+/* move list: approve a shop photo */
+.iph { margin: 4px 0; }
+.ipgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
+.ipopt { display: grid; gap: 4px; text-align: left; padding: 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: inherit; font: inherit; }
+.ipimg { display: block; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: #fff; }
+.ipimg img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.ipopt b { font-size: 14px; }
+.ipopt span { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.ipopt em { font-style: normal; font-weight: 700; font-size: 13px; justify-self: start; padding: 4px 10px; border-radius: 99px; background: var(--ink); color: var(--bg); }

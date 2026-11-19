@@ -4948,7 +4948,36 @@ function invGroups(fill, keyOf, order) {
   fill.innerHTML = invTools() + (l.length ? keys.map(k => { const rs = g[k].sort((a, b) => (INV_STATUS.indexOf(invStatus(a)) - INV_STATUS.indexOf(invStatus(b))) || norm(a.name).localeCompare(norm(b.name))), done = rs.filter(r => invStatus(r) === 'Gekocht');
     return `<div class="lgh gshop"><h3>${esc(k)} · ${done.length}/${rs.length}</h3><span class="lnone">${esc([invSum(rs, 'budget') ? 'budget ' + eur(invSum(rs, 'budget')) : '', invSum(done, 'price') ? 'betaald ' + eur(invSum(done, 'price')) : ''].filter(Boolean).join(' · '))}</span></div><div class="lrows">${rs.map(invLine).join('')}</div>`; }).join('') : invEmpty());
 }
-const invTools = () => `<div class="ltools"><button class="btn small primary" data-act="new" data-v="inventory">+ Product</button><button class="btn small" data-act="invhave">+ Al gekocht</button></div>`;
+const invTools = () => { const l = recs('inventory'), opts = l.filter(r => (r.photoOpts || []).length && !r.photoOk).length, old = l.filter(r => r.photo && !r.photoOk).length;
+  return `<div class="ltools"><button class="btn small primary" data-act="new" data-v="inventory">+ Product</button><button class="btn small" data-act="invhave">+ Al gekocht</button>${opts ? `<button class="btn small primary" data-act="invphotos">📸 Foto's kiezen (${opts})</button>` : ''}${old ? `<button class="btn small" data-act="invphotoclear">🗑 Alle foto's weghalen (${old})</button>` : ''}</div>`; };
+// the photos you did not pick yourself go in one step you can undo; a shop photo you approve stays
+async function invPhotoClear() {
+  const l = recs('inventory').filter(r => r.photo && !r.photoOk); if (!l.length) return;
+  if (!confirm(`De foto van ${plural(l.length, 'product', 'producten')} weghalen? Je kunt het meteen ongedaan maken.`)) return;
+  try { await putMany(l.map(r => { const { photo, ...d } = dataOf(r); return { id: r.id, kind: 'inventory', data: d }; }), null, `Foto's weggehaald bij ${plural(l.length, 'product', 'producten')}`); C.toast("Foto's weg. Webwinkelfoto's komen klaar om te kiezen."); }
+  catch { C.toast('Opslaan lukte niet. Probeer het opnieuw.'); }
+}
+// approve shop photos one product at a time: pick one, none of these (the search tries other shops next time), or skip
+function invPhotoPick() {
+  const queue = recs('inventory').filter(r => (r.photoOpts || []).length && !r.photoOk).sort((a, b) => ROOMS.indexOf(a.room) - ROOMS.indexOf(b.room) || azCmp(a.name, b.name)).map(r => r.id);
+  let i = 0;
+  const sh = C.sheet({ title: "Foto's kiezen", body: '<div data-ipbody></div>', foot: '<button class="btn" data-ipnone>Geen van deze</button><div class="spacer"></div><button class="btn" data-ipskip>Overslaan</button><button class="btn" data-close>Klaar</button>' });
+  const draw = () => {
+    const r = L.byId[queue[i]];
+    if (!r) { sh.querySelector('[data-ipbody]').innerHTML = quiet('Alles bekeken. 🎉'); sh.querySelector('[data-ipnone]').hidden = true; sh.querySelector('[data-ipskip]').hidden = true; return; }
+    sh.querySelector('[data-ipbody]').innerHTML = `<p class="dsub">${i + 1} van ${queue.length} · ${esc(r.room || '')}</p><h3 class="iph">${esc(r.name)}</h3>${r.budget ? `<p class="lnone">Budget ${eur(num(r.budget))}</p>` : ''}
+      <div class="ipgrid">${r.photoOpts.map((o, k) => `<button class="ipopt" data-ipok="${k}"><span class="ipimg"><img referrerpolicy="no-referrer" src="${esc(o.img)}" alt="${esc(o.name || r.name)}" loading="lazy" onerror="this.closest('.ipopt').remove()"></span><b>${esc(o.shop || 'Webwinkel')}</b><span>${esc([o.name, o.price != null ? eur(o.price) : ''].filter(Boolean).join(' · '))}</span><em>Deze</em></button>`).join('')}</div>`;
+  };
+  const next = () => { i++; draw(); };
+  draw();
+  sh.addEventListener('click', async e => {
+    const b = e.target.closest('button'); if (!b) return; const r = L.byId[queue[i]]; if (!r) return;
+    if (b.dataset.ipok != null) { const o = r.photoOpts[+b.dataset.ipok], { photoOpts, photoNone, ...d } = dataOf(r);
+      await put('inventory', r.id, { ...d, photo: o.img, photoOk: true, photoSrc: [o.shop, o.url].filter(Boolean).join(' · ') }).catch(() => {}); next(); }
+    else if (b.hasAttribute('data-ipnone')) { const { photoOpts, ...d } = dataOf(r); await put('inventory', r.id, { ...d, photoNo: [...(r.photoNo || []), ...r.photoOpts.map(o => o.img)].slice(-40) }).catch(() => {}); next(); }
+    else if (b.hasAttribute('data-ipskip')) next();
+  });
+}
 const invEmpty = () => `<div class="banner">${quiet('Je verhuislijst is nog leeg. Begin met een startlijst per kamer, of voeg zelf producten toe.')}<button class="btn small primary" data-act="invstart">Startlijst toevoegen</button></div>`;
 function invRooms(fill) { invGroups(fill, r => r.room, ROOMS); }
 function invByStatus(fill) { invGroups(fill, r => invStatus(r), INV_STATUS); }
@@ -6564,6 +6593,8 @@ document.addEventListener('click', async e => {
     case 'frulesapply': fRulesApply(); break;
     case 'funsorted': fUnsorted(); break;
     case 'exvids': exVidSheet(); break;
+    case 'invphotos': invPhotoPick(); break;
+    case 'invphotoclear': invPhotoClear(); break;
     case 'resedit': case 'resdone': case 'resdel': case 'resmv': case 'resadd': case 'resgroup': case 'resreset': case 'resnew': resAct(d.act, d); break;
     case 'faccorder': fAccOrder(); break;
     case 'fsink': { const b = L.byId[d.id]; if (b) save(b, { sink: !b.sink }); break; }

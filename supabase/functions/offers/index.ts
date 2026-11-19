@@ -598,6 +598,23 @@ Deno.serve(async req => {
       return json({ ok: true, ...out });
     }
     // the move list for the weekly price check: open products and their options with a link
+    // shop photos for the move list: items without an approved photo get a few candidates from web shops, she approves one in the app
+    if (body.action === 'invphotolist') {
+      const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['inventory', 'invopts']);
+      if (error) throw error;
+      const todo = data.filter((r: any) => r.kind === 'inventory' && !r.data?.photoOk && !(Array.isArray(r.data?.photoOpts) && r.data.photoOpts.length) && !r.data?.photoNone);
+      return json({ left: todo.length, items: todo.slice(0, Math.min(40, Number(body.limit) || 25)).map((r: any) => clean({ id: r.id, name: r.data.name, room: r.data.room, category: r.data.category, brand: r.data.brand, budget: r.data.budget, notes: str(r.data.notes, 300), rejected: Array.isArray(r.data.photoNo) ? r.data.photoNo.slice(-20) : undefined, options: data.filter((o: any) => o.kind === 'invopts' && o.data?.item === r.id && o.data?.url).map((o: any) => clean({ name: o.data.name, shop: o.data.shop, url: o.data.url })) })) });
+    }
+    if (body.action === 'invphotosave') {
+      let n = 0;
+      for (const it of (Array.isArray(body.items) ? body.items : []).slice(0, 40)) {
+        const { data: r } = await sb.from('records').select('id,data').eq('user_id', uid).eq('kind', 'inventory').eq('id', str(it?.id, 60)).maybeSingle(); if (!r || r.data?.photoOk) continue;
+        const opts = (Array.isArray(it.options) ? it.options : []).map((o: any) => clean({ img: str(o?.img, 800), shop: str(o?.shop, 60), url: str(o?.url, 800), price: num(o?.price), name: str(o?.name, 120) })).filter((o: any) => /^https:\/\//.test(String(o.img || ''))).slice(0, 6);
+        const d = { ...r.data, photoOpts: opts, photoAsked: new Date().toISOString().slice(0, 10) }; if (!opts.length) d.photoNone = true;
+        await sb.from('records').update({ data: d, updated_at: new Date().toISOString() }).eq('user_id', uid).eq('id', r.id); n++;
+      }
+      return json({ ok: true, saved: n });
+    }
     if (body.action === 'movelist') {
       const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['inventory', 'invopts']);
       if (error) throw error;
