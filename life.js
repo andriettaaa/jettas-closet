@@ -1734,13 +1734,20 @@ const curSeg = page => { const ss = segsOf(page), u = uiOf(page); return ss.find
 const recs = kind => L.all.filter(r => r.kind === kind);
 const dataOf = r => { const { id, kind, ...d } = r; return d; };
 const isMissing = e => ['PGRST205', '42P01'].includes(e?.code) || /does not exist|could not find the table/i.test(e?.message || '');
-function index() { L.byId = Object.fromEntries(L.all.map(r => [r.id, r])); L.ver = (L.ver || 0) + 1; }
+/* every record is in the list once. Pages that overlap (a record that changes while the next page loads moves
+   to another page) used to put the same record in twice: Finance then counted that account twice, "Dubbele
+   opruimen" saw two copies with the same id and deleted the record itself, and its purchases lost their account */
+const onePerId = list => { const m = new Map(); for (const r of list) if (r && r.id) m.set(r.id, r); return m.size === list.length ? list : [...m.values()]; };
+// imports and clean-ups compare with what is here; on the copy saved on this device that can be out of date
+const notFresh = () => { if (L.fresh) return false; C.toast('Your lists are still loading. Try again in a moment.'); return true; };
+function index() { L.all = onePerId(L.all); L.byId = Object.fromEntries(L.all.map(r => [r.id, r])); L.ver = (L.ver || 0) + 1; }
 function cacheSave() { try { localStorage.setItem('hangtag:life:' + C.uid(), JSON.stringify(L.all)); } catch {} }
 function cacheLoad() { try { const v = JSON.parse(localStorage.getItem('hangtag:life:' + C.uid()) || 'null'); if (Array.isArray(v)) { L.all = v; index(); return true; } } catch {} return false; }
 async function load() {
   const rows = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await C.sb.from('records').select('id,kind,data').range(from, from + 999);
+    // a fixed order, so the pages never overlap or skip a record
+    const { data, error } = await C.sb.from('records').select('id,kind,data').order('id').range(from, from + 999);
     if (error) { if (isMissing(error)) { L.missing = true; L.status = 'ok'; C.render(); return; } throw error; }
     rows.push(...data);
     if (data.length < 1000) break;
@@ -6155,10 +6162,11 @@ function recipeDups() {
   // the copy that stays: the one with most of your own things (made it, rating, in a plan), then the most filled in, then the oldest
   const uses = id => recs('meals').filter(m => m.recipe === id).length + recs('rreviews').filter(x => x.recipe === id).length;
   const score = r => (num(r.rating) ? 5 : 0) + (r.fav ? 3 : 0) + (num(r.cooks) || 0) * 2 + uses(r.id) * 2 + Object.values(dataOf(r)).filter(v => !isEmptyVal(v)).length / 10;
-  return [...groups.values()].filter(l => l.length > 1).map(l => { const keep = [...l].sort((a, b) => score(b) - score(a) || (a.created || 0) - (b.created || 0))[0]; return { keep, gone: l.filter(r => r !== keep) }; });
+  return [...groups.values()].filter(l => l.length > 1).map(l => { const keep = [...l].sort((a, b) => score(b) - score(a) || (a.created || 0) - (b.created || 0))[0]; return { keep, gone: l.filter(r => r.id !== keep.id) }; }).filter(g => g.gone.length);
 }
 const recipeDupNote = () => { let n = 0; try { n = recipeDups().reduce((a, g) => a + g.gone.length, 0); } catch {} return n ? `<div class="note tnote fdupnote"><span>${n === 1 ? 'Er staat 1 recept dubbel' : `Er staan ${n} recepten dubbel`}.</span><button class="btn small primary" data-act="rdups">Dubbele opruimen</button></div>` : ''; };
 function rDups() {
+  if (notFresh()) return;
   const gs = recipeDups(); if (!gs.length) { C.toast('No duplicate recipes.'); return; }
   const n = gs.reduce((a, g) => a + g.gone.length, 0);
   const sh = C.sheet({ title: 'Duplicate recipes', body: `<p class="lnone">Each recipe stays once: the copy with your own rating, notes and meal plans. It gets what the other copy had and it lacked. You can undo this right after.</p><div class="lrows">${gs.map(g => `<div class="lrow"><span class="lmain"><b>${esc(titleOf(g.keep))}</b><span>${esc(g.gone.map(titleOf).filter(t => t !== titleOf(g.keep)).join(', ') || 'same name')}</span></span><span class="lside">${g.gone.length + 1}×</span></div>`).join('')}</div>`,
@@ -6212,6 +6220,7 @@ function fillMatch(rows) {
   return { rows: out, added, filled, same, linked, fresh };
 }
 async function importFile(file) {
+  if (notFresh()) return;
   let rows, fill = null;
   try {
     const j = JSON.parse(await file.text());
@@ -6703,6 +6712,13 @@ function dupKey(r, map) {
     default: return JSON.stringify(Object.fromEntries(Object.entries(dataOf(r)).filter(([k]) => !DUP_SKIP.has(k)).sort()));
   }
 }
+// does a record point at any of these ids, anywhere inside it
+function refsAny(v, ids) {
+  if (typeof v === 'string') return ids.has(v);
+  if (Array.isArray(v)) return v.some(x => refsAny(x, ids));
+  if (v && typeof v === 'object') return Object.values(v).some(x => refsAny(x, ids));
+  return false;
+}
 // swaps every id that was removed for the one that stays, anywhere in a record
 function relink(v, map) {
   if (typeof v === 'string') return map.get(v) || v;
@@ -6714,7 +6730,7 @@ async function findDups() {
   // when each record was saved: copies from one import share the same moment
   const at = {};
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await C.sb.from('records').select('id,updated_at').in('kind', FIN_KINDS).range(from, from + 999);
+    const { data, error } = await C.sb.from('records').select('id,updated_at').in('kind', FIN_KINDS).order('id').range(from, from + 999);
     if (error) throw error;
     for (const r of data) at[r.id] = r.updated_at || '';
     if (data.length < 1000) break;
@@ -6730,14 +6746,14 @@ async function findDups() {
         if (DUP_ONE.has(kind)) {
           // one stays: the copy most things point at, then the one with a bank reference, then the oldest
           const keep = [...list].sort((x, y) => (refs[y.id] || 0) - (refs[x.id] || 0) || !!y.bankRef - !!x.bankRef || String(at[x.id] || '').localeCompare(String(at[y.id] || '')) || String(x.id).localeCompare(String(y.id)))[0];
-          for (const r of list) if (r !== keep) { map.set(r.id, keep.id); fill.set(keep.id, [...(fill.get(keep.id) || []), r]); found++; }
+          for (const r of list) if (r.id !== keep.id) { map.set(r.id, keep.id); fill.set(keep.id, [...(fill.get(keep.id) || []), r]); found++; }
           continue;
         }
         const batches = new Map();
         for (const r of list) { const b = at[r.id] || r.id; batches.has(b) ? batches.get(b).push(r) : batches.set(b, [r]); }
         // keep the biggest single import (the earliest when it's a tie); a line with a bank reference wins
         const keepB = [...batches.entries()].sort((x, y) => y[1].length - x[1].length || y[1].filter(r => r.bankRef).length - x[1].filter(r => r.bankRef).length || String(x[0]).localeCompare(String(y[0])))[0][1];
-        const gone = list.filter(r => !keepB.includes(r));
+        const gone = list.filter(r => !keepB.some(k => k.id === r.id));
         gone.forEach((r, i) => { const k = keepB[i % keepB.length]; map.set(r.id, k.id); fill.set(k.id, [...(fill.get(k.id) || []), r]); found++; });
       }
     }
@@ -6751,9 +6767,14 @@ async function findDups() {
     for (const g of fill.get(r.id) || []) for (const [k, v] of Object.entries(relink(dataOf(g), map))) if ((d[k] == null || d[k] === '') && v != null && v !== '') d = { ...d, [k]: v };
     if (JSON.stringify(d) !== JSON.stringify(dataOf(r))) changes.push({ id: r.id, kind: r.kind, data: d });
   }
-  return { gone: [...map.keys()].map(id => L.byId[id]).filter(Boolean), changes };
+  const gone = [...map.keys()].filter(id => map.get(id) !== id).map(id => L.byId[id]).filter(Boolean);
+  // safety net: nothing that stays may still point at a copy that goes; then something is off, and nothing is removed
+  const goneIds = new Set(gone.map(r => r.id)), ch = new Map(changes.map(c => [c.id, c.data]));
+  for (const r of L.all) if (!goneIds.has(r.id) && refsAny(ch.get(r.id) || dataOf(r), goneIds)) throw new Error('duplicates: a record that stays still points at ' + r.kind + ' ' + r.id);
+  return { gone, changes };
 }
 async function fDups() {
+  if (notFresh()) return;
   const sh = C.sheet({ title: 'Find duplicates', body: '<p class="lnone" data-dupbody>Looking through your money…</p>', foot: '<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-go disabled>Remove</button>' });
   let res;
   try { res = await findDups(); } catch (e) { console.error(e); sh.querySelector('[data-dupbody]').textContent = 'Could not look through your money. Check your connection and try again.'; return; }
@@ -6872,6 +6893,7 @@ function pickCsv() {
   inp.click();
 }
 async function fCsvImport(file) {
+  if (notFresh()) return;
   let parsed;
   try { parsed = bankRows(csvParse(await readCsvText(file))); } catch (e) { console.error(e); parsed = { rows: [] }; }
   if (!parsed.rows.length) { C.toast('This isn’t a CSV from ING or Rabobank that the app can read.'); return; }
