@@ -807,6 +807,7 @@ const KINDS = {
       F('ramp', 'Plan: one line per step, like 2026-11-22: Sun', 'long', { rows: 4 }), F('days', 'Or simply on', 'multi', { options: WEEKDAYS }), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z']], sub: r => [r.type, r.when || 'Evening', r.minutes ? r.minutes + ' min' : ''].filter(Boolean).join(' · ')
   },
+  fwins: { one: 'small win', many: 'Small wins', title: r => `Small wins ${r.date || ''}`, fields: [F('date', 'Date', 'date')], sub: r => `${(r.done || []).length} of ${(r.picks || []).length}` },
   restips: { one: 'tip', many: 'Tips', title: r => r.title || 'Tip', fields: [F('title', 'Title'), F('text', 'Text', 'long', { rows: 6 }), F('url', 'Link (optional)', 'url'), F('group', 'Block', 'text')], sorts: [['order', 'Your order']], sub: r => [r.area, r.group].filter(Boolean).join(' · ') },
   resarea: { one: 'resources tab', many: 'Resources tabs', fields: [F('area', 'Tab')], title: r => r.area || 'Resources' },
   skinlinks: { one: 'link', many: 'Skin links', fields: [F('name', 'Title'), F('url', 'Link', 'url'), F('topic', 'Topic', 'select', { options: ['Acne', 'Dark marks', 'Retinoids and acids', 'Barrier', 'Sun', 'Lifestyle', 'Techniques', 'Products', 'Other'] }), F('notes', 'Why it matters', 'long')], sorts: [['name', 'A to Z']] },
@@ -3741,6 +3742,57 @@ function potsPanel() {
   }).join('');
   return MP('Pots', body + '<p class="lnone">Repeats saved up in a pot don’t take from safe to spend. Put money into a pot with a category that is “Not spending”; moving it back out is a transfer, not income.</p>', mLink('Repeats', 'money/repeats'), 'pots');
 }
+/* ---------- small wins ----------
+   A pool of small money steps; every day three come up (the same three all day), one you don't like can be swapped,
+   and you tick them off yourself or the app sees them done. A record per day (fwins) keeps the picks and what you did. */
+const WIN_POOL = [
+  { k: 'check', cat: 'Overview', title: 'Check your balance', sub: c => c.lastCheck ? `Last checked ${relDay(c.lastCheck)}.` : 'Never checked.', auto: c => c.checkedRecently, btn: '<button class="btn small" data-act="fcheck">Check</button>' },
+  { k: 'bills', cat: 'Overview', title: 'Tick off bills that went out', sub: c => c.overdue.length ? `${c.overdue.length} waiting, starting with ${c.overdue[0].bill.name}.` : 'Nothing waiting.', auto: c => !c.overdue.length, btn: '<button class="btn small" data-act="go" data-v="money/today" data-jump="m-look">Open</button>' },
+  { k: 'log', cat: 'Overview', title: 'Write down today’s spending', sub: 'Even a coffee keeps the number honest.', auto: c => c.loggedToday, btn: '<button class="btn small" data-act="fnothing">Nothing today</button>' },
+  { k: 'sort', cat: 'Overview', title: 'Sort what is not sorted', sub: 'Give every purchase of this pay a category.', auto: c => !c.unsortedPay, btn: '<button class="btn small" data-act="funsorted">Sort</button>' },
+  { k: 'subs', cat: 'Overview', title: 'Walk through your subscriptions', sub: 'Still using every one of them?', btn: '<button class="btn small" data-act="go" data-v="money/repeats">Open</button>' },
+  { k: 'goal5', cat: 'Saving', title: 'Put €5 towards a goal', sub: 'Small amounts add up faster than you think.', btn: '<button class="btn small" data-act="go" data-v="money/plan">Goals</button>' },
+  { k: 'round', cat: 'Saving', title: 'Round up to savings', sub: 'Move the change of this week’s purchases to savings.', btn: '<button class="btn small" data-act="fmove">Move</button>' },
+  { k: 'pot', cat: 'Saving', title: 'Top up a pot', sub: 'A little in the pot now saves a stress moment later.', btn: '<button class="btn small" data-act="fmove">Move</button>' },
+  { k: 'nospend', cat: 'Not spending', title: 'Make today a no-spend day', sub: 'Only what you planned: no extras.' },
+  { k: 'wait', cat: 'Not spending', title: 'Wait 24 hours on a wish', sub: 'Still want it tomorrow? Then it is a real wish.', btn: '<button class="btn small" data-act="go" data-v="wish/today">Wishes</button>' },
+  { k: 'cook', cat: 'Not spending', title: 'Cook instead of ordering', sub: 'Pick something from your pantry tonight.', btn: '<button class="btn small" data-act="go" data-v="kitchen/recipes">Recipes</button>' },
+  { k: 'bring', cat: 'Not spending', title: 'Bring your own coffee or lunch', sub: 'One less purchase on the go.' },
+  { k: 'compare', cat: 'Learning', title: 'Compare one bill', sub: 'Energy, phone or insurance: is there a better deal?', btn: '<button class="btn small" data-act="go" data-v="money/repeats">Bills</button>' },
+  { k: 'cancel', cat: 'Learning', title: 'Cancel one cost you don’t need', sub: 'A trial, an app, a membership.', btn: '<button class="btn small" data-act="go" data-v="money/repeats">Repeats</button>' },
+  { k: 'buffer', cat: 'Learning', title: 'Look at your buffer', sub: 'Is it still enough for a surprise bill?', btn: '<button class="btn small" data-act="go" data-v="money/settings">Settings</button>' }
+];
+const winRec = d => recs('fwins').find(r => r.date === d);
+// a fixed shuffle per day, so the three wins stay the same all day; one of each kind first
+function winOrder(d) {
+  let h = 0; for (const ch of d) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const rnd = () => (h = (h * 1103515245 + 12345) >>> 0) / 4294967296;
+  const l = [...WIN_POOL].map(w => ({ w, r: rnd() })).sort((a, b) => a.r - b.r).map(x => x.w);
+  const cats = [...new Set(l.map(w => w.cat))], first = cats.map(c => l.find(w => w.cat === c));
+  return [...first, ...l.filter(w => !first.includes(w))].map(w => w.k);
+}
+function winsToday(ctx) {
+  const t = today(), r = winRec(t), order = winOrder(t);
+  // things that are already done at the start of the day are no challenge: they come up only when nothing else is left
+  const picks = r?.picks?.length ? r.picks : [...order.filter(k => !WIN_POOL.find(w => w.k === k).auto?.(ctx)), ...order].filter((k, i, a) => a.indexOf(k) === i).slice(0, 3);
+  const isDone = k => (r?.done || []).includes(k) || !!WIN_POOL.find(w => w.k === k)?.auto?.(ctx);
+  // what the app sees done is written down once, so your streak and reports count it too
+  const seen = picks.filter(k => WIN_POOL.find(w => w.k === k)?.auto?.(ctx) && !(r?.done || []).includes(k));
+  if (seen.length && !L.winSaving) { L.winSaving = true; setTimeout(() => winSave({ picks, done: [...new Set([...(winRec(t)?.done || []), ...seen])] }).finally(() => { L.winSaving = false; }), 0); }
+  return { picks, isDone };
+}
+function winSave(patch) { const t = today(), r = winRec(t); return put('fwins', r?.id || C.uuid(), { ...(r ? dataOf(r) : { date: t, created: Date.now() }), ...patch }).catch(() => {}); }
+function winStreak() {
+  const days = new Set(recs('fwins').filter(r => (r.done || []).length).map(r => r.date)); let n = 0, d = today();
+  if (!days.has(d)) d = addDays(d, -1);
+  while (days.has(d)) { n++; d = addDays(d, -1); }
+  return n;
+}
+function winAct(act, k) {
+  const t = today(), r = winRec(t), cur = r?.picks?.length ? r.picks : [...document.querySelectorAll('[data-act="wintick"]')].map(b => b.dataset.v);
+  if (act === 'wintick') { const done = new Set(r?.done || []); done.has(k) ? done.delete(k) : done.add(k); winSave({ picks: cur, done: [...done] }); if (!r?.done?.includes(k)) C.toast('Nice. That counts.'); return; }
+  if (act === 'winswap') { const used = new Set([...cur, ...(r?.swapped || [])]), next = winOrder(t).find(x => !used.has(x)); if (!next) { C.toast('No other wins left for today.'); return; } winSave({ picks: cur.map(x => x === k ? next : x), swapped: [...(r?.swapped || []), k] }); }
+}
 function moneyToday(host) {
   if (!recs('faccounts').length) { host.innerHTML = `${head('Money')}<div class="panels">${panel('Start here', `${quiet('Import your Budget Planner backup, or add your accounts and check your balances.')}<button class="btn small" data-act="new" data-v="faccounts">Add an account</button>`)}</div>`; return; }
   const st = fState(), t = st.t, s = fset(), hr = new Date().getHours();
@@ -3758,15 +3810,13 @@ function moneyToday(host) {
     <div class="mcalc"><p><span>Money in your accounts</span><b>${fSigned(st.inAcc)}</b></p><p><span>− Bills before payday</span><b>${eur(st.billsBefore)}</b></p><p><span>− Safety buffer</span><b>${eur(st.buf)}</b></p><p class="mtot"><span>= Safe until payday</span><b>${fSigned(st.until)}</b></p></div>
     <div class="mfoot">${nextBill ? `<span>Next bill: <b>${esc(nextBill.bill.name)} ${eur(nextBill.amount)}</b> ${esc(relDay(nextBill.date))}</span>` : '<span></span>'}
       <span class="mbtns"><button class="btn small" data-act="fafford">Can I afford…?</button>${chips.slice(0, 2).map(c => `<button class="btn small primary" data-act="fchip" data-id="${c.id}">+ ${esc(c.name)} ${eur(num(c.amount))}</button>`).join('')}</span></div></section>`;
-  /* small wins */
+  /* small wins: three a day from the pool, you tick them off or the app sees them done */
   const loggedToday = tx.some(x => x.date === t) || s.nothingOn === t, checkedRecently = st.lastCheck && diffDays(st.lastCheck, t) <= 3;
-  const win = (done, title, sub, btn) => `<div class="mwin ${done ? 'done' : ''}"><span class="mtick" aria-hidden="true">${done ? svg(P.check) : ''}</span><span class="lmain"><b>${esc(title)}</b><span>${esc(sub)}</span></span>${!done && btn ? btn : ''}</div>`;
-  const wins = [
-    win(checkedRecently, 'Check your balance', st.lastCheck ? `Last checked ${relDay(st.lastCheck)}.` : 'Never checked.', '<button class="btn small" data-act="fcheck">Check</button>'),
-    win(!st.overdue.length, 'Tick off bills that went out', st.overdue.length ? `${st.overdue.length} waiting, starting with ${st.overdue[0].bill.name}.` : 'Nothing waiting.', '<button class="btn small" data-act="go" data-v="money/today" data-jump="m-look">Open</button>'),
-    win(loggedToday, 'Write down today’s spending', 'Even a coffee keeps the number honest.', '<button class="btn small" data-act="fnothing">Nothing today</button>')
-  ];
-  const nWin = [checkedRecently, !st.overdue.length, loggedToday].filter(Boolean).length;
+  const unsortedPay = every.some(x => x.date >= st.start && x.date <= t && (!x.category || !L.byId[x.category]));
+  const ctx = { checkedRecently, loggedToday, overdue: st.overdue, unsortedPay, lastCheck: st.lastCheck };
+  const W = winsToday(ctx), nWin = W.picks.filter(k => W.isDone(k)).length, streak = winStreak();
+  const wins = W.picks.map(k => { const w = WIN_POOL.find(x => x.k === k); if (!w) return ''; const done = W.isDone(k), auto = w.auto?.(ctx);
+    return `<div class="mwin ${done ? 'done' : ''}"><button class="mtick" data-act="wintick" data-v="${k}" aria-pressed="${done}" aria-label="${done ? 'Not done yet' : 'Done'}: ${esc(w.title)}" ${auto ? 'disabled' : ''}>${done ? svg(P.check) : ''}</button><span class="lmain"><b>${esc(w.title)}</b><span>${esc(typeof w.sub === 'function' ? w.sub(ctx) : w.sub)}</span></span>${done ? '' : `<span class="winbtns">${w.btn ? w.btn : ''}<button class="btn small" data-act="winswap" data-v="${k}" aria-label="Another win instead of ${esc(w.title)}">↻</button></span>`}</div>`; });
   /* coming up and payments */
   const upcoming = fOccs(st.start, addDays(t, 60)).filter(o => !o.paid && !o.skipped).slice(0, 5);
   const wk = weekStart(0), days35 = Array.from({ length: 35 }, (_, i) => addDays(wk, i)), occ35 = fOccs(wk, days35[34]);
@@ -3833,7 +3883,7 @@ function moneyToday(host) {
   const jump = [['m-safe', 'Safe to spend'], ['m-look', 'Worth a look'], ['m-wins', 'Small wins'], ['m-next', 'Next 30 days'], ['m-pay', 'Payments coming'], ['m-days', fMode() === 'pay' && st.pay ? 'Every day this pay' : 'Every day this month'], ['m-went', 'Where the money went'], ['m-net', 'Goals, debt, net worth'], ['m-cats', 'Per category'], ['m-months', 'Month by month'], ['m-big', 'Biggest spending'], ...(allWishes().length || wishBudget() ? [['m-wish', 'Wishlists']] : []), ...(recs('faccounts').some(x => x.type === 'Pot') ? [['m-pots', 'Pots']] : []), ...(recs('fbills').some(b => b.type === 'Subscription' && b.active !== false) ? [['m-subs', 'Subscriptions']] : [])];
   host.innerHTML = `<div class="viewhead dviewhead"><h1>${esc(window.APP_GREETING?.().hello || (hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'))}</h1><span class="sub">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span><div class="spacer"></div><button class="btn small" data-act="fcheck">Check my money</button><button class="btn small primary" data-act="new" data-v="ftx">+ Add spending</button></div>
   ${fDupNote()}<nav class="mjump" aria-label="On this page">${jump.map(([id, l]) => `<button class="chip" data-jump="${id}">${l}</button>`).join('')}</nav>
-  <div class="mtop">${safe}${MP('Small wins', `${wins.join('')}<p class="lnone">${nWin ? `${nWin} down. That counts.` : 'Start with one.'}</p>`, `<span class="lnone">${nWin} of 3</span>`, 'wins')}</div>
+  <div class="mtop">${safe}${MP('Small wins', `${wins.join('')}<p class="lnone">${nWin ? `${nWin} down. That counts.` : 'Start with one.'}${streak > 1 ? ` 🔥 ${streak} days in a row.` : ''}</p>`, `<span class="lnone">${nWin} of ${W.picks.length}</span>`, 'wins')}</div>
   ${MP('Worth a look', st.overdue.length ? `<div class="lrows">${st.overdue.map(o => `<div class="lrow mlook"><span class="lmain"><b>${esc(o.bill.name)} was due ${esc(shortDate(o.date))}</b><span>${esc(o.type)} · ${eur(o.amount)}</span></span><button class="btn small" data-act="fpay" data-v="${o.key}">Mark paid</button><button class="chip link" data-act="fskip" data-v="${o.key}">Skip</button></div>`).join('')}</div>` : quiet('Nothing needs a look.'), `<span class="lnone">${plural(st.overdue.length, 'thing')}</span>`, 'look')}
   <div class="mrow2">${MP('Next 30 days', `${fChart(pts, st.buf, st.pay)}<p class="mmuted">Lowest point about <b>${fEur0(Math.round(low.v))}</b> on ${esc(shortDate(low.d))}${low.v < st.buf ? ` · ${eur(st.buf - low.v)} below your protected ${fEur0(st.buf)}` : ''}${st.pay ? ` · Payday <b>${esc(shortDate(st.pay))}</b>` : ''}</p>`, '', 'next')}
     ${MP('Coming up', upcoming.length ? `<div class="mlist">${upcoming.map(o => `<button class="mup" data-act="open" data-id="${o.bill.id}"><span class="mdate"><b>${fromISO(o.date).getDate()}</b>${esc(fromISO(o.date).toLocaleDateString('en-GB', { month: 'short' }))}</span><span class="lmain"><b>${esc(o.bill.name)}</b><span>${esc(o.type)} · ${o.date < t ? 'overdue' : esc(relDay(o.date))}</span></span><b>${eur(o.amount)}</b></button>`).join('')}</div>` : quiet('No repeats coming up.'), mLink('All repeats', 'money/repeats'))}</div>
@@ -5549,6 +5599,7 @@ function repSections(from, to) {
     { k: 'money', t: '💶 Money', stats: [s('Spent', sumOf(tx.map(t => t.amount)), { fmt: 'eur', good: 'down' }), s('Groceries', sumOf(tx.filter(t => env && t.category === env.id).map(t => t.amount)), { fmt: 'eur', good: 'down' }),
       s('Money in', sumOf(recs('fincome').filter(x => inR(x.date, from, to)).map(x => x.amount)), { fmt: 'eur' }), s('Purchases', tx.length), s('Bills paid', recs('fpaid').filter(p => inR(p.paidOn || p.date, from, to)).length),
       s('🏷️ Saved on sales', savedN, { fmt: 'eur', good: 'up' }), s('🚫💸 No-spend days', noSpendN, { good: 'up' }), s('💪 Not spent on impulses', sumOf(imp.filter(r => r.bought !== 'Bought').map(r => r.price)), { fmt: 'eur', good: 'up' }), s('🛍 Impulses bought', imp.filter(r => r.bought === 'Bought').length, { good: 'down' }),
+      s('🏆 Small wins', sumOf(recs('fwins').filter(x => inR(x.date, from, to)).map(x => (x.done || []).length)), { good: 'up' }),
       s('✅ Money check', wk ? 100 * (wk.mcheck || []).length / MONEY_CHECK.length : null, { unit: '%', good: 'up' })],
       chart: [...byCat.entries()].sort((a, b) => b[1] - a[1]).slice(0, 7).map(([l, v]) => [l.replace(/[\p{Extended_Pictographic}\uFE0F]/gu, '').trim().slice(0, 12), Math.round(v)]), chartT: 'Spent per category (€)' },
     { k: 'food', t: '🍽 Food and drinks', stats: [s('Meals planned', meals.filter(m => !m.away).length, { good: 'up' }), s('Home-cooked dinners', meals.filter(m => m.slot === 'Dinner' && (m.recipe || m.what) && !m.away).length, { good: 'up' }),
@@ -6603,6 +6654,7 @@ document.addEventListener('click', async e => {
     case 'frulesapply': fRulesApply(); break;
     case 'funsorted': fUnsorted(); break;
     case 'exvids': exVidSheet(); break;
+    case 'wintick': case 'winswap': winAct(d.act, d.v); break;
     case 'invphotos': invPhotoPick(); break;
     case 'invphotoclear': invPhotoClear(); break;
     case 'resedit': case 'resdone': case 'resdel': case 'resmv': case 'resadd': case 'resgroup': case 'resreset': case 'resnew': resAct(d.act, d); break;
