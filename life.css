@@ -1421,3 +1421,10 @@ details.panel:not([open]):has(> summary.foldsum) { padding-top: 14px; padding-bo
 .ipin a { display: block; aspect-ratio: 2 / 3; border-radius: 10px; overflow: hidden; background: var(--stage); }
 .ipin img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ipin .pill { width: 100%; font-size: 13px; }
+button.mtick { background: none; padding: 0; cursor: pointer; color: inherit; }
+button.mtick:disabled { cursor: default; opacity: 1; }
+.mwin .btn.small + .btn.small { margin-left: 4px; }
+/* small wins: on a phone the buttons go under the text, so the text keeps its width */
+.mwin .winbtns { display: inline-flex; gap: 6px; flex: none; }
+@media (max-width: 520px) { .mwin { flex-wrap: wrap; } .mwin .lmain { flex: 1 1 calc(100% - 44px); min-width: 0; } .mwin .winbtns { margin-left: 40px; } }
+.mwin .winbtns .btn { margin-left: 0; }
