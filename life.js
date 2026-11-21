@@ -981,11 +981,11 @@ const KINDS = {
     fields: [F('name', 'Name'), F('amount', 'Amount', 'money', { half: 1 }), F('type', 'Type', 'select', { options: ['Bill', 'Subscription', 'Insurance', 'Debt'], half: 1 }),
       F('cadence', 'How often', 'select', { options: ['Monthly', 'Every N months', 'Yearly', 'Weekly'], half: 1 }), F('every', 'Every how many', 'num', { half: 1 }),
       F('anchor', 'First due', 'date', { half: 1 }), F('ends', 'Ends', 'date', { half: 1 }),
-      F('auto', 'Paid automatically (direct debit)', 'check'),
+      F('auto', 'Paid automatically (direct debit)', 'check', { half: 1 }), F('varies', 'Amount changes each time', 'check', { half: 1 }),
       F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 }), F('category', 'Category', 'rel', { to: 'fcats', half: 1 }),
       F('debt', 'Pays off debt', 'rel', { to: 'fdebts', half: 1 }), F('pot', 'Comes out of pot', 'rel', { to: 'faccounts', half: 1 }), F('trialEnds', 'Free trial ends', 'date', { half: 1 }), F('active', 'Active', 'check', { half: 1 }), F('url', 'Link', 'url'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['-amount', 'Biggest']], hide: r => r.active === false, hideLabel: 'Show stopped',
-    sub: r => { const n = fNext(r); return [r.type, fCadence(r), r.auto ? 'automatic' : '', n ? 'next ' + niceDate(n) : 'no next date'].filter(Boolean).join(' · '); },
+    sub: r => { const n = fNext(r); return [r.type, fCadence(r), r.auto ? 'automatic' : '', r.varies ? `varies, about ${eur(billAmount(r))}` : '', n ? 'next ' + niceDate(n) : 'no next date'].filter(Boolean).join(' · '); },
     side: r => eur(num(r.amount)),
     quick: r => { const o = fOpenOcc(r); return o ? { on: false, label: 'Mark as paid', act: () => fPayOcc(o) } : null; },
     // what the repeats you see cost together; stopped ones don't count
@@ -3302,9 +3302,13 @@ function fDates(b, from, to) {
   return out;
 }
 const fNext = b => fDates(b, today(), addMonths(today(), 25))[0] || null;
+/* a repeat whose amount changes each time (energy, a credit card): what it really cost, from the times you paid it,
+   and what the app counts on ahead: the average of the last three, or the amount you set while there is no history */
+const billPaid = b => recs('fpaid').filter(p => p.bill === b.id && p.paid).map(p => ({ date: p.date, amount: num(p.amount) ?? num(L.byId[p.tx]?.amount) })).filter(x => x.amount != null).sort((x, y) => String(y.date).localeCompare(String(x.date)));
+function billAmount(b) { if (!b.varies) return num(b.amount) || 0; const l = billPaid(b).slice(0, 3); return l.length ? Math.round(100 * l.reduce((n, x) => n + x.amount, 0) / l.length) / 100 : num(b.amount) || 0; }
 function fOccs(from, to) {
-  const pm = new Map(recs('fpaid').map(p => [p.occ, p]));
-  return recs('fbills').flatMap(b => fDates(b, from, to).map(d => { const key = b.id + '@' + d, p = pm.get(key); return { key, bill: b, date: d, amount: num(b.amount) || 0, type: b.type || 'Bill', paid: !!p?.paid, skipped: !!p?.skipped }; }))
+  const pm = new Map(recs('fpaid').map(p => [p.occ, p])), amt = new Map(recs('fbills').map(b => [b.id, billAmount(b)]));
+  return recs('fbills').flatMap(b => fDates(b, from, to).map(d => { const key = b.id + '@' + d, p = pm.get(key); return { key, bill: b, date: d, amount: p?.paid && num(p.amount) != null ? num(p.amount) : amt.get(b.id) || 0, type: b.type || 'Bill', paid: !!p?.paid, skipped: !!p?.skipped }; }))
     .sort((a, b) => a.date.localeCompare(b.date) || b.amount - a.amount);
 }
 const fMoved = x => !!(x.category && L.byId[x.category]?.nospend);
@@ -3322,8 +3326,11 @@ function fState() {
   const checks = recs('fchecks'), lastCheck = checks.reduce((m, c) => (c.at || '') > m ? c.at : m, '');
   return { t, pay, start, buf, accs, bal, safeIds, inAcc, due, overdue, billsBefore, until, days, perDay: until / days, counts, lastCheck };
 }
-async function fPayOcc(o, auto = false) {
+async function fPayOcc(o, auto = false, real = null) {
   const b = o.bill, on = auto ? o.date : today();
+  // a repeat that varies asks what it really cost, with the expected amount filled in
+  if (b.varies && !auto && real == null) { const v = num(String(prompt(`What did ${b.name} cost this time?`, (Math.round(o.amount * 100) / 100).toFixed(2)) ?? '').replace(/[\s€]/g, '').replace(',', '.')); if (v == null) return; real = v; }
+  if (real != null) o = { ...o, amount: real };
   try {
     const pot = b.pot && b.pot !== b.account && L.byId[b.pot]?.kind === 'faccounts' ? b.pot : '';
     if (pot) {
@@ -3331,7 +3338,7 @@ async function fPayOcc(o, auto = false) {
       if (b.account) await create('fincome', { name: `${b.name}: from ${L.byId[pot].name || 'pot'}`, amount: o.amount, date: on, account: b.account, type: 'Other', transfer: true, confirmed: true, potFor: o.key });
     }
     const tx = await create('ftx', { name: b.name, amount: o.amount, date: on, category: b.category || '', account: b.account || '', bill: o.key, debt: b.debt || '', ...(auto ? { auto: true } : {}) });
-    await create('fpaid', { occ: o.key, bill: b.id, date: o.date, paid: true, paidOn: on, tx, ...(auto ? { auto: true } : {}) });
+    await create('fpaid', { occ: o.key, bill: b.id, date: o.date, paid: true, paidOn: on, tx, amount: o.amount, ...(auto ? { auto: true } : {}) });
     if (!auto) C.toast(`${b.name} marked paid`);
   } catch { C.toast('Could not save. Try again.'); }
 }
@@ -7109,13 +7116,18 @@ async function fCsvImport(file) {
   // what each line becomes, with the account choice you make in this sheet
   const plan = () => {
     const accOf = r => pick[r.own] || '', ownAcc = r => r.other && (byIban.get(r.other) || Object.entries(pick).find(([ib, id]) => id && ib === r.other)?.[1]);
-    const tx = recs('ftx'), out = { add: [], dup: [], patch: [] };
+    const tx = recs('ftx'), out = { add: [], dup: [], patch: [], bills: [] };
+    // a line with the name of a repeat that varies is that repeat: it sets the real amount on the nearest open or automatic payment
+    const vary = recs('fbills').filter(b => b.varies && b.active !== false && norm(b.name).length > 2), occs = fOccs(addDays(today(), -120), addDays(today(), 20));
     for (const r of rows) {
       if (refs.has(r.ref)) { out.dup.push(r); continue; }
       const acc = accOf(r);
       // an Apple Pay or hand-written purchase with the same amount within 3 days is the same payment
       const same = r.out && tx.find(x => !x.bankRef && Math.abs((num(x.amount) || 0) - r.amount) < 0.005 && (!x.account || x.account === acc) && Math.abs(diffDays(x.date, r.date)) <= 3 && !out.patch.some(p => p.id === x.id));
       if (same) { out.dup.push(r); out.patch.push({ id: same.id, ref: r.ref }); continue; }
+      const vb = r.out && vary.find(b => norm(r.name).includes(norm(b.name)) || norm(b.name).includes(norm(r.name)));
+      const vo = vb && occs.filter(o => o.bill.id === vb.id && Math.abs(diffDays(o.date, r.date)) <= 10 && !o.skipped && !out.bills.some(x => x.o.key === o.key)).filter(o => { const p = recs('fpaid').find(q => q.occ === o.key); return !p || p.auto || !L.byId[p.tx]?.bankRef; }).sort((a, c) => Math.abs(diffDays(a.date, r.date)) - Math.abs(diffDays(c.date, r.date)))[0];
+      if (vo) { out.bills.push({ r, o: vo, acc }); continue; }
       out.add.push({ ...r, acc, transfer: !!ownAcc(r) || ownByName(r.name) });
     }
     return out;
@@ -7123,10 +7135,10 @@ async function fCsvImport(file) {
   const draw = () => {
     const p = plan(), outs = p.add.filter(r => r.out && !r.transfer), ins = p.add.filter(r => !r.out && !r.transfer), tr = p.add.filter(r => r.transfer);
     sh.querySelector('[data-csvbody]').innerHTML = `${owns.map(o => `<div class="field"><label>Account ${esc(o ? '…' + o.slice(-4) : '')}</label><select class="pill" data-csvacc="${esc(o)}"><option value="">Choose an account</option>${accs.map(a => `<option value="${a.id}" ${pick[o] === a.id ? 'selected' : ''}>${esc(a.name || 'Account')}</option>`).join('')}<option value="new">New account</option></select></div>`).join('')}
-      <div class="lrows">${[['Purchases', outs.length], ['Money in', ins.length], ['Own transfers (not spending)', tr.length], ['Already here, skipped', p.dup.length]].map(([l, n]) => `<div class="lrow"><span class="lmain"><b>${l}</b></span><span class="lside">${n}</span></div>`).join('')}</div>
+      <div class="lrows">${[['Purchases', outs.length], ['Money in', ins.length], ['Own transfers (not spending)', tr.length], ['Repeats with a new amount', p.bills.length], ['Already here, skipped', p.dup.length]].filter(([l, n]) => n || l !== 'Repeats with a new amount').map(([l, n]) => `<div class="lrow"><span class="lmain"><b>${l}</b></span><span class="lside">${n}</span></div>`).join('')}</div>
       ${p.add.length ? `<p class="dsub">First lines</p><div class="lrows">${p.add.slice(0, 6).map(r => `<div class="lrow"><span class="lmain"><b>${esc(r.name)}</b><span>${esc(niceDate(r.date))}${r.transfer ? ' · own transfer' : ''}</span></span><span class="lside ${r.out ? '' : 'mgood'}">${r.out ? '−' : '+'}${eur(r.amount)}</span></div>`).join('')}</div>` : ''}`;
-    sh.querySelector('[data-go]').textContent = `Import ${p.add.length}`;
-    sh.querySelector('[data-go]').disabled = !p.add.length && !p.patch.length;
+    sh.querySelector("[data-go]").textContent = `Import ${p.add.length + p.bills.length}`;
+    sh.querySelector('[data-go]').disabled = !p.add.length && !p.patch.length && !p.bills.length;
   };
   sh.addEventListener('change', async e => {
     const s = e.target.closest('[data-csvacc]'); if (!s) return;
@@ -7157,6 +7169,12 @@ async function fCsvImport(file) {
         recsOut.push({ id: C.uuid(), kind: 'fchecks', data: { account: pick[o], amount: last.bal, at: last.date, seq: base + chrono.length + 1, notes: `From ${bank} CSV`, created: base + chrono.length + 1 } });
       }
       for (const pt of p.patch) { const x = L.byId[pt.id]; if (x) recsOut.push({ id: x.id, kind: 'ftx', data: { ...dataOf(x), bankRef: pt.ref } }); }
+      // varying repeats: the bank line gives the real amount; a payment that is already there gets it, otherwise the repeat is paid now
+      for (const { r, o, acc } of p.bills) {
+        const fp = recs('fpaid').find(q => q.occ === o.key), t0 = fp && L.byId[fp.tx];
+        if (fp && t0) { recsOut.push({ id: t0.id, kind: 'ftx', data: { ...dataOf(t0), amount: r.amount, date: r.date, bankRef: r.ref } }, { id: fp.id, kind: 'fpaid', data: { ...dataOf(fp), amount: r.amount } }); }
+        else { const tid = C.uuid(); recsOut.push({ id: tid, kind: 'ftx', data: { name: o.bill.name, amount: r.amount, date: r.date, category: o.bill.category || '', account: acc || o.bill.account || '', bill: o.key, debt: o.bill.debt || '', bankRef: r.ref, source: bank + ' CSV', created: Date.now() } }, { id: fp?.id || C.uuid(), kind: 'fpaid', data: { ...(fp ? dataOf(fp) : {}), occ: o.key, bill: o.bill.id, date: o.date, paid: true, paidOn: r.date, tx: tid, amount: r.amount } }); }
+      }
       await putMany(recsOut, (n, all) => { msg.textContent = `Saving ${n} of ${all}…`; }, `Imported ${bank} statement (${plural(p.add.length, 'line')})`);
       C.closeSheet(); C.toast(`Imported ${plural(p.add.length, 'line')}${p.dup.length ? `, skipped ${p.dup.length} already here` : ''}`);
     } catch (err) { console.error(err); msg.textContent = 'Could not import. Try again.'; b.disabled = false; }
