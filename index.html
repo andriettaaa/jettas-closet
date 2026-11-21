@@ -1145,6 +1145,7 @@ function openMenu(fromBottom) {
   sheet({ title: 'Menu', body: `${more.length ? `<div class="menulist">${more.map(s => item(s.key, s.label, s.icon)).join('')}</div>` : '<p class="muted">Every section is in the bar.</p>'}<div class="menulist menuset">${item('settings', 'Settings', GEAR)}</div>` });
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-menu]'); if (b) openMenu(!!b.closest('#tabsBottom')); });
+document.addEventListener('click', e => { if (e.target.closest('[data-closetcheck]')) window.LIFE?.check?.('closet'); });
 document.addEventListener('click', e => { if (e.target.closest('.menuitem[data-gosec]')) closeSheet(); }, true);
 // an area opens on the page you last had open there
 document.addEventListener('click', e => { const b = e.target.closest('nav [data-sec], [data-gosec]'); if (b) openSection(b.dataset.sec || b.dataset.gosec); });
@@ -2164,7 +2165,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v181';
+const APP_VERSION = 'hangtag-v182';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2723,7 +2724,7 @@ function statsSort(host) {
   const off = live.filter(i => (!(i.seasons || []).length || (i.seasons || []).includes(now)) && (!S.lastWorn[i.id] || S.lastWorn[i.id] < d182) && (!i.created || i.created < Date.now() - 30 * 864e5));
   const vinted = live.filter(i => i.sell === 'Vinted'), give = live.filter(i => i.sell === 'Weggeven'), cb = clothesBudget(), m = new Date().getMonth();
   const tile = i => `<button class="sorttile" data-item="${esc(i.id)}">${i.photo ? `<img src="${esc(photoURL(i.photo))}" alt="" loading="lazy">` : ''}<span>${esc(i.name || 'Piece')}${S.lastWorn[i.id] ? ' · ' + fromISO(S.lastWorn[i.id]).toLocaleDateString('nl-NL', { month: 'short', year: '2-digit' }) : ' · nooit'}</span></button>`;
-  host.innerHTML = `<div class="panels">
+  host.innerHTML = `<div class="ltools ckbar"><button class="btn small primary" data-closetcheck>✅ Check your closet</button></div><div class="panels">
     <div class="panel"><h3>Kledinggeld en one in, one out</h3><p class="hint">Sinds ${esc(fromISO(cb.start).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long' }))}: wat je verkocht minus wat je kocht, en stukken eruit tegen stukken erin.</p>
       <p class="dline"><span>Kledinggeld</span><b>${eur(Math.max(0, cb.money))}</b></p><p class="dline"><span>Ruimte voor nieuwe stukken</span><b>${Math.max(0, cb.room)}</b></p>
       <p class="muted">${cb.outN} eruit (${cb.soldN} verkocht), ${cb.inN} erin. ${cb.room <= 0 || cb.money <= 0 ? 'Eerst iets verkopen of weggeven voor je iets nieuws koopt.' : 'Je mag iets nieuws kopen van je wishlist.'}</p></div>
@@ -4025,6 +4026,9 @@ async function start(session) {
     // Plan my week: the weather of a day, and the outfit planned on a day
     wxDay: d => { const w = wxDay(d); return w ? { ...w, icon: wmo(w.c)[1], word: wmo(w.c)[2] } : null; },
     closetDayOutfit: d => S.days?.[d]?.outfit || '',
+    // Check your closet (in Life): the pieces in your closet, and saving a change on one
+    closetCheckList: () => S.items.filter(inCloset).map(it => ({ ...it, kind: 'items' })).sort((a, b) => String(a.cat || a.category || '').localeCompare(String(b.cat || b.category || '')) || String(a.name || '').localeCompare(String(b.name || ''))),
+    closetPatch: (id, patch) => { const cur = S.byId[id]; if (!cur) return Promise.resolve(); const doc = { ...noId(cur), ...patch, updated: Date.now() }; for (const k of Object.keys(doc)) if (doc[k] == null) delete doc[k]; return DB.put('items', id, doc); },
     // Reports: what you wore, bought and let go between two dates
     closetStats: (from, to) => { const ds = Object.entries(S.days || {}).filter(([d, r]) => d >= from && d <= to && r && dayItems(r).length); const worn = new Set(ds.flatMap(([, r]) => dayItems(r)));
       const day = ms => ms ? new Date(ms).toISOString().slice(0, 10) : ''; const start = S.prefs.closetStart || '2026-11-08', added = S.items.filter(i => !isInbox(i) && i.status !== 'wishlist' && day(i.created) > start && day(i.created) >= from && day(i.created) <= to);
