@@ -3724,8 +3724,8 @@ function moneyReviews(host) {
    Money you put into a pot is a move to your own savings (category "Not spending"), money from a pot is a transfer. */
 const potOf = b => b.pot && L.byId[b.pot]?.kind === 'faccounts' ? L.byId[b.pot] : null;
 // a bill covered by its pot, as long as the pot holds enough (or you never checked its balance)
-const potCovers = o => { const p = potOf(o.bill); if (!p) return false; const bal = fBalance(p); return bal == null || bal >= (num(o.amount ?? o.bill.amount) || 0); };
-const perMonth = b => { const a = num(b.amount) || 0; return b.cadence === 'Yearly' ? a / 12 : b.cadence === 'Every N months' ? a / (num(b.every) || 1) : b.cadence === 'Weekly' ? a * 52 / 12 / (num(b.every) || 1) : a; };
+const potCovers = o => { const p = potOf(o.bill); if (!p) return false; const bal = fBalance(p); return bal == null || bal >= (num(o.amount) ?? billAmount(o.bill)); };
+const perMonth = b => { const a = billAmount(b); return b.cadence === 'Yearly' ? a / 12 : b.cadence === 'Every N months' ? a / (num(b.every) || 1) : b.cadence === 'Weekly' ? a * 52 / 12 / (num(b.every) || 1) : a; };
 // every subscription with what it costs a year, and a heads-up before a free trial turns into a payment
 function subsPanel() {
   const t = today(), subs = recs('fbills').filter(b => b.type === 'Subscription' && b.active !== false).map(b => ({ b, y: perMonth(b) * 12 })).sort((a, c) => c.y - a.y);
@@ -4021,7 +4021,9 @@ const partsTitle = parts => [].concat(parts || []).map(partName).filter(Boolean)
 function partScore(r, k) {
   const re = PART_FIT[k], txt = norm([titleOf(r), r.category, r.dish, ...[].concat(r.ingredients || []).map(id => L.byId[id]?.name || ''), ...[].concat(r.ilines || []).map(x => typeof x === 'string' ? x : x?.n || '')].join(' '));
   const cat = { veg: ['Side Dish'], base: ['Side Dish'], extra: ['Sauce & Condiment', 'Dessert'], main: ['Dinner', 'Lunch'] }[k] || [];
-  return (re.test(norm(titleOf(r))) ? 3 : 0) + (re.test(txt) ? 1 : 0) + (cat.includes(r.category) ? 2 : 0);
+  // the name or ingredients have to fit the part; the category only helps among those (a main may also just be a dinner)
+  const hit = (re.test(norm(titleOf(r))) ? 3 : 0) + (re.test(txt) ? 1 : 0);
+  return hit || k === 'main' ? hit + (cat.includes(r.category) ? 2 : 0) : 0;
 }
 function mealBuilder(date, slot, mealId) {
   const m = mealId ? L.byId[mealId] : null;
@@ -6694,7 +6696,7 @@ document.addEventListener('click', async e => {
     case 'afflook': C.savePrefs({ affLook: d.v }).catch(() => C.toast('Opslaan lukte niet. Probeer het opnieuw.')); break;
     case 'quitset': quitSet(); break;
     case 'chfree': { const c = C.prefs().chores || {}, f = new Set(c.free || []); f.has(d.v) ? f.delete(d.v) : f.add(d.v); C.savePrefs({ chores: { ...c, free: WDAYS.filter(x => f.has(x)) } }).catch(() => C.toast('Could not save. Try again.')); break; }
-    case 'potmove': { const b = L.byId[d.v], n = b && fNext(b); if (!b) break; const to = b.account || fMainAcc()?.id; moveMoney({ from: d.id, to, amt: num(b.amount) || '', date: n ? (addDays(n, -1) < today() ? today() : addDays(n, -1)) : today() }); break; }
+    case 'potmove': { const b = L.byId[d.v], n = b && fNext(b); if (!b) break; const to = b.account || fMainAcc()?.id; moveMoney({ from: d.id, to, amt: billAmount(b) || '', date: n ? (addDays(n, -1) < today() ? today() : addDays(n, -1)) : today() }); break; }
     case 'tripopen': case 'tripnew': case 'tripedit': case 'trippack': case 'tripck': case 'tripckdel': case 'tripcksug': case 'tripidea': case 'tripideadel': case 'tripideaday': case 'tripagdel': case 'tripbudget': case 'tripcost': case 'tripdet': tripAct(d.act, d.v); break;
     case 'mmonth': L.mealMonth = (L.mealMonth || 0) + Number(d.v); C.render(); break;
     case 'mday': mealDay(d.v); break;
@@ -6848,7 +6850,7 @@ function fCalFill(fill) {
     `<span class="mbtns"><button class="iconbtn small" data-act="calmove" data-v="-1" aria-label="Previous month">${svg(P.left)}</button><button class="chip link" data-act="calmove" data-v="0">Today</button><button class="iconbtn small" data-act="calmove" data-v="1" aria-label="Next month">${svg(P.right)}</button></span>`);
 }
 function fBillsOf(type) { return fill => { const list = sortList(recs('fbills').filter(b => (b.type || 'Bill') === type && b.active !== false), KINDS.fbills, 'name'); fill.innerHTML = `${fDupNote()}<div class="tiles lt3">${fTile(type === 'Bill' ? 'Bills' : 'Subscriptions', String(list.length), 'active')}${fTile('Per month', eur(list.reduce((n, b) => n + fPerMonth(b), 0)), 'spread over the year')}${fTile('Per year', eur(12 * list.reduce((n, b) => n + fPerMonth(b), 0)), '')}</div>${list.length ? `<div class="lrows">${list.map(row).join('')}</div>` : quiet(`No ${type === 'Bill' ? 'bills' : 'subscriptions'} yet.`)}<button class="btn small mmore" data-act="newbill" data-v="${type}">+ Add ${type === 'Bill' ? 'a bill' : 'a subscription'}</button>`; }; }
-function fPerMonth(b) { const a = num(b.amount) || 0, n = Math.max(1, num(b.every) || 1); return b.cadence === 'Yearly' ? a / 12 : b.cadence === 'Every N months' ? a / n : b.cadence === 'Weekly' ? a * 52 / 12 / n : a; }
+function fPerMonth(b) { const a = billAmount(b), n = Math.max(1, num(b.every) || 1); return b.cadence === 'Yearly' ? a / 12 : b.cadence === 'Every N months' ? a / n : b.cadence === 'Weekly' ? a * 52 / 12 / n : a; }
 function fSplitSuggest() {
   const s = fset(), pay = num(s.payAmount) || 0;
   const bills = recs('fbills').filter(b => b.active !== false && b.type !== 'Debt').reduce((n, b) => n + fPerMonth(b), 0);
@@ -7655,7 +7657,7 @@ const wakeOn = d => { const c = DAYCFG(), t = dayType(d); return toMin(t === 'of
 const bedOn = d => Math.min(wakeOn(addDays(d, 1)) + 1440 - (Number(DAYCFG().sleep) || 8) * 60, 1470);
 const weekMon = (d = today()) => addDays(d, -((fromISO(d).getDay() + 6) % 7));
 const intentNow = () => { const i = C?.prefs?.().intent; return i && i.week >= addDays(weekMon(), -6) ? i : null; };
-const monthlyOf = b => { const a = num(b.amount) || 0; return b.cadence === 'Yearly' ? a / 12 : b.cadence === 'Weekly' ? a * 52 / 12 : b.cadence === 'Every N months' ? a / (num(b.every) || 1) : a; };
+const monthlyOf = b => { const a = billAmount(b); return b.cadence === 'Yearly' ? a / 12 : b.cadence === 'Weekly' ? a * 52 / 12 : b.cadence === 'Every N months' ? a / (num(b.every) || 1) : a; };
 const fixedMonthly = () => recs('fbills').filter(b => b.active !== false && (!b.ends || b.ends >= today())).reduce((n, b) => n + monthlyOf(b), 0);
 const goalNamed = re => recs('fgoals').find(g => re.test(g.name || ''));
 const tlDone = d => { try { return new Set(JSON.parse(localStorage.getItem('tl:' + d) || '[]')); } catch { return new Set(); } };
