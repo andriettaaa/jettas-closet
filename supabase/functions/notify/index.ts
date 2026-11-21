@@ -13,7 +13,7 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
 // the same defaults the Settings page shows
 const DEF: Record<string, { on: boolean; time?: string }> = {
   morning: { on: true, time: '07:30' }, evening: { on: true, time: '21:30' }, bills: { on: true, time: '18:00' },
-  payday: { on: true, time: '09:00' }, weekly: { on: true, time: '19:00' }, weekahead: { on: true, time: '19:30' }, shopask: { on: true, time: '19:00' }, reminders: { on: true, time: '10:00' }, content: { on: true, time: '09:00' }, skindiary: { on: true, time: '10:00' }, freezer: { on: true, time: '17:00' }, shopday: { on: true, time: '10:00' }, eatbf: { on: true, time: '09:30' }, eatlunch: { on: true, time: '12:45' }, eatsnack: { on: true, time: '15:30' }, foodweek: { on: true, time: '18:00' }, movelist: { on: true, time: '19:15' }, socialweek: { on: true, time: '18:30' },
+  payday: { on: true, time: '09:00' }, weekly: { on: true, time: '19:00' }, weekahead: { on: true, time: '19:30' }, shopask: { on: true, time: '19:00' }, reminders: { on: true, time: '10:00' }, content: { on: true, time: '09:00' }, skindiary: { on: true, time: '10:00' }, freezer: { on: true, time: '17:00' }, shopday: { on: true, time: '10:00' }, eatbf: { on: true, time: '09:30' }, eatlunch: { on: true, time: '12:45' }, eatsnack: { on: true, time: '15:30' }, foodweek: { on: true, time: '18:00' }, movelist: { on: true, time: '19:15' }, socialweek: { on: true, time: '18:30' }, fillstep: { on: true, time: '20:00' },
   budget: { on: true }, applepay: { on: true }, progress: { on: true, time: '08:00' }, period: { on: true, time: '08:00' }
 };
 type Rec = Record<string, any> & { id: string; kind: string };
@@ -352,6 +352,34 @@ function dayTimes(prefs: any, day: string) {
   const bed = Math.min(wake(addDays(day, 1)) + 1440 - (Number(c.sleep) || 8) * 60, 1470);
   return { wake: wake(day), bed, tomorrowOffice: office.includes(WD[new Date(addDays(day, 1) + 'T12:00:00Z').getUTCDay()]), wakeTomorrow: wake(addDays(day, 1)) };
 }
+// weekdays from 23 Nov to 18 Dec 2026: the step of today from the fill-in plan (15 minutes), with a link to the page
+const FILLPLAN: [string, string, string, string][] = [
+  ['2026-11-23', 'Neem alle suggesties over', 'Closet › To do, Group by "Missing field", tik per groep op "Take all suggestions".', 'todo'],
+  ['2026-11-24', 'Seizoen in een keer', 'Group by Type, "Select all" per groep, kies Season in de balk.', 'todo'],
+  ['2026-11-25', 'Gelegenheid in een keer', 'Hetzelfde als gisteren, nu met Occasion.', 'todo'],
+  ['2026-11-26', 'Kleur en materiaal, 15 stuks', 'One by one, filter op Colour of Material, kijk op het label.', 'todo'],
+  ['2026-11-27', 'Foto\'s van stukken zonder foto', 'Filter op Photo en maak 5 tot 10 foto\'s.', 'todo'],
+  ['2026-11-30', 'Check je voorraadkast', 'Tik op "Check pantry": Enough, Almost out of Out.', 'kitchen/pantry'],
+  ['2026-12-01', 'Check huishouden en vriezer', 'Tik op "Check household" en daarna op "Check freezer".', 'kitchen/pantry'],
+  ['2026-12-02', 'Soort en bewaarplek', 'Kitchen › To do, Ingredients: tik op "Let Claude fill in" of vul Category en Kept in.', 'kitchen/todo'],
+  ['2026-12-03', 'Links bij recepten zonder stappen', 'Plak bij recepten zonder stappen of foto de link van het origineel.', 'kitchen/todo'],
+  ['2026-12-04', 'Cijfer voor wat je al kookte', 'One by one: Rating en Feels like.', 'kitchen/todo'],
+  ['2026-12-07', 'Check je beautyproducten', 'Tik op "Check beauty" en ga kaartje voor kaartje.', 'care/beauty'],
+  ['2026-12-08', 'Beauty laten aanvullen', 'Body › To do, Beauty: tik op "Let Claude fill in".', 'body/todo'],
+  ['2026-12-09', 'Je routine: ochtend of avond', 'Zet Morning of evening en de Step in je routine.', 'care/skin'],
+  ['2026-12-10', 'Wat de nachtronde niet vond', 'Body › To do, Beauty: plak een link bij wat nog leeg is.', 'body/todo'],
+  ['2026-12-11', 'Huiddagboek en parfum', 'Een korte notitie in je huiddagboek, en een Scent family bij je parfums.', 'care/diary'],
+  ['2026-12-14', 'Deel je workoutvideo\'s', 'Deel 3 tot 5 video\'s met Naar A\'s Life.', 'fit/library'],
+  ['2026-12-15', 'Oefeningen laten aanvullen', 'Body › To do, Exercises: tik op "Let Claude fill in".', 'body/todo'],
+  ['2026-12-16', 'Supplementen', 'Tik op "Let Claude fill in", vul zelf Amount, When to take en Use before.', 'body/todo'],
+  ['2026-12-17', 'Afspraken en check in', 'Zet je volgende afspraken met tijd, plek en bij wie. Doe een check in.', 'care/health'],
+  ['2026-12-18', 'Sportspullen', 'Tik op "Check things", vul daarna Category en een foto.', 'fit/gear']
+];
+function fillstep(today: string) {
+  const i = FILLPLAN.findIndex(s => s[0] === today); if (i < 0) return null;
+  const [, t, how, page] = FILLPLAN[i];
+  return { title: `Je kwartiertje: ${t}`, body: `Stap ${i + 1} van ${FILLPLAN.length}. ${how}`, url: `./#${page}`, tag: 'fillstep' };
+}
 const clock = (m: number) => `${String(Math.floor(((m % 1440) + 1440) % 1440 / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 // half an hour before bed: wind down, what's left for tonight, when the alarm goes
 function bedtime(recs: Rec[], prefs: any, day: string, wd: string) {
@@ -364,7 +392,7 @@ function bedtime(recs: Rec[], prefs: any, day: string, wd: string) {
 const BUNDLES: Record<string, string[]> = {
   morning: ['morning', 'content', 'reminders', 'shopday', 'eatbf', 'payday', 'skindiary', 'freezer', 'progress', 'period'],
   midday: ['eatlunch', 'eatsnack', 'bills'],
-  evening: ['shopask', 'weekly', 'weekahead', 'socialweek', 'foodweek', 'movelist'],
+  evening: ['fillstep', 'shopask', 'weekly', 'weekahead', 'socialweek', 'foodweek', 'movelist'],
   bedtime: ['bedtime']
 };
 const SUNDAY = ['weekly', 'weekahead', 'socialweek', 'skindiary', 'freezer', 'foodweek', 'shopask'];
@@ -377,7 +405,7 @@ async function runUser(uid: string, prefs: any, force = false, only: string[] | 
     : k === 'bills' ? bills(recs, now.day) : k === 'payday' ? payday(recs, now.day) : k === 'weekahead' ? weekahead(recs, prefs, now.day)
     : k === 'reminders' ? reminders(recs, prefs, now.day) : k === 'content' ? content(recs, now.day) : k === 'socialweek' ? socialweek(recs, now.day) : k === 'skindiary' ? skindiary(recs, now.day) : k === 'progress' ? progress(recs, prefs, now.day) : k === 'period' ? period(recs, now.day) : k === 'freezer' ? freezer(recs, now.day)
     : k === 'shopday' ? shopday(recs, prefs, now.wd, now.day) : k === 'shopask' ? shopAsk(prefs, now.day) : k === 'eatbf' ? eatNudge(recs, now.day, 'Breakfast') : k === 'eatlunch' ? eatNudge(recs, now.day, 'Lunch') : k === 'eatsnack' ? eatNudge(recs, now.day, 'snack')
-    : k === 'foodweek' ? foodweek(recs, now.day, prefs) : k === 'movelist' ? movelist(recs, now.day, prefs) : k === 'bedtime' ? bedtime(recs, prefs, now.day, now.wd) : k === 'weekly' ? weekly(recs, now.day) : null;
+    : k === 'foodweek' ? foodweek(recs, now.day, prefs) : k === 'movelist' ? movelist(recs, now.day, prefs) : k === 'bedtime' ? bedtime(recs, prefs, now.day, now.wd) : k === 'weekly' ? weekly(recs, now.day) : k === 'fillstep' ? fillstep(now.day) : null;
   let sent = 0;
   if (cfg.bundle?.on !== false && cfg.bundle !== false) {
     // at most four a day: a morning, midday, evening and bedtime message that each gather what's due
@@ -396,7 +424,7 @@ async function runUser(uid: string, prefs: any, force = false, only: string[] | 
     return sent;
   }
   const due = (k: string) => { if (k === 'bedtime') return inHour(Math.min(dt.bed - 30, 1410)); const c = { ...DEF[k], ...(cfg[k] || {}) }; if (!c.time) return false; return inHour(toMins(c.time) + (['eatbf', 'eatlunch'].includes(k) && wkend ? 60 : 0)); };
-  const slots = only ? only : ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders', 'content', 'socialweek', 'skindiary', 'progress', 'period', 'freezer', 'shopday', 'eatbf', 'eatlunch', 'eatsnack', 'foodweek', 'movelist', 'bedtime'].filter(k => on(k) && due(k));
+  const slots = only ? only : ['morning', 'evening', 'bills', 'payday', 'weekly', 'weekahead', 'reminders', 'content', 'socialweek', 'skindiary', 'progress', 'period', 'freezer', 'shopday', 'eatbf', 'eatlunch', 'eatsnack', 'foodweek', 'movelist', 'fillstep', 'bedtime'].filter(k => on(k) && due(k));
   if (!slots.length) return 0;
   const recs = await loadAll(uid);
   for (const k of slots) {
