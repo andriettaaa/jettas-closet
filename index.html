@@ -2165,7 +2165,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v182';
+const APP_VERSION = 'hangtag-v183';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2665,7 +2665,7 @@ function renderTodo(host) {
     body = groups.map(g => `<section class="tdgroup">${groupHead(g)}<div class="grid">${g.list.map(({ it, miss }) => `<div class="todocard">${chk(it.id)}${itemCard(it)}<p class="todomiss">${miss.map(m => `<span class="${m[0] === T.field ? 'on' : ''}">${m[1]}</span>`).join('')}</p></div>`).join('')}</div></section>`).join('');
   }
   const bulkFields = TD_FIELDS.filter(f => f[0] !== 'name');
-  host.innerHTML = `<div class="viewhead"><h1>To do</h1><span class="sub">${total ? `${pieces.length} of ${total} pieces miss something` : ''}</span></div>
+  host.innerHTML = `<div class="viewhead"><h1>To do</h1><span class="sub">${pieces.length} to do</span></div>
     ${pieces.length ? `<div class="tools tdtools">
       <div class="seg" role="group" aria-label="View">${TD_VIEWS.map(([k, l]) => `<button data-tdview="${k}" aria-pressed="${T.view === k}">${l}</button>`).join('')}</div>
       <label class="tdpick"><span>Group by</span><select class="pill" data-tdgroup>${TD_GROUPS.map(([k, l]) => `<option value="${k}" ${T.group === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
