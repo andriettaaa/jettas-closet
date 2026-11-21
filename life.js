@@ -515,7 +515,7 @@ const KINDS = {
     fields: [F('date', 'Date', 'date', { half: 1 }), F('slot', 'Meal', 'select', { options: MEALS, half: 1 }),
       F('recipe', 'Recipe', 'rel', { to: 'recipes' }), F('what', 'Or just write what you eat'), F('away', 'Not eating at home', 'check'), F('leftover', 'Leftovers', 'select', { options: ['None', 'Fridge', 'Freezer'], half: 1 }),
       F('ate', 'Eaten', 'check', { half: 1 }), F('photo', 'Photo of what you ate', 'photo'), F('notes', 'Notes', 'long')],
-    title: r => relName(r.recipe) || r.what || (r.away ? 'Not at home' : '') || r.slot || 'Meal',
+    title: r => ((r.parts || []).length > 1 ? partsTitle(r.parts) : '') || relName(r.recipe) || r.what || (r.away ? 'Not at home' : '') || r.slot || 'Meal',
     sorts: [['-date', 'Newest']], sub: r => [r.date && niceDate(r.date), r.slot].filter(Boolean).join(' · ')
   },
   mealprep: {
@@ -807,6 +807,7 @@ const KINDS = {
       F('ramp', 'Plan: one line per step, like 2026-11-22: Sun', 'long', { rows: 4 }), F('days', 'Or simply on', 'multi', { options: WEEKDAYS }), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z']], sub: r => [r.type, r.when || 'Evening', r.minutes ? r.minutes + ' min' : ''].filter(Boolean).join(' · ')
   },
+  mealcombos: { one: 'combination', many: 'Meal combinations', title: r => r.name || partsTitle(r.parts) || 'Combination', fields: [F('name', 'Name'), F('slot', 'Meal', 'select', { options: MEALS, half: 1 }), F('notes', 'Notes', 'long')], sub: r => partsTitle(r.parts) },
   fwins: { one: 'small win', many: 'Small wins', title: r => `Small wins ${r.date || ''}`, fields: [F('date', 'Date', 'date')], sub: r => `${(r.done || []).length} of ${(r.picks || []).length}` },
   restips: { one: 'tip', many: 'Tips', title: r => r.title || 'Tip', fields: [F('title', 'Title'), F('text', 'Text', 'long', { rows: 6 }), F('url', 'Link (optional)', 'url'), F('group', 'Block', 'text')], sorts: [['order', 'Your order']], sub: r => [r.area, r.group].filter(Boolean).join(' · ') },
   resarea: { one: 'resources tab', many: 'Resources tabs', fields: [F('area', 'Tab')], title: r => r.area || 'Resources' },
@@ -981,11 +982,11 @@ const KINDS = {
     fields: [F('name', 'Name'), F('amount', 'Amount', 'money', { half: 1 }), F('type', 'Type', 'select', { options: ['Bill', 'Subscription', 'Insurance', 'Debt'], half: 1 }),
       F('cadence', 'How often', 'select', { options: ['Monthly', 'Every N months', 'Yearly', 'Weekly'], half: 1 }), F('every', 'Every how many', 'num', { half: 1 }),
       F('anchor', 'First due', 'date', { half: 1 }), F('ends', 'Ends', 'date', { half: 1 }),
-      F('auto', 'Paid automatically (direct debit)', 'check'),
+      F('auto', 'Paid automatically (direct debit)', 'check', { half: 1 }), F('varies', 'Amount changes each time', 'check', { half: 1 }),
       F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 }), F('category', 'Category', 'rel', { to: 'fcats', half: 1 }),
       F('debt', 'Pays off debt', 'rel', { to: 'fdebts', half: 1 }), F('pot', 'Comes out of pot', 'rel', { to: 'faccounts', half: 1 }), F('trialEnds', 'Free trial ends', 'date', { half: 1 }), F('active', 'Active', 'check', { half: 1 }), F('url', 'Link', 'url'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['-amount', 'Biggest']], hide: r => r.active === false, hideLabel: 'Show stopped',
-    sub: r => { const n = fNext(r); return [r.type, fCadence(r), r.auto ? 'automatic' : '', n ? 'next ' + niceDate(n) : 'no next date'].filter(Boolean).join(' · '); },
+    sub: r => { const n = fNext(r); return [r.type, fCadence(r), r.auto ? 'automatic' : '', r.varies ? `varies, about ${eur(billAmount(r))}` : '', n ? 'next ' + niceDate(n) : 'no next date'].filter(Boolean).join(' · '); },
     side: r => eur(num(r.amount)),
     quick: r => { const o = fOpenOcc(r); return o ? { on: false, label: 'Mark as paid', act: () => fPayOcc(o) } : null; },
     // what the repeats you see cost together; stopped ones don't count
@@ -3302,9 +3303,13 @@ function fDates(b, from, to) {
   return out;
 }
 const fNext = b => fDates(b, today(), addMonths(today(), 25))[0] || null;
+/* a repeat whose amount changes each time (energy, a credit card): what it really cost, from the times you paid it,
+   and what the app counts on ahead: the average of the last three, or the amount you set while there is no history */
+const billPaid = b => recs('fpaid').filter(p => p.bill === b.id && p.paid).map(p => ({ date: p.date, amount: num(p.amount) ?? num(L.byId[p.tx]?.amount) })).filter(x => x.amount != null).sort((x, y) => String(y.date).localeCompare(String(x.date)));
+function billAmount(b) { if (!b.varies) return num(b.amount) || 0; const l = billPaid(b).slice(0, 3); return l.length ? Math.round(100 * l.reduce((n, x) => n + x.amount, 0) / l.length) / 100 : num(b.amount) || 0; }
 function fOccs(from, to) {
-  const pm = new Map(recs('fpaid').map(p => [p.occ, p]));
-  return recs('fbills').flatMap(b => fDates(b, from, to).map(d => { const key = b.id + '@' + d, p = pm.get(key); return { key, bill: b, date: d, amount: num(b.amount) || 0, type: b.type || 'Bill', paid: !!p?.paid, skipped: !!p?.skipped }; }))
+  const pm = new Map(recs('fpaid').map(p => [p.occ, p])), amt = new Map(recs('fbills').map(b => [b.id, billAmount(b)]));
+  return recs('fbills').flatMap(b => fDates(b, from, to).map(d => { const key = b.id + '@' + d, p = pm.get(key); return { key, bill: b, date: d, amount: p?.paid && num(p.amount) != null ? num(p.amount) : amt.get(b.id) || 0, type: b.type || 'Bill', paid: !!p?.paid, skipped: !!p?.skipped }; }))
     .sort((a, b) => a.date.localeCompare(b.date) || b.amount - a.amount);
 }
 const fMoved = x => !!(x.category && L.byId[x.category]?.nospend);
@@ -3322,8 +3327,11 @@ function fState() {
   const checks = recs('fchecks'), lastCheck = checks.reduce((m, c) => (c.at || '') > m ? c.at : m, '');
   return { t, pay, start, buf, accs, bal, safeIds, inAcc, due, overdue, billsBefore, until, days, perDay: until / days, counts, lastCheck };
 }
-async function fPayOcc(o, auto = false) {
+async function fPayOcc(o, auto = false, real = null) {
   const b = o.bill, on = auto ? o.date : today();
+  // a repeat that varies asks what it really cost, with the expected amount filled in
+  if (b.varies && !auto && real == null) { const v = num(String(prompt(`What did ${b.name} cost this time?`, (Math.round(o.amount * 100) / 100).toFixed(2)) ?? '').replace(/[\s€]/g, '').replace(',', '.')); if (v == null) return; real = v; }
+  if (real != null) o = { ...o, amount: real };
   try {
     const pot = b.pot && b.pot !== b.account && L.byId[b.pot]?.kind === 'faccounts' ? b.pot : '';
     if (pot) {
@@ -3331,7 +3339,7 @@ async function fPayOcc(o, auto = false) {
       if (b.account) await create('fincome', { name: `${b.name}: from ${L.byId[pot].name || 'pot'}`, amount: o.amount, date: on, account: b.account, type: 'Other', transfer: true, confirmed: true, potFor: o.key });
     }
     const tx = await create('ftx', { name: b.name, amount: o.amount, date: on, category: b.category || '', account: b.account || '', bill: o.key, debt: b.debt || '', ...(auto ? { auto: true } : {}) });
-    await create('fpaid', { occ: o.key, bill: b.id, date: o.date, paid: true, paidOn: on, tx, ...(auto ? { auto: true } : {}) });
+    await create('fpaid', { occ: o.key, bill: b.id, date: o.date, paid: true, paidOn: on, tx, amount: o.amount, ...(auto ? { auto: true } : {}) });
     if (!auto) C.toast(`${b.name} marked paid`);
   } catch { C.toast('Could not save. Try again.'); }
 }
@@ -3716,8 +3724,8 @@ function moneyReviews(host) {
    Money you put into a pot is a move to your own savings (category "Not spending"), money from a pot is a transfer. */
 const potOf = b => b.pot && L.byId[b.pot]?.kind === 'faccounts' ? L.byId[b.pot] : null;
 // a bill covered by its pot, as long as the pot holds enough (or you never checked its balance)
-const potCovers = o => { const p = potOf(o.bill); if (!p) return false; const bal = fBalance(p); return bal == null || bal >= (num(o.amount ?? o.bill.amount) || 0); };
-const perMonth = b => { const a = num(b.amount) || 0; return b.cadence === 'Yearly' ? a / 12 : b.cadence === 'Every N months' ? a / (num(b.every) || 1) : b.cadence === 'Weekly' ? a * 52 / 12 / (num(b.every) || 1) : a; };
+const potCovers = o => { const p = potOf(o.bill); if (!p) return false; const bal = fBalance(p); return bal == null || bal >= (num(o.amount) ?? billAmount(o.bill)); };
+const perMonth = b => { const a = billAmount(b); return b.cadence === 'Yearly' ? a / 12 : b.cadence === 'Every N months' ? a / (num(b.every) || 1) : b.cadence === 'Weekly' ? a * 52 / 12 / (num(b.every) || 1) : a; };
 // every subscription with what it costs a year, and a heads-up before a free trial turns into a payment
 function subsPanel() {
   const t = today(), subs = recs('fbills').filter(b => b.type === 'Subscription' && b.active !== false).map(b => ({ b, y: perMonth(b) * 12 })).sort((a, c) => c.y - a.y);
@@ -3904,8 +3912,8 @@ function moneyToday(host) {
 
 function weekStart(offset) { const d = new Date(); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd + offset * 7); return iso(d); }
 // meal plan clean-up: a second copy of the same dish on the same day and meal, and empty meals (no dish and not eating out)
-const mealKey = m => [m.date, m.slot, m.away ? 'away' : m.recipe || String(m.what || '').trim().toLowerCase()].join('|');
-const mealEmpty = m => !m.away && !m.recipe && !String(m.what || '').trim() && !m.leftover;
+const mealKey = m => [m.date, m.slot, m.away ? 'away' : (m.parts || []).length > 1 ? 'parts:' + partsTitle(m.parts).toLowerCase() : m.recipe || String(m.what || '').trim().toLowerCase()].join('|');
+const mealEmpty = m => !m.away && !m.recipe && !String(m.what || '').trim() && !m.leftover && !(m.parts || []).length;
 function mealJunk() {
   const seen = new Set(), out = [];
   for (const m of [...recs('meals')].sort((a, b) => (a.created || 0) - (b.created || 0))) {
@@ -3995,22 +4003,86 @@ async function quickAdd(form) {
   inp.value = '';
   if (hit) save(hit, { list: true }); else create('ingredients', { name, list: true, stock: false }).catch(() => {});
 }
-function openSlot(date, slot) {
-  const st = { q: '', f: 'fit' };
-  const sh = C.sheet({ title: `${slot} on ${dayName(date)} ${shortDate(date)}`, wide: true, body: '<div data-slotbody></div>' });
-  const draw = () => { const host = sh.querySelector('[data-slotbody]'), y = host.querySelector('.wpgrid')?.scrollTop || 0; host.innerHTML = mealPickBody(slot, st.q, st.f); const g = host.querySelector('.wpgrid'); if (g) g.scrollTop = y; };
+/* ---------- a meal made of parts ----------
+   A dinner can be one recipe, or a few parts that together make the meal: a main (meat, fish, vegetarian), vegetables,
+   a base (rice, pasta, potatoes) and a sauce or extra. Each part is a recipe or just a name. A set of parts you like can
+   be saved as a combination (kind mealcombos) and planned again in one tap. The meal keeps the main part's recipe in
+   "recipe", so everything that looks at a meal's recipe keeps working. */
+const MEAL_PARTS = [['main', 'Hoofd', '🍗'], ['veg', 'Groente', '🥦'], ['base', 'Basis', '🍚'], ['extra', 'Saus en extra', '🥣']];
+const PART_FIT = {
+  main: /kip|chicken|vlees|beef|rund|gehakt|varken|pork|lam|vis|fish|zalm|salmon|tonijn|garnal|shrimp|tofu|tempeh|ei\b|eggs?\b|kalkoen|turkey|vega|bonen|beans|linzen|lentil|kikkererwt|chickpea/,
+  veg: /groente|vegetable|salade|salad|broccoli|spinazie|spinach|bonen|sperzie|green beans|wortel|carrot|courgette|paprika|bloemkool|cauliflower|spruit|sprout|kool|cabbage|asperge|aubergine|champignon|mushroom|pompoen|pumpkin/,
+  base: /rijst|rice|pasta|noodle|mie|spaghetti|aardappel|potato|friet|fries|couscous|quinoa|bulgur|brood|bread|wrap|tortilla|roti|naan|polenta|gnocchi/,
+  extra: /saus|sauce|dip|dressing|salsa|chutney|sambal|jus|gravy|raita|tzatziki|hummus|pesto|toetje|dessert/
+};
+const mealRecipeIds = m => [...new Set([m.recipe, ...[].concat(m.parts || []).map(p => p.recipe)].filter(id => id && L.byId[id]))];
+const partName = p => (p.recipe && L.byId[p.recipe] ? titleOf(L.byId[p.recipe]) : p.what) || '';
+const partsTitle = parts => [].concat(parts || []).map(partName).filter(Boolean).join(' · ');
+function partScore(r, k) {
+  const re = PART_FIT[k], txt = norm([titleOf(r), r.category, r.dish, ...[].concat(r.ingredients || []).map(id => L.byId[id]?.name || ''), ...[].concat(r.ilines || []).map(x => typeof x === 'string' ? x : x?.n || '')].join(' '));
+  const cat = { veg: ['Side Dish'], base: ['Side Dish'], extra: ['Sauce & Condiment', 'Dessert'], main: ['Dinner', 'Lunch'] }[k] || [];
+  // the name or ingredients have to fit the part; the category only helps among those (a main may also just be a dinner)
+  const hit = (re.test(norm(titleOf(r))) ? 3 : 0) + (re.test(txt) ? 1 : 0);
+  return hit || k === 'main' ? hit + (cat.includes(r.category) ? 2 : 0) : 0;
+}
+function mealBuilder(date, slot, mealId) {
+  const m = mealId ? L.byId[mealId] : null;
+  const S = { mode: m?.parts?.length || slot === 'Dinner' ? 'parts' : 'whole', parts: Object.fromEntries(MEAL_PARTS.map(([k]) => [k, { ...([].concat(m?.parts || []).find(p => p.role === k) || {}) }])), open: '', q: '', all: false, save: false, cname: '' };
+  const combos = () => recs('mealcombos').sort((a, b) => (num(b.used) || 0) - (num(a.used) || 0) || azCmp(titleOf(a), titleOf(b)));
+  const filled = () => MEAL_PARTS.map(([k]) => ({ role: k, ...S.parts[k] })).filter(p => p.recipe || (p.what || '').trim());
+  const tiles = k => {
+    const q = norm(S.q), rs = recs('recipes').filter(r => !q || norm(titleOf(r)).includes(q)).map(r => ({ r, s: partScore(r, k) }));
+    const fit = rs.filter(x => x.s > 0).sort((a, b) => b.s - a.s || azCmp(titleOf(a.r), titleOf(b.r))), rest = rs.filter(x => !x.s).sort((a, b) => azCmp(titleOf(a.r), titleOf(b.r)));
+    const show = S.all || q ? [...fit, ...rest] : fit;
+    return `<input class="finp" type="search" data-mbq placeholder="Search your recipes" value="${esc(S.q)}" autocomplete="off" data-nosug>
+      <div class="lgrid wpgrid mbgrid">${show.slice(0, 60).map(({ r }) => pickTile(r, 'data-mbset', [r.category, (num(r.prep) || 0) + (num(r.cook) || 0) ? `${(num(r.prep) || 0) + (num(r.cook) || 0)} min` : ''].filter(Boolean).join(' · '), '')).join('') || quiet('No recipe fits yet.')}</div>
+      ${!S.all && !q && rest.length ? `<button class="btn small" data-mball>All recipes (${rs.length})</button>` : ''}
+      <form class="lqadd" data-mbtext><input type="text" placeholder="Or just write it, like “rijst” or “salade”" value="${esc(S.parts[k].what || '')}" autocomplete="off" data-nosug><button class="btn small" type="submit">Use this</button></form>`;
+  };
+  const row = ([k, label, emo]) => { const p = S.parts[k], name = partName(p);
+    return `<div class="mbpart ${S.open === k ? 'open' : ''}"><button class="lrow mbrow" data-mbopen="${k}"><span class="mbemo" aria-hidden="true">${emo}</span><span class="lmain"><b>${esc(label)}</b><span>${name ? esc(name) : 'Nothing yet'}</span></span>${name ? `<span class="chip" data-mbclear="${k}" role="button" aria-label="Clear ${esc(label)}">✕</span>` : '<span class="chip">Choose</span>'}</button>${S.open === k ? `<div class="mbpick">${tiles(k)}</div>` : ''}</div>`; };
+  const draw = () => {
+    const c = combos(), host = sh.querySelector('[data-mbbody]');
+    host.innerHTML = `<div class="seg mbseg" role="group" aria-label="How to plan this meal">${[['parts', 'Parts'], ['whole', 'One recipe'], ['combo', `Combinations${c.length ? ' (' + c.length + ')' : ''}`]].map(([k, l]) => `<button data-mbmode="${k}" aria-pressed="${S.mode === k}">${l}</button>`).join('')}</div>
+      ${S.mode === 'whole' ? mealPickBody(slot, S.q, S.f || 'fit')
+      : S.mode === 'combo' ? (c.length ? `<div class="lrows">${c.map(x => `<div class="lrow"><button class="lmain" data-mbcombo="${x.id}"><b>${esc(titleOf(x))}</b><span>${esc(partsTitle(x.parts))}</span></button><button class="btn small" data-mbcombo="${x.id}">Plan</button><button class="btn small" data-act="open" data-id="${x.id}" aria-label="Edit ${esc(titleOf(x))}">✏️</button></div>`).join('')}</div>` : quiet('No combinations yet. Build a meal from parts and save it as a combination.'))
+      : `<div class="lrows mbparts">${MEAL_PARTS.map(row).join('')}</div>
+        <label class="settog mbsave"><input type="checkbox" data-mbsave ${S.save ? 'checked' : ''}> Save as a combination</label>
+        ${S.save ? `<input class="finp" data-mbcname placeholder="Name, like Kip met rijst" value="${esc(S.cname || partsTitle(filled()))}" data-nosug>` : ''}
+        <div class="dbtns"><button class="btn primary" data-mbgo ${filled().length ? '' : 'disabled'}>Plan this meal</button><button class="btn small" data-wpmealaway>Not eating at home</button></div>`}`;
+  };
+  const sh = C.sheet({ title: `${slot} on ${dayName(date)} ${shortDate(date)}`, wide: true, body: '<div data-mbbody></div>' });
+  const plan = async (data, msg) => { try { if (m) await put('meals', m.id, { ...dataOf(m), ...data, date, slot }); else await create('meals', { date, slot, ...data }); C.closeSheet(); if (msg) C.toast(msg); } catch { C.toast('Could not save. Try again.'); } };
+  const asMeal = parts => { const main = parts.find(p => p.role === 'main' && p.recipe) || parts.find(p => p.recipe); return { parts, recipe: main?.recipe || '', what: main ? '' : partsTitle(parts) }; };
   draw();
   sh.addEventListener('ingchange', e => { e.preventDefault(); draw(); });
-  sh.addEventListener('input', e => { if (!e.target.matches('[data-wpmealq]')) return; st.q = e.target.value; const pos = e.target.selectionStart; draw(); const inp = sh.querySelector('[data-wpmealq]'); inp?.focus(); inp?.setSelectionRange(pos, pos); });
-  sh.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
-    if (d.wpmealf) { st.f = d.wpmealf; draw(); return; }
-    if (d.wpmealset) { create('meals', { date, slot, recipe: d.wpmealset }).catch(() => {}); C.closeSheet(); return; }
-    if (b.hasAttribute('data-wpmealaway')) { create('meals', { date, slot, away: true }).catch(() => {}); C.closeSheet(); return; }
-    if (b.hasAttribute('data-wpmealclose')) C.closeSheet(); });
-  sh.addEventListener('submit', async e => { if (!e.target.closest('[data-wpmealnew]')) return; e.preventDefault(); const n = e.target.querySelector('input').value.trim(); if (!n) return;
-    try { const rid = await create('recipes', { name: n, category: slot, totry: true }); await create('meals', { date, slot, recipe: rid }); C.toast('New recipe added. Fill it in after cooking.'); } catch { C.toast('Could not save. Try again.'); }
-    C.closeSheet(); });
+  sh.addEventListener('input', e => { const t = e.target;
+    if (t.matches('[data-mbq], [data-wpmealq]')) { S.q = t.value; const pos = t.selectionStart, sel = t.matches('[data-mbq]') ? '[data-mbq]' : '[data-wpmealq]'; draw(); const i = sh.querySelector(sel); i?.focus(); i?.setSelectionRange(pos, pos); }
+    if (t.matches('[data-mbcname]')) S.cname = t.value; });
+  sh.addEventListener('change', e => { if (e.target.matches('[data-mbsave]')) { S.save = e.target.checked; draw(); } });
+  sh.addEventListener('submit', async e => { e.preventDefault(); const f = e.target;
+    if (f.matches('[data-mbtext]')) { const v = f.querySelector('input').value.trim(); if (!v) return; S.parts[S.open] = { what: v }; S.open = ''; S.q = ''; draw(); return; }
+    if (f.matches('[data-wpmealnew]')) { const n = f.querySelector('input').value.trim(); if (!n) return; try { const rid = await create('recipes', { name: n, category: slot, totry: true }); await plan({ recipe: rid, parts: [] }, 'New recipe added. Fill it in after cooking.'); } catch { C.toast('Could not save. Try again.'); } } });
+  sh.addEventListener('click', async e => {
+    const b = e.target.closest('button, [data-mbclear]'); if (!b) return; const d = b.dataset;
+    if (d.mbclear) { e.stopPropagation(); S.parts[d.mbclear] = {}; draw(); return; }
+    if (d.mbmode) { S.mode = d.mbmode; S.q = ''; draw(); return; }
+    if (d.mbopen) { S.open = S.open === d.mbopen ? '' : d.mbopen; S.q = ''; S.all = false; draw(); return; }
+    if (b.hasAttribute('data-mball')) { S.all = true; draw(); return; }
+    if (d.mbset) { S.parts[S.open] = { recipe: d.mbset }; S.open = ''; S.q = ''; draw(); return; }
+    if (d.wpmealf) { S.f = d.wpmealf; draw(); return; }
+    if (d.wpmealset) { await plan({ recipe: d.wpmealset, parts: [], what: '' }); return; }
+    if (b.hasAttribute('data-wpmealaway')) { await plan({ away: true, recipe: '', parts: [] }); return; }
+    if (b.hasAttribute('data-wpmealclose')) { C.closeSheet(); return; }
+    if (d.mbcombo) { const c = L.byId[d.mbcombo]; if (!c) return; save(c, { used: (num(c.used) || 0) + 1 }); await plan(asMeal([].concat(c.parts || [])), `${titleOf(c)} planned`); return; }
+    if (b.hasAttribute('data-mbgo')) {
+      const parts = filled(); if (!parts.length) return;
+      if (S.save) { const name = (S.cname || partsTitle(parts)).trim(); await create('mealcombos', { name, parts, slot, used: 1 }).catch(() => {}); }
+      await plan(asMeal(parts), S.save ? 'Planned and saved as a combination' : '');
+    }
+  });
 }
+function openSlot(date, slot) { mealBuilder(date, slot); }
 function openRecipe(r) {
   const ings = [].concat(r.ingredients || []).map(id => L.byId[id]).filter(Boolean);
   const missing = ings.filter(i => !i.stock && !i.list), pr = parseRecipe(r), base = Math.max(1, Math.round(num(r.servings) || 2));
@@ -5906,7 +5978,7 @@ addEventListener('resize', () => SUG.hide());
 
 function mealPicker(wk) {
   const [d, slot] = String(L.wpMeal || '').split('|'); if (!d) return '';
-  return `<div class="panel wppick"><p><b>${esc(slot)} on ${esc(niceDate(d))}</b></p>${mealPickBody(slot, L.wpMealQ || '', L.wpMealF || 'fit')}</div>`;
+  return `<div class="panel wppick"><p><b>${esc(slot)} on ${esc(niceDate(d))}</b> <button class="btn small" data-act="mealparts" data-d="${d}" data-v="${esc(slot)}">🧩 From parts or a combination</button></p>${mealPickBody(slot, L.wpMealQ || '', L.wpMealF || 'fit')}</div>`;
 }
 function mealPickBody(slot, qRaw, f) {
   const q = norm(qRaw || ''), soon = new Set(recs('ingredients').filter(useSoon).map(r => r.id));
@@ -5942,9 +6014,9 @@ function workPicker() {
     <div class="dbtns"><button class="btn small" data-wpworkrest>Rest day</button><button class="btn small" data-wpworkclose>Close</button></div></div>`;
 }
 function missingFor(wk) {
-  const meals = recs('meals').filter(m => wpIn(m.date, wk) && m.recipe && L.byId[m.recipe]);
+  const meals = recs('meals').filter(m => wpIn(m.date, wk) && mealRecipeIds(m).length);
   const ids = new Set(), names = new Map();
-  for (const m of meals) { const r = L.byId[m.recipe]; for (const id of [].concat(r.ingredients || [])) { const i = L.byId[id]; if (i && !i.stock && !i.list) ids.add(id); }
+  for (const m of meals) for (const r of mealRecipeIds(m).map(id => L.byId[id])) { for (const id of [].concat(r.ingredients || [])) { const i = L.byId[id]; if (i && !i.stock && !i.list) ids.add(id); }
     for (const x of [].concat(r.ilines || []).filter(x => x && x.n && !x.h)) { const n = norm(x.n); const have = recs('ingredients').find(i => norm(i.name) === n); if (!have) names.set(n, x.n); else if (!have.stock && !have.list) ids.add(have.id); } }
   return { ids: [...ids], names: [...names.values()].slice(0, 30) };
 }
@@ -6624,7 +6696,7 @@ document.addEventListener('click', async e => {
     case 'afflook': C.savePrefs({ affLook: d.v }).catch(() => C.toast('Opslaan lukte niet. Probeer het opnieuw.')); break;
     case 'quitset': quitSet(); break;
     case 'chfree': { const c = C.prefs().chores || {}, f = new Set(c.free || []); f.has(d.v) ? f.delete(d.v) : f.add(d.v); C.savePrefs({ chores: { ...c, free: WDAYS.filter(x => f.has(x)) } }).catch(() => C.toast('Could not save. Try again.')); break; }
-    case 'potmove': { const b = L.byId[d.v], n = b && fNext(b); if (!b) break; const to = b.account || fMainAcc()?.id; moveMoney({ from: d.id, to, amt: num(b.amount) || '', date: n ? (addDays(n, -1) < today() ? today() : addDays(n, -1)) : today() }); break; }
+    case 'potmove': { const b = L.byId[d.v], n = b && fNext(b); if (!b) break; const to = b.account || fMainAcc()?.id; moveMoney({ from: d.id, to, amt: billAmount(b) || '', date: n ? (addDays(n, -1) < today() ? today() : addDays(n, -1)) : today() }); break; }
     case 'tripopen': case 'tripnew': case 'tripedit': case 'trippack': case 'tripck': case 'tripckdel': case 'tripcksug': case 'tripidea': case 'tripideadel': case 'tripideaday': case 'tripagdel': case 'tripbudget': case 'tripcost': case 'tripdet': tripAct(d.act, d.v); break;
     case 'mmonth': L.mealMonth = (L.mealMonth || 0) + Number(d.v); C.render(); break;
     case 'mday': mealDay(d.v); break;
@@ -6654,6 +6726,7 @@ document.addEventListener('click', async e => {
     case 'frulesapply': fRulesApply(); break;
     case 'funsorted': fUnsorted(); break;
     case 'exvids': exVidSheet(); break;
+    case 'mealparts': L.wpMeal = ''; mealBuilder(d.d, d.v); break;
     case 'wintick': case 'winswap': winAct(d.act, d.v); break;
     case 'invphotos': invPhotoPick(); break;
     case 'invphotoclear': invPhotoClear(); break;
@@ -6777,7 +6850,7 @@ function fCalFill(fill) {
     `<span class="mbtns"><button class="iconbtn small" data-act="calmove" data-v="-1" aria-label="Previous month">${svg(P.left)}</button><button class="chip link" data-act="calmove" data-v="0">Today</button><button class="iconbtn small" data-act="calmove" data-v="1" aria-label="Next month">${svg(P.right)}</button></span>`);
 }
 function fBillsOf(type) { return fill => { const list = sortList(recs('fbills').filter(b => (b.type || 'Bill') === type && b.active !== false), KINDS.fbills, 'name'); fill.innerHTML = `${fDupNote()}<div class="tiles lt3">${fTile(type === 'Bill' ? 'Bills' : 'Subscriptions', String(list.length), 'active')}${fTile('Per month', eur(list.reduce((n, b) => n + fPerMonth(b), 0)), 'spread over the year')}${fTile('Per year', eur(12 * list.reduce((n, b) => n + fPerMonth(b), 0)), '')}</div>${list.length ? `<div class="lrows">${list.map(row).join('')}</div>` : quiet(`No ${type === 'Bill' ? 'bills' : 'subscriptions'} yet.`)}<button class="btn small mmore" data-act="newbill" data-v="${type}">+ Add ${type === 'Bill' ? 'a bill' : 'a subscription'}</button>`; }; }
-function fPerMonth(b) { const a = num(b.amount) || 0, n = Math.max(1, num(b.every) || 1); return b.cadence === 'Yearly' ? a / 12 : b.cadence === 'Every N months' ? a / n : b.cadence === 'Weekly' ? a * 52 / 12 / n : a; }
+function fPerMonth(b) { const a = billAmount(b), n = Math.max(1, num(b.every) || 1); return b.cadence === 'Yearly' ? a / 12 : b.cadence === 'Every N months' ? a / n : b.cadence === 'Weekly' ? a * 52 / 12 / n : a; }
 function fSplitSuggest() {
   const s = fset(), pay = num(s.payAmount) || 0;
   const bills = recs('fbills').filter(b => b.active !== false && b.type !== 'Debt').reduce((n, b) => n + fPerMonth(b), 0);
@@ -7109,13 +7182,18 @@ async function fCsvImport(file) {
   // what each line becomes, with the account choice you make in this sheet
   const plan = () => {
     const accOf = r => pick[r.own] || '', ownAcc = r => r.other && (byIban.get(r.other) || Object.entries(pick).find(([ib, id]) => id && ib === r.other)?.[1]);
-    const tx = recs('ftx'), out = { add: [], dup: [], patch: [] };
+    const tx = recs('ftx'), out = { add: [], dup: [], patch: [], bills: [] };
+    // a line with the name of a repeat that varies is that repeat: it sets the real amount on the nearest open or automatic payment
+    const vary = recs('fbills').filter(b => b.varies && b.active !== false && norm(b.name).length > 2), occs = fOccs(addDays(today(), -120), addDays(today(), 20));
     for (const r of rows) {
       if (refs.has(r.ref)) { out.dup.push(r); continue; }
       const acc = accOf(r);
       // an Apple Pay or hand-written purchase with the same amount within 3 days is the same payment
       const same = r.out && tx.find(x => !x.bankRef && Math.abs((num(x.amount) || 0) - r.amount) < 0.005 && (!x.account || x.account === acc) && Math.abs(diffDays(x.date, r.date)) <= 3 && !out.patch.some(p => p.id === x.id));
       if (same) { out.dup.push(r); out.patch.push({ id: same.id, ref: r.ref }); continue; }
+      const vb = r.out && vary.find(b => norm(r.name).includes(norm(b.name)) || norm(b.name).includes(norm(r.name)));
+      const vo = vb && occs.filter(o => o.bill.id === vb.id && Math.abs(diffDays(o.date, r.date)) <= 10 && !o.skipped && !out.bills.some(x => x.o.key === o.key)).filter(o => { const p = recs('fpaid').find(q => q.occ === o.key); return !p || p.auto || !L.byId[p.tx]?.bankRef; }).sort((a, c) => Math.abs(diffDays(a.date, r.date)) - Math.abs(diffDays(c.date, r.date)))[0];
+      if (vo) { out.bills.push({ r, o: vo, acc }); continue; }
       out.add.push({ ...r, acc, transfer: !!ownAcc(r) || ownByName(r.name) });
     }
     return out;
@@ -7123,10 +7201,10 @@ async function fCsvImport(file) {
   const draw = () => {
     const p = plan(), outs = p.add.filter(r => r.out && !r.transfer), ins = p.add.filter(r => !r.out && !r.transfer), tr = p.add.filter(r => r.transfer);
     sh.querySelector('[data-csvbody]').innerHTML = `${owns.map(o => `<div class="field"><label>Account ${esc(o ? '…' + o.slice(-4) : '')}</label><select class="pill" data-csvacc="${esc(o)}"><option value="">Choose an account</option>${accs.map(a => `<option value="${a.id}" ${pick[o] === a.id ? 'selected' : ''}>${esc(a.name || 'Account')}</option>`).join('')}<option value="new">New account</option></select></div>`).join('')}
-      <div class="lrows">${[['Purchases', outs.length], ['Money in', ins.length], ['Own transfers (not spending)', tr.length], ['Already here, skipped', p.dup.length]].map(([l, n]) => `<div class="lrow"><span class="lmain"><b>${l}</b></span><span class="lside">${n}</span></div>`).join('')}</div>
+      <div class="lrows">${[['Purchases', outs.length], ['Money in', ins.length], ['Own transfers (not spending)', tr.length], ['Repeats with a new amount', p.bills.length], ['Already here, skipped', p.dup.length]].filter(([l, n]) => n || l !== 'Repeats with a new amount').map(([l, n]) => `<div class="lrow"><span class="lmain"><b>${l}</b></span><span class="lside">${n}</span></div>`).join('')}</div>
       ${p.add.length ? `<p class="dsub">First lines</p><div class="lrows">${p.add.slice(0, 6).map(r => `<div class="lrow"><span class="lmain"><b>${esc(r.name)}</b><span>${esc(niceDate(r.date))}${r.transfer ? ' · own transfer' : ''}</span></span><span class="lside ${r.out ? '' : 'mgood'}">${r.out ? '−' : '+'}${eur(r.amount)}</span></div>`).join('')}</div>` : ''}`;
-    sh.querySelector('[data-go]').textContent = `Import ${p.add.length}`;
-    sh.querySelector('[data-go]').disabled = !p.add.length && !p.patch.length;
+    sh.querySelector("[data-go]").textContent = `Import ${p.add.length + p.bills.length}`;
+    sh.querySelector('[data-go]').disabled = !p.add.length && !p.patch.length && !p.bills.length;
   };
   sh.addEventListener('change', async e => {
     const s = e.target.closest('[data-csvacc]'); if (!s) return;
@@ -7157,6 +7235,12 @@ async function fCsvImport(file) {
         recsOut.push({ id: C.uuid(), kind: 'fchecks', data: { account: pick[o], amount: last.bal, at: last.date, seq: base + chrono.length + 1, notes: `From ${bank} CSV`, created: base + chrono.length + 1 } });
       }
       for (const pt of p.patch) { const x = L.byId[pt.id]; if (x) recsOut.push({ id: x.id, kind: 'ftx', data: { ...dataOf(x), bankRef: pt.ref } }); }
+      // varying repeats: the bank line gives the real amount; a payment that is already there gets it, otherwise the repeat is paid now
+      for (const { r, o, acc } of p.bills) {
+        const fp = recs('fpaid').find(q => q.occ === o.key), t0 = fp && L.byId[fp.tx];
+        if (fp && t0) { recsOut.push({ id: t0.id, kind: 'ftx', data: { ...dataOf(t0), amount: r.amount, date: r.date, bankRef: r.ref } }, { id: fp.id, kind: 'fpaid', data: { ...dataOf(fp), amount: r.amount } }); }
+        else { const tid = C.uuid(); recsOut.push({ id: tid, kind: 'ftx', data: { name: o.bill.name, amount: r.amount, date: r.date, category: o.bill.category || '', account: acc || o.bill.account || '', bill: o.key, debt: o.bill.debt || '', bankRef: r.ref, source: bank + ' CSV', created: Date.now() } }, { id: fp?.id || C.uuid(), kind: 'fpaid', data: { ...(fp ? dataOf(fp) : {}), occ: o.key, bill: o.bill.id, date: o.date, paid: true, paidOn: r.date, tx: tid, amount: r.amount } }); }
+      }
       await putMany(recsOut, (n, all) => { msg.textContent = `Saving ${n} of ${all}…`; }, `Imported ${bank} statement (${plural(p.add.length, 'line')})`);
       C.closeSheet(); C.toast(`Imported ${plural(p.add.length, 'line')}${p.dup.length ? `, skipped ${p.dup.length} already here` : ''}`);
     } catch (err) { console.error(err); msg.textContent = 'Could not import. Try again.'; b.disabled = false; }
@@ -7573,7 +7657,7 @@ const wakeOn = d => { const c = DAYCFG(), t = dayType(d); return toMin(t === 'of
 const bedOn = d => Math.min(wakeOn(addDays(d, 1)) + 1440 - (Number(DAYCFG().sleep) || 8) * 60, 1470);
 const weekMon = (d = today()) => addDays(d, -((fromISO(d).getDay() + 6) % 7));
 const intentNow = () => { const i = C?.prefs?.().intent; return i && i.week >= addDays(weekMon(), -6) ? i : null; };
-const monthlyOf = b => { const a = num(b.amount) || 0; return b.cadence === 'Yearly' ? a / 12 : b.cadence === 'Weekly' ? a * 52 / 12 : b.cadence === 'Every N months' ? a / (num(b.every) || 1) : a; };
+const monthlyOf = b => { const a = billAmount(b); return b.cadence === 'Yearly' ? a / 12 : b.cadence === 'Weekly' ? a * 52 / 12 : b.cadence === 'Every N months' ? a / (num(b.every) || 1) : a; };
 const fixedMonthly = () => recs('fbills').filter(b => b.active !== false && (!b.ends || b.ends >= today())).reduce((n, b) => n + monthlyOf(b), 0);
 const goalNamed = re => recs('fgoals').find(g => re.test(g.name || ''));
 const tlDone = d => { try { return new Set(JSON.parse(localStorage.getItem('tl:' + d) || '[]')); } catch { return new Set(); } };

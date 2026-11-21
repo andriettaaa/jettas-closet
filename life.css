@@ -1428,3 +1428,16 @@ button.mtick:disabled { cursor: default; opacity: 1; }
 .mwin .winbtns { display: inline-flex; gap: 6px; flex: none; }
 @media (max-width: 520px) { .mwin { flex-wrap: wrap; } .mwin .lmain { flex: 1 1 calc(100% - 44px); min-width: 0; } .mwin .winbtns { margin-left: 40px; } }
 .mwin .winbtns .btn { margin-left: 0; }
+
+/* a meal made of parts */
+.mbseg { margin-bottom: 12px; flex-wrap: wrap; }
+.mbrow { width: 100%; text-align: left; background: none; border: 0; color: inherit; font: inherit; }
+.mbemo { font-size: 22px; width: 32px; flex: none; text-align: center; }
+.mbpart.open { background: var(--surface); border-radius: 12px; }
+.mbpick { padding: 0 8px 10px; display: grid; gap: 8px; }
+.mbgrid { max-height: 360px; overflow: auto; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
+.mbpart { min-width: 0; overflow: hidden; }
+.mbpick { min-width: 0; }
+.mbpick .lqadd { flex-wrap: wrap; }
+.mbpick .lqadd input { min-width: 0; flex: 1 1 180px; }
+.mbsave { margin: 10px 0 6px; }
