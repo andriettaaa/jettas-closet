@@ -1443,3 +1443,19 @@ button.mtick:disabled { cursor: default; opacity: 1; }
 .mbsave { margin: 10px 0 6px; }
 .combolinks { margin: 6px 0 10px; align-items: center; }
 .combolinks .dsub { margin: 0 6px 0 0; }
+
+/* checks: one card per product */
+.ckbar { flex-wrap: wrap; gap: 8px; }
+.ckcard { display: grid; justify-items: center; text-align: center; gap: 8px; padding: 6px 0; }
+.ckpic { width: 140px; height: 140px; border-radius: 18px; overflow: hidden; background: var(--stage); display: grid; place-items: center; font-size: 48px; font-weight: 700; color: var(--muted); }
+.ckpic img { width: 100%; height: 100%; object-fit: cover; }
+.ckcard h3 { margin: 4px 0 0; font-size: 22px; }
+.ckstep { display: flex; align-items: center; gap: 14px; }
+.ckstep b { font-size: 26px; min-width: 2ch; }
+.ckstep .btn { width: 48px; height: 48px; font-size: 22px; padding: 0; }
+.ckbtns { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; width: 100%; max-width: 480px; }
+.ckbtns .btn { min-height: 48px; }
+.ckbtns .btn.on { background: var(--ink); color: var(--bg); }
+.ckask { font-weight: 600; margin: 6px 0 0; }
+.ckdone { text-align: center; }
+.ckstep .btn { display: grid; place-items: center; }

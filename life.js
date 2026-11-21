@@ -533,7 +533,7 @@ const KINDS = {
   gear: {
     one: 'item', many: 'Kitchen gear', facet: 'category',
     fields: [F('name', 'Name'), F('brand', 'Brand', 'text', { half: 1 }), F('category', 'Category', 'select', { options: Object.values(CAT_NL.gear), half: 1 }),
-      F('own', 'I have this', 'check'), F('price', 'Price', 'money', { half: 1 }), F('bought', 'Bought on', 'date', { half: 1 }),
+      F('own', 'I have this', 'check', { half: 1 }), F('state', 'Status', 'select', { options: ['In use', 'Give away', 'Broken', 'Given away'], half: 1, when: D => D.own }), F('price', 'Price', 'money', { half: 1 }), F('bought', 'Bought on', 'date', { half: 1 }),
       F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z'], ['category', 'Category']],
     filters: [['all', 'All'], ['own', 'I have'], ['want', 'Wishlist']],
@@ -1189,7 +1189,7 @@ const KINDS = {
   fitgear: {
     one: 'item', many: 'Fitness gear', facet: 'category',
     fields: [F('name', 'Name'), F('brand', 'Brand', 'text', { half: 1 }), F('category', 'Category', 'select', { options: ['Weights', 'Mats & Props', 'Cardio', 'Bands', 'Clothing', 'Tech', 'Recovery', 'Other'], half: 1 }),
-      F('own', 'I have this', 'check'), F('price', 'Price', 'money', { half: 1 }), F('bought', 'Bought on', 'date', { half: 1 }),
+      F('own', 'I have this', 'check', { half: 1 }), F('state', 'Status', 'select', { options: ['In use', 'Give away', 'Broken', 'Given away'], half: 1, when: D => D.own }), F('price', 'Price', 'money', { half: 1 }), F('bought', 'Bought on', 'date', { half: 1 }),
       F('url', 'Link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z']], filters: [['all', 'All'], ['own', 'I have'], ['want', 'Wishlist']],
     filter: (r, f) => f === 'own' ? !!r.own : f === 'want' ? !r.own : true,
@@ -1641,7 +1641,7 @@ const PAGES = {
 
   'kitchen/meals': { title: 'Meal plan', segs: [{ key: 'week', label: 'Week', kind: 'meals', fill: weekFill, tools: false }, { key: 'month', label: 'Month', kind: 'meals', fill: monthFill, tools: false }, { kind: 'mealprep' }] },
   'kitchen/groceries': { title: 'Groceries', segs: [{ key: 'list', label: 'Shopping list', kind: 'ingredients', fill: groceryFill, tools: false }] },
-  'kitchen/pantry': { title: 'Pantry', segs: [{ kind: 'ingredients' }, { key: 'types', label: 'Per soort', kind: 'ingredients', fill: ingTypesFill, tools: false }, { key: 'freezer', label: 'Freezer', kind: 'ingredients', fill: freezerFill, tools: false }] },
+  'kitchen/pantry': { title: 'Pantry', segs: [{ kind: 'ingredients', top: () => `<div class="ltools ckbar">${checkBtn('pantry')}${checkBtn('household')}${checkBtn('freezer')}</div>` }, { key: 'types', label: 'Per soort', kind: 'ingredients', fill: ingTypesFill, tools: false }, { key: 'freezer', label: 'Freezer', kind: 'ingredients', fill: freezerFill, tools: false }] },
   'kitchen/shops': { title: 'Shops', segs: [{ kind: 'shops', label: 'Your shops' }] },
   'plan/mind': { render: mindOverview, adds: ['journal', 'meditation', 'lgoals', 'habits'] },
   'plan/mindstats': { render: h => { mindAnalysis(h); anaAdd(h, mindExtra()); }, adds: ['journal', 'checkin'] },
@@ -1658,9 +1658,9 @@ const PAGES = {
   'body/clean': { render: cleanPage, adds: ['cleanlog'] },
   'social/income': { render: socialIncome, adds: ['ltk', 'deals'] },
   'care/bdeals': { title: 'Beauty deals', segs: [{ key: 'deals', label: 'This week', kind: 'bdeals', fill: bdealFill, tools: false }, { kind: 'bshops' }, { kind: 'bdeals', label: 'All deals' }] },
-  'kitchen/gear': { title: 'Kitchen gear', segs: [{ kind: 'gear' }] },
+  'kitchen/gear': { title: 'Kitchen gear', segs: [{ kind: 'gear', top: () => `<div class="ltools ckbar">${checkBtn('things')}</div>` }] },
   'care/today': { render: careToday, adds: ['mindful', 'lgoals', 'courses', 'hobbies', 'habits', 'routines', 'journal', 'sleep', 'beauty', 'supplements', 'appts', 'symptoms', 'meditation', 'ideas', 'gifts', 'documents'] },
-  'care/beauty': { title: 'Beauty products', segs: [{ kind: 'beauty' }, { kind: 'breviews' }] },
+  'care/beauty': { title: 'Beauty products', segs: [{ kind: 'beauty', top: () => `<div class="ltools ckbar">${checkBtn('beauty')}</div>` }, { kind: 'breviews' }] },
   'care/skin': { render: skinWeek, adds: ['beauty'] },
   'care/skinmonth': { render: skinMonth, adds: ['skintech', 'beauty'] },
   'care/skintech': { title: 'Techniques', segs: [{ kind: 'skintech' }] },
@@ -1729,7 +1729,7 @@ const PAGES = {
   'fit/plans': { title: 'Workout plans', segs: [{ kind: 'plans' }] },
   'fit/exercises': { title: 'Exercises', segs: [{ kind: 'exercises', top: () => exVidNote() }, { kind: 'sets' }] },
   'fit/body': { title: 'Body', segs: [{ kind: 'body', top: bodyTop }] },
-  'fit/gear': { title: 'Fitness gear', segs: [{ kind: 'fitgear' }] }
+  'fit/gear': { title: 'Fitness gear', segs: [{ kind: 'fitgear', top: () => `<div class="ltools ckbar">${checkBtn('things')}</div>` }] }
 };
 const segsOf = page => (PAGES[page]?.segs || []).map(s => ({ key: s.key || s.kind, label: s.label || KINDS[s.kind].many, tools: true, ...s }));
 const uiOf = page => (L.ui[page] ||= { seg: segsOf(page)[0]?.key, q: '', facet: '', sort: {}, filter: {}, all: false });
@@ -5877,6 +5877,67 @@ async function wpMark(r, what) {
   }
   return save(r, { low: !low, ...(r.kind === 'ingredients' && !low ? { list: true } : {}) });
 }
+/* ---------- checks: walk through what you have, one by one ----------
+   Check pantry (and household, freezer, beauty, your things and your closet) shows one card per product, in the order
+   you walk through your home. You set how much is left and tap Enough, Almost out or Out; Out puts it on your grocery
+   list, Almost out asks first. Things you own (gear, clothes) get Still use it, Give away or Broken instead. */
+const LOC_ORDER = ['Koelkast', 'Vriezer', 'Voorraadkast', 'Keukenkast', 'Fruitmand', 'Broodtrommel', 'Kelder / Berging', 'Overig'];
+const byLoc = (a, b) => (LOC_ORDER.indexOf(a.location || 'Overig') + 1 || 99) - (LOC_ORDER.indexOf(b.location || 'Overig') + 1 || 99) || azCmp(titleOf(a), titleOf(b));
+const inPantry = r => !!r.stock || !!r.low || num(r.amount) > 0 || num(r.portions) > 0;
+const CHECKS = {
+  pantry: { title: 'Check pantry', type: 'stock', list: () => recs('ingredients').filter(r => inPantry(r) && !HOUSE_CATS.includes(r.category) && r.location !== 'Vriezer').sort(byLoc), group: r => r.location || 'Overig' },
+  household: { title: 'Check household', type: 'stock', list: () => recs('ingredients').filter(r => inPantry(r) && HOUSE_CATS.includes(r.category)).sort((a, b) => azCmp(a.category || '', b.category || '') || azCmp(titleOf(a), titleOf(b))), group: r => r.category },
+  freezer: { title: 'Check freezer', type: 'stock', count: 'portions', list: () => recs('ingredients').filter(r => r.location === 'Vriezer' && inPantry(r)).sort((a, b) => String(a.frozen || '9').localeCompare(String(b.frozen || '9')) || azCmp(titleOf(a), titleOf(b))), group: () => 'Vriezer' },
+  beauty: { title: 'Check beauty', type: 'stock', list: () => [...recs('beauty').filter(STOCK_KEEP.beauty).sort((a, b) => azCmp(a.type || '', b.type || '') || azCmp(titleOf(a), titleOf(b))), ...recs('supplements').filter(STOCK_KEEP.supplements).sort((a, b) => azCmp(titleOf(a), titleOf(b)))], group: r => r.kind === 'supplements' ? 'Supplements' : r.type || 'Beauty' },
+  things: { title: 'Check your things', type: 'own', list: () => [...recs('gear'), ...recs('fitgear')].filter(r => r.own && r.state !== 'Given away').sort((a, b) => (a.kind === 'gear' ? 0 : 1) - (b.kind === 'gear' ? 0 : 1) || azCmp(a.category || '', b.category || '') || azCmp(titleOf(a), titleOf(b))), group: r => r.kind === 'gear' ? 'Kitchen' : 'Fitness' },
+  closet: { title: 'Check your closet', type: 'closet', list: () => C.closetCheckList?.() || [], group: r => r.cat || r.category || 'Closet' }
+};
+const checkCount = (cfg, r) => cfg.count && r.kind === 'ingredients' ? cfg.count : CK(r);
+function checkRun(key) {
+  const cfg = CHECKS[key]; if (!cfg) return;
+  const ids = cfg.list().map(r => r.id); if (!ids.length) { C.toast('Nothing to check here yet.'); return; }
+  const get = id => key === 'closet' ? (C.closetCheckList?.() || []).find(x => x.id === id) : L.byId[id];
+  let i = 0, ask = false; const tally = { enough: 0, low: 0, out: 0, list: 0, keep: 0, go: 0, broken: 0 };
+  const sh = C.sheet({ title: cfg.title, body: '<div data-ckbody></div>', foot: '<button class="btn" data-ckprev>‹ Back</button><div class="spacer"></div><button class="btn" data-ckskip>Skip ›</button><button class="btn" data-close>Stop</button>' });
+  const pic = r => { const p = key === 'closet' ? r.photo : photoOf(r); return p ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(p))}" alt="" loading="lazy" onerror="this.remove()">` : `<span>${esc((titleOf(r)[0] || '?').toUpperCase())}</span>`; };
+  const draw = () => {
+    const host = sh.querySelector('[data-ckbody]'), r = get(ids[i]);
+    sh.querySelector('[data-ckprev]').disabled = i === 0; sh.querySelector('[data-ckskip]').hidden = i >= ids.length;
+    if (i >= ids.length || !r) {
+      const parts = cfg.type === 'stock' ? [['✅ Enough', tally.enough], ['⏳ Almost out', tally.low], ['❌ Out', tally.out], ['🛒 On your grocery list', tally.list]] : [['✅ Still in use', tally.keep], [key === 'closet' ? '👋 To let go' : '👋 Give away', tally.go], ['🔧 Broken', tally.broken]];
+      host.innerHTML = `<div class="ckdone"><p class="lbig">All checked 🎉</p><div class="lrows">${parts.filter(([, n]) => n).map(([l, n]) => `<div class="lrow"><span class="lmain"><b>${l}</b></span><span class="lside">${n}</span></div>`).join('') || quiet('Everything stays as it was.')}</div></div>`;
+      return;
+    }
+    const cnt = cfg.type === 'stock' ? checkCount(cfg, r) : '', v = cnt ? num(r[cnt]) : null, out = cfg.type === 'stock' && isOut(r), low = cfg.type === 'stock' && !!r.low && !out;
+    const sub = cfg.type === 'stock' ? [r.brand, r.qty, r.expires ? 'best before ' + shortDate(r.expires) : '', r.frozen ? 'frozen ' + shortDate(r.frozen) : '', r.list ? 'on your list' : ''] : key === 'closet' ? [r.brand, r.color, r.lastWorn ? 'last worn ' + shortDate(r.lastWorn) : 'not worn yet', r.sell ? 'plan: ' + r.sell : ''] : [r.brand, r.category, r.state && r.state !== 'In use' ? r.state : ''];
+    host.innerHTML = `<p class="dsub">${i + 1} of ${ids.length} · ${esc(cfg.group(r) || '')}</p>
+      <div class="ckcard"><div class="ckpic">${pic(r)}</div><h3>${esc(titleOf(r))}</h3><p class="lnone">${esc(sub.filter(Boolean).join(' · '))}</p>
+      ${cnt ? `<div class="ckstep" role="group" aria-label="How much is left"><button class="btn" data-ckn="-1" aria-label="Less">−</button><b data-ckv>${v ?? '–'}</b><button class="btn" data-ckn="1" aria-label="More">+</button><span class="lnone">${cnt === 'portions' ? 'portions' : cnt === 'left' ? 'left' : 'left'}</span></div>` : ''}
+      ${ask ? `<p class="ckask">Put ${esc(titleOf(r))} on your grocery list?</p><div class="ckbtns"><button class="btn primary" data-ckask="yes">Yes, on the list</button><button class="btn" data-ckask="no">Not yet</button></div>`
+      : cfg.type === 'stock' ? `<div class="ckbtns"><button class="btn ${!out && !low ? 'on' : ''}" data-ck="enough">✅ Enough</button><button class="btn ${low ? 'on' : ''}" data-ck="low">⏳ Almost out</button><button class="btn ${out ? 'on' : ''}" data-ck="out">❌ Out</button></div>${r.kind === 'ingredients' ? `<button class="btn small ckalt" data-ck="list" ${r.list ? 'disabled' : ''}>${r.list ? '🛒 On your list' : '+ Grocery list'}</button>` : ''}`
+      : `<div class="ckbtns"><button class="btn" data-ck="keep">✅ Still use it</button><button class="btn" data-ck="go">${key === 'closet' ? '🛍 Vinted' : '👋 Give away'}</button>${key === 'closet' ? '<button class="btn" data-ck="give">🎁 Give away</button>' : ''}<button class="btn" data-ck="broken">🔧 Broken</button></div>`}</div>`;
+  };
+  const savePatch = (r, patch) => key === 'closet' ? C.closetPatch?.(r.id, patch) : save(r, patch);
+  const next = () => { ask = false; i++; draw(); };
+  draw();
+  sh.addEventListener('click', async e => {
+    const b = e.target.closest('button'); if (!b) return; const d = b.dataset, r = get(ids[i]);
+    if (b.hasAttribute('data-ckprev')) { ask = false; i = Math.max(0, i - 1); draw(); return; }
+    if (b.hasAttribute('data-ckskip')) { next(); return; }
+    if (!r) return;
+    if (d.ckn) { const k = checkCount(cfg, r), v = Math.max(0, (num(r[k]) || 0) + Number(d.ckn)); await savePatch(r, { [k]: v }); sh.querySelector('[data-ckv]').textContent = v; return; }
+    if (d.ckask) { if (d.ckask === 'yes') { await savePatch(r, { list: true }); tally.list++; } next(); return; }
+    const today0 = today();
+    if (d.ck === 'enough') { tally.enough++; await savePatch(r, r.kind === 'ingredients' ? { stock: true, low: false, checked: today0 } : { low: false, checked: today0 }); next(); }
+    else if (d.ck === 'low') { tally.low++; await savePatch(r, { low: true, ...(r.kind === 'ingredients' ? { stock: true } : {}), checked: today0 }); if (r.kind === 'ingredients' && !r.list) { ask = true; draw(); } else next(); }
+    else if (d.ck === 'out') { tally.out++; const k = checkCount(cfg, r); await savePatch(r, r.kind === 'ingredients' ? { stock: false, low: false, list: true, [k]: 0, checked: today0 } : { [k]: 0, low: true, checked: today0 }); if (r.kind === 'ingredients') tally.list++; next(); }
+    else if (d.ck === 'list') { await savePatch(r, { list: true }); tally.list++; draw(); }
+    else if (d.ck === 'keep') { tally.keep++; await savePatch(r, key === 'closet' ? { sell: null, checked: today0 } : { state: 'In use', checked: today0 }); next(); }
+    else if (d.ck === 'go' || d.ck === 'give') { tally.go++; await savePatch(r, key === 'closet' ? { sell: d.ck === 'go' ? 'Vinted' : 'Weggeven', checked: today0 } : { state: 'Give away', checked: today0 }); next(); }
+    else if (d.ck === 'broken') { tally.broken++; await savePatch(r, { state: 'Broken', repair: true, checked: today0 }); next(); }
+  });
+}
+const checkBtn = (key, label) => `<button class="btn small primary" data-act="check" data-v="${key}">✅ ${esc(label || CHECKS[key].title)}</button>`;
 // the usual suspects first: basics, what you marked before, what you bought in the last two months
 const usual = r => !!r.staple || !!r.low || !!r.list || (r.bought && r.bought >= addDays(today(), -60)) || num(cntOf(r)) === 0;
 const thumb = r => { const p = photoOf(r); return p ? `<img class="wpthumb" referrerpolicy="no-referrer" src="${esc(C.photoURL(p))}" alt="" loading="lazy" onerror="this.remove()">` : `<span class="wpthumb wpinit">${esc((titleOf(r)[0] || '?').toUpperCase())}</span>`; };
@@ -6757,6 +6818,7 @@ document.addEventListener('click', async e => {
     case 'frulesapply': fRulesApply(); break;
     case 'funsorted': fUnsorted(); break;
     case 'exvids': exVidSheet(); break;
+    case 'check': checkRun(d.v); break;
     case 'mealparts': L.wpMeal = ''; mealBuilder(d.d, d.v); break;
     case 'wintick': case 'winswap': winAct(d.act, d.v); break;
     case 'invphotos': invPhotoPick(); break;
@@ -9593,6 +9655,7 @@ return {
   userName: () => (C && fset()?.name) || '',
   todayTop: () => { try { return todayTop(); } catch (e) { console.error(e); return ''; } },
   hasPinAffirm: () => { try { return !!(C && pnAffirmToday()); } catch { return false; } },
+  check: key => checkRun(key),
   pnStrip: (key, title) => { try { return C ? pnStripHTML(key, title) : ''; } catch (e) { console.error(e); return ''; } },
   render(host, view) {
     const cfg = PAGES[view];
