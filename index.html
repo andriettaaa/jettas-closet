@@ -2165,7 +2165,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v184';
+const APP_VERSION = 'hangtag-v185';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2390,6 +2390,7 @@ const NOTI = [
   ['eatsnack', 'Snack', 'An afternoon nudge for a hearty snack', '15:30'],
   ['foodweek', 'Food week', 'Sundays: how your food week went, with one tip', '18:00'],
   ['movelist', 'Move list', 'The 1st of the month: what the move still costs and what to save', '19:15'],
+  ['fillstep', 'Je kwartiertje', 'Weekdays until 18 Dec: the step of today from your fill-in plan, with a direct link', '20:00'],
   ['socialweek', 'Content next week', 'Sundays: every step of your posts and collabs for the coming week', '18:30'],
   ['budget', 'Budget almost gone', 'When a category passes 80% and 100% of its budget', ''],
   ['applepay', 'After each Apple Pay payment', 'Saved, with what is left in that category', '']
@@ -2397,7 +2398,7 @@ const NOTI = [
 const notiCfg = () => S.prefs.notify || {};
 // the same split as the notify function: with bundling on, each one rides along in one of four messages a day
 const NOTI_BUNDLE = { morning: 'morning', content: 'morning', reminders: 'morning', shopday: 'morning', eatbf: 'morning', payday: 'morning', skindiary: 'morning', freezer: 'morning', progress: 'morning', period: 'morning',
-  eatlunch: 'midday', eatsnack: 'midday', bills: 'midday', shopask: 'evening', weekly: 'evening', weekahead: 'evening', socialweek: 'evening', foodweek: 'evening', movelist: 'evening', bedtime: 'bedtime', evening: 'bedtime' };
+  eatlunch: 'midday', eatsnack: 'midday', bills: 'midday', shopask: 'evening', weekly: 'evening', weekahead: 'evening', socialweek: 'evening', foodweek: 'evening', movelist: 'evening', fillstep: 'evening', bedtime: 'bedtime', evening: 'bedtime' };
 const BUNDLE_LABEL = { morning: '🌅 Morning', midday: '☀️ Midday', evening: '🌆 Evening', bedtime: '🌙 Bedtime' };
 const NOTI_SUNDAY = new Set(['weekly', 'weekahead', 'socialweek', 'skindiary', 'freezer', 'foodweek', 'shopask']);
 const NOTI_GROUPS = [
@@ -2406,7 +2407,7 @@ const NOTI_GROUPS = [
   ['money', '💶 Money', ['payday', 'bills', 'budget', 'applepay', 'weekly', 'movelist']],
   ['care', '💆🏾‍♀️ Body and care', ['progress', 'period', 'skindiary']],
   ['social', '📱 Content', ['content', 'socialweek']],
-  ['plan', '🗓 Planning and reminders', ['reminders', 'weekahead']]
+  ['plan', '🗓 Planning and reminders', ['fillstep', 'reminders', 'weekahead']]
 ];
 const notiOn = (c, k) => (c[k] || {}).on !== false;
 const notiBundled = c => c.bundle?.on !== false && c.bundle !== false;
