@@ -9653,6 +9653,8 @@ return {
   search, openFound, settingsPanels, allShops,
   buyWish: (kind, id) => buyWish(kind, id), wishPanel, wishLine,
   canBuyWish: () => fAccs().length > 0,
+  // the closet links a piece to a bank purchase: it shows under "What you bought" on that purchase
+  async linkBuy(txId, entry) { const tx = L.byId[txId]; if (!tx || !C) return; const items = [].concat(tx.items || []).filter(e => !(e.k === entry.k && e.id === entry.id)); await putMany([{ id: tx.id, kind: 'ftx', data: { ...dataOf(tx), items: [...items, entry] } }], null, `Linked ${entry.n || 'a piece'} to ${tx.name || 'a purchase'}`); },
   newRecord: kind => KINDS[kind] && openEditor(kind, null),
   chooser: () => openChooser(),
   shopPick: () => shopPick(),
