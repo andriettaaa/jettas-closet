@@ -515,7 +515,7 @@ const KINDS = {
     fields: [F('date', 'Date', 'date', { half: 1 }), F('slot', 'Meal', 'select', { options: MEALS, half: 1 }),
       F('recipe', 'Recipe', 'rel', { to: 'recipes' }), F('what', 'Or just write what you eat'), F('away', 'Not eating at home', 'check'), F('leftover', 'Leftovers', 'select', { options: ['None', 'Fridge', 'Freezer'], half: 1 }),
       F('ate', 'Eaten', 'check', { half: 1 }), F('photo', 'Photo of what you ate', 'photo'), F('notes', 'Notes', 'long')],
-    title: r => relName(r.recipe) || r.what || (r.away ? 'Not at home' : '') || r.slot || 'Meal',
+    title: r => ((r.parts || []).length > 1 ? partsTitle(r.parts) : '') || relName(r.recipe) || r.what || (r.away ? 'Not at home' : '') || r.slot || 'Meal',
     sorts: [['-date', 'Newest']], sub: r => [r.date && niceDate(r.date), r.slot].filter(Boolean).join(' · ')
   },
   mealprep: {
@@ -807,6 +807,7 @@ const KINDS = {
       F('ramp', 'Plan: one line per step, like 2026-11-22: Sun', 'long', { rows: 4 }), F('days', 'Or simply on', 'multi', { options: WEEKDAYS }), F('notes', 'Notes', 'long')],
     sorts: [['name', 'A to Z']], sub: r => [r.type, r.when || 'Evening', r.minutes ? r.minutes + ' min' : ''].filter(Boolean).join(' · ')
   },
+  mealcombos: { one: 'combination', many: 'Meal combinations', title: r => r.name || partsTitle(r.parts) || 'Combination', fields: [F('name', 'Name'), F('slot', 'Meal', 'select', { options: MEALS, half: 1 }), F('notes', 'Notes', 'long')], sub: r => partsTitle(r.parts) },
   fwins: { one: 'small win', many: 'Small wins', title: r => `Small wins ${r.date || ''}`, fields: [F('date', 'Date', 'date')], sub: r => `${(r.done || []).length} of ${(r.picks || []).length}` },
   restips: { one: 'tip', many: 'Tips', title: r => r.title || 'Tip', fields: [F('title', 'Title'), F('text', 'Text', 'long', { rows: 6 }), F('url', 'Link (optional)', 'url'), F('group', 'Block', 'text')], sorts: [['order', 'Your order']], sub: r => [r.area, r.group].filter(Boolean).join(' · ') },
   resarea: { one: 'resources tab', many: 'Resources tabs', fields: [F('area', 'Tab')], title: r => r.area || 'Resources' },
@@ -3911,8 +3912,8 @@ function moneyToday(host) {
 
 function weekStart(offset) { const d = new Date(); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd + offset * 7); return iso(d); }
 // meal plan clean-up: a second copy of the same dish on the same day and meal, and empty meals (no dish and not eating out)
-const mealKey = m => [m.date, m.slot, m.away ? 'away' : m.recipe || String(m.what || '').trim().toLowerCase()].join('|');
-const mealEmpty = m => !m.away && !m.recipe && !String(m.what || '').trim() && !m.leftover;
+const mealKey = m => [m.date, m.slot, m.away ? 'away' : (m.parts || []).length > 1 ? 'parts:' + partsTitle(m.parts).toLowerCase() : m.recipe || String(m.what || '').trim().toLowerCase()].join('|');
+const mealEmpty = m => !m.away && !m.recipe && !String(m.what || '').trim() && !m.leftover && !(m.parts || []).length;
 function mealJunk() {
   const seen = new Set(), out = [];
   for (const m of [...recs('meals')].sort((a, b) => (a.created || 0) - (b.created || 0))) {
@@ -4002,22 +4003,84 @@ async function quickAdd(form) {
   inp.value = '';
   if (hit) save(hit, { list: true }); else create('ingredients', { name, list: true, stock: false }).catch(() => {});
 }
-function openSlot(date, slot) {
-  const st = { q: '', f: 'fit' };
-  const sh = C.sheet({ title: `${slot} on ${dayName(date)} ${shortDate(date)}`, wide: true, body: '<div data-slotbody></div>' });
-  const draw = () => { const host = sh.querySelector('[data-slotbody]'), y = host.querySelector('.wpgrid')?.scrollTop || 0; host.innerHTML = mealPickBody(slot, st.q, st.f); const g = host.querySelector('.wpgrid'); if (g) g.scrollTop = y; };
+/* ---------- a meal made of parts ----------
+   A dinner can be one recipe, or a few parts that together make the meal: a main (meat, fish, vegetarian), vegetables,
+   a base (rice, pasta, potatoes) and a sauce or extra. Each part is a recipe or just a name. A set of parts you like can
+   be saved as a combination (kind mealcombos) and planned again in one tap. The meal keeps the main part's recipe in
+   "recipe", so everything that looks at a meal's recipe keeps working. */
+const MEAL_PARTS = [['main', 'Hoofd', '🍗'], ['veg', 'Groente', '🥦'], ['base', 'Basis', '🍚'], ['extra', 'Saus en extra', '🥣']];
+const PART_FIT = {
+  main: /kip|chicken|vlees|beef|rund|gehakt|varken|pork|lam|vis|fish|zalm|salmon|tonijn|garnal|shrimp|tofu|tempeh|ei\b|eggs?\b|kalkoen|turkey|vega|bonen|beans|linzen|lentil|kikkererwt|chickpea/,
+  veg: /groente|vegetable|salade|salad|broccoli|spinazie|spinach|bonen|sperzie|green beans|wortel|carrot|courgette|paprika|bloemkool|cauliflower|spruit|sprout|kool|cabbage|asperge|aubergine|champignon|mushroom|pompoen|pumpkin/,
+  base: /rijst|rice|pasta|noodle|mie|spaghetti|aardappel|potato|friet|fries|couscous|quinoa|bulgur|brood|bread|wrap|tortilla|roti|naan|polenta|gnocchi/,
+  extra: /saus|sauce|dip|dressing|salsa|chutney|sambal|jus|gravy|raita|tzatziki|hummus|pesto|toetje|dessert/
+};
+const mealRecipeIds = m => [...new Set([m.recipe, ...[].concat(m.parts || []).map(p => p.recipe)].filter(id => id && L.byId[id]))];
+const partName = p => (p.recipe && L.byId[p.recipe] ? titleOf(L.byId[p.recipe]) : p.what) || '';
+const partsTitle = parts => [].concat(parts || []).map(partName).filter(Boolean).join(' · ');
+function partScore(r, k) {
+  const re = PART_FIT[k], txt = norm([titleOf(r), r.category, r.dish, ...[].concat(r.ingredients || []).map(id => L.byId[id]?.name || ''), ...[].concat(r.ilines || []).map(x => typeof x === 'string' ? x : x?.n || '')].join(' '));
+  const cat = { veg: ['Side Dish'], base: ['Side Dish'], extra: ['Sauce & Condiment', 'Dessert'], main: ['Dinner', 'Lunch'] }[k] || [];
+  return (re.test(norm(titleOf(r))) ? 3 : 0) + (re.test(txt) ? 1 : 0) + (cat.includes(r.category) ? 2 : 0);
+}
+function mealBuilder(date, slot, mealId) {
+  const m = mealId ? L.byId[mealId] : null;
+  const S = { mode: m?.parts?.length || slot === 'Dinner' ? 'parts' : 'whole', parts: Object.fromEntries(MEAL_PARTS.map(([k]) => [k, { ...([].concat(m?.parts || []).find(p => p.role === k) || {}) }])), open: '', q: '', all: false, save: false, cname: '' };
+  const combos = () => recs('mealcombos').sort((a, b) => (num(b.used) || 0) - (num(a.used) || 0) || azCmp(titleOf(a), titleOf(b)));
+  const filled = () => MEAL_PARTS.map(([k]) => ({ role: k, ...S.parts[k] })).filter(p => p.recipe || (p.what || '').trim());
+  const tiles = k => {
+    const q = norm(S.q), rs = recs('recipes').filter(r => !q || norm(titleOf(r)).includes(q)).map(r => ({ r, s: partScore(r, k) }));
+    const fit = rs.filter(x => x.s > 0).sort((a, b) => b.s - a.s || azCmp(titleOf(a.r), titleOf(b.r))), rest = rs.filter(x => !x.s).sort((a, b) => azCmp(titleOf(a.r), titleOf(b.r)));
+    const show = S.all || q ? [...fit, ...rest] : fit;
+    return `<input class="finp" type="search" data-mbq placeholder="Search your recipes" value="${esc(S.q)}" autocomplete="off" data-nosug>
+      <div class="lgrid wpgrid mbgrid">${show.slice(0, 60).map(({ r }) => pickTile(r, 'data-mbset', [r.category, (num(r.prep) || 0) + (num(r.cook) || 0) ? `${(num(r.prep) || 0) + (num(r.cook) || 0)} min` : ''].filter(Boolean).join(' · '), '')).join('') || quiet('No recipe fits yet.')}</div>
+      ${!S.all && !q && rest.length ? `<button class="btn small" data-mball>All recipes (${rs.length})</button>` : ''}
+      <form class="lqadd" data-mbtext><input type="text" placeholder="Or just write it, like “rijst” or “salade”" value="${esc(S.parts[k].what || '')}" autocomplete="off" data-nosug><button class="btn small" type="submit">Use this</button></form>`;
+  };
+  const row = ([k, label, emo]) => { const p = S.parts[k], name = partName(p);
+    return `<div class="mbpart ${S.open === k ? 'open' : ''}"><button class="lrow mbrow" data-mbopen="${k}"><span class="mbemo" aria-hidden="true">${emo}</span><span class="lmain"><b>${esc(label)}</b><span>${name ? esc(name) : 'Nothing yet'}</span></span>${name ? `<span class="chip" data-mbclear="${k}" role="button" aria-label="Clear ${esc(label)}">✕</span>` : '<span class="chip">Choose</span>'}</button>${S.open === k ? `<div class="mbpick">${tiles(k)}</div>` : ''}</div>`; };
+  const draw = () => {
+    const c = combos(), host = sh.querySelector('[data-mbbody]');
+    host.innerHTML = `<div class="seg mbseg" role="group" aria-label="How to plan this meal">${[['parts', 'Parts'], ['whole', 'One recipe'], ['combo', `Combinations${c.length ? ' (' + c.length + ')' : ''}`]].map(([k, l]) => `<button data-mbmode="${k}" aria-pressed="${S.mode === k}">${l}</button>`).join('')}</div>
+      ${S.mode === 'whole' ? mealPickBody(slot, S.q, S.f || 'fit')
+      : S.mode === 'combo' ? (c.length ? `<div class="lrows">${c.map(x => `<div class="lrow"><button class="lmain" data-mbcombo="${x.id}"><b>${esc(titleOf(x))}</b><span>${esc(partsTitle(x.parts))}</span></button><button class="btn small" data-mbcombo="${x.id}">Plan</button><button class="btn small" data-act="open" data-id="${x.id}" aria-label="Edit ${esc(titleOf(x))}">✏️</button></div>`).join('')}</div>` : quiet('No combinations yet. Build a meal from parts and save it as a combination.'))
+      : `<div class="lrows mbparts">${MEAL_PARTS.map(row).join('')}</div>
+        <label class="settog mbsave"><input type="checkbox" data-mbsave ${S.save ? 'checked' : ''}> Save as a combination</label>
+        ${S.save ? `<input class="finp" data-mbcname placeholder="Name, like Kip met rijst" value="${esc(S.cname || partsTitle(filled()))}" data-nosug>` : ''}
+        <div class="dbtns"><button class="btn primary" data-mbgo ${filled().length ? '' : 'disabled'}>Plan this meal</button><button class="btn small" data-wpmealaway>Not eating at home</button></div>`}`;
+  };
+  const sh = C.sheet({ title: `${slot} on ${dayName(date)} ${shortDate(date)}`, wide: true, body: '<div data-mbbody></div>' });
+  const plan = async (data, msg) => { try { if (m) await put('meals', m.id, { ...dataOf(m), ...data, date, slot }); else await create('meals', { date, slot, ...data }); C.closeSheet(); if (msg) C.toast(msg); } catch { C.toast('Could not save. Try again.'); } };
+  const asMeal = parts => { const main = parts.find(p => p.role === 'main' && p.recipe) || parts.find(p => p.recipe); return { parts, recipe: main?.recipe || '', what: main ? '' : partsTitle(parts) }; };
   draw();
   sh.addEventListener('ingchange', e => { e.preventDefault(); draw(); });
-  sh.addEventListener('input', e => { if (!e.target.matches('[data-wpmealq]')) return; st.q = e.target.value; const pos = e.target.selectionStart; draw(); const inp = sh.querySelector('[data-wpmealq]'); inp?.focus(); inp?.setSelectionRange(pos, pos); });
-  sh.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
-    if (d.wpmealf) { st.f = d.wpmealf; draw(); return; }
-    if (d.wpmealset) { create('meals', { date, slot, recipe: d.wpmealset }).catch(() => {}); C.closeSheet(); return; }
-    if (b.hasAttribute('data-wpmealaway')) { create('meals', { date, slot, away: true }).catch(() => {}); C.closeSheet(); return; }
-    if (b.hasAttribute('data-wpmealclose')) C.closeSheet(); });
-  sh.addEventListener('submit', async e => { if (!e.target.closest('[data-wpmealnew]')) return; e.preventDefault(); const n = e.target.querySelector('input').value.trim(); if (!n) return;
-    try { const rid = await create('recipes', { name: n, category: slot, totry: true }); await create('meals', { date, slot, recipe: rid }); C.toast('New recipe added. Fill it in after cooking.'); } catch { C.toast('Could not save. Try again.'); }
-    C.closeSheet(); });
+  sh.addEventListener('input', e => { const t = e.target;
+    if (t.matches('[data-mbq], [data-wpmealq]')) { S.q = t.value; const pos = t.selectionStart, sel = t.matches('[data-mbq]') ? '[data-mbq]' : '[data-wpmealq]'; draw(); const i = sh.querySelector(sel); i?.focus(); i?.setSelectionRange(pos, pos); }
+    if (t.matches('[data-mbcname]')) S.cname = t.value; });
+  sh.addEventListener('change', e => { if (e.target.matches('[data-mbsave]')) { S.save = e.target.checked; draw(); } });
+  sh.addEventListener('submit', async e => { e.preventDefault(); const f = e.target;
+    if (f.matches('[data-mbtext]')) { const v = f.querySelector('input').value.trim(); if (!v) return; S.parts[S.open] = { what: v }; S.open = ''; S.q = ''; draw(); return; }
+    if (f.matches('[data-wpmealnew]')) { const n = f.querySelector('input').value.trim(); if (!n) return; try { const rid = await create('recipes', { name: n, category: slot, totry: true }); await plan({ recipe: rid, parts: [] }, 'New recipe added. Fill it in after cooking.'); } catch { C.toast('Could not save. Try again.'); } } });
+  sh.addEventListener('click', async e => {
+    const b = e.target.closest('button, [data-mbclear]'); if (!b) return; const d = b.dataset;
+    if (d.mbclear) { e.stopPropagation(); S.parts[d.mbclear] = {}; draw(); return; }
+    if (d.mbmode) { S.mode = d.mbmode; S.q = ''; draw(); return; }
+    if (d.mbopen) { S.open = S.open === d.mbopen ? '' : d.mbopen; S.q = ''; S.all = false; draw(); return; }
+    if (b.hasAttribute('data-mball')) { S.all = true; draw(); return; }
+    if (d.mbset) { S.parts[S.open] = { recipe: d.mbset }; S.open = ''; S.q = ''; draw(); return; }
+    if (d.wpmealf) { S.f = d.wpmealf; draw(); return; }
+    if (d.wpmealset) { await plan({ recipe: d.wpmealset, parts: [], what: '' }); return; }
+    if (b.hasAttribute('data-wpmealaway')) { await plan({ away: true, recipe: '', parts: [] }); return; }
+    if (b.hasAttribute('data-wpmealclose')) { C.closeSheet(); return; }
+    if (d.mbcombo) { const c = L.byId[d.mbcombo]; if (!c) return; save(c, { used: (num(c.used) || 0) + 1 }); await plan(asMeal([].concat(c.parts || [])), `${titleOf(c)} planned`); return; }
+    if (b.hasAttribute('data-mbgo')) {
+      const parts = filled(); if (!parts.length) return;
+      if (S.save) { const name = (S.cname || partsTitle(parts)).trim(); await create('mealcombos', { name, parts, slot, used: 1 }).catch(() => {}); }
+      await plan(asMeal(parts), S.save ? 'Planned and saved as a combination' : '');
+    }
+  });
 }
+function openSlot(date, slot) { mealBuilder(date, slot); }
 function openRecipe(r) {
   const ings = [].concat(r.ingredients || []).map(id => L.byId[id]).filter(Boolean);
   const missing = ings.filter(i => !i.stock && !i.list), pr = parseRecipe(r), base = Math.max(1, Math.round(num(r.servings) || 2));
@@ -5913,7 +5976,7 @@ addEventListener('resize', () => SUG.hide());
 
 function mealPicker(wk) {
   const [d, slot] = String(L.wpMeal || '').split('|'); if (!d) return '';
-  return `<div class="panel wppick"><p><b>${esc(slot)} on ${esc(niceDate(d))}</b></p>${mealPickBody(slot, L.wpMealQ || '', L.wpMealF || 'fit')}</div>`;
+  return `<div class="panel wppick"><p><b>${esc(slot)} on ${esc(niceDate(d))}</b> <button class="btn small" data-act="mealparts" data-d="${d}" data-v="${esc(slot)}">🧩 From parts or a combination</button></p>${mealPickBody(slot, L.wpMealQ || '', L.wpMealF || 'fit')}</div>`;
 }
 function mealPickBody(slot, qRaw, f) {
   const q = norm(qRaw || ''), soon = new Set(recs('ingredients').filter(useSoon).map(r => r.id));
@@ -5949,9 +6012,9 @@ function workPicker() {
     <div class="dbtns"><button class="btn small" data-wpworkrest>Rest day</button><button class="btn small" data-wpworkclose>Close</button></div></div>`;
 }
 function missingFor(wk) {
-  const meals = recs('meals').filter(m => wpIn(m.date, wk) && m.recipe && L.byId[m.recipe]);
+  const meals = recs('meals').filter(m => wpIn(m.date, wk) && mealRecipeIds(m).length);
   const ids = new Set(), names = new Map();
-  for (const m of meals) { const r = L.byId[m.recipe]; for (const id of [].concat(r.ingredients || [])) { const i = L.byId[id]; if (i && !i.stock && !i.list) ids.add(id); }
+  for (const m of meals) for (const r of mealRecipeIds(m).map(id => L.byId[id])) { for (const id of [].concat(r.ingredients || [])) { const i = L.byId[id]; if (i && !i.stock && !i.list) ids.add(id); }
     for (const x of [].concat(r.ilines || []).filter(x => x && x.n && !x.h)) { const n = norm(x.n); const have = recs('ingredients').find(i => norm(i.name) === n); if (!have) names.set(n, x.n); else if (!have.stock && !have.list) ids.add(have.id); } }
   return { ids: [...ids], names: [...names.values()].slice(0, 30) };
 }
@@ -6661,6 +6724,7 @@ document.addEventListener('click', async e => {
     case 'frulesapply': fRulesApply(); break;
     case 'funsorted': fUnsorted(); break;
     case 'exvids': exVidSheet(); break;
+    case 'mealparts': L.wpMeal = ''; mealBuilder(d.d, d.v); break;
     case 'wintick': case 'winswap': winAct(d.act, d.v); break;
     case 'invphotos': invPhotoPick(); break;
     case 'invphotoclear': invPhotoClear(); break;
