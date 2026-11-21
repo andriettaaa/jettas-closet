@@ -2165,7 +2165,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v185';
+const APP_VERSION = 'hangtag-v186';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2562,7 +2562,7 @@ const TODO_CHECKS = [
   ['colors', 'Colour', it => !(it.colors || []).length],
   ['material', 'Material', it => !String(it.material || '').trim() && !(it.materials || []).length],
   ['price', 'Price paid', it => it.price == null || it.price === ''],
-  ['bought', 'Bought on', it => !it.bought],
+  ['bought', 'Bought on', it => !it.bought && !it.boughtUnknown],
   ['seasons', 'Season', it => !(it.seasons || []).length],
   ['occasions', 'Occasion', it => !(it.occasions || []).length],
   ['care', 'Care', it => !careTags(it).length && !String(it.careNotes || '').trim() && !['bags', 'accessories'].includes(catKey(it.cat))],
@@ -2579,6 +2579,18 @@ const TD_FIELDS = [
 ];
 const TD_BASE = ['name', 'brand', 'model', 'cat', 'sub', 'size', 'colors', 'price', 'shop', 'bought'];
 const tdField = k => TD_FIELDS.find(f => f[0] === k);
+/* bought long ago: tap the year, then the month (or "Only the year", or "Don't know"), for one piece or a whole selection */
+const BP_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const bpYears = () => { const y = new Date().getFullYear(); return Array.from({ length: 10 }, (_, i) => y - i); };
+function boughtPick(key, selY) {
+  const off = selY ? '' : 'disabled';
+  return `<div class="bpick" data-bp="${esc(key)}"><div class="bprow" role="group" aria-label="Year">${bpYears().map(y => `<button type="button" class="chip" data-bpy="${y}" aria-pressed="${y === selY}">${y}</button>`).join('')}</div>
+    <div class="bprow" role="group" aria-label="Month">${BP_MONTHS.map((m, i) => `<button type="button" class="chip" data-bpm="${i + 1}" ${off}>${m}</button>`).join('')}</div>
+    <div class="bprow"><button type="button" class="chip link" data-bponly ${off}>Only the year</button><button type="button" class="chip link" data-bpunk>Don't know</button>${selY ? '' : '<span class="muted">Tap the year first</span>'}</div></div>`;
+}
+const boughtPatch = (y, m, unk) => unk ? { boughtUnknown: true } : { bought: `${y}-${String(m || 1).padStart(2, '0')}-01`, boughtApprox: m ? 'month' : 'year', boughtUnknown: false };
+// the date as you know it: a day, a month or only a year
+const boughtText = it => it.boughtUnknown && !it.bought ? "Don't know" : !it.bought ? '—' : it.boughtApprox === 'year' ? it.bought.slice(0, 4) : it.boughtApprox === 'month' ? fromISO(it.bought).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : niceDate(it.bought);
 // which editable field a To do check stands for
 const TD_OF = { sub: 'sub', model: 'model', brand: 'brand', size: 'size', colors: 'colors', material: 'material', price: 'price', bought: 'bought', seasons: 'seasons', occasions: 'occasions' };
 const tdVal = (it, k) => { const v = it[k]; return Array.isArray(v) ? v.join(', ') : k === 'price' ? (v == null || v === '' ? '' : String(v).replace('.', ',')) : (v ?? ''); };
@@ -2652,7 +2664,7 @@ function renderTodo(host) {
     const x = list[T.idx];
     body = x ? (() => { const it = x.it, ks = [...new Set(x.miss.map(m => TD_OF[m[0]]).filter(Boolean))], care = x.miss.some(m => m[0] === 'care');
       return `<div class="tdone"><div class="tdonep">${it.photo ? pimg(it.photo, '', 'loading="lazy"') : '<span class="muted">No photo</span>'}</div><div class="tdonef"><p class="muted">${T.idx + 1} of ${n}</p><h2>${esc(it.name || 'Piece')}</h2><p class="muted">${esc([it.brand, it.model, it.sub || it.cat].filter(Boolean).join(' · '))}</p>
-        ${ks.map(k => `<div class="field"><label>${tdField(k)[1]}</label>${input(it, k)}${sugBtn(it, k)}</div>`).join('')}
+        ${ks.map(k => `<div class="field"><label>${tdField(k)[1]}</label>${input(it, k)}${sugBtn(it, k)}${k === 'bought' ? boughtPick(it.id, T.bpY) : ''}</div>`).join('')}
         ${care ? `<div class="field"><label>Care</label>${sugBtn(it, 'care') || '<span class="muted">Set the care symbols in the editor.</span>'}</div>` : ''}
         ${x.miss.some(m => m[0] === 'photo' || m[0] === 'check' || m[0] === 'new') ? `<p class="muted">Also: ${esc(x.miss.filter(m => ['photo', 'check', 'new'].includes(m[0])).map(m => m[1]).join(', '))}. <button class="chip link" data-item="${esc(it.id)}">Open the editor</button></p>` : ''}
         <div class="setbtns"><button class="btn" data-tdprev ${T.idx ? '' : 'disabled'}>Back</button><button class="btn primary" data-tdnext>Next</button><button class="btn small" data-item="${esc(it.id)}">Full editor</button></div></div></div>`; })() : '';
@@ -2674,7 +2686,7 @@ function renderTodo(host) {
       ${T.view === 'table' ? `<label class="settog tdonly"><input type="checkbox" data-tdonly ${T.onlyEmpty ? 'checked' : ''}> Only empty fields</label>` : ''}</div>
     <div class="chips" role="group" aria-label="Missing field"><button class="chip" data-tfield="all" aria-pressed="${T.field === 'all'}">Everything <span class="n">${pieces.length}</span></button>${TODO_CHECKS.map(([k, l]) => { const n = count(k); return n ? `<button class="chip" data-tfield="${k}" aria-pressed="${T.field === k}">${l} <span class="n">${n}</span></button>` : ''; }).join('')}</div>
     ${lists}${body}
-    <div class="tdbar" ${T.sel.size && T.view !== 'one' ? '' : 'hidden'}><b>${T.sel.size} selected</b><select class="pill" data-tdbk aria-label="Field">${bulkFields.map(f => `<option value="${f[0]}">${f[1]}</option>`).join('')}<option value="care">Care (copy from same material)</option></select><input class="tdin" data-tdbv placeholder="Value for all" list="tdl-brand" aria-label="Value"><button class="btn small primary" data-tdapply>Apply</button><button class="btn small" data-tdsugsel>Take suggestions</button><button class="chip link" data-tdclear>Clear</button></div>`
+    <div class="tdbar" ${T.sel.size && T.view !== 'one' ? '' : 'hidden'}><b>${T.sel.size} selected</b><select class="pill" data-tdbk aria-label="Field">${bulkFields.map(f => `<option value="${f[0]}">${f[1]}</option>`).join('')}<option value="care">Care (copy from same material)</option></select><input class="tdin" data-tdbv placeholder="Value for all" list="tdl-brand" aria-label="Value"><button class="btn small primary" data-tdapply>Apply</button><button class="btn small" data-tdsugsel>Take suggestions</button><button class="btn small" data-tdbpopen aria-expanded="${!!T.bpOpen}">📅 Month and year</button><button class="chip link" data-tdclear>Clear</button>${T.bpOpen ? boughtPick('sel', T.bpY) : ''}</div>`
     : `<div class="empty"><p>${total ? 'Every piece in your closet has all its details. Nice.' : 'Add pieces to your closet; anything they still miss shows up here.'}</p></div>`}`;
   const rerender = () => renderTodo(host);
   const saveCell = async el => { const id = el.dataset.tdin, k = el.dataset.k, it = S.byId[id]; if (!it) return; const v = tdParse(k, el.value); if (JSON.stringify(v ?? '') === JSON.stringify(it[k] ?? (tdField(k)[2] === 'list' ? [] : ''))) return; try { await tdSave(id, { [k]: v }); el.closest('td')?.classList.toggle('miss', tdEmpty(S.byId[id], k)); } catch (err) { saveErr(err, 'Could not save. Try again.'); } };
@@ -2686,7 +2698,18 @@ function renderTodo(host) {
     const sg = t.closest('[data-tdsug]'); if (sg) { const id = sg.dataset.tdsug, k = sg.dataset.k, val = tdSuggest(S.byId[id], k); if (val == null) return; await tdSave(id, { [k]: val }, `Filled in ${tdField(k)?.[1] || 'care'}`); return rerender(); }
     const sga = t.closest('[data-tdsugall]'); if (sga) { const g = groups.find(x => x.key === sga.dataset.tdsugall); return takeSug(g ? g.list.map(x => x.it.id) : [], 'Took the suggestions for ' + (g?.label || 'this group')); }
     const sgr = t.closest('[data-tdselgroup]'); if (sgr) { const g = groups.find(x => x.key === sgr.dataset.tdselgroup); const ids = g ? g.list.map(x => x.it.id) : []; const all = ids.every(id => T.sel.has(id)); ids.forEach(id => all ? T.sel.delete(id) : T.sel.add(id)); return rerender(); }
-    if (t.closest('[data-tdclear]')) { T.sel.clear(); return rerender(); }
+    if (t.closest('[data-tdclear]')) { T.sel.clear(); T.bpOpen = false; return rerender(); }
+    if (t.closest('[data-tdbpopen]')) { T.bpOpen = !T.bpOpen; return rerender(); }
+    const by = t.closest('[data-bpy]'); if (by) { T.bpY = Number(by.dataset.bpy); return rerender(); }
+    const bpb = t.closest('[data-bpm],[data-bponly],[data-bpunk]');
+    if (bpb && !bpb.disabled) {
+      const key = bpb.closest('[data-bp]').dataset.bp, unk = bpb.matches('[data-bpunk]'), patch = boughtPatch(T.bpY, bpb.dataset.bpm ? Number(bpb.dataset.bpm) : 0, unk);
+      if (!unk && !T.bpY) return toast('Tap the year first');
+      const when = unk ? "Don't know" : bpb.dataset.bpm ? `${BP_MONTHS[Number(bpb.dataset.bpm) - 1]} ${T.bpY}` : String(T.bpY);
+      if (key === 'sel') { const ids = [...T.sel]; await tdBulk(ids.map(id => [id, patch]), `Bought ${when} for ${ids.length} pieces`); T.sel.clear(); T.bpOpen = false; toast(`Bought: ${when}, for ${ids.length} ${ids.length === 1 ? 'piece' : 'pieces'}. Undo is in the toast.`); return rerender(); }
+      for (const el of host.querySelectorAll('.tdone [data-tdin]')) if (el.dataset.k !== 'bought') await saveCell(el);
+      await tdSave(key, patch, `Bought: ${when}`); toast(`Bought: ${when}`); return rerender();
+    }
     if (t.closest('[data-tdsugsel]')) return takeSug([...T.sel], 'Took the suggestions for the selection');
     if (t.closest('[data-tdapply]')) {
       const k = $('[data-tdbk]', host).value, raw = $('[data-tdbv]', host).value, ids = [...T.sel];
@@ -3253,7 +3276,7 @@ function openItem(id) {
           ${row('Material', [list('materials', cur.materials), matPctText(cur) ? `<span class="muted">${esc(matPctText(cur))}</span>` : cur.material ? `<span class="muted">${esc(cur.material)}</span>` : ''].filter(Boolean).join(' '))}
           ${row('Texture', list('textures', cur.textures))}
           ${row('Print', list('prints', cur.prints))}
-          ${wish ? row('On list since', cur.wishSince ? niceDate(cur.wishSince) : '') : row('Bought', niceDate(cur.bought))}
+          ${wish ? row('On list since', cur.wishSince ? niceDate(cur.wishSince) : '') : row('Bought', boughtText(cur))}
           ${isPassed(cur) ? row('Archived on', cur.passedDate ? niceDate(cur.passedDate) : 'yes') : ''}
           ${!wish && !inCloset(cur) ? row(cur.status === 'sold' ? 'Sold on' : 'Donated on', niceDate(cur.goneDate) + (cur.status === 'sold' && cur.soldPrice > 0 ? ` · for <b>${eur(cur.soldPrice)}</b>` : '')) : ''}
           ${row('Tags', list('tags', [...(cur.tags || [])].sort(azSort)))}
@@ -3493,7 +3516,7 @@ function openEditor(id, opts = {}) {
         name, cat: $('#f-cat', sh).value, sub: $('#f-sub', sh).value.trim(), brand: $('#f-brand', sh).value.trim(), model: $('#f-model', sh).value.trim(),
         ...(() => { const w = ($('#f-where', sh)?.value || '').trim(), was = it.where || ''; const where = w === 'In de kast' ? '' : w; return { where, whereSince: where ? (where === 'Uitgeleend' ? ($('#f-loanon', sh)?.value || today()) : where !== was ? today() : (it.whereSince || today())) : '', loanTo: where === 'Uitgeleend' ? ($('#f-loanto', sh)?.value || '').trim() : '' }; })(),
         size: $('#f-size', sh).value.trim(), articleNo: $('#f-art', sh).value.trim(), price: num('#f-price'), origPrice: num('#f-orig'),
-        bought: $('#f-bought', sh)?.value ?? it.bought ?? '', pastWears: Math.max(0, parseInt($('#f-past', sh)?.value, 10) || 0),
+        ...(() => { const b = $('#f-bought', sh)?.value ?? it.bought ?? ''; return b === (it.bought || '') ? {} : { boughtApprox: '', boughtUnknown: false }; })(), bought: $('#f-bought', sh)?.value ?? it.bought ?? '', pastWears: Math.max(0, parseInt($('#f-past', sh)?.value, 10) || 0),
         material: $('#f-material', sh).value.trim(), colors: it.colors, seasons: it.seasons, occasions: it.occasions,
         fits: it.fits, materials: it.materials, matPct: Object.fromEntries(matPctOf(it)), textures: it.textures, prints: it.prints, condition: it.condition || '', acquired: it.acquired || '', giftFrom: it.acquired === 'Gift' ? ($('#f-giftfrom', sh)?.value || '').trim() : '', purchasePlace: it.purchasePlace || '',
         tags: it.tags,

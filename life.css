@@ -1061,6 +1061,10 @@ img.nophoto { background: var(--line); }
 .tdonef .field label { font-size: 13px; color: var(--muted); }
 .tdbar { position: sticky; bottom: 12px; z-index: 30; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 16px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
 .tdbar .tdin { flex: 1 1 160px; width: auto; }
+.bpick { display: grid; gap: 8px; margin-top: 10px; flex: 1 1 100%; min-width: 0; }
+.bprow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.bprow .chip[disabled] { opacity: .45; cursor: default; }
+.bprow .muted { font-size: 12.5px; }
 @media (max-width: 760px) { .tdbar { bottom: 84px; } .tdone { grid-template-columns: minmax(0, 1fr); } .tdonep { aspect-ratio: 4 / 3; } }
 .tdonep:has(> span) { aspect-ratio: auto; min-height: 72px; }
 .lvtable .ltname { min-width: 140px; }
