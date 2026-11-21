@@ -1023,6 +1023,9 @@ img.nophoto { background: var(--line); }
 .calcat[aria-pressed="true"] { background: color-mix(in srgb, var(--c) 18%, var(--surface)); color: var(--ink); border: 1px solid color-mix(in srgb, var(--c) 70%, var(--line)); }
 .calcat[aria-pressed="false"] { background: var(--surface); }
 /* ---------- closet To do: groups, table, one by one, select and fill ---------- */
+.tdnight { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 12px; }
+.tdnight .muted { font-size: 13px; min-width: 0; }
+.todomiss span.tdwait { border-style: solid; color: var(--ink); }
 .tdtools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
 .tdpick { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
 .tdgroup { margin: 18px 0 8px; }

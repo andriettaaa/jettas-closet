@@ -2557,6 +2557,24 @@ const TODO = {
 TODO.body = { beauty: TODO.care.beauty, supplements: TODO.care.supplements, bshops: TODO.care.bshops, appts: TODO.care.appts, ...TODO.fit };
 // Life holds Body, Plans and Wishlists, so its To do shows all of them
 TODO.plan = { ...TODO.body, ideas: TODO.care.ideas, gifts: TODO.care.gifts, courses: TODO.care.courses, documents: TODO.care.documents, stays: TODO.care.stays, ...TODO.wish };
+/* the nightly round can look up what a page or shop says about a thing by its brand and name, without a link:
+   per list the missing fields it may fill (never what only you know: how much you have, when you use it, price paid) */
+const NIGHTFILL = {
+  beauty: ['brand', 'type', 'photo', 'size', 'url', 'about', 'variant', 'inci', 'texture', 'concern', 'step', 'family', 'scent'],
+  supplements: ['brand', 'form', 'photo', 'url'],
+  ingredients: ['category', 'location', 'photo'],
+  gear: ['category', 'photo'],
+  fitgear: ['category', 'photo'],
+  exercises: ['muscles', 'equipment', 'how'],
+  plants: ['light', 'every', 'photo']
+};
+const nightMiss = x => (NIGHTFILL[x.kind] || []).filter(k => x.miss.some(m => m[0] === k));
+const nightCan = x => !x.r.needsFill && String(x.r.name || '').trim() && nightMiss(x).length > 0;
+async function nightFill(list) {
+  const rows = list.map(x => ({ id: x.r.id, kind: x.kind, data: { ...dataOf(x.r), needsFill: true, fillMiss: nightMiss(x), fillAsked: today() } }));
+  if (!rows.length) return;
+  try { await putMany(rows, null, `Asked tonight's round to fill ${plural(rows.length, 'record')}`); C.toast(`Claude fills in ${plural(rows.length, 'thing')} tonight`); } catch { C.toast('Could not save. Try again.'); }
+}
 function sectionTodo(host, sec) {
   const cfg = TODO[sec] || {};
   let saved = {}; try { saved = JSON.parse(localStorage.getItem('ltodo:' + sec) || '{}'); } catch {}
@@ -2567,13 +2585,14 @@ function sectionTodo(host, sec) {
   if (T.kind !== 'all' && !kinds.some(([k]) => k === T.kind)) T.kind = 'all';
   const cmp = { most: (a, b) => b.miss.length - a.miss.length || norm(titleOf(a.r)).localeCompare(norm(titleOf(b.r))), almost: (a, b) => a.miss.length - b.miss.length || norm(titleOf(a.r)).localeCompare(norm(titleOf(b.r))), new: (a, b) => (b.r.created || 0) - (a.r.created || 0), old: (a, b) => (a.r.created || 0) - (b.r.created || 0), az: (a, b) => norm(titleOf(a.r)).localeCompare(norm(titleOf(b.r))) };
   const shown = all.filter(x => T.kind === 'all' || x.kind === T.kind).sort(cmp[T.sort] || cmp.most);
+  const night = shown.filter(nightCan), waiting = shown.filter(x => x.r.needsFill).length;
   const total = Object.entries(cfg).reduce((n, [k, c]) => n + recs(k).filter(r => !c.when || c.when(r)).length, 0);
   // groups: per list (always for the table, which needs one kind of record), per missing field, or none
   const groups = [];
   if (T.view === 'table' || T.group === 'kind') for (const [k] of kinds) { const l = shown.filter(x => x.kind === k); if (l.length) groups.push({ label: KINDS[k].many, kind: k, list: l }); }
   else if (T.group === 'missing') { const labels = [...new Set(shown.flatMap(x => x.miss.map(m => m[1])))]; for (const lab of labels) groups.push({ label: 'Geen ' + lab.toLowerCase(), list: shown.filter(x => x.miss.some(m => m[1] === lab)) }); }
   else groups.push({ label: '', list: shown });
-  const row = ({ r, kind, miss }) => `<div class="ltodo"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(KINDS[kind].many)}${KINDS[kind].sub?.(r) ? ' · ' + esc(KINDS[kind].sub(r)) : ''}</span></button><p class="todomiss">${miss.map(m => `<span>${esc(m[1])}</span>`).join('')}</p></div>`;
+  const row = ({ r, kind, miss }) => `<div class="ltodo"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(KINDS[kind].many)}${KINDS[kind].sub?.(r) ? ' · ' + esc(KINDS[kind].sub(r)) : ''}</span></button><p class="todomiss">${r.needsFill ? '<span class="tdwait">🌙 Tonight</span>' : ''}${miss.map(m => `<span>${esc(m[1])}</span>`).join('')}</p></div>`;
   let body = '';
   if (T.view === 'one') {
     if (T.idx >= shown.length) T.idx = 0;
@@ -2586,6 +2605,7 @@ function sectionTodo(host, sec) {
       ${T.view === 'list' ? `<label class="tdpick"><span>Group by</span><select class="pill" data-tdgroup>${[['kind', 'List'], ['missing', 'Missing field'], ['none', 'No groups']].map(([k, l]) => `<option value="${k}" ${T.group === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
       <label class="tdpick"><span>Sort</span><select class="pill" data-tdsort>${[['most', 'Most missing first'], ['almost', 'Almost done first'], ['az', 'Name A to Z'], ['new', 'Newest first'], ['old', 'Oldest first']].map(([k, l]) => `<option value="${k}" ${T.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
     ${kinds.length > 1 ? `<div class="chips" role="group" aria-label="List"><button class="chip" data-tdkind="all" aria-pressed="${T.kind === 'all'}">Everything <span class="n">${all.length}</span></button>${kinds.map(([k, n]) => `<button class="chip" data-tdkind="${k}" aria-pressed="${T.kind === k}">${esc(KINDS[k].many)} <span class="n">${n}</span></button>`).join('')}</div>` : ''}
+    ${night.length || waiting ? `<div class="tdnight">${night.length ? `<button class="btn small" data-tdnight>🌙 Let Claude fill in ${plural(night.length, 'thing')} tonight</button>` : ''}<span class="muted">${waiting ? `${plural(waiting, 'thing')} waiting for tonight's round. ` : ''}${night.length ? 'Looks them up by brand and name, no link needed. You only add what only you know.' : ''}</span></div>` : ''}
     ${body}`
     : quiet(total ? 'Everything here has its details. Nice.' : 'Add things in this section; anything they still miss shows up here.')}`;
   if (!host.dataset.tdwired) {
@@ -2595,6 +2615,7 @@ function sectionTodo(host, sec) {
       const v = e.target.closest('[data-tdview]'); if (v) { T2.view = v.dataset.tdview; T2.idx = 0; keep(); return sectionTodo(host, sec); }
       if (e.target.closest('[data-tdnext]')) { L.quiet = true; try { for (const el of host.querySelectorAll('.ltdone [data-lcell]')) await cellSave(el); } finally { L.quiet = false; } T2.idx++; return sectionTodo(host, sec); }
       if (e.target.closest('[data-tdprev]')) { T2.idx = Math.max(0, T2.idx - 1); return sectionTodo(host, sec); }
+      const nb = e.target.closest('[data-tdnight]'); if (nb) { nb.disabled = true; const cf = TODO[sec] || {}, list = Object.entries(cf).flatMap(([kind, c]) => recs(kind).filter(r => !c.when || c.when(r)).map(r => ({ r, kind, miss: c.checks.filter(x => x[2](r)) }))).filter(x => (T2.kind === 'all' || x.kind === T2.kind) && nightCan(x)); await nightFill(list); return sectionTodo(host, sec); }
     });
     host.addEventListener('change', e => { const T2 = L.todo[sec]; const so = e.target.closest('[data-tdsort]'); if (so) { T2.sort = so.value; keep(); sectionTodo(host, sec); } const gr = e.target.closest('[data-tdgroup]'); if (gr) { T2.group = gr.value; keep(); sectionTodo(host, sec); } });
   }
