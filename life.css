@@ -1441,3 +1441,5 @@ button.mtick:disabled { cursor: default; opacity: 1; }
 .mbpick .lqadd { flex-wrap: wrap; }
 .mbpick .lqadd input { min-width: 0; flex: 1 1 180px; }
 .mbsave { margin: 10px 0 6px; }
+.combolinks { margin: 6px 0 10px; align-items: center; }
+.combolinks .dsub { margin: 0 6px 0 0; }

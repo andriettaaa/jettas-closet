@@ -1760,6 +1760,7 @@ async function load() {
   L.missing = false; L.status = 'ok'; L.fresh = true;
   L.all = rows.map(r => ({ ...r.data, id: r.id, kind: r.kind })); index(); cacheSave(); C.render();
   movePostIdeas();
+  comboMigrate().catch(console.error);
   fAutoPay().catch(console.error);
   setTimeout(() => calFeedSync(), 3000);
 }
@@ -4025,10 +4026,39 @@ function partScore(r, k) {
   const hit = (re.test(norm(titleOf(r))) ? 3 : 0) + (re.test(txt) ? 1 : 0);
   return hit || k === 'main' ? hit + (cat.includes(r.category) ? 2 : 0) : 0;
 }
+/* a combination is a recipe of its own: the parts' ingredients in one list (a heading per part), the method per part,
+   links to the part recipes, and a category, cuisine and labels taken from the parts. The nightly round fills in the rest
+   (summary, nutrition), like a pasted link. */
+function comboRecipe(name, parts, slot) {
+  const rs = parts.map(p => ({ p, r: p.recipe && L.byId[p.recipe] })), lab = p => MEAL_PARTS.find(x => x[0] === p.role)?.[1] || '';
+  const ilines = [], steps = [];
+  for (const { p, r } of rs) {
+    const head = r ? titleOf(r) : p.what; if (!head) continue;
+    if (r) { const pr = parseRecipe(r); ilines.push({ h: head }, ...pr.lines.map(l => ({ n: l }))); for (const st of pr.steps) steps.push(`${head}: ${st}`); }
+    else { ilines.push({ h: lab(p) || head }, { n: head }); }
+  }
+  const real = rs.filter(x => x.r).map(x => x.r), main = (rs.find(x => x.p.role === 'main' && x.r) || rs.find(x => x.r))?.r;
+  const cnt = k => { const m = new Map(); for (const r of real) for (const v of [].concat(r[k] || [])) m.set(v, (m.get(v) || 0) + 1); return [...m.entries()].sort((a, b) => b[1] - a[1]).map(x => x[0]); };
+  const maxOf = k => Math.max(0, ...real.map(r => num(r[k]) || 0)) || undefined;
+  const parts2 = parts.map(p => ({ role: p.role, ...(p.recipe ? { recipe: p.recipe } : { what: p.what }) }));
+  return { name, category: MEALS.includes(slot) && slot !== 'Snack' ? slot : 'Dinner', combo: true, parts: parts2,
+    cuisine: main?.cuisine || cnt('cuisine')[0] || undefined, good: cnt('good').filter(g => real.length && real.every(r => [].concat(r.good || []).includes(g)) || g === 'High protein' && [].concat(main?.good || []).includes(g)),
+    ingredients: [...new Set(real.flatMap(r => [].concat(r.ingredients || [])))], ilines, steps, prep: maxOf('prep'), cook: maxOf('cook'),
+    servings: Math.min(...real.map(r => num(r.servings) || 99), 99) === 99 ? undefined : Math.min(...real.map(r => num(r.servings) || 99)),
+    photo: main?.photo || real.find(r => r.photo)?.photo, created: Date.now(), needsFill: true,
+    fillNote: `No link: this recipe is a meal made of these recipes: ${parts.map(p => (p.recipe && L.byId[p.recipe] ? titleOf(L.byId[p.recipe]) : p.what)).join(', ')}. Fill summary, dish, good labels and nutrition per serving from its ingredients and steps.` };
+}
+const comboRecipes = () => recs('recipes').filter(r => r.combo && (r.parts || []).length);
+// combinations saved before they became recipes turn into recipes once
+async function comboMigrate() {
+  const old = recs('mealcombos').filter(c => !c.recipe && (c.parts || []).length); if (!old.length) return;
+  const rows = []; for (const c of old) { const id = C.uuid(); rows.push({ id, kind: 'recipes', data: JSON.parse(JSON.stringify(comboRecipe(c.name || partsTitle(c.parts), c.parts, c.slot || 'Dinner'))) }, { id: c.id, kind: 'mealcombos', data: { ...dataOf(c), recipe: id } }); }
+  await putMany(rows, null, `Made ${plural(old.length, 'combination')} into recipes`).catch(() => {});
+}
 function mealBuilder(date, slot, mealId) {
   const m = mealId ? L.byId[mealId] : null;
   const S = { mode: m?.parts?.length || slot === 'Dinner' ? 'parts' : 'whole', parts: Object.fromEntries(MEAL_PARTS.map(([k]) => [k, { ...([].concat(m?.parts || []).find(p => p.role === k) || {}) }])), open: '', q: '', all: false, save: false, cname: '' };
-  const combos = () => recs('mealcombos').sort((a, b) => (num(b.used) || 0) - (num(a.used) || 0) || azCmp(titleOf(a), titleOf(b)));
+  const combos = () => comboRecipes().sort((a, b) => (num(b.used) || 0) - (num(a.used) || 0) || azCmp(titleOf(a), titleOf(b)));
   const filled = () => MEAL_PARTS.map(([k]) => ({ role: k, ...S.parts[k] })).filter(p => p.recipe || (p.what || '').trim());
   const tiles = k => {
     const q = norm(S.q), rs = recs('recipes').filter(r => !q || norm(titleOf(r)).includes(q)).map(r => ({ r, s: partScore(r, k) }));
@@ -4045,9 +4075,9 @@ function mealBuilder(date, slot, mealId) {
     const c = combos(), host = sh.querySelector('[data-mbbody]');
     host.innerHTML = `<div class="seg mbseg" role="group" aria-label="How to plan this meal">${[['parts', 'Parts'], ['whole', 'One recipe'], ['combo', `Combinations${c.length ? ' (' + c.length + ')' : ''}`]].map(([k, l]) => `<button data-mbmode="${k}" aria-pressed="${S.mode === k}">${l}</button>`).join('')}</div>
       ${S.mode === 'whole' ? mealPickBody(slot, S.q, S.f || 'fit')
-      : S.mode === 'combo' ? (c.length ? `<div class="lrows">${c.map(x => `<div class="lrow"><button class="lmain" data-mbcombo="${x.id}"><b>${esc(titleOf(x))}</b><span>${esc(partsTitle(x.parts))}</span></button><button class="btn small" data-mbcombo="${x.id}">Plan</button><button class="btn small" data-act="open" data-id="${x.id}" aria-label="Edit ${esc(titleOf(x))}">✏️</button></div>`).join('')}</div>` : quiet('No combinations yet. Build a meal from parts and save it as a combination.'))
+      : S.mode === 'combo' ? (c.length ? `<div class="lrows">${c.map(x => `<div class="lrow"><button class="lmain" data-mbcombo="${x.id}"><b>${esc(titleOf(x))}</b><span>${esc(partsTitle(x.parts))}</span></button><button class="btn small" data-mbcombo="${x.id}">Plan</button><button class="btn small" data-act="open" data-id="${x.id}" aria-label="Open ${esc(titleOf(x))}">📖</button></div>`).join('')}</div>` : quiet('No combinations yet. Build a meal from parts and save it as a combination: it becomes a recipe too.'))
       : `<div class="lrows mbparts">${MEAL_PARTS.map(row).join('')}</div>
-        <label class="settog mbsave"><input type="checkbox" data-mbsave ${S.save ? 'checked' : ''}> Save as a combination</label>
+        <label class="settog mbsave"><input type="checkbox" data-mbsave ${S.save ? 'checked' : ''}> Save as a combination (a new recipe)</label>
         ${S.save ? `<input class="finp" data-mbcname placeholder="Name, like Kip met rijst" value="${esc(S.cname || partsTitle(filled()))}" data-nosug>` : ''}
         <div class="dbtns"><button class="btn primary" data-mbgo ${filled().length ? '' : 'disabled'}>Plan this meal</button><button class="btn small" data-wpmealaway>Not eating at home</button></div>`}`;
   };
@@ -4074,11 +4104,11 @@ function mealBuilder(date, slot, mealId) {
     if (d.wpmealset) { await plan({ recipe: d.wpmealset, parts: [], what: '' }); return; }
     if (b.hasAttribute('data-wpmealaway')) { await plan({ away: true, recipe: '', parts: [] }); return; }
     if (b.hasAttribute('data-wpmealclose')) { C.closeSheet(); return; }
-    if (d.mbcombo) { const c = L.byId[d.mbcombo]; if (!c) return; save(c, { used: (num(c.used) || 0) + 1 }); await plan(asMeal([].concat(c.parts || [])), `${titleOf(c)} planned`); return; }
+    if (d.mbcombo) { const c = L.byId[d.mbcombo]; if (!c) return; save(c, { used: (num(c.used) || 0) + 1 }); await plan({ recipe: c.id, parts: [].concat(c.parts || []), what: '' }, `${titleOf(c)} planned`); return; }
     if (b.hasAttribute('data-mbgo')) {
       const parts = filled(); if (!parts.length) return;
-      if (S.save) { const name = (S.cname || partsTitle(parts)).trim(); await create('mealcombos', { name, parts, slot, used: 1 }).catch(() => {}); }
-      await plan(asMeal(parts), S.save ? 'Planned and saved as a combination' : '');
+      if (S.save) { const name = (S.cname || partsTitle(parts)).trim(), id = await create('recipes', { ...JSON.parse(JSON.stringify(comboRecipe(name, parts, slot))), used: 1 }).catch(() => null); if (id) { await plan({ recipe: id, parts, what: '' }, `Planned. ${name} is in your recipes now.`); return; } }
+      await plan(asMeal(parts), '');
     }
   });
 }
@@ -4093,6 +4123,7 @@ function openRecipe(r) {
       <div class="lrbody">
         <p class="lmeta">${esc([r.category, mins(totalTime(r)), r.servings ? plural(r.servings, 'serving') : '', r.protein ? r.protein + ' protein' : ''].filter(Boolean).join(' · '))}${r.rating ? ` <span class="lstars">${stars(r.rating)}</span>` : ''}</p>
         ${r.summary ? `<p class="lrsum">${esc(r.summary)}</p>` : ''}
+        ${r.combo && (r.parts || []).length ? `<div class="lwrap combolinks"><span class="dsub">Made of</span>${r.parts.map(p => { const pr = p.recipe && L.byId[p.recipe], lab = MEAL_PARTS.find(x => x[0] === p.role); return pr ? `<button class="chip" data-act="open" data-id="${pr.id}">${lab ? lab[2] + ' ' : ''}${esc(titleOf(pr))}</button>` : `<span class="chip">${lab ? lab[2] + ' ' : ''}${esc(p.what || '')}</span>`; }).join('')}</div>` : ''}
         ${r.link ? `<a class="btn small" href="${esc(r.link)}" target="_blank" rel="noopener">${svg(P.link)} Open the recipe</a>` : ''}
         ${pr.lines.length ? `<div class="lrhead"><h3>Ingredients</h3><span class="lserv" role="group" aria-label="Servings"><button class="iconbtn small" data-serv="-1" aria-label="Fewer servings">${svg(P.minus)}</button><b data-servn>${plural(base, 'serving')}</b><button class="iconbtn small" data-serv="1" aria-label="More servings">${svg(P.plus)}</button></span></div><ul class="rlines" data-rlines>${linesHTML(pr.lines, 1, pr.secs)}</ul>` : ''}
         ${ings.length ? `<p class="dsub">From your pantry</p><div class="lwrap">${ings.map(i => `<span class="chip ${i.stock ? 'on' : ''}">${i.stock ? '✓ ' : ''}${esc(i.name)}${i.list ? ' (on list)' : ''}</span>`).join('')}</div>` : ''}
