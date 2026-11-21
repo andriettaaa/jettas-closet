@@ -2535,7 +2535,10 @@ const TODO = {
   money: {
     fbills: { when: r => r.active !== false, checks: [need('amount', 'Amount'), need('category', 'Category'), need('account', 'Account'), need('anchor', 'First date')] },
     fdebts: { when: r => (num(r.balance) || 0) > 0 || empty(r.balance), checks: [need('balance', 'Balance'), need('payment', 'Monthly payment'), need('apr', 'Interest')] },
-    fgoals: { when: r => !r.done, checks: [need('target', 'Target'), need('by', 'Date')] }
+    fgoals: { when: r => !r.done, checks: [need('target', 'Target'), need('by', 'Date')] },
+    // purchases and money in that still miss something: a category for everyday spending, and the account
+    ftx: { when: r => !r.transfer, checks: [['category', 'Category', r => fEveryday(r) && (!r.category || !L.byId[r.category])], ['account', 'Account', r => !r.account || !L.byId[r.account]]] },
+    fincome: { when: r => !r.transfer && r.confirmed !== false, checks: [['account', 'Account', r => !r.account || !L.byId[r.account]]] }
   },
   home: {
     plants: { checks: [need('location', 'Where'), need('every', 'Water every'), need('light', 'Light'), need('photo', 'Photo')] },
@@ -2578,7 +2581,7 @@ function sectionTodo(host, sec) {
     if (x) { const K = KINDS[x.kind], fs = x.miss.map(m => K.fields.find(f => f.k === m[0])).filter(f => f && TABLE_TYPES.includes(f.type)), other = x.miss.filter(m => !fs.some(f => f.k === m[0]));
       body = `<div class="tdone ltdone"><div class="tdonef"><p class="muted">${T.idx + 1} of ${shown.length} · ${esc(K.many)}</p><h2>${esc(titleOf(x.r))}</h2>${fs.map(f => `<div class="field"><label>${esc(f.label)}</label>${cellIn(x.r, f)}</div>`).join('')}${other.length ? `<p class="muted">Also: ${esc(other.map(m => m[1]).join(', '))}.</p>` : ''}<div class="setbtns"><button class="btn" data-tdprev ${T.idx ? '' : 'disabled'}>Back</button><button class="btn primary" data-tdnext>Next</button><button class="btn small" data-act="open" data-id="${x.r.id}">Full editor</button></div></div></div>`; }
   } else body = groups.map(g => `<section class="tdgroup">${g.label ? `<div class="tdgh"><h3>${esc(g.label)} <span class="muted">${g.list.length}</span></h3></div>` : ''}${T.view === 'table' ? tableHTML(g.list.map(x => x.r), KINDS[g.kind], [...new Set(g.list.flatMap(x => x.miss.map(m => m[0])))]) : `<div class="lrows">${g.list.slice(0, 300).map(row).join('')}</div>`}</section>`).join('');
-  host.innerHTML = `<div class="viewhead"><h1>To do</h1><span class="sub">${total ? `${all.length} of ${total} miss something` : ''}</span></div>
+  host.innerHTML = `<div class="viewhead"><h1>To do</h1><span class="sub">${all.length} to do</span></div>
     ${all.length ? `<div class="tools tdtools"><div class="seg" role="group" aria-label="View">${[['list', 'List'], ['table', 'Table'], ['one', 'One by one']].map(([k, l]) => `<button data-tdview="${k}" aria-pressed="${T.view === k}">${l}</button>`).join('')}</div>
       ${T.view === 'list' ? `<label class="tdpick"><span>Group by</span><select class="pill" data-tdgroup>${[['kind', 'List'], ['missing', 'Missing field'], ['none', 'No groups']].map(([k, l]) => `<option value="${k}" ${T.group === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
       <label class="tdpick"><span>Sort</span><select class="pill" data-tdsort>${[['most', 'Most missing first'], ['almost', 'Almost done first'], ['az', 'Name A to Z'], ['new', 'Newest first'], ['old', 'Oldest first']].map(([k, l]) => `<option value="${k}" ${T.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
