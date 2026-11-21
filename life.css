@@ -1061,6 +1061,8 @@ img.nophoto { background: var(--line); }
 .tdonef .field label { font-size: 13px; color: var(--muted); }
 .tdbar { position: sticky; bottom: 12px; z-index: 30; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 16px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
 .tdbar .tdin { flex: 1 1 160px; width: auto; }
+.tdbankhint { margin: 0 0 12px; font-size: 13.5px; }
+.tdbank { text-align: left; }
 .bpick { display: grid; gap: 8px; margin-top: 10px; flex: 1 1 100%; min-width: 0; }
 .bprow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .bprow .chip[disabled] { opacity: .45; cursor: default; }

@@ -2165,7 +2165,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v186';
+const APP_VERSION = 'hangtag-v187';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2579,6 +2579,21 @@ const TD_FIELDS = [
 ];
 const TD_BASE = ['name', 'brand', 'model', 'cat', 'sub', 'size', 'colors', 'price', 'shop', 'bought'];
 const tdField = k => TD_FIELDS.find(f => f[0] === k);
+/* bank purchases at the shop or brand of a piece (from Money › bank CSV), as a suggestion for its price and date */
+const BANK_SKIP = new Set(['the', 'and', 'van', 'de', 'het', 'store', 'shop', 'online', 'nederland', 'b.v.', 'bv', 'amsterdam']);
+function bankFor(it, recs = window.LIFE?.records?.() || []) {
+  if (!it || (!tdEmpty(it, 'price') && it.bought && !it.boughtApprox)) return [];
+  const words = [...new Set([it.shop, it.brand].flatMap(v => norm(v).split(/[^a-z0-9&]+/)).filter(w => w.length >= 3 && !BANK_SKIP.has(w)))];
+  if (!words.length) return [];
+  const byOther = new Map();
+  for (const r of recs) if (r.kind === 'ftx') for (const e of [].concat(r.data.items || [])) if (e.k === 'closet' && e.id) byOther.set(e.id, r.id);
+  if (byOther.has(it.id)) return [];
+  const yr = it.boughtApprox === 'year' ? it.bought.slice(0, 4) : it.boughtApprox === 'month' ? it.bought.slice(0, 7) : '';
+  return recs.filter(r => r.kind === 'ftx' && !r.data.transfer && Number(r.data.amount) > 0 && r.data.date && (!yr || r.data.date.startsWith(yr)) && words.some(w => norm(r.data.name).includes(w)))
+    .map(r => ({ id: r.id, name: r.data.name || '', amount: Number(r.data.amount), date: r.data.date, n: [].concat(r.data.items || []).filter(e => e.k === 'closet').length }))
+    .sort((a, b) => a.n - b.n || b.date.localeCompare(a.date)).slice(0, 4);
+}
+const bankChip = (it, t) => `<button type="button" class="chip tdbank" data-tdbank="${esc(it.id)}" data-tx="${esc(t.id)}">🧾 ${esc(t.name.slice(0, 28))} · ${eur(t.amount)} · ${esc(niceDate(t.date))}${t.n ? ` · ${t.n} linked` : ''}</button>`;
 /* bought long ago: tap the year, then the month (or "Only the year", or "Don't know"), for one piece or a whole selection */
 const BP_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const bpYears = () => { const y = new Date().getFullYear(); return Array.from({ length: 10 }, (_, i) => y - i); };
@@ -2641,7 +2656,9 @@ function renderTodo(host) {
   const pieces = S.items.filter(inCloset).map(it => ({ it, miss: todoMissing(it) })).filter(x => x.miss.length);
   const count = k => pieces.filter(x => x.miss.some(m => m[0] === k)).length;
   if (T.field !== 'all' && !count(T.field)) T.field = 'all';
-  const shown = pieces.filter(x => T.field === 'all' || x.miss.some(m => m[0] === T.field));
+  const bankRecs = window.LIFE?.records?.() || [], bankN = pieces.filter(x => x.miss.some(m => m[0] === 'price' || m[0] === 'bought') && bankFor(x.it, bankRecs).length).length;
+  if (!bankN) T.bankOnly = false;
+  const shown = pieces.filter(x => (T.field === 'all' || x.miss.some(m => m[0] === T.field)) && (!T.bankOnly || bankFor(x.it, bankRecs).length));
   const cmp = { most: (a, b) => b.miss.length - a.miss.length || (b.it.created || 0) - (a.it.created || 0), almost: (a, b) => a.miss.length - b.miss.length || (b.it.created || 0) - (a.it.created || 0), az: (a, b) => String(a.it.name || '').localeCompare(String(b.it.name || '')), new: (a, b) => (b.it.created || 0) - (a.it.created || 0), old: (a, b) => (a.it.created || 0) - (b.it.created || 0) };
   shown.sort(cmp[T.sort] || cmp.most);
   for (const id of [...T.sel]) if (!shown.some(x => x.it.id === id)) T.sel.delete(id);
@@ -2664,6 +2681,7 @@ function renderTodo(host) {
     const x = list[T.idx];
     body = x ? (() => { const it = x.it, ks = [...new Set(x.miss.map(m => TD_OF[m[0]]).filter(Boolean))], care = x.miss.some(m => m[0] === 'care');
       return `<div class="tdone"><div class="tdonep">${it.photo ? pimg(it.photo, '', 'loading="lazy"') : '<span class="muted">No photo</span>'}</div><div class="tdonef"><p class="muted">${T.idx + 1} of ${n}</p><h2>${esc(it.name || 'Piece')}</h2><p class="muted">${esc([it.brand, it.model, it.sub || it.cat].filter(Boolean).join(' · '))}</p>
+        ${(() => { const b = bankFor(it, bankRecs); return b.length ? `<div class="field"><label>From your bank</label><div class="bprow">${b.map(t => bankChip(it, t)).join('')}</div><p class="muted">Tap the purchase of this piece: it fills in the price and the date.</p></div>` : ''; })()}
         ${ks.map(k => `<div class="field"><label>${tdField(k)[1]}</label>${input(it, k)}${sugBtn(it, k)}${k === 'bought' ? boughtPick(it.id, T.bpY) : ''}</div>`).join('')}
         ${care ? `<div class="field"><label>Care</label>${sugBtn(it, 'care') || '<span class="muted">Set the care symbols in the editor.</span>'}</div>` : ''}
         ${x.miss.some(m => m[0] === 'photo' || m[0] === 'check' || m[0] === 'new') ? `<p class="muted">Also: ${esc(x.miss.filter(m => ['photo', 'check', 'new'].includes(m[0])).map(m => m[1]).join(', '))}. <button class="chip link" data-item="${esc(it.id)}">Open the editor</button></p>` : ''}
@@ -2685,6 +2703,7 @@ function renderTodo(host) {
       <label class="tdpick"><span>Sort</span><select class="pill" id="todoSort">${TD_SORTS.map(([k, l]) => `<option value="${k}" ${T.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       ${T.view === 'table' ? `<label class="settog tdonly"><input type="checkbox" data-tdonly ${T.onlyEmpty ? 'checked' : ''}> Only empty fields</label>` : ''}</div>
     <div class="chips" role="group" aria-label="Missing field"><button class="chip" data-tfield="all" aria-pressed="${T.field === 'all'}">Everything <span class="n">${pieces.length}</span></button>${TODO_CHECKS.map(([k, l]) => { const n = count(k); return n ? `<button class="chip" data-tfield="${k}" aria-pressed="${T.field === k}">${l} <span class="n">${n}</span></button>` : ''; }).join('')}</div>
+    ${bankN ? `<p class="muted tdbankhint">🧾 ${bankN} ${bankN === 1 ? 'piece matches' : 'pieces match'} a purchase from your bank. ${T.bankOnly ? '<button class="chip link" data-tdbankgo="off">Show everything</button>' : '<button class="chip link" data-tdbankgo>Fill them in one by one</button>'}</p>` : ''}
     ${lists}${body}
     <div class="tdbar" ${T.sel.size && T.view !== 'one' ? '' : 'hidden'}><b>${T.sel.size} selected</b><select class="pill" data-tdbk aria-label="Field">${bulkFields.map(f => `<option value="${f[0]}">${f[1]}</option>`).join('')}<option value="care">Care (copy from same material)</option></select><input class="tdin" data-tdbv placeholder="Value for all" list="tdl-brand" aria-label="Value"><button class="btn small primary" data-tdapply>Apply</button><button class="btn small" data-tdsugsel>Take suggestions</button><button class="btn small" data-tdbpopen aria-expanded="${!!T.bpOpen}">📅 Month and year</button><button class="chip link" data-tdclear>Clear</button>${T.bpOpen ? boughtPick('sel', T.bpY) : ''}</div>`
     : `<div class="empty"><p>${total ? 'Every piece in your closet has all its details. Nice.' : 'Add pieces to your closet; anything they still miss shows up here.'}</p></div>`}`;
@@ -2693,13 +2712,26 @@ function renderTodo(host) {
   const takeSug = async (ids, label) => { const list = []; for (const id of ids) { const it = S.byId[id]; if (!it) continue; const patch = {}; for (const m of todoMissing(it)) { const k = TD_OF[m[0]]; if (k && tdEmpty(it, k)) { const v = tdSuggest(it, k); if (v != null) patch[k] = v; } if (m[0] === 'care') { const v = tdSuggest(it, 'care'); if (v) patch.care = v; } } if (Object.keys(patch).length) list.push([id, patch]); } if (!list.length) return toast('No suggestions for these pieces yet'); await tdBulk(list, label); toast(`Filled in ${list.length} ${list.length === 1 ? 'piece' : 'pieces'}. Undo is in the toast.`); };
   host.onclick = async e => {
     const t = e.target;
-    const f = t.closest('[data-tfield]'); if (f) { T.field = f.dataset.tfield; T.idx = 0; pref.set('todoField', T.field); return rerender(); }
+    const bg = t.closest('[data-tdbankgo]'); if (bg) { T.bankOnly = bg.dataset.tdbankgo !== 'off'; if (T.bankOnly) { T.field = 'all'; T.view = 'one'; } T.idx = 0; return rerender(); }
+    const f = t.closest('[data-tfield]'); if (f) { T.bankOnly = false; T.field = f.dataset.tfield; T.idx = 0; pref.set('todoField', T.field); return rerender(); }
     const v = t.closest('[data-tdview]'); if (v) { T.view = v.dataset.tdview; T.idx = 0; pref.set('todoView', T.view); return rerender(); }
     const sg = t.closest('[data-tdsug]'); if (sg) { const id = sg.dataset.tdsug, k = sg.dataset.k, val = tdSuggest(S.byId[id], k); if (val == null) return; await tdSave(id, { [k]: val }, `Filled in ${tdField(k)?.[1] || 'care'}`); return rerender(); }
     const sga = t.closest('[data-tdsugall]'); if (sga) { const g = groups.find(x => x.key === sga.dataset.tdsugall); return takeSug(g ? g.list.map(x => x.it.id) : [], 'Took the suggestions for ' + (g?.label || 'this group')); }
     const sgr = t.closest('[data-tdselgroup]'); if (sgr) { const g = groups.find(x => x.key === sgr.dataset.tdselgroup); const ids = g ? g.list.map(x => x.it.id) : []; const all = ids.every(id => T.sel.has(id)); ids.forEach(id => all ? T.sel.delete(id) : T.sel.add(id)); return rerender(); }
     if (t.closest('[data-tdclear]')) { T.sel.clear(); T.bpOpen = false; return rerender(); }
     if (t.closest('[data-tdbpopen]')) { T.bpOpen = !T.bpOpen; return rerender(); }
+    const bk = t.closest('[data-tdbank]');
+    if (bk) {
+      const id = bk.dataset.tdbank, it = S.byId[id], tx = (window.LIFE?.records?.() || []).find(r => r.id === bk.dataset.tx); if (!it || !tx) return;
+      const shared = [].concat(tx.data.items || []).some(e => e.k === 'closet'), patch = {};
+      if (tdEmpty(it, 'price') && !shared) patch.price = Number(tx.data.amount);
+      if (!it.bought || it.boughtApprox || it.boughtUnknown) Object.assign(patch, { bought: tx.data.date, boughtApprox: '', boughtUnknown: false });
+      for (const el of host.querySelectorAll('.tdone [data-tdin]')) await saveCell(el);
+      await tdSave(id, patch, `Price and date from ${tx.data.name || 'your bank'}`);
+      try { await window.LIFE?.linkBuy?.(tx.id, { k: 'closet', id, n: it.name || 'Piece', q: 1, ...(patch.price != null ? { p: patch.price } : {}) }); } catch {}
+      toast(shared ? 'Date filled in. This purchase has more pieces, so type the price yourself.' : 'Price and date filled in from your bank');
+      return rerender();
+    }
     const by = t.closest('[data-bpy]'); if (by) { T.bpY = Number(by.dataset.bpy); return rerender(); }
     const bpb = t.closest('[data-bpm],[data-bponly],[data-bpunk]');
     if (bpb && !bpb.disabled) {
