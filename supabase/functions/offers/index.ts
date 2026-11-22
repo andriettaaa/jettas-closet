@@ -647,14 +647,19 @@ async function healthIn(uid: string, body: any) {
 /* sleep without a wearable: the phone on the charger in the evening is bedtime, off the charger in the morning is
    getting up. The morning call answers with ask = "ja" and a question when the night has no rating yet, so the
    Shortcut asks "Hoe sliep je?" once and sends the answer back as mark = rate */
+// a time as a Shortcut sends it ("07:05", "22 nov 2026 at 23:40", "2026-11-22T23:40:00+01:00", or "7.05" without a colon)
+const clockOf = (v: unknown) => { const t = String(v ?? ''), m = t.match(/(\d{1,2}):(\d{2})/) || (/^\s*\d{1,2}\.\d{2}\s*$/.test(t) ? t.match(/(\d{1,2})\.(\d{2})/) : null); if (!m) return ''; const h = +m[1], mi = +m[2]; return h < 24 && mi < 60 ? `${String(h).padStart(2, '0')}:${m[2]}` : ''; };
+const mins = (hm: string) => { const [h, m] = hm.split(':').map(Number); return h * 60 + m; };
 const RATE: [RegExp, string, number][] = [[/super|top|excellent|geweldig/, 'Excellent', 5], [/goed|good/, 'Good', 4], [/matig|fair|ok|gaat/, 'Fair', 3], [/slecht|poor|bad|moe/, 'Poor', 2]];
 async function sleepMark(uid: string, body: any) {
   const mark = str(body.mark, 12).toLowerCase(), { h, hm } = nlClock(), t = nlToday(), nowIso = new Date().toISOString();
   const S = await healthStore(uid, ['sleep']), night = (d: string) => S.find('sleep', r => r.date === d);
+  // without the evening charger there is no bedtime yet: suggest the one from your latest night of the last two weeks
+  const bedGuess = () => S.list('sleep').filter(x => x.data?.bed && x.data.date && x.data.date < t && gapDays(x.data.date, t) <= 14).sort((a, b) => b.data.date.localeCompare(a.data.date))[0]?.data.bed || '23:00';
   const answer = (r: any) => {
     const d = r?.data || {}, hrs = num(d.hours), need = !d.quality && d.rested == null;
-    const said = [hrs != null ? `Je sliep ${nlNum(hrs)} uur` : '', d.bed && d.up ? `(${d.bed} tot ${d.up})` : ''].filter(Boolean).join(' ');
-    return { ask: need ? 'ja' : 'nee', question: (said ? said + '. ' : '') + 'Hoe sliep je?', hours: hrs, bed: d.bed || '', up: d.up || '' };
+    const said = hrs != null && d.bed && d.up ? `Je sliep ${nlNum(hrs)} uur (${d.bed} tot ${d.up})` : d.up ? `Op om ${d.up}` : '';
+    return { ask: need ? 'ja' : 'nee', question: (said ? said + '. ' : '') + 'Hoe sliep je?', hours: hrs, bed: d.bed || bedGuess(), bedKnown: d.bed ? 'ja' : 'nee', up: d.up || '' };
   };
   if (mark === 'bed' || mark === 'connect' || mark === 'aan') {
     const cur = night(t);
@@ -675,12 +680,18 @@ async function sleepMark(uid: string, body: any) {
     const r = S.set('sleep', hit, patch, drop); await S.flush();
     return { ok: true, ...answer(r) };
   }
-  if (mark === 'rate') {
-    const q = str(body.quality, 40).toLowerCase(), hit = RATE.find(([re]) => re.test(q));
-    if (!hit) return { error: 'quality is one of Super, Goed, Matig, Slecht' };
+  // the answer from the phone: how you slept, and optionally your own bedtime and getting-up time (they win over the charger)
+  if (mark === 'rate' || mark === 'times') {
+    const q = str(body.quality, 40).toLowerCase(), hit = q ? RATE.find(([re]) => re.test(q)) : null, bed = clockOf(body.bed), up = clockOf(body.up);
+    if (!hit && !bed && !up) return { error: 'send quality (Super, Goed, Matig, Slecht), bed or up' };
     const r = night(t) || S.list('sleep').filter(x => x.data?.date && x.data.date <= t).sort((a, b) => b.data.date.localeCompare(a.data.date)).find(x => gapDays(x.data.date, t) <= 1);
-    S.set('sleep', r, { date: r ? r.data.date : t, quality: hit[1], rested: hit[2], source: r?.data.source || 'iPhone' }); await S.flush();
-    return { ok: true, quality: hit[1] };
+    const d = r?.data || {}, patch: Record<string, unknown> = { date: r ? d.date : t, source: d.source || 'iPhone' };
+    if (hit) Object.assign(patch, { quality: hit[1], rested: hit[2] });
+    if (bed) patch.bed = bed; if (up) patch.up = up;
+    const b = bed || d.bed, u = up || d.up;
+    if ((bed || up) && b && u) { let m = mins(u) - mins(b); if (m <= 0) m += 1440; if (m > 60 && m < 960) Object.assign(patch, { hours: Math.round(m / 6) / 10, hsrc: 'phone' }); }
+    const rec = S.set('sleep', r, patch); await S.flush();
+    return { ok: true, quality: rec.data.quality || '', bed: rec.data.bed || '', up: rec.data.up || '', hours: num(rec.data.hours) };
   }
   return { error: 'mark is bed, up or rate' };
 }
