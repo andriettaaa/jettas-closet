@@ -654,10 +654,12 @@ const RATE: [RegExp, string, number][] = [[/super|top|excellent|geweldig/, 'Exce
 async function sleepMark(uid: string, body: any) {
   const mark = str(body.mark, 12).toLowerCase(), { h, hm } = nlClock(), t = nlToday(), nowIso = new Date().toISOString();
   const S = await healthStore(uid, ['sleep']), night = (d: string) => S.find('sleep', r => r.date === d);
+  // without the evening charger there is no bedtime yet: suggest the one from your latest night of the last two weeks
+  const bedGuess = () => S.list('sleep').filter(x => x.data?.bed && x.data.date && x.data.date < t && gapDays(x.data.date, t) <= 14).sort((a, b) => b.data.date.localeCompare(a.data.date))[0]?.data.bed || '23:00';
   const answer = (r: any) => {
     const d = r?.data || {}, hrs = num(d.hours), need = !d.quality && d.rested == null;
-    const said = [hrs != null ? `Je sliep ${nlNum(hrs)} uur` : '', d.bed && d.up ? `(${d.bed} tot ${d.up})` : ''].filter(Boolean).join(' ');
-    return { ask: need ? 'ja' : 'nee', question: (said ? said + '. ' : '') + 'Hoe sliep je?', hours: hrs, bed: d.bed || '', up: d.up || '' };
+    const said = hrs != null && d.bed && d.up ? `Je sliep ${nlNum(hrs)} uur (${d.bed} tot ${d.up})` : d.up ? `Op om ${d.up}` : '';
+    return { ask: need ? 'ja' : 'nee', question: (said ? said + '. ' : '') + 'Hoe sliep je?', hours: hrs, bed: d.bed || bedGuess(), bedKnown: d.bed ? 'ja' : 'nee', up: d.up || '' };
   };
   if (mark === 'bed' || mark === 'connect' || mark === 'aan') {
     const cur = night(t);
