@@ -1468,3 +1468,5 @@ button.mtick:disabled { cursor: default; opacity: 1; }
 .ckask { font-weight: 600; margin: 6px 0 0; }
 .ckdone { text-align: center; }
 .ckstep .btn { display: grid; place-items: center; }
+.sleepask { display: grid; gap: 6px; }
+.sleepask .dsub { margin: 2px 0 0; }

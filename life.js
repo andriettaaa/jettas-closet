@@ -1544,9 +1544,9 @@ function careTile() {
     partsOff('care').includes('appt') ? '' : appt ? `<p class="dline"><span>Next appointment</span><b>${esc(titleOf(appt))}, ${esc(relDay(appt.date))}${appt.time ? ' ' + esc(appt.time) : ''}</b></p>` : '',
     partsOff('care').includes('skin') ? '' : prods.length || rt.pick.length ? `<p class="dsub">${eve ? esc(rt.type || 'Evening') : 'Morning'} skincare</p><div class="lwrap">${prodChips(prods)}</div>${rt.pick.length ? `<p class="lnone">Choose one acid:</p><div class="lwrap">${prodChips(rt.pick)}</div>` : ''}` : '',
     part('care', 'routine', routineTile()),
-    partsOff('care').includes('sleep') ? '' : sl ? `<p class="dline"><span>Sleep</span><b>${esc([sl.hours ? sl.hours + ' h' : 'logged', sl.quality?.toLowerCase()].filter(Boolean).join(', '))}</b></p>` : '',
+    partsOff('care').includes('sleep') ? '' : !sl || sleepUnrated(sl) ? sleepAsk(sl) : `<p class="dline"><span>Sleep</span><b>${esc([sleepHours(sl) != null ? sleepHours(sl) + ' h' : 'logged', sl.quality?.toLowerCase()].filter(Boolean).join(', '))}</b></p>`,
     partsOff('care').includes('journal') ? '' : j ? `<p class="dline"><span>Journal</span><b><button class="chip link" data-act="open" data-id="${j.id}">${esc(titleOf(j))}</button></b></p>` : '',
-    (sl || partsOff('care').includes('sleep')) && (j || partsOff('care').includes('journal')) ? '' : `<div class="dbtns">${sl || partsOff('care').includes('sleep') ? '' : '<button class="btn small" data-act="new" data-v="sleep">Log last night</button>'}${j || partsOff('care').includes('journal') ? '' : '<button class="btn small" data-act="new" data-v="journal">Write today’s entry</button>'}</div>`
+    j || partsOff('care').includes('journal') ? '' : '<div class="dbtns"><button class="btn small" data-act="new" data-v="journal">Write today’s entry</button></div>'
   ]);
 }
 // the routine that fits the time of day, ticked off right on the card
@@ -6854,6 +6854,7 @@ document.addEventListener('click', async e => {
     case 'openitem': C.openItem?.(d.id); break;
     case 'hday': { const r = L.byId[d.id]; if (r) toggleDay(r, d.d); break; }
     case 'water': water(Number(d.v)); break;
+    case 'sleeprate': sleepRate(d.id, d.v); break;
     case 'watergoal': { const v = prompt('How many glasses a day?', C.prefs().waterGoal || 8); const n = Math.round(Number(v)); if (n > 0 && n < 40) C.savePrefs({ waterGoal: n }).catch(() => C.toast('Could not save. Try again.')); break; }
     case 'periodstart': create('cycles', { start: today() }).then(() => C.toast('Logged. Tap “Period ended” when it’s over.')).catch(() => {}); break;
     case 'periodend': { const r = L.byId[d.id]; if (r) save(r, { end: today() }); break; }
@@ -7690,24 +7691,39 @@ document.addEventListener('submit', e => {
 });
 /* ---------- settings that only one section has ---------- */
 const wishBudgetField = () => `<div class="fset"><div><b>Wishlist budget</b><span>What you allow yourself from your wishlists per ${fMode() === 'month' ? 'month' : 'paycheck'} (follows how you plan everyday spending). Purchases with the tag wishlist count against it.</span></div><input class="finp" type="number" inputmode="decimal" step="1" data-fset="wishBudget" value="${fset().wishBudget ?? ''}" placeholder="No budget"></div>`;
-// Apple Health comes in through an iPhone Shortcut that posts to the offers function once a day
+// Apple Health comes in through iPhone Shortcuts that post to the offers function: once a day, once for your history,
+// and for sleep without a wearable, each time the phone goes on or off the charger
 function healthPanel() {
   const url = String(C.sb?.supabaseUrl || '').replace(/\/$/, '') + '/functions/v1/offers';
-  const last = (kind, ok) => recs(kind).filter(ok).sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
-  const sl = last('sleep', r => r.source === 'Apple Health'), st = last('nlog', r => num(r.steps)), wo = last('workouts', r => r.source === 'Apple Health');
-  const seen = [sl && `sleep ${niceDate(sl.date)} (${sl.hours} h)`, st && `steps ${niceDate(st.date)} (${num(st.steps)})`, wo && `workout ${niceDate(wo.date)}`].filter(Boolean);
-  const m = x => `<span class="mono">${x}</span>`;
-  return `<section class="panel setpanel" id="set-health"><h3>Apple Health</h3><p class="muted">Once a day your iPhone sends your sleep, steps, workouts and period to the app.</p>
+  const last = (kind, ok, k = 'date') => recs(kind).filter(ok).sort((a, b) => (b[k] || '').localeCompare(a[k] || ''))[0];
+  const sl = last('sleep', r => r.source === 'Apple Health' || r.source === 'iPhone'), st = last('nlog', r => num(r.steps)), wo = last('workouts', r => r.source === 'Apple Health'), pe = last('cycles', r => r.source === 'Apple Health' || r.hEnd, 'start');
+  const seen = [sl && `sleep ${niceDate(sl.date)} (${sleepHours(sl) ?? '?'} h${sl.source === 'iPhone' ? ', charger' : ''})`, st && `steps ${niceDate(st.date)} (${num(st.steps)})`, wo && `workout ${niceDate(wo.date)}`, pe && `period ${niceDate(pe.start)}`].filter(Boolean);
+  const m = x => `<span class="mono">${x}</span>`, addr = `<button class="chip link mono" data-copy="${esc(url)}">${esc(url)}</button>`;
+  const post = fields => `Add <b>Get Contents of URL</b> with ${addr}. Tap <b>Show More</b>: method <b>POST</b>, request body <b>JSON</b>, and add these fields as Text: ${m('token')} = your OFFERS_TOKEN, ${fields}.`;
+  const lines = (type, when, extra = '') => `add <b>Find Health Samples</b>, type ${m(type)}, <b>Start Date is in the last ${when}</b>${extra}. Add <b>Repeat with Each</b>. Inside it: <b>Get Details of Health Sample</b> › <b>Start Date</b>, <b>Format Date</b> › Custom ${m('yyyy-MM-dd')}, <b>Get Details of Health Sample</b> › <b>Value</b> of the Repeat Item, then a <b>Text</b> with Formatted Date${m(';')}Value. After <b>End Repeat</b> add <b>Combine Text</b> › Repeat Results with <b>New Lines</b>.`;
+  return `<section class="panel setpanel" id="set-health"><h3>Apple Health</h3><p class="muted">Your iPhone sends your steps, workouts, period days and sleep to the app. You set it up once, after that it runs by itself.</p>
     <p class="muted"><b>Last received:</b> ${seen.length ? esc(seen.join(' · ')) : 'nothing yet'}</p>
-    <ol class="setsteps"><li>On your iPhone open <b>Shortcuts</b> › <b>Automation</b> › <b>+</b> › <b>Time of Day</b>. Pick <b>21:30</b>, <b>Daily</b>, and <b>Run Immediately</b>. Tap <b>New Blank Automation</b>.</li>
-    <li><b>Sleep:</b> add <b>Find Health Samples</b>. Type ${m('Sleep Analysis')}, filter <b>Start Date is in the last 1 days</b>, and add the filters <b>Value is not In Bed</b> and <b>Value is not Awake</b>. Add <b>Get Details of Health Samples</b> › <b>Duration</b>, then <b>Calculate Statistics</b> › <b>Sum</b>.</li>
-    <li><b>Steps:</b> add <b>Find Health Samples</b>, type ${m('Steps')}, <b>Start Date is today</b>. Add <b>Calculate Statistics</b> › <b>Sum</b>.</li>
-    <li><b>Period:</b> add <b>Find Health Samples</b>, type ${m('Menstruation')}, <b>Start Date is today</b>, limit <b>1</b>. Add <b>Count</b>.</li>
-    <li>Add <b>Get Contents of URL</b> with this address: <button class="chip link mono" data-copy="${esc(url)}">${esc(url)}</button>. Tap <b>Show More</b>: method <b>POST</b>, request body <b>JSON</b>, and add these fields as Text:
-      ${m('action')} = health, ${m('token')} = your OFFERS_TOKEN, ${m('sleep')} = the Sum from step 2, ${m('steps')} = the Sum from step 3, ${m('period')} = the Count from step 4.</li>
-    <li>Tap ▶︎ once to test. Open this page again: under Last received you see today’s sleep and steps.</li></ol>
-    <p class="muted"><b>Workouts</b> from Apple Health count as done: a planned workout that day gets ticked off. To send them, add one more field ${m('workouts')} with one line per workout: type;minutes (for example <span class="mono">Yoga;30</span>).</p>
-    <p class="muted"><b>Nothing arrives?</b> Tap the result of Get Contents of URL in the test run. <span class="mono">forbidden</span> means the token is not the same as OFFERS_TOKEN in Supabase. An error about the function means it is not deployed yet, or Verify JWT is still on.</p></section>`;
+    <details class="vtable" open><summary>1. Every evening: steps, workouts and period</summary><ol class="setsteps"><li>On your iPhone open <b>Shortcuts</b> › <b>Automation</b> › <b>+</b> › <b>Time of Day</b>. Pick <b>21:30</b>, <b>Daily</b>, and <b>Run Immediately</b>. Tap <b>New Blank Automation</b>.</li>
+      <li><b>Steps:</b> add <b>Find Health Samples</b>, type ${m('Steps')}, <b>Start Date is today</b>. Add <b>Calculate Statistics</b> › <b>Sum</b>.</li>
+      <li><b>Period:</b> ${lines('Menstruation', '7 days')} The app turns these days into a period with its own start, end and flow.</li>
+      <li><b>Sleep from Health</b> (only if you use a sleep schedule in the Health app): add <b>Find Health Samples</b>, type ${m('Sleep Analysis')}, <b>Start Date is in the last 1 days</b>, filter <b>Value is not Awake</b>. Add <b>Get Details of Health Samples</b> › <b>Duration</b>, then <b>Calculate Statistics</b> › <b>Sum</b>. The charger times from step 3 win when both are there.</li>
+      <li>${post(`${m('action')} = health, ${m('steps')} = the Sum of Steps, ${m('menstruation')} = the Combined Text, ${m('sleep')} = the Sum of Sleep`)}</li>
+      <li>Tap ▶︎ once to test. Open this page again: under Last received you see today’s steps.</li></ol>
+      <p class="muted"><b>Workouts</b> from Apple Health count as done: a planned workout that day gets ticked off. To send them, add one more field ${m('workouts')} with one line per workout: type;minutes (for example <span class="mono">Yoga;30</span>).</p></details>
+    <details class="vtable"><summary>2. Once: your history</summary><p class="muted">Brings in every period and your steps per day of the last two years. Your cycle averages, predictions and step charts use them straight away. Running it twice does no harm.</p>
+      <ol class="setsteps"><li>In <b>Shortcuts</b> tap <b>+</b> and name it <b>A’s Life history</b>.</li>
+      <li><b>Period:</b> ${lines('Menstruation', '2 years')}</li>
+      <li><b>Steps:</b> ${lines('Steps', '2 years', ', <b>Group By Day</b>')}</li>
+      <li>${post(`${m('action')} = health, ${m('menstruation')} = the first Combined Text, ${m('stepsDays')} = the second Combined Text`)}</li>
+      <li>Tap ▶︎ once and wait a moment. The result says how many periods and step days came in.</li></ol></details>
+    <details class="vtable"><summary>3. Sleep without a watch: the charger</summary><p class="muted">Your phone on the charger in the evening (from 20:00) is bedtime. Off the charger in the morning (04:00 to 13:00) is getting up. The app works out your hours and asks once, right then: <b>How did you sleep?</b> Back on the charger at night and off again later? The last time counts.</p>
+      <ol class="setsteps"><li><b>Bedtime:</b> <b>Automation</b> › <b>+</b> › <b>Charger</b> › <b>Is Connected</b>, <b>Run Immediately</b>. ${post(`${m('action')} = sleepmark, ${m('mark')} = bed`)}</li>
+      <li><b>Getting up:</b> a second automation: <b>Charger</b> › <b>Is Disconnected</b>, <b>Run Immediately</b>. ${post(`${m('action')} = sleepmark, ${m('mark')} = up`)}</li>
+      <li>Below it add <b>Get Dictionary Value</b> ${m('ask')} from Contents of URL, then <b>If</b> Dictionary Value <b>is</b> ${m('ja')}.</li>
+      <li>Inside the If: <b>Get Dictionary Value</b> ${m('question')} from Contents of URL, a <b>List</b> with ${m('😴 Super')}, ${m('🙂 Goed')}, ${m('😐 Matig')}, ${m('😩 Slecht')}, and <b>Choose from List</b> with the question as prompt.</li>
+      <li>Then one more <b>Get Contents of URL</b>: ${m('action')} = sleepmark, ${m('mark')} = rate, ${m('quality')} = Chosen Item, plus your ${m('token')}.</li></ol>
+      <p class="muted">Tapped the question away? Today and Sleep ask again with the same four buttons.</p></details>
+    <p class="muted"><b>Nothing arrives?</b> Tap the result of Get Contents of URL in a test run. <span class="mono">forbidden</span> means the token is not the same as OFFERS_TOKEN in Supabase. An error about the function means it is not deployed yet, or Verify JWT is still on.</p></section>`;
 }
 function settingsPanels(sec) { if (!C) return ''; return secOwn(sec) + ovPanel(sec); }
 function secOwn(sec) {
@@ -8612,7 +8628,7 @@ function bodyToday(host) {
     ${stepsPanel()}
     ${panel('Hoe voel je je?', `<p class="dsub">Energie</p><div class="lwrap">${['Laag', 'Oké', 'Goed', 'Top'].map(v => moodChip('energy', v)).join('')}</div><p class="dsub">Stemming</p><div class="lwrap">${['Down', 'Gestrest', 'Rustig', 'Blij'].map(v => moodChip('mood', v)).join('')}</div>`)}
     ${panel('Training vandaag', `${poor ? '<p class="lnone">Je sliep niet zo goed. Kies vandaag iets lichters: wandelen, stretchen of yoga.</p>' : ph ? `<p class="lnone">${esc(ph[1])}</p>` : ''}<p class="lnone">Eet op trainingsdagen een eiwitrijk tussendoortje, zoals ei, kipfilet of kaas.</p>`, ['fit/library', 'Weekplan'])}
-    ${panel('Slaap', slept ? `<p class="lbig">${num(slept.hours) || '?'} uur</p><p class="lnone">${esc([slept.quality, slept.wake].filter(Boolean).join(' · '))}</p>` : `<p class="lnone">Hoe sliep je? Vanavond naar bed om ${hm(bedOn(t))}.</p><button class="btn small" data-act="new" data-v="sleep">Vul je nacht in</button>`, ['care/health', 'Alles'])}
+    ${panel('Slaap', slept && !sleepUnrated(slept) ? `<p class="lbig">${sleepHours(slept) ?? '?'} uur</p><p class="lnone">${esc([slept.quality, slept.wake].filter(Boolean).join(' · '))}</p>` : `${sleepAsk(slept)}<p class="lnone">Vanavond naar bed om ${hm(bedOn(t))}.</p><button class="btn small" data-act="${slept ? 'open' : 'new'}" ${slept ? `data-id="${slept.id}"` : 'data-v="sleep"'}>Meer invullen</button>`, ['care/health', 'Alles'])}
     ${cs.start ? panel('Clean', `<p class="lnone">${cs.before ? `Nog ${plural(cs.toGo, 'dag', 'dagen')} tot je stopdatum.` : `${plural(cs.streak, 'dag', 'dagen')} clean, ${eur(cs.saved)} bespaard.`}</p><button class="btn small primary" data-act="crave">Ik heb trek</button>`, ['body/clean', 'Open']) : ''}
   </div>`;
 }
@@ -9082,6 +9098,14 @@ function nailsPage(host) {
 
 /* sleep: your log, morning and evening routine and what helps */
 const hhmm = t => { const m = String(t || '').match(/^(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : null; };
+// one tap for last night: rates a night the charger measured, or logs a new one with just how you slept
+const SLEEP_RATE = [['Excellent', 5, '😴', 'Super'], ['Good', 4, '🙂', 'Good'], ['Fair', 3, '😐', 'Okay'], ['Poor', 2, '😩', 'Poor']];
+const sleepUnrated = r => !!r && !r.quality && num(r.rested) == null;
+const sleepAsk = r => `<div class="sleepask">${r && (r.bed || r.up || sleepHours(r) != null) ? `<p class="dline"><span>Phone measured</span><b>${esc([r.bed && r.up ? `${r.bed} to ${r.up}` : r.bed ? `bed ${r.bed}` : '', sleepHours(r) != null ? sleepHours(r) + ' h' : ''].filter(Boolean).join(', '))}</b></p>` : ''}<p class="dsub">How did you sleep?</p><div class="lwrap">${SLEEP_RATE.map(([q, , e, l]) => `<button class="chip" data-act="sleeprate" ${r ? `data-id="${r.id}"` : ''} data-v="${q}">${e} ${l}</button>`).join('')}</div></div>`;
+function sleepRate(id, q) {
+  const x = SLEEP_RATE.find(z => z[0] === q), r = id && L.byId[id]; if (!x) return;
+  (r ? save(r, { quality: x[0], rested: x[1] }) : create('sleep', { date: today(), quality: x[0], rested: x[1] })).then(() => C.toast(`${x[2]} Saved`)).catch(() => {});
+}
 const sleepHours = r => { if (num(r.hours) != null) return num(r.hours); const b = hhmm(r.bed), u = hhmm(r.up); if (b == null || u == null) return null; let d = u - b; if (d <= 0) d += 1440; return Math.round(d / 6) / 10; };
 const SLEEP_RES = [['Sleeping better', [
   ['A steady rhythm', 'The same bedtime and wake time, also at the weekend (within an hour), is the strongest thing you can do for your sleep.'],
@@ -9101,6 +9125,7 @@ function sleepPage(host) {
   host.innerHTML = `<div class="viewhead"><h1>Sleep</h1><span class="sub">${last ? `Last night ${sleepHours(last) ?? '?'} h ${emoOf('rested', last.rested)}` : 'Your sleep log'}</span></div>
     <div class="lplanhead">${last?.date === t ? `<button class="btn small" data-act="open" data-id="${last.id}">Edit last night</button>` : newBtn('sleep', '🌙 Log last night')}</div>
     <div class="panels">
+      ${last?.date === t && !sleepUnrated(last) ? '' : panel('🌙 Last night', sleepAsk(last?.date === t ? last : null))}
       ${panel('⏰ Hours and rhythm', `${aLine(days, hrs, { label: 'Hours', unit: ' h', max: 12 })}<div class="tiles lt3"><div class="tile"><div class="k">🛏 Bed on weekdays</div><div class="v">${avgT(recent.filter(r => !wk(r)), 'bed')}</div></div><div class="tile"><div class="k">🛏 Bed at the weekend</div><div class="v">${avgT(recent.filter(wk), 'bed')}</div></div><div class="tile"><div class="k">🌅 Up on weekdays</div><div class="v">${avgT(recent.filter(r => !wk(r)), 'up')}</div></div></div>`)}
       ${panel('🌞 How rested', aLine(days, rest, { label: 'Rested', unit: '/5', max: 5 }))}
       ${panel('💡 What helps your sleep', fx.length ? `<ul class="alinks">${fx.map(([f, y, n]) => `<li><b>${esc(f)}</b>: ${emoOf('rested', y)} ${r1(y)}/5 with, ${emoOf('rested', n)} ${r1(n)}/5 without.</li>`).join('')}</ul><p class="lnone">How rested you felt, the last 30 days. Averages, not cause and effect.</p>` : quiet('Tick what played a part when you log your night. After a few weeks you see what helps.'))}

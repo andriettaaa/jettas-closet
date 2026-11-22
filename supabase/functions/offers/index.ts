@@ -544,6 +544,147 @@ async function ttPost(uid: string, id: string) {
   } catch (e: any) { return { error: e.message }; }
 }
 
+/* ---------- Apple Health and the iPhone ---------- */
+const addDay = (d: string, n: number) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+const gapDays = (a: string, b: string) => Math.round((Date.parse(b + 'T12:00:00Z') - Date.parse(a + 'T12:00:00Z')) / 864e5);
+const MONTHS: Record<string, number> = { jan: 1, feb: 2, mrt: 3, mar: 3, apr: 4, mei: 5, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, okt: 10, oct: 10, nov: 11, dec: 12 };
+// a date the way a Shortcut writes it: 2026-11-21, 21-11-2026, 21 nov. 2026 or Nov 21, 2026
+function anyDay(v: unknown): string {
+  const s = String(v ?? '').trim().toLowerCase(), mk = (y: number, m: number, d: number) => { const x = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`; return y > 2000 && y < 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31 && !isNaN(Date.parse(x)) ? x : ''; };
+  let m = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/); if (m) return mk(+m[1], +m[2], +m[3]);
+  m = s.match(/(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/); if (m) return mk(+m[3], +m[2], +m[1]);
+  m = s.match(/(\d{1,2})\s+([a-z]{3})[a-z.]*\s+(\d{4})/); if (m && MONTHS[m[2]]) return mk(+m[3], MONTHS[m[2]], +m[1]);
+  m = s.match(/([a-z]{3})[a-z.]*\s+(\d{1,2}),?\s+(\d{4})/); if (m && MONTHS[m[1]]) return mk(+m[3], MONTHS[m[1]], +m[2]);
+  return '';
+}
+// "date;value" lines (or a list of them) from a Repeat in a Shortcut
+const dayLines = (v: unknown) => (Array.isArray(v) ? v.map(String) : String(v ?? '').split(/\r?\n/)).map(l => { const [d, ...rest] = l.split(/[;|\t]/); return { date: anyDay(d), value: rest.join(';').trim() }; }).filter(x => x.date).slice(0, 4000);
+// Apple Health's flow values, in English or Dutch
+const FLOW_RANK = ['Unspecified', 'Spotting', 'Light', 'Medium', 'Heavy'];
+const flowOf = (v: string) => { const s = v.toLowerCase(); return /geen|none|^no/.test(s) ? '' : /hevig|heavy|zwaar/.test(s) ? 'Heavy' : /gemiddeld|medium|normaal/.test(s) ? 'Medium' : /licht|light/.test(s) ? 'Light' : /spot/.test(s) ? 'Spotting' : 'Unspecified'; };
+const nlClock = () => { const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Amsterdam', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).map(x => [x.type, x.value])); return { h: Number(p.hour), hm: `${p.hour}:${p.minute}` }; };
+const nlNum = (n: number) => String(n).replace('.', ',');
+
+// the records Health touches, kept in memory so one call can write hundreds of days in a few upserts
+async function healthStore(uid: string, kinds: string[]) {
+  const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', kinds);
+  if (error) throw error;
+  const all: any[] = data || [], dirty = new Map<string, any>();
+  return {
+    find: (kind: string, ok: (d: any) => boolean) => all.find(r => r.kind === kind && ok(r.data || {})),
+    list: (kind: string) => all.filter(r => r.kind === kind),
+    set(kind: string, hit: any, patch: Record<string, unknown>, drop: string[] = []) {
+      const r = hit || { id: crypto.randomUUID(), kind, data: { created: Date.now() } }; if (!hit) all.push(r);
+      r.data = { ...r.data, ...clean(patch) }; for (const k of drop) delete r.data[k]; dirty.set(r.id, r); return r;
+    },
+    async flush() {
+      const now = new Date().toISOString(), rows = [...dirty.values()].map(r => ({ user_id: uid, id: r.id, kind: r.kind, data: r.data, updated_at: now }));
+      for (let i = 0; i < rows.length; i += 400) { const { error: e } = await sb.from('records').upsert(rows.slice(i, i + 400)); if (e) throw e; }
+      return rows.length;
+    }
+  };
+}
+
+// the daily run at 21:30, and the one-time history import: sleep, steps, workouts and period days
+async function healthIn(uid: string, body: any) {
+  const date = day(body.date) || nlToday(), out: Record<string, unknown> = {};
+  const S = await healthStore(uid, ['sleep', 'nlog', 'workouts', 'cycles', 'cyclelog']);
+  // sleep may come in hours, minutes or seconds, depending on how the Shortcut adds it up; a night the phone
+  // measured from the charger (bed and up) keeps those times, Health only fills what is missing
+  const rawSleep = healthNum(body.sleepHours ?? body.sleep), hrs = rawSleep == null ? null : rawSleep > 1440 ? rawSleep / 3600 : rawSleep > 24 ? rawSleep / 60 : rawSleep;
+  if (hrs != null && hrs > 0 && hrs < 16) {
+    const hit = S.find('sleep', r => r.date === date);
+    if (!(hit?.data.hsrc === 'phone' && hit.data.upAt)) { S.set('sleep', hit, { date, hours: Math.round(hrs * 10) / 10, bed: hit?.data.bed ? '' : str(body.bed, 5), up: hit?.data.up ? '' : str(body.wake, 5), source: hit?.data.source || 'Apple Health', hsrc: 'health' }); out.sleep = hrs; }
+  }
+  // the evening run sends the whole day: the newest number for a day replaces the one before; nonsense is left out
+  const stepIn = (d: string, v: unknown) => { const n = healthNum(v); if (n == null || n < 0 || n >= 150000) return false; S.set('nlog', S.find('nlog', r => r.date === d), { date: d, steps: Math.round(n) }); return true; };
+  if (stepIn(date, body.steps)) out.steps = healthNum(body.steps);
+  // steps per day, one "date;steps" line each (the history import, or the last week)
+  const sd = dayLines(body.stepsDays); let sn = 0; for (const x of sd) if (stepIn(x.date, x.value)) sn++; if (sd.length) out.stepDays = sn;
+  const TYPES: Record<string, string> = { walking: 'Walk', running: 'Run', cycling: 'Cycling', yoga: 'Yoga', pilates: 'Pilates', hiit: 'HIIT', strength: 'Strength', 'traditional strength training': 'Strength', 'functional strength training': 'Strength', 'high intensity interval training': 'HIIT', dance: 'Cardio', elliptical: 'Cardio', rowing: 'Cardio', flexibility: 'Stretching', 'core training': 'Strength' };
+  const wos = (Array.isArray(body.workouts) ? body.workouts : String(body.workouts || '').split('\n').filter(Boolean).map((l: string) => { const [t, m, d] = l.split(/[;,]/).map(x => x.trim()); return { type: t, minutes: m, date: d }; })).slice(0, 10);
+  let wn = 0;
+  for (const w of wos as any[]) {
+    const wd = day(w.date) || anyDay(w.date) || date, raw = str(w.type, 60), type = TYPES[raw.toLowerCase()] || 'Other', min = healthNum(w.minutes) == null ? null : Math.round(healthNum(w.minutes)! * 10) / 10, hk = `${wd}|${raw}|${min}`;
+    if (!raw || S.find('workouts', r => r.hk === hk)) continue;
+    const plan = S.find('workouts', r => r.date === wd && !r.done && !r.skipped);
+    if (plan) S.set('workouts', plan, { done: true, minutes: min ?? plan.data.minutes, hk, source: 'Apple Health' });
+    else S.set('workouts', null, { name: raw, date: wd, minutes: min, type, done: true, hk, source: 'Apple Health' });
+    wn++;
+  }
+  out.workouts = wn;
+  // period days: one "date;flow" line per Menstruation sample. Days at most two apart make one period; a period
+  // that still bled on the day of the run stays open, otherwise it gets its last day as the end
+  const flows = new Map<string, string>();
+  for (const x of dayLines(body.menstruation)) { const f = flowOf(x.value); if (!f) continue; const was = flows.get(x.date); if (!was || FLOW_RANK.indexOf(f) > FLOW_RANK.indexOf(was)) flows.set(x.date, f); }
+  if (flows.size) {
+    const ds = [...flows.keys()].sort(), groups: { start: string; last: string; flow: string }[] = [];
+    for (const d of ds) { const g = groups[groups.length - 1], f = flows.get(d)!; if (g && gapDays(g.last, d) <= 2) { g.last = d; if (FLOW_RANK.indexOf(f) > FLOW_RANK.indexOf(g.flow)) g.flow = f; } else groups.push({ start: d, last: d, flow: f }); }
+    let made = 0, kept = 0;
+    for (const g of groups) {
+      const open = g.last >= date, flow = g.flow === 'Unspecified' ? '' : g.flow;
+      const hit = S.find('cycles', r => r.start && r.start <= addDay(g.last, 2) && (r.end || addDay(r.start, 9)) >= addDay(g.start, -2));
+      if (!hit) { S.set('cycles', null, { start: g.start, end: open ? '' : g.last, flow, source: 'Apple Health', hEnd: open ? undefined : true }); made++; continue; }
+      const h = hit.data, patch: Record<string, unknown> = {}, drop: string[] = [];
+      if (h.source === 'Apple Health' && g.start < h.start) patch.start = g.start;
+      if (!h.end || h.hEnd) { if (open) { if (h.end) drop.push('end', 'hEnd'); } else if (!h.end || g.last > h.end) { patch.end = g.last; patch.hEnd = true; } }
+      if (!h.flow && flow) patch.flow = flow;
+      if (Object.keys(patch).length || drop.length) { S.set('cycles', hit, patch, drop); kept++; }
+    }
+    // each bleeding day with a known flow also lands in the cycle diary
+    let dn = 0;
+    for (const [d, f] of flows) { if (f === 'Unspecified') continue; const hit = S.find('cyclelog', r => r.date === d); if (hit && hit.data.flow && hit.data.flow !== 'None') continue; S.set('cyclelog', hit, { date: d, flow: f, source: hit ? hit.data.source : 'Apple Health' }); dn++; }
+    out.periods = { new: made, updated: kept, days: flows.size, diary: dn };
+  }
+  // the old daily field: "period" is true on a bleeding day without the lines above
+  if (!flows.size && (body.period === true || /^(true|ja|yes|1)$/i.test(String(body.period || '')))) {
+    if (!S.list('cycles').some(r => r.data?.start && r.data.start >= addDay(date, -10))) { S.set('cycles', null, { start: date, source: 'Apple Health' }); out.period = 'started'; }
+  }
+  out.saved = await S.flush();
+  return { ok: true, ...out };
+}
+
+/* sleep without a wearable: the phone on the charger in the evening is bedtime, off the charger in the morning is
+   getting up. The morning call answers with ask = "ja" and a question when the night has no rating yet, so the
+   Shortcut asks "Hoe sliep je?" once and sends the answer back as mark = rate */
+const RATE: [RegExp, string, number][] = [[/super|top|excellent|geweldig/, 'Excellent', 5], [/goed|good/, 'Good', 4], [/matig|fair|ok|gaat/, 'Fair', 3], [/slecht|poor|bad|moe/, 'Poor', 2]];
+async function sleepMark(uid: string, body: any) {
+  const mark = str(body.mark, 12).toLowerCase(), { h, hm } = nlClock(), t = nlToday(), nowIso = new Date().toISOString();
+  const S = await healthStore(uid, ['sleep']), night = (d: string) => S.find('sleep', r => r.date === d);
+  const answer = (r: any) => {
+    const d = r?.data || {}, hrs = num(d.hours), need = !d.quality && d.rested == null;
+    const said = [hrs != null ? `Je sliep ${nlNum(hrs)} uur` : '', d.bed && d.up ? `(${d.bed} tot ${d.up})` : ''].filter(Boolean).join(' ');
+    return { ask: need ? 'ja' : 'nee', question: (said ? said + '. ' : '') + 'Hoe sliep je?', hours: hrs, bed: d.bed || '', up: d.up || '' };
+  };
+  if (mark === 'bed' || mark === 'connect' || mark === 'aan') {
+    const cur = night(t);
+    // back on the charger in the night or early morning after getting up: the next time off the charger counts as up
+    if (h < 13 && cur?.data.upAt) { S.set('sleep', cur, { replugAt: nowIso }); await S.flush(); return { ok: true, noted: 'replug', ask: 'nee' }; }
+    if (h >= 6 && h < 20) return { ok: true, ignored: 'not bedtime', ask: 'nee' };
+    const d = h >= 20 ? addDay(t, 1) : t, hit = night(d);
+    if (hit?.data.upAt) return { ok: true, ignored: 'night done', ask: 'nee' };
+    S.set('sleep', hit, { date: d, bed: hm, bedAt: nowIso, source: hit?.data.source || 'iPhone' }); await S.flush();
+    return { ok: true, bed: hm, ask: 'nee' };
+  }
+  if (mark === 'up' || mark === 'disconnect' || mark === 'uit') {
+    if (h < 4 || h >= 13) return { ok: true, ignored: 'not morning', ask: 'nee' };
+    const hit = night(t), d = hit?.data || {};
+    if (d.upAt && !(d.replugAt && d.replugAt > d.upAt)) return { ok: true, ...answer(hit) };
+    const patch: Record<string, unknown> = { date: t, up: hm, upAt: nowIso, source: d.source || 'iPhone' }, drop: string[] = ['replugAt'];
+    if (d.bedAt) { const hrs = (Date.parse(nowIso) - Date.parse(d.bedAt)) / 36e5; if (hrs > 1 && hrs < 16) Object.assign(patch, { hours: Math.round(hrs * 10) / 10, hsrc: 'phone' }); }
+    const r = S.set('sleep', hit, patch, drop); await S.flush();
+    return { ok: true, ...answer(r) };
+  }
+  if (mark === 'rate') {
+    const q = str(body.quality, 40).toLowerCase(), hit = RATE.find(([re]) => re.test(q));
+    if (!hit) return { error: 'quality is one of Super, Goed, Matig, Slecht' };
+    const r = night(t) || S.list('sleep').filter(x => x.data?.date && x.data.date <= t).sort((a, b) => b.data.date.localeCompare(a.data.date)).find(x => gapDays(x.data.date, t) <= 1);
+    S.set('sleep', r, { date: r ? r.data.date : t, quality: hit[1], rested: hit[2], source: r?.data.source || 'iPhone' }); await S.flush();
+    return { ok: true, quality: hit[1] };
+  }
+  return { error: 'mark is bed, up or rate' };
+}
+
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
@@ -572,34 +713,8 @@ Deno.serve(async req => {
     // a photo from the web for the closet editor: the browser may not read other sites' images, so this fetches it
     // and hands it back (nothing is stored). A page link instead of an image link gets the page's main picture.
     // Apple Health, sent each morning by an iPhone Shortcut: sleep, steps, workouts and period
-    if (body.action === 'health') {
-      const date = day(body.date) || nlToday(), now = new Date().toISOString(), out: Record<string, unknown> = {};
-      const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).in('kind', ['sleep', 'nlog', 'workouts', 'cycles']);
-      if (error) throw error;
-      const up = async (kind: string, match: (r: any) => boolean, patch: Record<string, unknown>) => { const hit = data.find((r: any) => r.kind === kind && match(r.data || {})); const row = { user_id: uid, id: hit?.id || crypto.randomUUID(), kind, data: { ...(hit?.data || { created: Date.now() }), ...clean(patch) }, updated_at: now }; const { error: e } = await sb.from('records').upsert(row); if (e) throw e; };
-      // sleep may come in hours, minutes or seconds, depending on how the Shortcut adds it up
-      const rawSleep = healthNum(body.sleepHours ?? body.sleep), hrs = rawSleep == null ? null : rawSleep > 1440 ? rawSleep / 3600 : rawSleep > 24 ? rawSleep / 60 : rawSleep;
-      if (hrs != null && hrs > 0 && hrs < 16) { await up('sleep', r => r.date === date, { date, hours: Math.round(hrs * 10) / 10, bed: str(body.bed, 5), up: str(body.wake, 5), source: 'Apple Health' }); out.sleep = hrs; }
-      // the evening run sends the whole day: the newest number for a day replaces the one before; nonsense is left out
-      const steps = healthNum(body.steps); if (steps != null && steps >= 0 && steps < 150000) { await up('nlog', r => r.date === date, { date, steps: Math.round(steps) }); out.steps = steps; }
-      const TYPES: Record<string, string> = { walking: 'Walk', running: 'Run', cycling: 'Cycling', yoga: 'Yoga', pilates: 'Pilates', hiit: 'HIIT', strength: 'Strength', 'traditional strength training': 'Strength', 'functional strength training': 'Strength', 'high intensity interval training': 'HIIT', dance: 'Cardio', elliptical: 'Cardio', rowing: 'Cardio', flexibility: 'Stretching', 'core training': 'Strength' };
-      const wos = (Array.isArray(body.workouts) ? body.workouts : String(body.workouts || '').split('\n').filter(Boolean).map((l: string) => { const [t, m, d] = l.split(/[;,]/).map(x => x.trim()); return { type: t, minutes: m, date: d }; })).slice(0, 10);
-      let wn = 0;
-      for (const w of wos as any[]) {
-        const wd = day(w.date) || date, raw = str(w.type, 60), type = TYPES[raw.toLowerCase()] || 'Other', min = healthNum(w.minutes) == null ? null : Math.round(healthNum(w.minutes)! * 10) / 10, hk = `${wd}|${raw}|${min}`;
-        if (!raw || data.some((r: any) => r.kind === 'workouts' && r.data?.hk === hk)) continue;
-        const plan = data.find((r: any) => r.kind === 'workouts' && r.data?.date === wd && !r.data?.done && !r.data?.skipped);
-        if (plan) await up('workouts', r => r === plan.data, { done: true, minutes: min ?? plan.data.minutes, hk, source: 'Apple Health' });
-        else { const { error: e } = await sb.from('records').insert({ user_id: uid, id: crypto.randomUUID(), kind: 'workouts', data: clean({ name: raw, date: wd, minutes: min, type, done: true, hk, source: 'Apple Health', created: Date.now() }), updated_at: now }); if (e) throw e; }
-        wn++;
-      }
-      out.workouts = wn;
-      if (body.period === true || /^(true|ja|yes|1)$/i.test(String(body.period || ''))) {
-        const recent = data.filter((r: any) => r.kind === 'cycles' && r.data?.start && r.data.start >= new Date(Date.parse(date) - 10 * 864e5).toISOString().slice(0, 10));
-        if (!recent.length) { const { error: e } = await sb.from('records').insert({ user_id: uid, id: crypto.randomUUID(), kind: 'cycles', data: { start: date, source: 'Apple Health', created: Date.now() }, updated_at: now }); if (e) throw e; out.period = 'started'; }
-      }
-      return json({ ok: true, ...out });
-    }
+    if (body.action === 'health') return json(await healthIn(uid, body));
+    if (body.action === 'sleepmark') return json(await sleepMark(uid, body));
     // the move list for the weekly price check: open products and their options with a link
     // shop photos for the move list: items without an approved photo get a few candidates from web shops, she approves one in the app
     if (body.action === 'invphotolist') {
