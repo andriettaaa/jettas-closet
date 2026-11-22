@@ -15,6 +15,10 @@ This repo is public. Never commit personal data, tokens or secrets, and never as
 4. **Always show a visual preview before going live**: send screenshots of the change (at least on a phone width, and on a wider screen when the layout differs) and explain what she sees.
 5. Ask before merging. "Zet live" means: mark the PR ready and squash merge.
 
+## iPhone Shortcuts
+- Never put setup steps for Shortcuts (Apple Health, sharing, automations) in the app. The app only shows what came in.
+- Give her a copyable text in chat that she pastes in the AI of the Shortcuts app, one text per Shortcut or automation, in a code block. Never put the token in it: write that she fills in her OFFERS_TOKEN herself.
+
 ## Edge functions
 She deploys edge functions in `supabase/functions` herself. Give numbered steps:
 1. Open the file on GitHub and click **Copy raw file**.
