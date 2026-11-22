@@ -4043,7 +4043,12 @@ const PART_FIT = {
   extra: /saus|sauce|dip|dressing|salsa|chutney|sambal|jus|gravy|raita|tzatziki|hummus|pesto|toetje|dessert/
 };
 const mealRecipeIds = m => [...new Set([m.recipe, ...[].concat(m.parts || []).map(p => p.recipe)].filter(id => id && L.byId[id]))];
-const partName = p => (p.recipe && L.byId[p.recipe] ? titleOf(L.byId[p.recipe]) : p.what) || '';
+const partName = p => (p.recipe && L.byId[p.recipe] ? titleOf(L.byId[p.recipe]) : p.ing && L.byId[p.ing] ? titleOf(L.byId[p.ing]) : p.what) || '';
+// pantry items in a meal: a part of the meal (a yoghurt, a bread roll) or a whole meal made of pantry items, no recipe needed
+const mealIngIds = m => [...new Set([...[].concat(m.ings || []), ...[].concat(m.parts || []).map(p => p.ing)].filter(id => id && L.byId[id]))];
+const pantryFoods = q => recs('ingredients').filter(r => !HOUSE_CATS.includes(r.category) && (!q || norm(titleOf(r)).includes(q)))
+  .sort((a, b) => (b.stock ? 1 : 0) - (a.stock ? 1 : 0) || azCmp(titleOf(a), titleOf(b)));
+const foodChips = (list, attr, on = []) => list.length ? `<div class="lwrap mbfood">${list.slice(0, 40).map(r => `<button type="button" class="chip" ${attr}="${r.id}" aria-pressed="${on.includes(r.id)}">${esc(titleOf(r))}${r.stock ? '' : ' <span class="muted">· not home</span>'}</button>`).join('')}</div>` : quiet('Nothing in your pantry with that name.');
 const partsTitle = parts => [].concat(parts || []).map(partName).filter(Boolean).join(' · ');
 function partScore(r, k) {
   const re = PART_FIT[k], txt = norm([titleOf(r), r.category, r.dish, ...[].concat(r.ingredients || []).map(id => L.byId[id]?.name || ''), ...[].concat(r.ilines || []).map(x => typeof x === 'string' ? x : x?.n || '')].join(' '));
@@ -4059,17 +4064,17 @@ function comboRecipe(name, parts, slot) {
   const rs = parts.map(p => ({ p, r: p.recipe && L.byId[p.recipe] })), lab = p => MEAL_PARTS.find(x => x[0] === p.role)?.[1] || '';
   const ilines = [], steps = [];
   for (const { p, r } of rs) {
-    const head = r ? titleOf(r) : p.what; if (!head) continue;
+    const head = r ? titleOf(r) : partName(p); if (!head) continue;
     if (r) { const pr = parseRecipe(r); ilines.push({ h: head }, ...pr.lines.map(l => ({ n: l }))); for (const st of pr.steps) steps.push(`${head}: ${st}`); }
     else { ilines.push({ h: lab(p) || head }, { n: head }); }
   }
   const real = rs.filter(x => x.r).map(x => x.r), main = (rs.find(x => x.p.role === 'main' && x.r) || rs.find(x => x.r))?.r;
   const cnt = k => { const m = new Map(); for (const r of real) for (const v of [].concat(r[k] || [])) m.set(v, (m.get(v) || 0) + 1); return [...m.entries()].sort((a, b) => b[1] - a[1]).map(x => x[0]); };
   const maxOf = k => Math.max(0, ...real.map(r => num(r[k]) || 0)) || undefined;
-  const parts2 = parts.map(p => ({ role: p.role, ...(p.recipe ? { recipe: p.recipe } : { what: p.what }) }));
+  const parts2 = parts.map(p => ({ role: p.role, ...(p.recipe ? { recipe: p.recipe } : p.ing ? { ing: p.ing, what: partName(p) } : { what: p.what }) }));
   return { name, category: MEALS.includes(slot) && slot !== 'Snack' ? slot : 'Dinner', combo: true, parts: parts2,
     cuisine: main?.cuisine || cnt('cuisine')[0] || undefined, good: cnt('good').filter(g => real.length && real.every(r => [].concat(r.good || []).includes(g)) || g === 'High protein' && [].concat(main?.good || []).includes(g)),
-    ingredients: [...new Set(real.flatMap(r => [].concat(r.ingredients || [])))], ilines, steps, prep: maxOf('prep'), cook: maxOf('cook'),
+    ingredients: [...new Set([...real.flatMap(r => [].concat(r.ingredients || [])), ...parts.map(p => p.ing).filter(id => id && L.byId[id])])], ilines, steps, prep: maxOf('prep'), cook: maxOf('cook'),
     servings: Math.min(...real.map(r => num(r.servings) || 99), 99) === 99 ? undefined : Math.min(...real.map(r => num(r.servings) || 99)),
     photo: main?.photo || real.find(r => r.photo)?.photo, created: Date.now(), needsFill: true,
     fillNote: `No link: this recipe is a meal made of these recipes: ${parts.map(p => (p.recipe && L.byId[p.recipe] ? titleOf(L.byId[p.recipe]) : p.what)).join(', ')}. Fill summary, dish, good labels and nutrition per serving from its ingredients and steps.` };
@@ -4083,9 +4088,9 @@ async function comboMigrate() {
 }
 function mealBuilder(date, slot, mealId) {
   const m = mealId ? L.byId[mealId] : null;
-  const S = { mode: m?.parts?.length || slot === 'Dinner' ? 'parts' : 'whole', parts: Object.fromEntries(MEAL_PARTS.map(([k]) => [k, { ...([].concat(m?.parts || []).find(p => p.role === k) || {}) }])), open: '', q: '', all: false, save: false, cname: '' };
+  const S = { ings: [].concat(m?.ings || []).filter(id => L.byId[id]), mode: (m?.ings || []).length ? 'pantry' : m?.parts?.length || slot === 'Dinner' ? 'parts' : 'whole', parts: Object.fromEntries(MEAL_PARTS.map(([k]) => [k, { ...([].concat(m?.parts || []).find(p => p.role === k) || {}) }])), open: '', q: '', all: false, save: false, cname: '' };
   const combos = () => comboRecipes().sort((a, b) => (num(b.used) || 0) - (num(a.used) || 0) || azCmp(titleOf(a), titleOf(b)));
-  const filled = () => MEAL_PARTS.map(([k]) => ({ role: k, ...S.parts[k] })).filter(p => p.recipe || (p.what || '').trim());
+  const filled = () => MEAL_PARTS.map(([k]) => ({ role: k, ...S.parts[k] })).filter(p => p.recipe || p.ing || (p.what || '').trim());
   const tiles = k => {
     const q = norm(S.q), rs = recs('recipes').filter(r => !q || norm(titleOf(r)).includes(q)).map(r => ({ r, s: partScore(r, k) }));
     const fit = rs.filter(x => x.s > 0).sort((a, b) => b.s - a.s || azCmp(titleOf(a.r), titleOf(b.r))), rest = rs.filter(x => !x.s).sort((a, b) => azCmp(titleOf(a.r), titleOf(b.r)));
@@ -4093,14 +4098,21 @@ function mealBuilder(date, slot, mealId) {
     return `<input class="finp" type="search" data-mbq placeholder="Search your recipes" value="${esc(S.q)}" autocomplete="off" data-nosug>
       <div class="lgrid wpgrid mbgrid">${show.slice(0, 60).map(({ r }) => pickTile(r, 'data-mbset', [r.category, (num(r.prep) || 0) + (num(r.cook) || 0) ? `${(num(r.prep) || 0) + (num(r.cook) || 0)} min` : ''].filter(Boolean).join(' · '), '')).join('') || quiet('No recipe fits yet.')}</div>
       ${!S.all && !q && rest.length ? `<button class="btn small" data-mball>All recipes (${rs.length})</button>` : ''}
+      <p class="dsub">From your pantry</p>${foodChips(pantryFoods(q).filter(r => q || r.stock), 'data-mbing')}
       <form class="lqadd" data-mbtext><input type="text" placeholder="Or just write it, like “rijst” or “salade”" value="${esc(S.parts[k].what || '')}" autocomplete="off" data-nosug><button class="btn small" type="submit">Use this</button></form>`;
   };
   const row = ([k, label, emo]) => { const p = S.parts[k], name = partName(p);
     return `<div class="mbpart ${S.open === k ? 'open' : ''}"><button class="lrow mbrow" data-mbopen="${k}"><span class="mbemo" aria-hidden="true">${emo}</span><span class="lmain"><b>${esc(label)}</b><span>${name ? esc(name) : 'Nothing yet'}</span></span>${name ? `<span class="chip" data-mbclear="${k}" role="button" aria-label="Clear ${esc(label)}">✕</span>` : '<span class="chip">Choose</span>'}</button>${S.open === k ? `<div class="mbpick">${tiles(k)}</div>` : ''}</div>`; };
   const draw = () => {
     const c = combos(), host = sh.querySelector('[data-mbbody]');
-    host.innerHTML = `<div class="seg mbseg" role="group" aria-label="How to plan this meal">${[['parts', 'Parts'], ['whole', 'One recipe'], ['combo', `Combinations${c.length ? ' (' + c.length + ')' : ''}`]].map(([k, l]) => `<button data-mbmode="${k}" aria-pressed="${S.mode === k}">${l}</button>`).join('')}</div>
+    host.innerHTML = `<div class="seg mbseg" role="group" aria-label="How to plan this meal">${[['parts', 'Parts'], ['whole', 'One recipe'], ['pantry', 'From pantry'], ['combo', `Combinations${c.length ? ' (' + c.length + ')' : ''}`]].map(([k, l]) => `<button data-mbmode="${k}" aria-pressed="${S.mode === k}">${l}</button>`).join('')}</div>
       ${S.mode === 'whole' ? mealPickBody(slot, S.q, S.f || 'fit')
+      : S.mode === 'pantry' ? `<p class="lnone">Not everything is a recipe. Tap what you eat, like yoghurt, granola and a banana.</p>
+        <input class="finp" type="search" data-mbq placeholder="Search your pantry" value="${esc(S.q)}" autocomplete="off" data-nosug>
+        ${S.ings.length ? `<p class="dsub">In this meal</p>${foodChips(S.ings.map(id => L.byId[id]).filter(Boolean), 'data-mbpick', S.ings)}` : ''}
+        <p class="dsub">${S.q ? 'Found' : 'At home'}</p>${foodChips(pantryFoods(norm(S.q)).filter(r => !S.ings.includes(r.id) && (S.q || r.stock)), 'data-mbpick', S.ings)}
+        ${S.q.trim() && !pantryFoods(norm(S.q)).some(r => norm(titleOf(r)) === norm(S.q)) ? `<button class="btn small" data-mbpnew>+ Add “${esc(S.q.trim())}” to your pantry and this meal</button>` : ''}
+        <div class="dbtns"><button class="btn primary" data-mbpgo ${S.ings.length ? '' : 'disabled'}>Plan this meal</button><button class="btn small" data-wpmealaway>Not eating at home</button></div>`
       : S.mode === 'combo' ? (c.length ? `<div class="lrows">${c.map(x => `<div class="lrow"><button class="lmain" data-mbcombo="${x.id}"><b>${esc(titleOf(x))}</b><span>${esc(partsTitle(x.parts))}</span></button><button class="btn small" data-mbcombo="${x.id}">Plan</button><button class="btn small" data-act="open" data-id="${x.id}" aria-label="Open ${esc(titleOf(x))}">📖</button></div>`).join('')}</div>` : quiet('No combinations yet. Build a meal from parts and save it as a combination: it becomes a recipe too.'))
       : `<div class="lrows mbparts">${MEAL_PARTS.map(row).join('')}</div>
         <label class="settog mbsave"><input type="checkbox" data-mbsave ${S.save ? 'checked' : ''}> Save as a combination (a new recipe)</label>
@@ -4108,7 +4120,7 @@ function mealBuilder(date, slot, mealId) {
         <div class="dbtns"><button class="btn primary" data-mbgo ${filled().length ? '' : 'disabled'}>Plan this meal</button><button class="btn small" data-wpmealaway>Not eating at home</button></div>`}`;
   };
   const sh = C.sheet({ title: `${slot} on ${dayName(date)} ${shortDate(date)}`, wide: true, body: '<div data-mbbody></div>' });
-  const plan = async (data, msg) => { try { if (m) await put('meals', m.id, { ...dataOf(m), ...data, date, slot }); else await create('meals', { date, slot, ...data }); C.closeSheet(); if (msg) C.toast(msg); } catch { C.toast('Could not save. Try again.'); } };
+  const plan = async (data, msg) => { data = { ings: [], ...data }; try { if (m) await put('meals', m.id, { ...dataOf(m), ...data, date, slot }); else await create('meals', { date, slot, ...data }); C.closeSheet(); if (msg) C.toast(msg); } catch { C.toast('Could not save. Try again.'); } };
   const asMeal = parts => { const main = parts.find(p => p.role === 'main' && p.recipe) || parts.find(p => p.recipe); return { parts, recipe: main?.recipe || '', what: main ? '' : partsTitle(parts) }; };
   draw();
   sh.addEventListener('ingchange', e => { e.preventDefault(); draw(); });
@@ -4126,6 +4138,10 @@ function mealBuilder(date, slot, mealId) {
     if (d.mbopen) { S.open = S.open === d.mbopen ? '' : d.mbopen; S.q = ''; S.all = false; draw(); return; }
     if (b.hasAttribute('data-mball')) { S.all = true; draw(); return; }
     if (d.mbset) { S.parts[S.open] = { recipe: d.mbset }; S.open = ''; S.q = ''; draw(); return; }
+    if (d.mbing) { S.parts[S.open] = { ing: d.mbing }; S.open = ''; S.q = ''; draw(); return; }
+    if (d.mbpick) { S.ings = S.ings.includes(d.mbpick) ? S.ings.filter(x => x !== d.mbpick) : [...S.ings, d.mbpick]; draw(); return; }
+    if (b.hasAttribute('data-mbpnew')) { const n = S.q.trim(); if (!n) return; try { const id = await create('ingredients', { name: n, created: Date.now() }); S.ings = [...S.ings, id]; S.q = ''; draw(); } catch { C.toast('Could not save. Try again.'); } return; }
+    if (b.hasAttribute('data-mbpgo')) { const names = S.ings.map(id => L.byId[id]).filter(Boolean).map(titleOf); if (!names.length) return; await plan({ ings: [...S.ings], what: names.join(', '), recipe: '', parts: [] }, `${names.join(', ')} planned`); return; }
     if (d.wpmealf) { S.f = d.wpmealf; draw(); return; }
     if (d.wpmealset) { await plan({ recipe: d.wpmealset, parts: [], what: '' }); return; }
     if (b.hasAttribute('data-wpmealaway')) { await plan({ away: true, recipe: '', parts: [] }); return; }
@@ -6132,8 +6148,9 @@ function workPicker() {
     <div class="dbtns"><button class="btn small" data-wpworkrest>Rest day</button><button class="btn small" data-wpworkclose>Close</button></div></div>`;
 }
 function missingFor(wk) {
-  const meals = recs('meals').filter(m => wpIn(m.date, wk) && mealRecipeIds(m).length);
+  const meals = recs('meals').filter(m => wpIn(m.date, wk) && (mealRecipeIds(m).length || mealIngIds(m).length));
   const ids = new Set(), names = new Map();
+  for (const m of meals) for (const id of mealIngIds(m)) { const i = L.byId[id]; if (i && !i.stock && !i.list) ids.add(id); }
   for (const m of meals) for (const r of mealRecipeIds(m).map(id => L.byId[id])) { for (const id of [].concat(r.ingredients || [])) { const i = L.byId[id]; if (i && !i.stock && !i.list) ids.add(id); }
     for (const x of [].concat(r.ilines || []).filter(x => x && x.n && !x.h)) { const n = norm(x.n); const have = recs('ingredients').find(i => norm(i.name) === n); if (!have) names.set(n, x.n); else if (!have.stock && !have.list) ids.add(have.id); } }
   return { ids: [...ids], names: [...names.values()].slice(0, 30) };
