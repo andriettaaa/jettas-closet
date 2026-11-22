@@ -7691,39 +7691,16 @@ document.addEventListener('submit', e => {
 });
 /* ---------- settings that only one section has ---------- */
 const wishBudgetField = () => `<div class="fset"><div><b>Wishlist budget</b><span>What you allow yourself from your wishlists per ${fMode() === 'month' ? 'month' : 'paycheck'} (follows how you plan everyday spending). Purchases with the tag wishlist count against it.</span></div><input class="finp" type="number" inputmode="decimal" step="1" data-fset="wishBudget" value="${fset().wishBudget ?? ''}" placeholder="No budget"></div>`;
-// Apple Health comes in through iPhone Shortcuts that post to the offers function: once a day, once for your history,
-// and for sleep without a wearable, each time the phone goes on or off the charger
+// Apple Health comes in through iPhone Shortcuts that post to the offers function. The Shortcuts themselves are made
+// with the AI in the Shortcuts app from a text Claude gives in chat, so the app only shows what came in
 function healthPanel() {
   const url = String(C.sb?.supabaseUrl || '').replace(/\/$/, '') + '/functions/v1/offers';
   const last = (kind, ok, k = 'date') => recs(kind).filter(ok).sort((a, b) => (b[k] || '').localeCompare(a[k] || ''))[0];
   const sl = last('sleep', r => r.source === 'Apple Health' || r.source === 'iPhone'), st = last('nlog', r => num(r.steps)), wo = last('workouts', r => r.source === 'Apple Health'), pe = last('cycles', r => r.source === 'Apple Health' || r.hEnd, 'start');
   const seen = [sl && `sleep ${niceDate(sl.date)} (${sleepHours(sl) ?? '?'} h${sl.source === 'iPhone' ? ', charger' : ''})`, st && `steps ${niceDate(st.date)} (${num(st.steps)})`, wo && `workout ${niceDate(wo.date)}`, pe && `period ${niceDate(pe.start)}`].filter(Boolean);
-  const m = x => `<span class="mono">${x}</span>`, addr = `<button class="chip link mono" data-copy="${esc(url)}">${esc(url)}</button>`;
-  const post = fields => `Add <b>Get Contents of URL</b> with ${addr}. Tap <b>Show More</b>: method <b>POST</b>, request body <b>JSON</b>, and add these fields as Text: ${m('token')} = your OFFERS_TOKEN, ${fields}.`;
-  const lines = (type, when, extra = '') => `add <b>Find Health Samples</b>, type ${m(type)}, <b>Start Date is in the last ${when}</b>${extra}. Add <b>Repeat with Each</b>. Inside it: <b>Get Details of Health Sample</b> › <b>Start Date</b>, <b>Format Date</b> › Custom ${m('yyyy-MM-dd')}, <b>Get Details of Health Sample</b> › <b>Value</b> of the Repeat Item, then a <b>Text</b> with Formatted Date${m(';')}Value. After <b>End Repeat</b> add <b>Combine Text</b> › Repeat Results with <b>New Lines</b>.`;
-  return `<section class="panel setpanel" id="set-health"><h3>Apple Health</h3><p class="muted">Your iPhone sends your steps, workouts, period days and sleep to the app. You set it up once, after that it runs by itself.</p>
+  return `<section class="panel setpanel" id="set-health"><h3>Apple Health</h3><p class="muted">Your iPhone sends your steps, workouts, period days and sleep to the app through Shortcuts.</p>
     <p class="muted"><b>Last received:</b> ${seen.length ? esc(seen.join(' · ')) : 'nothing yet'}</p>
-    <details class="vtable" open><summary>1. Every evening: steps, workouts and period</summary><ol class="setsteps"><li>On your iPhone open <b>Shortcuts</b> › <b>Automation</b> › <b>+</b> › <b>Time of Day</b>. Pick <b>21:30</b>, <b>Daily</b>, and <b>Run Immediately</b>. Tap <b>New Blank Automation</b>.</li>
-      <li><b>Steps:</b> add <b>Find Health Samples</b>, type ${m('Steps')}, <b>Start Date is today</b>. Add <b>Calculate Statistics</b> › <b>Sum</b>.</li>
-      <li><b>Period:</b> ${lines('Menstruation', '7 days')} The app turns these days into a period with its own start, end and flow.</li>
-      <li><b>Sleep from Health</b> (only if you use a sleep schedule in the Health app): add <b>Find Health Samples</b>, type ${m('Sleep Analysis')}, <b>Start Date is in the last 1 days</b>, filter <b>Value is not Awake</b>. Add <b>Get Details of Health Samples</b> › <b>Duration</b>, then <b>Calculate Statistics</b> › <b>Sum</b>. The charger times from step 3 win when both are there.</li>
-      <li>${post(`${m('action')} = health, ${m('steps')} = the Sum of Steps, ${m('menstruation')} = the Combined Text, ${m('sleep')} = the Sum of Sleep`)}</li>
-      <li>Tap ▶︎ once to test. Open this page again: under Last received you see today’s steps.</li></ol>
-      <p class="muted"><b>Workouts</b> from Apple Health count as done: a planned workout that day gets ticked off. To send them, add one more field ${m('workouts')} with one line per workout: type;minutes (for example <span class="mono">Yoga;30</span>).</p></details>
-    <details class="vtable"><summary>2. Once: your history</summary><p class="muted">Brings in every period and your steps per day of the last two years. Your cycle averages, predictions and step charts use them straight away. Running it twice does no harm.</p>
-      <ol class="setsteps"><li>In <b>Shortcuts</b> tap <b>+</b> and name it <b>A’s Life history</b>.</li>
-      <li><b>Period:</b> ${lines('Menstruation', '2 years')}</li>
-      <li><b>Steps:</b> ${lines('Steps', '2 years', ', <b>Group By Day</b>')}</li>
-      <li>${post(`${m('action')} = health, ${m('menstruation')} = the first Combined Text, ${m('stepsDays')} = the second Combined Text`)}</li>
-      <li>Tap ▶︎ once and wait a moment. The result says how many periods and step days came in.</li></ol></details>
-    <details class="vtable"><summary>3. Sleep without a watch: the charger</summary><p class="muted">Your phone on the charger in the evening (from 20:00) is bedtime. Off the charger in the morning (04:00 to 13:00) is getting up. The app works out your hours and asks once, right then: <b>How did you sleep?</b> Back on the charger at night and off again later? The last time counts.</p>
-      <ol class="setsteps"><li><b>Bedtime:</b> <b>Automation</b> › <b>+</b> › <b>Charger</b> › <b>Is Connected</b>, <b>Run Immediately</b>. ${post(`${m('action')} = sleepmark, ${m('mark')} = bed`)}</li>
-      <li><b>Getting up:</b> a second automation: <b>Charger</b> › <b>Is Disconnected</b>, <b>Run Immediately</b>. ${post(`${m('action')} = sleepmark, ${m('mark')} = up`)}</li>
-      <li>Below it add <b>Get Dictionary Value</b> ${m('ask')} from Contents of URL, then <b>If</b> Dictionary Value <b>is</b> ${m('ja')}.</li>
-      <li>Inside the If: <b>Get Dictionary Value</b> ${m('question')} from Contents of URL, a <b>List</b> with ${m('😴 Super')}, ${m('🙂 Goed')}, ${m('😐 Matig')}, ${m('😩 Slecht')}, and <b>Choose from List</b> with the question as prompt.</li>
-      <li>Then one more <b>Get Contents of URL</b>: ${m('action')} = sleepmark, ${m('mark')} = rate, ${m('quality')} = Chosen Item, plus your ${m('token')}.</li></ol>
-      <p class="muted">Tapped the question away? Today and Sleep ask again with the same four buttons.</p></details>
-    <p class="muted"><b>Nothing arrives?</b> Tap the result of Get Contents of URL in a test run. <span class="mono">forbidden</span> means the token is not the same as OFFERS_TOKEN in Supabase. An error about the function means it is not deployed yet, or Verify JWT is still on.</p></section>`;
+    <p class="muted"><b>Address for the Shortcuts:</b> <button class="chip link mono" data-copy="${esc(url)}">${esc(url)}</button></p></section>`;
 }
 function settingsPanels(sec) { if (!C) return ''; return secOwn(sec) + ovPanel(sec); }
 function secOwn(sec) {
