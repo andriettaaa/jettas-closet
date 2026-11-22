@@ -2570,8 +2570,10 @@ const NIGHTFILL = {
 };
 const nightMiss = x => (NIGHTFILL[x.kind] || []).filter(k => x.miss.some(m => m[0] === k));
 const nightCan = x => !x.r.needsFill && String(x.r.name || '').trim() && nightMiss(x).length > 0;
+// the nightly round reads this in the record itself: what to look up and how, since there is no link to open
+const nightHow = x => `No link: look this up online by its ${x.r.brand ? 'brand and ' : ''}name with WebSearch (the brand's own site, INCIdecoder, Douglas, Kruidvat, Bol, Albert Heijn, or a plant or exercise guide). Fill in only these empty fields, and only when you are sure it is the same thing: ${nightMiss(x).join(', ')}. For select and multi fields use only the options of KINDS.${x.kind} in life.js. Never fill price, amounts or anything only the user knows. Send done true also when you found nothing.`;
 async function nightFill(list) {
-  const rows = list.map(x => ({ id: x.r.id, kind: x.kind, data: { ...dataOf(x.r), needsFill: true, fillMiss: nightMiss(x), fillAsked: today() } }));
+  const rows = list.map(x => ({ id: x.r.id, kind: x.kind, data: { ...dataOf(x.r), needsFill: true, fillMiss: nightMiss(x), fillAsked: today(), fillHow: nightHow(x) } }));
   if (!rows.length) return;
   try { await putMany(rows, null, `Asked tonight's round to fill ${plural(rows.length, 'record')}`); C.toast(`Claude fills in ${plural(rows.length, 'thing')} tonight`); } catch { C.toast('Could not save. Try again.'); }
 }
