@@ -696,12 +696,21 @@ async function sleepMark(uid: string, body: any) {
   return { error: 'mark is bed, up or rate' };
 }
 
+// a Shortcut may send JSON, a form or multipart; all three end up as one plain object
+async function readBody(req: Request): Promise<any> {
+  const type = req.headers.get('content-type') || '';
+  try {
+    if (/form-urlencoded|multipart/i.test(type)) { const f = await req.formData(), o: Record<string, unknown> = {}; for (const [k, v] of f.entries()) if (typeof v === 'string') o[k] = v; return o; }
+    const t = await req.text(); if (!t.trim()) return {};
+    try { return JSON.parse(t); } catch { return Object.fromEntries(new URLSearchParams(t)); }
+  } catch { return {}; }
+}
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
   try {
-    const body = await req.json().catch(() => ({}));
-    const token = body.token || req.headers.get('x-offers-token');
+    const body = await readBody(req);
+    const token = String(body.token || req.headers.get('x-offers-token') || '').trim();
     const uid = Deno.env.get('SPEND_USER_ID')!;
     // the app itself may ask for an Instagram sync, signed in as you
     let viaApp = false;
@@ -709,7 +718,12 @@ Deno.serve(async req => {
       const jwt = req.headers.get('authorization')?.replace(/^Bearer /, '') || '';
       const { data: u } = await sb.auth.getUser(jwt); viaApp = !!u?.user && u.user.id === uid;
     }
-    if (!viaApp && (!token || !Deno.env.get('OFFERS_TOKEN') || token !== Deno.env.get('OFFERS_TOKEN'))) return json({ error: 'forbidden' }, 403);
+    if (!viaApp && (!token || !Deno.env.get('OFFERS_TOKEN') || token !== Deno.env.get('OFFERS_TOKEN'))) {
+      // say why, without ever showing a token: nothing arrived, or a token that does not match (and how the request was sent)
+      const sent = String(req.headers.get('content-type') || 'none').split(';')[0], fields = Object.keys(body).filter(k => k !== 'token').slice(0, 12);
+      const why = !Deno.env.get('OFFERS_TOKEN') ? 'OFFERS_TOKEN is not set in Supabase' : !token ? 'no token field arrived' : 'the token does not match OFFERS_TOKEN';
+      return json({ error: 'forbidden', why, sentAs: sent, fields }, 403);
+    }
 
     if (body.action === 'igsync') return json(await igSync(uid));
     if (body.action === 'ttstart') { const k = Deno.env.get('TIKTOK_CLIENT_KEY'); return json(k ? { clientKey: k } : { error: 'TIKTOK_CLIENT_KEY is not set in Supabase yet' }); }
