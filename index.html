@@ -2167,7 +2167,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v196';
+const APP_VERSION = 'hangtag-v197';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2385,6 +2385,7 @@ const NOTI = [
   ['skindiary', 'Skin diary', 'Sundays: a nudge to add photos when your last entry is a week old', '10:00'],
   ['progress', 'Progress photos', 'Your first training day of the week: photos and measurements', '08:00'],
   ['period', 'Period coming', 'Two days before your period is due', '08:00'],
+  ['sleepask', 'Rate your night', 'When last night has no rating yet: tap and rate it in one tap', '10:00'],
   ['freezer', 'Freezer', 'Sundays: what has been in the freezer for 3 months or more', '17:00'],
   ['shopday', 'Shopping day', 'On the day you pick under Kitchen › Deals: your grocery list per shop', '10:00'],
   ['eatbf', 'Breakfast', 'When breakfast is not ticked in your food check yet (an hour later at the weekend)', '09:30'],
@@ -2407,7 +2408,7 @@ const NOTI_GROUPS = [
   ['day', '🌅 Your day', ['morning', 'evening', 'bedtime']],
   ['food', '🍳 Food and groceries', ['eatbf', 'eatlunch', 'eatsnack', 'shopday', 'shopask', 'freezer', 'foodweek']],
   ['money', '💶 Money', ['payday', 'bills', 'budget', 'applepay', 'weekly', 'movelist']],
-  ['care', '💆🏾‍♀️ Body and care', ['progress', 'period', 'skindiary']],
+  ['care', '💆🏾‍♀️ Body and care', ['sleepask', 'progress', 'period', 'skindiary']],
   ['social', '📱 Content', ['content', 'socialweek']],
   ['plan', '🗓 Planning and reminders', ['fillstep', 'reminders', 'weekahead']]
 ];
