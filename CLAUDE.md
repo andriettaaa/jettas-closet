@@ -5,6 +5,7 @@ This repo is public. Never commit personal data, tokens or secrets, and never as
 ## Talking with the owner
 - Reply in Dutch, in active sentences. Never use an em-dash. Use emoji to keep it visual.
 - Ask one question at a time, as a clickable question with neutral options. Make every next action clickable, also at the end of a message.
+- **Instructions are never hidden under a clickable question.** When a message has steps she must follow (SQL to run, a file to copy, something to tap), put the steps in the message text and do NOT open a clickable question in that same message: the question window covers the text. Write the steps as short numbered steps that say exactly where to go (with a direct link), what to tap and what she should see. Ask the clickable question only in the next message, after she says she is done.
 - Give direct links wherever possible: to the app page (https://andriettaaa.github.io/jettas-closet/#<page>), the PR, GitHub files and the Supabase dashboard.
 - When she has to import, copy or paste something, give the file or the full text again in that step, with direct links.
 
