@@ -2594,13 +2594,15 @@ function sectionTodo(host, sec) {
   if (T.view === 'table' || T.group === 'kind') for (const [k] of kinds) { const l = shown.filter(x => x.kind === k); if (l.length) groups.push({ label: KINDS[k].many, kind: k, list: l }); }
   else if (T.group === 'missing') { const labels = [...new Set(shown.flatMap(x => x.miss.map(m => m[1])))]; for (const lab of labels) groups.push({ label: 'Geen ' + lab.toLowerCase(), list: shown.filter(x => x.miss.some(m => m[1] === lab)) }); }
   else groups.push({ label: '', list: shown });
-  const row = ({ r, kind, miss }) => `<div class="ltodo"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(KINDS[kind].many)}${KINDS[kind].sub?.(r) ? ' · ' + esc(KINDS[kind].sub(r)) : ''}</span></button><p class="todomiss">${r.needsFill ? '<span class="tdwait">🌙 Tonight</span>' : ''}${miss.map(m => `<span>${esc(m[1])}</span>`).join('')}</p></div>`;
+  const tdSide = (r, kind) => { try { const v = KINDS[kind].side?.(r); return v && !/^[\s€–-]*$/.test(String(v)) ? String(v) : ''; } catch { return ''; } };
+  // the amount (or what else the list shows on the right) next to each thing, so a purchase shows what it cost
+  const row = ({ r, kind, miss }) => `<div class="ltodo"><div class="tdtop"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(KINDS[kind].many)}${KINDS[kind].sub?.(r) ? ' · ' + esc(KINDS[kind].sub(r)) : ''}</span></button>${tdSide(r, kind) ? `<b class="tdside">${esc(tdSide(r, kind))}</b>` : ''}</div><p class="todomiss">${r.needsFill ? '<span class="tdwait">🌙 Tonight</span>' : ''}${miss.map(m => `<span>${esc(m[1])}</span>`).join('')}</p></div>`;
   let body = '';
   if (T.view === 'one') {
     if (T.idx >= shown.length) T.idx = 0;
     const x = shown[T.idx];
     if (x) { const K = KINDS[x.kind], fs = x.miss.map(m => K.fields.find(f => f.k === m[0])).filter(f => f && TABLE_TYPES.includes(f.type)), other = x.miss.filter(m => !fs.some(f => f.k === m[0]));
-      body = `<div class="tdone ltdone"><div class="tdonef"><p class="muted">${T.idx + 1} of ${shown.length} · ${esc(K.many)}</p><h2>${esc(titleOf(x.r))}</h2>${fs.map(f => `<div class="field"><label>${esc(f.label)}</label>${cellIn(x.r, f)}</div>`).join('')}${other.length ? `<p class="muted">Also: ${esc(other.map(m => m[1]).join(', '))}.</p>` : ''}<div class="setbtns"><button class="btn" data-tdprev ${T.idx ? '' : 'disabled'}>Back</button><button class="btn primary" data-tdnext>Next</button><button class="btn small" data-act="open" data-id="${x.r.id}">Full editor</button></div></div></div>`; }
+      body = `<div class="tdone ltdone"><div class="tdonef"><p class="muted">${T.idx + 1} of ${shown.length} · ${esc(K.many)}</p><h2>${esc(titleOf(x.r))}${tdSide(x.r, x.kind) ? ` <span class="tdside">${esc(tdSide(x.r, x.kind))}</span>` : ''}</h2>${K.sub?.(x.r) ? `<p class="muted">${esc(K.sub(x.r))}</p>` : ''}${fs.map(f => `<div class="field"><label>${esc(f.label)}</label>${cellIn(x.r, f)}</div>`).join('')}${other.length ? `<p class="muted">Also: ${esc(other.map(m => m[1]).join(', '))}.</p>` : ''}<div class="setbtns"><button class="btn" data-tdprev ${T.idx ? '' : 'disabled'}>Back</button><button class="btn primary" data-tdnext>Next</button><button class="btn small" data-act="open" data-id="${x.r.id}">Full editor</button></div></div></div>`; }
   } else body = groups.map(g => `<section class="tdgroup">${g.label ? `<div class="tdgh"><h3>${esc(g.label)} <span class="muted">${g.list.length}</span></h3></div>` : ''}${T.view === 'table' ? tableHTML(g.list.map(x => x.r), KINDS[g.kind], [...new Set(g.list.flatMap(x => x.miss.map(m => m[0])))]) : `<div class="lrows">${g.list.slice(0, 300).map(row).join('')}</div>`}</section>`).join('');
   host.innerHTML = `<div class="viewhead"><h1>To do</h1><span class="sub">${all.length} to do</span></div>
     ${all.length ? `<div class="tools tdtools"><div class="seg" role="group" aria-label="View">${[['list', 'List'], ['table', 'Table'], ['one', 'One by one']].map(([k, l]) => `<button data-tdview="${k}" aria-pressed="${T.view === k}">${l}</button>`).join('')}</div>
@@ -8551,6 +8553,9 @@ async function calFeedSync(force) {
   L.calFeedAt = now;
   let ev; try { ev = calEvents(addDays(today(), -30), addDays(today(), 120), true); } catch { return; }
   const items = ev.map(e => ({ id: e.id, cat: e.cat, date: e.date, time: e.time || '', title: e.title, sub: e.sub || '', imp: !!e.imp, done: !!e.done }));
+  // the coloured period days of the app calendar go to your iPhone as one all-day item per day
+  try { for (const [d, m] of Object.entries(cycleMarks(addDays(today(), -30), addDays(today(), 120)))) if (m.type === 'period') items.push({ id: 'cy:' + d, cat: 'body', date: d, time: '', title: '🩸 Menstruatie' + (m.n ? ' dag ' + m.n : ''), sub: '', imp: false, done: false }); } catch {}
+  items.sort((a, b) => a.date.localeCompare(b.date));
   const cur = recs('calfeed')[0];
   if (cur && JSON.stringify(cur.items) === JSON.stringify(items)) return;
   L.batch = true; L.quiet = true;
