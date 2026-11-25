@@ -1487,3 +1487,7 @@ button.mtick:disabled { cursor: default; opacity: 1; }
 .calcyl .calcy { max-width: 100%; overflow: hidden; padding: 0 5px; }
 .tilelink { cursor: pointer; }
 .tilelink:hover { border-color: var(--ink); }
+.tdtop { display: flex; align-items: flex-start; gap: 10px; }
+.tdtop .lmain { flex: 1; min-width: 0; }
+.tdside { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 700; }
+h2 .tdside { font-size: .8em; color: var(--muted); }
