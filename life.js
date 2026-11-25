@@ -8551,6 +8551,9 @@ async function calFeedSync(force) {
   L.calFeedAt = now;
   let ev; try { ev = calEvents(addDays(today(), -30), addDays(today(), 120), true); } catch { return; }
   const items = ev.map(e => ({ id: e.id, cat: e.cat, date: e.date, time: e.time || '', title: e.title, sub: e.sub || '', imp: !!e.imp, done: !!e.done }));
+  // the coloured period days of the app calendar go to your iPhone as one all-day item per day
+  try { for (const [d, m] of Object.entries(cycleMarks(addDays(today(), -30), addDays(today(), 120)))) if (m.type === 'period') items.push({ id: 'cy:' + d, cat: 'body', date: d, time: '', title: '🩸 Menstruatie' + (m.n ? ' dag ' + m.n : ''), sub: '', imp: false, done: false }); } catch {}
+  items.sort((a, b) => a.date.localeCompare(b.date));
   const cur = recs('calfeed')[0];
   if (cur && JSON.stringify(cur.items) === JSON.stringify(items)) return;
   L.batch = true; L.quiet = true;
