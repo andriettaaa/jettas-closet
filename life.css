@@ -1470,3 +1470,20 @@ button.mtick:disabled { cursor: default; opacity: 1; }
 .ckstep .btn { display: grid; place-items: center; }
 .sleepask { display: grid; gap: 6px; }
 .sleepask .dsub { margin: 2px 0 0; }
+/* your cycle in the calendar: a soft colour per day and a small marker that opens the day */
+.cy-period { --cy: #c2415d; } .cy-predict { --cy: #c2415d; } .cy-fertile { --cy: #6f9a5b; } .cy-ovul { --cy: #c9a227; }
+:is(.calday, .calcol, .calag, .calsday).cy-period { background: color-mix(in srgb, var(--cy) 16%, transparent); }
+:is(.calday, .calcol, .calag, .calsday).cy-predict { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--cy) 12%, transparent) 0 6px, transparent 6px 12px); }
+:is(.calday, .calcol, .calag, .calsday):is(.cy-fertile, .cy-ovul) { background: color-mix(in srgb, var(--cy) 12%, transparent); }
+.calcy { display: inline-flex; align-items: center; gap: 1px; border: 1px solid color-mix(in srgb, var(--cy, var(--line)) 55%, transparent); background: color-mix(in srgb, var(--cy, var(--line)) 14%, var(--surface)); color: var(--ink); border-radius: 999px; padding: 0 6px; font-size: 11px; line-height: 18px; cursor: pointer; margin-right: auto; white-space: nowrap; }
+.calcy i { font-style: normal; font-weight: 700; font-size: 10.5px; }
+.calcy.cy-predict { border-style: dashed; }
+.calcy.cy-none { display: none; }
+.calcylegend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.calcylegend .calcy { cursor: default; margin: 0; }
+.calcyrow { display: flex; width: 100%; align-items: center; gap: 6px; border: 1px solid color-mix(in srgb, var(--cy) 50%, transparent); background: color-mix(in srgb, var(--cy) 14%, var(--surface)); color: var(--ink); border-radius: 12px; padding: 8px 12px; font: inherit; font-weight: 600; cursor: pointer; margin-bottom: 8px; text-align: left; }
+.calcyi { font-size: 10px; line-height: 1; }
+.calcyl { display: flex; margin: 2px 0 3px; min-width: 0; }
+.calcyl .calcy { max-width: 100%; overflow: hidden; padding: 0 5px; }
+.tilelink { cursor: pointer; }
+.tilelink:hover { border-color: var(--ink); }

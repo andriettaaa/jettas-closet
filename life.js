@@ -6734,6 +6734,8 @@ document.addEventListener('click', async e => {
     case 'icalcopy': navigator.clipboard?.writeText(d.v).then(() => C.toast('Gekopieerd')).catch(() => C.toast('Kopiëren lukte niet')); break;
     case 'icalsync': L.calFeedAt = 0; calFeedSync(true).then(() => { C.toast('Calendar bijgewerkt'); C.render(); }); break;
     case 'anaper': try { localStorage.setItem('anaPeriod', d.v); } catch {} C.render(); break;
+    case 'cycday': cycleDaySheet(d.v); break;
+    case 'cycal': { const c = calLoad(); c.view = 'month'; c.date = d.v || today(); try { localStorage.setItem('calView', 'month'); } catch {} C.go('plan/week'); break; }
     case 'calview': { const c = calLoad(); c.view = d.v; try { localStorage.setItem('calView', d.v); } catch {} C.render(); break; }
     case 'calstep': { const c = calLoad(), n = +d.v; c.date = c.view === 'month' ? (() => { const x = fromISO(c.date); return iso(new Date(x.getFullYear(), x.getMonth() + n, 1)); })() : addDays(c.date, n * (c.view === 'week' ? 7 : c.view === 'agenda' ? 30 : 1)); C.render(); break; }
     case 'calgo': { const c = calLoad(); c.date = d.v; if (!d.keep) c.view = 'day'; C.render(); break; }
@@ -8104,6 +8106,53 @@ const NL_WD = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
 const calLoad = () => { const c = L.cal ||= { view: 'month', date: today() }; if (!c.off) { try { c.off = new Set(JSON.parse(localStorage.getItem('calOff') || '[]')); } catch { c.off = new Set(); } try { c.view = localStorage.getItem('calView') || c.view; } catch {} } return c; };
 const inR = (d, a, b) => d && d >= a && d <= b;
 const hmToMin = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
+/* your cycle in the calendar: every day of a period (logged, from Apple Health or still going), the expected periods
+   and the fertile days, so a day shows its colour and opens what belongs to it */
+const CY_RANK = { fertile: 1, ovul: 2, predict: 3, period: 4 };
+const CY_LABEL = { period: 'Menstruatie', predict: 'Menstruatie verwacht', fertile: 'Vruchtbare dag', ovul: 'Eisprong (schatting)' };
+function cycleMarks(from, to) {
+  const out = {}, t = today(), set = (d, m) => { if (d >= from && d <= to && (!out[d] || CY_RANK[m.type] > CY_RANK[out[d].type])) out[d] = m; };
+  const plens = recs('cycles').filter(c => c.start && c.end).map(c => diffDays(c.start, c.end) + 1).filter(n => n > 0 && n <= 10);
+  const plen = plens.length ? Math.max(2, Math.round(avgOf(plens.slice(-6)))) : 5;
+  for (const c of recs('cycles')) {
+    if (!c.start || c.start > to) continue;
+    const end = c.end || (c.start <= t && diffDays(c.start, t) < 10 ? t : addDays(c.start, plen - 1));
+    for (let d = c.start, i = 0; d <= end && i < 15; d = addDays(d, 1), i++) set(d, { type: 'period', id: c.id, n: i + 1, flow: i === 0 ? c.flow : '' });
+  }
+  for (const l of recs('cyclelog')) if (l.date) {
+    const cur = out[l.date];
+    if (l.flow && l.flow !== 'None') set(l.date, { type: 'period', id: cur?.id, n: cur?.n || cycleDayOn(l.date), flow: l.flow, log: l.id });
+    else if (cur) cur.log = l.id;
+    if (out[l.date]) { out[l.date].log = l.id; if (l.flow && l.flow !== 'None') out[l.date].flow = l.flow; }
+  }
+  const cy = cycleStats();
+  if (cy.last) for (let k = 1; k <= 4; k++) {
+    const s0 = addDays(cy.last, cy.avg * k); if (s0 > to) break;
+    if (k === 1 && cy.open) continue;
+    for (let i = 0; i < plen; i++) { const d = addDays(s0, i); if (d > t) set(d, { type: 'predict', n: i + 1, guessed: cy.guessed }); }
+    const ov = addDays(s0, -14);
+    for (let i = -5; i <= 1; i++) { const d = addDays(ov, i); if (d >= t) set(d, { type: i === 0 ? 'ovul' : 'fertile' }); }
+  }
+  return out;
+}
+const cyIcon = m => m.type === 'period' ? `🩸${m.n ? `<i>${m.n}</i>` : ''}` : m.type === 'predict' ? '🩸' : m.type === 'ovul' ? '🌼' : '🌸';
+const cyMark = (d, m) => m ? `<button class="calcy cy-${m.type}" data-act="cycday" data-v="${d}" aria-label="${esc(CY_LABEL[m.type])}${m.n && m.type === 'period' ? ', dag ' + m.n : ''}" title="${esc(CY_LABEL[m.type])}">${cyIcon(m)}</button>` : '';
+// one day of your cycle: what it is, and everything that belongs to it one tap away
+function cycleDaySheet(d) {
+  const m = cycleMarks(d, d)[d], t = today(), cd = cycleDayOn(d), log = recs('cyclelog').find(x => x.date === d);
+  const info = m ? [CY_LABEL[m.type], m.type === 'period' && m.n ? 'dag ' + m.n : '', m.flow ? ({ Spotting: 'spotting', Light: 'licht', Medium: 'gemiddeld', Heavy: 'hevig' })[m.flow] || m.flow : '', m.type === 'predict' ? 'een schatting uit je eigen cyclus' : '', ['fertile', 'ovul'].includes(m.type) ? 'een schatting, niet betrouwbaar als anticonceptie' : ''].filter(Boolean).join(' · ') : 'Geen menstruatie';
+  const ph = cd && d <= t ? cyclePhase(cd) : null;
+  const sh = C.sheet({ title: calDayLabel(d), body: `<p class="lnone"><span class="calcy cy-${m?.type || 'none'}">${m ? cyIcon(m) : ''}</span> ${esc(info)}</p>
+    ${cd && d <= t ? `<p class="lnone">Cyclusdag ${cd}${ph ? ' · ' + esc(({ Period: 'menstruatie', Follicular: 'folliculaire fase', Ovulation: 'rond de eisprong', Luteal: 'luteale fase' })[ph] || ph) : ''}</p>` : ''}
+    ${log ? `<p class="lnone">Dagboek: ${esc([...[].concat(log.symptoms || []), ...[].concat(log.feel || [])].slice(0, 6).join(', ') || 'ingevuld')}</p>` : ''}
+    <div class="lbar">${m?.id ? '<button class="btn" data-cyopen>Open periode</button>' : ''}${d <= t ? `<button class="btn ${log ? '' : 'primary'}" data-cylog>${log ? 'Dagboek van deze dag' : 'Dagboek invullen'}</button>` : ''}${d <= t && m?.type !== 'period' ? '<button class="btn" data-cystart>Menstruatie begon hier</button>' : ''}<button class="btn" data-cygo>Naar Cyclus</button></div>` });
+  sh.addEventListener('click', async ev => {
+    if (ev.target.closest('[data-cyopen]')) { C.closeSheet(); openRecord(m.id); }
+    if (ev.target.closest('[data-cylog]')) { C.closeSheet(); log ? openRecord(log.id) : openEditor('cyclelog', null, { date: d }); }
+    if (ev.target.closest('[data-cystart]')) { C.closeSheet(); try { await create('cycles', { start: d }); C.toast('🩸 Gelogd. Vul de einddatum in als hij voorbij is.'); } catch (err) { failed(err); } C.render(); }
+    if (ev.target.closest('[data-cygo]')) { C.closeSheet(); C.go('care/cycle'); }
+  });
+}
 function calEvents(from, to, all) {
   const ev = [], t = today(), bad = new Set();
   // an item with a date the calendar can't read is left out instead of breaking the whole calendar
@@ -8144,9 +8193,6 @@ function calEvents(from, to, all) {
   });
   safe('Body', () => {
   const cy = cycleStats(); if (cy.next && inR(cy.next, from, to)) add({ id: 'cycle', cat: 'body', date: cy.next, title: 'Menstruatie verwacht', sub: cy.guessed ? 'schatting' : `cyclus ${cy.avg} dagen`, go: 'care/cycle' });
-  });
-  safe('Body', () => {
-  for (const c of recs('cycles')) if (inR(c.start, from, to)) add({ id: 'cyc:' + c.id, cat: 'body', date: c.start, title: 'Menstruatie', open: c.id });
   });
   // Kitchen
   safe('Kitchen', () => {
@@ -8215,6 +8261,8 @@ function calRange(c) {
 }
 function calPageInner(host) {
   const c = calLoad(), [from, to] = calRange(c), ev = calEvents(from, to), t = today();
+  let cm = {}; try { if (!c.off.has('body')) cm = cycleMarks(from, to); } catch (err) { console.error('calendar cycle', err); }
+  const cyc = d => cm[d] ? 'cy-' + cm[d].type : '';
   L.calMap = Object.fromEntries(ev.map(e => [e.id, e]));
   const byDay = {}; for (const e of ev) (byDay[e.date] ||= []).push(e);
   const dt = fromISO(c.date), title = c.view === 'month' ? dt.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' }) : c.view === 'week' ? `Week van ${calDayLabel(from)}` : c.view === 'day' ? dt.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Komende 30 dagen';
@@ -8222,22 +8270,23 @@ function calPageInner(host) {
   let body = '';
   if (c.view === 'month') {
     const mo = dt.getMonth();
-    body = `<div class="calmonth"><div class="calwd">${NL_WD.map(w => `<span>${w}</span>`).join('')}</div><div class="calgrid">${Array.from({ length: 42 }, (_, i) => addDays(from, i)).map(d => { const l = byDay[d] || [], x = fromISO(d); return `<div class="calday ${x.getMonth() !== mo ? 'out' : ''} ${d === t ? 'now' : ''}" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${x.getDate()}</button>${addBtn(d)}</div>${l.slice(0, 4).map(e => calItem(e)).join('')}${l.length > 4 ? `<button class="calmore" data-act="calgo" data-v="${d}">+${l.length - 4} meer</button>` : ''}</div>`; }).join('')}</div></div>`;
+    body = `<div class="calmonth"><div class="calwd">${NL_WD.map(w => `<span>${w}</span>`).join('')}</div><div class="calgrid">${Array.from({ length: 42 }, (_, i) => addDays(from, i)).map(d => { const l = byDay[d] || [], x = fromISO(d); return `<div class="calday ${x.getMonth() !== mo ? 'out' : ''} ${d === t ? 'now' : ''} ${cyc(d)}" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${x.getDate()}</button>${addBtn(d)}</div>${cm[d] ? `<div class="calcyl">${cyMark(d, cm[d])}</div>` : ''}${l.slice(0, 4).map(e => calItem(e)).join('')}${l.length > 4 ? `<button class="calmore" data-act="calgo" data-v="${d}">+${l.length - 4} meer</button>` : ''}</div>`; }).join('')}</div></div>`;
   } else if (c.view === 'week') {
-    body = `<div class="calweek">${Array.from({ length: 7 }, (_, i) => addDays(from, i)).map(d => `<div class="calcol ${d === t ? 'now' : ''}" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${esc(calDayLabel(d))}</button>${addBtn(d)}</div>${(byDay[d] || []).map(e => calItem(e)).join('') || '<p class="lnone">Niets gepland</p>'}</div>`).join('')}</div>`;
+    body = `<div class="calweek">${Array.from({ length: 7 }, (_, i) => addDays(from, i)).map(d => `<div class="calcol ${d === t ? 'now' : ''} ${cyc(d)}" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${esc(calDayLabel(d))}</button>${cyMark(d, cm[d])}${addBtn(d)}</div>${(byDay[d] || []).map(e => calItem(e)).join('') || '<p class="lnone">Niets gepland</p>'}</div>`).join('')}</div>`;
   } else if (c.view === 'day') {
     const l = byDay[c.date] || [], allday = l.filter(e => hmToMin(e.time) == null), timed = l.filter(e => hmToMin(e.time) != null);
     let rhythm = []; try { rhythm = dayItems(c.date).map(x => ({ min: x.min, label: x.label, sub: x.sub })); } catch {}
     const rows = [...rhythm.map(r => ({ min: r.min, html: `<div class="calrow rh"><i>${hm(r.min)}</i><span><b>${esc(r.label)}</b>${r.sub ? `<small>${esc(r.sub)}</small>` : ''}</span></div>` })), ...timed.map(e => ({ min: hmToMin(e.time), html: `<div class="calrow"><i>${esc(e.time.slice(0, 5))}</i>${calItem(e, 'wide')}</div>` }))].sort((a, b) => a.min - b.min);
-    body = `<div class="calone" data-calday="${c.date}"><div class="caldh"><b>Hele dag</b>${addBtn(c.date)}</div>${allday.map(e => calItem(e, 'wide')).join('') || '<p class="lnone">Niets voor de hele dag.</p>'}<div class="caldh"><b>Je dag</b></div><div class="caltimes">${rows.map(r => r.html).join('')}</div></div>`;
+    body = `<div class="calone" data-calday="${c.date}">${cm[c.date] ? `<button class="calcyrow cy-${cm[c.date].type}" data-act="cycday" data-v="${c.date}">${cyIcon(cm[c.date])} ${esc(CY_LABEL[cm[c.date].type])}${cm[c.date].type === 'period' && cm[c.date].n ? ', dag ' + cm[c.date].n : ''} ›</button>` : ''}<div class="caldh"><b>Hele dag</b>${addBtn(c.date)}</div>${allday.map(e => calItem(e, 'wide')).join('') || '<p class="lnone">Niets voor de hele dag.</p>'}<div class="caldh"><b>Je dag</b></div><div class="caltimes">${rows.map(r => r.html).join('')}</div></div>`;
   } else {
     const days = Object.keys(byDay).sort();
-    body = `<div class="calagenda">${days.map(d => `<div class="calag" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${esc(calDayLabel(d))}${d === t ? ' · vandaag' : ''}</button>${addBtn(d)}</div>${byDay[d].map(e => calItem(e, 'wide')).join('')}</div>`).join('') || quiet('Niets gepland in de komende 30 dagen.')}</div>`;
+    body = `<div class="calagenda">${days.map(d => `<div class="calag ${cyc(d)}" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${esc(calDayLabel(d))}${d === t ? ' · vandaag' : ''}</button>${cyMark(d, cm[d])}${addBtn(d)}</div>${byDay[d].map(e => calItem(e, 'wide')).join('')}</div>`).join('') || quiet('Niets gepland in de komende 30 dagen.')}</div>`;
   }
   host.innerHTML = `<div class="viewhead"><h1>Calendar</h1><span class="sub">${esc(title)}</span></div>
   <div class="caltools"><div class="seg" role="group" aria-label="Weergave">${[['month', 'Maand'], ['week', 'Week'], ['day', 'Dag'], ['agenda', 'Agenda']].map(([k, l]) => `<button data-act="calview" data-v="${k}" aria-pressed="${c.view === k}">${l}</button>`).join('')}</div>
     <div class="calnav"><button class="iconbtn" data-act="calstep" data-v="-1" aria-label="Vorige">‹</button><button class="btn small" data-act="calgo" data-v="${t}" data-keep="1">Vandaag</button><button class="iconbtn" data-act="calstep" data-v="1" aria-label="Volgende">›</button></div></div>
   <div class="calcats" role="group" aria-label="Onderdelen">${CAL_CATS.map(([k, l]) => `<button class="chip calcat cal-${k}" data-act="calcat" data-v="${k}" aria-pressed="${!c.off.has(k)}"><span class="caldot"></span>${l}</button>`).join('')}</div>
+  ${Object.keys(cm).length ? `<p class="lnone calcylegend"><span class="calcy cy-period">🩸</span> menstruatie <span class="calcy cy-predict">🩸</span> verwacht <span class="calcy cy-fertile">🌸</span> vruchtbaar <span class="calcy cy-ovul">🌼</span> eisprong <button class="chip link small" data-act="go" data-v="care/cycle">Cyclus ›</button></p>` : ''}
   ${body}
   <p class="lnone calhint">Tik op iets om het te openen, af te vinken of te verplaatsen. Op een computer kun je het ook naar een andere dag slepen. ★ is belangrijk.</p>
   <div data-calweek></div>`;
@@ -8283,7 +8332,8 @@ function calAdd(d) {
 function calStrip() {
   const t = today(), to = addDays(t, 6); let ev = []; try { ev = calEvents(t, to); } catch { return ''; }
   const byDay = {}; for (const e of ev) (byDay[e.date] ||= []).push(e);
-  return `<section class="panel calstrip"><div class="lph3"><h3>Komende week</h3><button class="chip link" data-act="go" data-v="plan/week">Calendar</button></div><div class="calsd">${Array.from({ length: 7 }, (_, i) => addDays(t, i)).map(d => { const l = byDay[d] || [], cats = [...new Set(l.map(e => e.cat))], top = l.find(e => e.imp) || l[0]; return `<button class="calsday ${d === t ? 'now' : ''}" data-act="calopenday" data-v="${d}"><small>${NL_WD[(fromISO(d).getDay() + 6) % 7]}</small><b>${fromISO(d).getDate()}</b><span class="caldots">${cats.slice(0, 5).map(k => `<i class="caldot cal-${k}"></i>`).join('')}</span><em>${top ? esc(top.title) : ''}</em></button>`; }).join('')}</div></section>`;
+  let cm = {}; try { if (!calLoad().off.has('body')) cm = cycleMarks(t, to); } catch {}
+  return `<section class="panel calstrip"><div class="lph3"><h3>Komende week</h3><button class="chip link" data-act="go" data-v="plan/week">Calendar</button></div><div class="calsd">${Array.from({ length: 7 }, (_, i) => addDays(t, i)).map(d => { const l = byDay[d] || [], cats = [...new Set(l.map(e => e.cat))], top = l.find(e => e.imp) || l[0]; return `<button class="calsday ${d === t ? 'now' : ''} ${cm[d] ? 'cy-' + cm[d].type : ''}" data-act="calopenday" data-v="${d}"><small>${NL_WD[(fromISO(d).getDay() + 6) % 7]}</small><b>${fromISO(d).getDate()}</b><span class="caldots">${cm[d] ? `<span class="calcyi" title="${esc(CY_LABEL[cm[d].type])}">${cm[d].type === 'period' || cm[d].type === 'predict' ? '🩸' : '🌸'}</span>` : ''}${cats.slice(0, 5).map(k => `<i class="caldot cal-${k}"></i>`).join('')}</span><em>${top ? esc(top.title) : ''}</em></button>`; }).join('')}</div></section>`;
 }
 document.addEventListener('click', e => { const b = e.target.closest?.('[data-cal]'); if (!b || !C || b.closest('.sheet')) return; calSheet(b.dataset.cal); });
 document.addEventListener('dragstart', e => { const b = e.target.closest?.('[data-cal][draggable="true"]'); if (!b) return; e.dataTransfer.setData('text/x-cal', b.dataset.cal); e.dataTransfer.effectAllowed = 'move'; });
@@ -9131,7 +9181,7 @@ function cycleInsights() {
   const gp = [`Cycle overview made ${niceDate(t)}`, `Last period started: ${niceDate(cy.last)}`, `Cycle lengths: ${lens.length ? lens.join(', ') + ' days (average ' + cy.avg + ')' : 'not enough data yet'}`, `Period lengths: ${plen.length ? plen.join(', ') + ' days' : 'not logged'}`,
     `Most logged symptoms: ${[...symAll.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([s, n]) => `${s} (${n}×)`).join(', ') || 'none logged'}`];
   return `<div class="panels">
-    ${panel('🔮 Coming up', `<div class="tiles lt3"><div class="tile"><div class="k">🩸 Next period</div><div class="v">${esc(shortDate(next))}</div><div class="h">in ${Math.max(0, diffDays(t, next))} days</div></div><div class="tile"><div class="k">🌸 Fertile days</div><div class="v">${esc(shortDate(fert[0]))}</div><div class="h">to ${esc(shortDate(fert[1]))}, a guess</div></div><div class="tile"><div class="k">${tip?.[0] || ''} Now</div><div class="v">${esc(PHASE_NL?.[ph] || ph || '–')}</div><div class="h">day ${cy.day}</div></div></div><p class="lnone">Predictions from your own average cycle. Not reliable as contraception.</p><div class="dbtns">${newBtn('cyclelog', '📝 Log today')}</div>`)}
+    ${panel('🔮 Coming up', `<div class="tiles lt3"><div class="tile tilelink" role="button" tabindex="0" data-act="cycal" data-v="${esc(next)}"><div class="k">🩸 Next period</div><div class="v">${esc(shortDate(next))}</div><div class="h">in ${Math.max(0, diffDays(t, next))} days</div></div><div class="tile tilelink" role="button" tabindex="0" data-act="cycal" data-v="${esc(fert[0])}"><div class="k">🌸 Fertile days</div><div class="v">${esc(shortDate(fert[0]))}</div><div class="h">to ${esc(shortDate(fert[1]))}, a guess</div></div><div class="tile"><div class="k">${tip?.[0] || ''} Now</div><div class="v">${esc(PHASE_NL?.[ph] || ph || '–')}</div><div class="h">day ${cy.day}</div></div></div><p class="lnone">Predictions from your own average cycle. Not reliable as contraception.</p><div class="dbtns">${newBtn('cyclelog', '📝 Log today')}<button class="btn small" data-act="cycal" data-v="${esc(t)}">📅 See it in your calendar</button></div>`)}
     ${tip ? panel(`${tip[0]} Tips for this phase`, `<p>${esc(tip[1])}</p>`) : ''}
     ${panel('🔁 Your patterns', Object.keys(byPh).length ? ['Period', 'Follicular', 'Ovulation', 'Luteal'].filter(p => byPh[p]).map(p => `<p class="dsub">${PHASE_TIPS[p][0]} ${esc(PHASE_NL?.[p] || p)}</p><div class="lwrap">${[...byPh[p].entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([s, n]) => `<span class="chip">${esc(s)} <span class="n">${n}</span></span>`).join('')}</div>`).join('') : quiet('Log how you feel in your cycle diary: after a cycle or two your patterns show up here.'))}
     ${panel('🩺 For your GP', `<p class="lpre">${esc(gp.join('\n'))}</p><div class="dbtns"><button class="btn small" data-copy="${esc(gp.join('\n'))}">Copy</button></div>`)}
