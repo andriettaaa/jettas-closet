@@ -1,5 +1,5 @@
 // Keeps A’s Life opening offline: the app itself and your photos are cached; sign-in and data always go to Supabase.
-const VERSION = 'hangtag-v198';
+const VERSION = 'hangtag-v199';
 const SHELL = ['./', './index.html', './config.js', './known.js', './life.js', './life.css', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './logo-mark.png', './logo.png',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.js'];
 
@@ -8,7 +8,7 @@ self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== 'hangtag-photos').map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== 'hangtag-photos' && k !== 'hangtag-nav').map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', e => {
   const req = e.request;
@@ -41,12 +41,17 @@ self.addEventListener('push', e => {
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data ? e.data.text() : '' }; }
   e.waitUntil(self.registration.showNotification(d.title || 'A’s Life', { body: d.body || '', tag: d.tag, icon: 'icon-192.png', badge: 'icon-192.png', data: { url: d.url || './' } }));
 });
+/* a tapped notification opens its own page. iPhone apps from the home screen often ignore navigate() and open the start
+   page, so the page to open is also kept in a small cache: the app reads it when it starts or comes back, and an
+   app that is already open gets a message */
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   const url = new URL(e.notification.data?.url || './', self.registration.scope).href;
-  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(ws => {
+  e.waitUntil((async () => {
+    try { const c = await caches.open('hangtag-nav'); await c.put('pending-open', new Response(JSON.stringify({ url, at: Date.now() }), { headers: { 'Content-Type': 'application/json' } })); } catch {}
+    const ws = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const w = ws.find(c => c.url.startsWith(self.registration.scope));
-    if (w) return w.focus().then(c => (c || w).navigate ? (c || w).navigate(url) : null).catch(() => {});
-    return self.clients.openWindow(url);
-  }));
+    if (w) { w.postMessage({ type: 'open', url }); try { await w.focus(); } catch {} return; }
+    try { await self.clients.openWindow(url); } catch {}
+  })());
 });

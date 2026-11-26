@@ -2167,7 +2167,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v198';
+const APP_VERSION = 'hangtag-v199';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -4120,6 +4120,17 @@ if (!window.supabase || !CFG.url || !CFG.key || /YOUR-/.test(CFG.url + CFG.key))
     else if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') { channel?.unsubscribe(); window.LIFE?.stop(); renderLogin(); }
   });
 }
+// a tapped notification: go to its page, from the service worker's message or from what it left in the 'hangtag-nav' cache
+function openFromPush(u) {
+  try { const h = new URL(u, location.href).hash; if (h && h !== location.hash) location.hash = h; } catch {}
+}
+async function pendingPush() {
+  try { if (!('caches' in window)) return; const c = await caches.open('hangtag-nav'), r = await c.match('pending-open'); if (!r) return; await c.delete('pending-open'); const j = await r.json(); if (Date.now() - j.at < 5 * 60e3) openFromPush(j.url); } catch {}
+}
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { if (e.data?.type === 'open') { caches.open('hangtag-nav').then(c => c.delete('pending-open')).catch(() => {}); openFromPush(e.data.url); } });
+pendingPush();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) pendingPush(); });
+window.addEventListener('pageshow', () => pendingPush());
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   // when an updated version takes over, reload once so you see it straight away
   const hadController = !!navigator.serviceWorker.controller;
