@@ -1491,3 +1491,30 @@ button.mtick:disabled { cursor: default; opacity: 1; }
 .tdtop .lmain { flex: 1; min-width: 0; }
 .tdside { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 700; }
 h2 .tdside { font-size: .8em; color: var(--muted); }
+/* Today: your day per part of the day */
+.dplan .lph3 { gap: 8px; } .dplan .lph3 .muted { margin-right: auto; font-size: 13px; }
+.dppart { border-top: 1px solid var(--line); }
+.dppart > summary, .dpdone > summary { display: flex; justify-content: space-between; align-items: center; padding: 10px 2px; cursor: pointer; list-style: none; font-weight: 700; }
+.dppart > summary::-webkit-details-marker, .dpdone > summary::-webkit-details-marker { display: none; }
+.dppart > summary i, .dpdone > summary i { font-style: normal; font-weight: 400; color: var(--muted); font-size: 13px; }
+.dppart.now > summary span { color: var(--accent, var(--ink)); }
+.dpi { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 4px; border: 0; border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; min-width: 0; }
+.dpi:first-of-type { border-top: 0; }
+.dpi .bx { width: 20px; height: 20px; flex: none; border-radius: 6px; border: 2px solid var(--muted); position: relative; }
+.dpi.on .bx { background: var(--good, #8fae6e); border-color: var(--good, #8fae6e); }
+.dpi.on .bx::after { content: '✓'; position: absolute; inset: -3px 0 0 3px; color: var(--bg); font-weight: 900; font-size: 13px; }
+.dpi.skip .bx { border-style: dashed; }
+.dpi b { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dpi small { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; }
+.dpi.on b, .dpi.skip b { text-decoration: line-through; color: var(--muted); }
+.dpi.late small { color: #d9707c; font-weight: 700; }
+.dpnow { display: flex; align-items: center; gap: 8px; color: #d9707c; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin: 4px 0; }
+.dpnow::after { content: ''; flex: 1; height: 2px; background: #d9707c; border-radius: 2px; }
+.dploose { border-top: 1px solid var(--line); padding-top: 4px; }
+.dploose .dsub { margin: 8px 2px 2px; }
+.dpdone { border-top: 1px solid var(--line); }
+.dpbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.dplater { margin-top: 8px; display: grid; gap: 8px; }
+.dpsteps { margin: 8px 0; }
+.hub .hubrow { width: 100%; text-align: left; align-items: center; }
+.hubn { background: var(--accent, #c99a6b); color: var(--bg); border-radius: 99px; padding: 1px 9px; font-weight: 700; font-size: 13px; }

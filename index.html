@@ -581,6 +581,14 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .iconopt { aspect-ratio: 1; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 12px; display: grid; place-items: center; cursor: pointer; padding: 0; }
 .iconopt[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink, #fff); border-color: transparent; }
 .rcbox{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.setfold { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r, 16px); break-inside: avoid; }
+.setfold > summary { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; list-style: none; }
+.setfold > summary::-webkit-details-marker { display: none; }
+.setfold > summary span { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.setfold > summary small { color: var(--muted); font-size: 12.5px; line-height: 1.35; }
+.setfold > summary i { font-style: normal; color: var(--muted); font-size: 20px; transition: transform .15s; }
+.setfold[open] > summary i { transform: rotate(90deg); }
+.setfold > section.setpanel { border: 0; background: none; margin: 0; padding-top: 0; box-shadow: none; }
 </style>
 <link rel="stylesheet" href="life.css">
 </head>
@@ -2167,7 +2175,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v200';
+const APP_VERSION = 'hangtag-v201';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2250,7 +2258,23 @@ function affirmManage() {
     const h = e.target.closest('[data-affhide]'); if (h) { const v = h.dataset.affhide, l = new Set(S.prefs.affirm?.hidden || []); l.has(v) ? l.delete(v) : l.add(v); await affirmSave({ hidden: [...l] }); closeSheet(); affirmManage(); }
   });
 }
+/* Settings stay calm: every panel folds into one line with its title and a short hint. What you opened stays open
+   while the page redraws, and search opens the panel it jumps to */
+const SET_OPEN = new Set();
+function foldSettings(host) {
+  for (const p of host.querySelectorAll('.setpanels section.setpanel')) {
+    if (p.parentElement.closest('section.setpanel') || p.parentElement.matches('details.setfold')) continue;
+    const h = p.querySelector(':scope > h3'), title = h?.textContent.trim() || 'Settings', id = p.id || S.view + ':' + title;
+    const hint = (p.querySelector(':scope > p.muted')?.textContent || '').trim().replace(/\s+/g, ' ');
+    const d = document.createElement('details'); d.className = 'setfold'; d.dataset.fold = id; if (SET_OPEN.has(id)) d.open = true;
+    d.innerHTML = `<summary><span><b>${esc(title)}</b>${hint ? `<small>${esc(hint.length > 90 ? hint.slice(0, 88) + '…' : hint)}</small>` : ''}</span><i aria-hidden="true">›</i></summary>`;
+    p.replaceWith(d); d.appendChild(p); if (h) h.hidden = true;
+    d.addEventListener('toggle', () => { d.open ? SET_OPEN.add(id) : SET_OPEN.delete(id); });
+  }
+}
+const openSpot = id => { const el = document.getElementById(id); const f = el?.closest('details.setfold'); if (f) { f.open = true; SET_OPEN.add(f.dataset.fold); } el?.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
 function renderSettings(host) {
+  queueMicrotask(() => foldSettings(host));
   const master = S.view === 'settings', sec = master ? null : secOf(S.view), secObj = SECTIONS.find(x => x.key === sec);
   const n = NAV(), hid = n.hidden || [], all = navAll(), shownKeys = all.filter(s => !hid.includes(s.key)).map(s => s.key);
   const bottom = n.bottom?.length ? n.bottom : shownKeys.slice(0, BOTTOM_DEFAULT);
@@ -2261,7 +2285,7 @@ function renderSettings(host) {
     host.innerHTML = `<div class="viewhead"><h1>Settings</h1><span class="sub">Menu, notifications and your account</span></div>
   <div class="panels setpanels">
     ${syncPanel()}
-    <section class="panel setpanel" id="set-sections"><h3>Sections</h3><p class="muted">Order the menu, hide what you don't use and pick what sits in the bar at the bottom of your phone (tick <b>Bottom bar</b>, up to five reads best). Hidden sections stay in the ☰ menu.</p>
+    <section class="panel setpanel" id="set-sections"><h3>Tabs onderin en menu</h3><p class="muted">Order the menu, hide what you don't use and pick what sits in the bar at the bottom of your phone (tick <b>Bottom bar</b>, up to five reads best). Hidden sections stay in the ☰ menu.</p>
       ${all.map((s, i) => `<div class="setrow"><span class="seti">${icon(s.icon)}</span><b>${esc(s.label)}</b><div class="spacer"></div>
         <label class="settog"><input type="checkbox" data-nshow="${s.key}" ${hid.includes(s.key) ? '' : 'checked'}> Menu</label>
         <label class="settog"><input type="checkbox" data-nbot="${s.key}" ${bottom.includes(s.key) && !hid.includes(s.key) ? 'checked' : ''} ${hid.includes(s.key) ? 'disabled' : ''}> Bottom bar</label>${mv('data-nmove', s.key, i, all.length)}</div>`).join('')}
@@ -3066,7 +3090,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#scrim'
    One box over every list in the life sections, every page and your settings. A record opens in its editor
    on its own page; a page or a setting takes you there. */
 const SET_SPOTS = [
-  ['set-sections', 'Sections', 'Menu order, hide sections, bottom bar'],
+  ['set-sections', 'Tabs onderin en menu', 'Sections, menu order, hide sections, bottom bar, tabs'],
   ['set-noti', 'Notifications', 'Morning, evening, bills, payday, budget, push'],
   ['set-account', 'Account and app', 'Sign out, version, update'],
   ['set-undo', 'Undo', 'Undo your last changes and imports']
@@ -3114,9 +3138,9 @@ function openSearch(start = '') {
     closeSheet();
     if (r.t === 'rec') return window.LIFE.openFound(r.id, go);
     if (r.t === 'page') return go(r.v);
-    if (r.t === 'list') { SET.list = r.v; go(r.sec + '/settings'); requestAnimationFrame(() => $('#set-lists')?.scrollIntoView({ block: 'start', behavior: 'smooth' })); return; }
+    if (r.t === 'list') { SET.list = r.v; go(r.sec + '/settings'); requestAnimationFrame(() => requestAnimationFrame(() => openSpot('set-lists'))); return; }
     go('settings');
-    requestAnimationFrame(() => $('#' + (r.t === 'list' ? 'set-lists' : r.v))?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+    requestAnimationFrame(() => requestAnimationFrame(() => openSpot(r.t === 'list' ? 'set-lists' : r.v)));
   };
   inp.addEventListener('input', draw);
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); pick(found[0]); } });
