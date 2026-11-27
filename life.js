@@ -8071,7 +8071,7 @@ function dpIcon(x) {
 }
 const dpProg = x => x.done ? 1 : x.prog || 0;
 const dpTile = (x, now) => `<button type="button" class="dpt ${x.done ? 'on' : ''} ${x.skipped ? 'skip' : ''} ${(x.late || (x.min != null && x.min < now - 30)) && !x.done && !x.skipped ? 'late' : ''}" data-dpt="${esc(x.key)}"><span class="ring" style="--p:${Math.round(100 * dpProg(x))}%"><b>${dpIcon(x)}</b></span><span class="dptl">${esc(x.label)}</span><small>${esc(x.skipped ? 'overgeslagen' : x.min != null ? hm(x.min) : x.sub)}</small></button>`;
-function dayPlanHTML() {
+function dayPlanHTML(head = true) {
   if (!C) return '';
   const d = today(), now = nowMin(), items = dayPlan(d).filter(x => x.type !== 'water'), cur = dpPart(now);
   L.dpMap = Object.fromEntries(items.map(x => [x.key, x]));
@@ -8098,11 +8098,29 @@ function dayPlanHTML() {
     </div>`;
   };
   return `<section class="panel dplan2" data-dpwrap>
-    <div class="dphead"><span class="ring ${cheer ? 'pop' : ''}" style="--p:${pct}%"><b>${pct}%</b></span><div><b>${done.length} van ${items.length} klaar</b><small>${cheer ? '✨ ' + esc(cheer) : `Nog ${curOpen.length + (supNow && !supNow.done ? 1 : 0)} deze ${name}`}</small></div>${cs.start ? '<button class="btn small" data-act="crave">Ik heb trek</button>' : ''}</div>
+    ${head ? '' : '<!--'}<div class="dphead"><span class="ring ${cheer ? 'pop' : ''}" style="--p:${pct}%"><b>${pct}%</b></span><div><b>${done.length} van ${items.length} klaar</b><small>${cheer ? '✨ ' + esc(cheer) : `Nog ${curOpen.length + (supNow && !supNow.done ? 1 : 0)} deze ${name}`}</small></div>${cs.start ? '<button class="btn small" data-act="crave">Ik heb trek</button>' : ''}</div>${head ? '' : '-->'}
     <div class="dptabs" role="tablist">${[...DP_PARTS, ['ov', '📋', 'Overzicht']].map(([k, ic, l]) => `<button type="button" role="tab" data-dptab="${k}" aria-selected="${k === tab}"><span class="dpti">${ic}</span> ${l}</button>`).join('')}</div>
     ${DP_PARTS.map(pane).join('')}
     <div class="dppane" data-dppane="ov" ${tab === 'ov' ? '' : 'hidden'}>${todoHub()}${calStrip()}<p class="lnone dpovnote">Je tegels per onderdeel staan hieronder.</p></div>
   </section>`;
+}
+// the day's numbers for the ring next to the greeting, and confetti when a part of the day or the whole day is done
+function dayStats() {
+  const items = dayPlan(today()).filter(x => x.type !== 'water'), done = items.filter(x => x.done || x.skipped).length, cur = dpPart(nowMin());
+  const cheer = L.dpCheer && Date.now() - (L.dpCheerAt || 0) < 15000 ? L.dpCheer : '';
+  const partOpen = items.filter(x => x.min != null && dpPart(x.min) === cur && !x.done && !x.skipped).length;
+  return { pct: items.length ? Math.round(100 * done / items.length) : 0, done, total: items.length, cheer, partOpen, part: cur };
+}
+function confetti(big) {
+  const box = document.createElement('div'); box.className = 'confetti'; box.setAttribute('aria-hidden', 'true');
+  const cols = ['#e8b4b8', '#a9c48a', '#7fa6c9', '#f2c46d', '#c99a6b', '#b48ac9'];
+  for (let i = 0; i < (big ? 70 : 36); i++) { const c = document.createElement('i'); c.style.left = Math.random() * 100 + '%'; c.style.background = cols[i % cols.length]; c.style.animationDelay = Math.random() * .4 + 's'; c.style.setProperty('--dx', (Math.random() * 160 - 80) + 'px'); c.style.setProperty('--r', (Math.random() * 720 - 360) + 'deg'); box.appendChild(c); }
+  document.body.appendChild(box); setTimeout(() => box.remove(), 2600);
+}
+function dpMilestone(before) {
+  const a = dayStats();
+  if (a.total && a.done === a.total && before.done < before.total) { confetti(true); C.toast('🎉 Alles van vandaag is gedaan!'); }
+  else if (before.partOpen > 0 && a.partOpen === 0) { confetti(false); C.toast(`🎉 Je ${({ morning: 'ochtend', midday: 'middag', evening: 'avond' })[a.part]} is klaar!`); }
 }
 // switch tabs without drawing the page again; swipe left or right on the card does the same
 const DP_TABS = ['morning', 'midday', 'evening', 'ov'];
@@ -8124,10 +8142,11 @@ document.addEventListener('pointerdown', e => { const b = e.target.closest?.('[d
 ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => document.addEventListener(ev, () => clearTimeout(dpPress)));
 document.addEventListener('contextmenu', e => { if (e.target.closest?.('[data-dpt]')) e.preventDefault(); });
 async function dpQuick(x) {
+  const before = dayStats();
   try { if (x.act) await x.act(); else { const q = KINDS[x.rec?.kind]?.quick?.(x.rec); if (q) await q.act(); } } catch (err) { failed(err); return; }
   if (!x.done) { L.dpCheer = `${x.label} afgevinkt`; L.dpCheerAt = Date.now(); }
   C.toast(x.done ? `${x.label}: toch niet gedaan` : `✓ ${x.label}`, x.done ? undefined : { label: 'Ongedaan', run: () => dpQuick({ ...x, done: true }) });
-  C.render();
+  C.render(); if (!x.done) setTimeout(() => dpMilestone(before), 60);
 }
 document.addEventListener('click', e => {
   if (!C) return;
@@ -8180,7 +8199,7 @@ function dpSheet(key, mode = '') {
   };
   sh.addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
-    if (b.hasAttribute('data-dpdone') || b.hasAttribute('data-dpundo')) { try { if (x.act) await x.act(); else { const q = KINDS[x.rec?.kind]?.quick?.(x.rec); if (q) await q.act(); } } catch (err) { failed(err); } close(b.hasAttribute('data-dpdone') ? `✓ ${x.label}` : ''); }
+    if (b.hasAttribute('data-dpdone') || b.hasAttribute('data-dpundo')) { const before = dayStats(); if (b.hasAttribute('data-dpdone')) setTimeout(() => dpMilestone(before), 400); try { if (x.act) await x.act(); else { const q = KINDS[x.rec?.kind]?.quick?.(x.rec); if (q) await q.act(); } } catch (err) { failed(err); } close(b.hasAttribute('data-dpdone') ? `✓ ${x.label}` : ''); }
     else if (b.hasAttribute('data-dpskip')) { await dpSave(d, { skip: [...new Set([...(dpState(d).skip || []), key])] }); close('Overgeslagen'); }
     else if (b.hasAttribute('data-dpunskip')) { await dpSave(d, { skip: (dpState(d).skip || []).filter(k => k !== key) }); close(''); }
     else if (b.hasAttribute('data-dplater')) { sh.querySelector('.dplater').hidden = !sh.querySelector('.dplater').hidden; }
@@ -10061,6 +10080,12 @@ return {
   stop() { channel?.unsubscribe(); channel = null; },
   userName: () => (C && fset()?.name) || '',
   todayTop: () => { try { return todayTop(); } catch (e) { console.error(e); return ''; } },
+  // Today as one story: the greeting gets the ring, the day comes without its own header
+  dayStory: () => { try { return C ? dayPlanHTML(false) : ''; } catch (e) { console.error(e); return ''; } },
+  dayStats: () => { try { return C ? dayStats() : null; } catch { return null; } },
+  pinAffirm: () => { try { return C ? pnAffirmHTML() : ''; } catch { return ''; } },
+  pinAffirmToday: () => { try { return C ? pnAffirmToday(L.pnShift || 0) : null; } catch { return null; } },
+  intentText: () => { try { return intentNow()?.text || ''; } catch { return ''; } },
   hasPinAffirm: () => { try { return !!(C && pnAffirmToday()); } catch { return false; } },
   check: key => checkRun(key),
   pnStrip: (key, title) => { try { return C ? pnStripHTML(key, title) : ''; } catch (e) { console.error(e); return ''; } },
