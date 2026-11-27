@@ -7138,7 +7138,7 @@ document.addEventListener('click', async e => {
     case 'cycday': cycleDaySheet(d.v); break;
     case 'cycal': { const c = calLoad(); c.view = 'month'; c.date = d.v || today(); try { localStorage.setItem('calView', 'month'); } catch {} C.go('plan/week'); break; }
     case 'calview': { const c = calLoad(); c.view = d.v; try { localStorage.setItem('calView', d.v); } catch {} C.render(); break; }
-    case 'calstep': { const c = calLoad(), n = +d.v; c.date = c.view === 'month' ? (() => { const x = fromISO(c.date); return iso(new Date(x.getFullYear(), x.getMonth() + n, 1)); })() : addDays(c.date, n * (c.view === 'week' ? 7 : c.view === 'agenda' ? 30 : 1)); C.render(); break; }
+    case 'calstep': { const c = calLoad(), n = +d.v; c.date = c.view === 'month' ? (() => { const x = fromISO(c.date); return iso(new Date(x.getFullYear(), x.getMonth() + n, 1)); })() : addDays(c.date, n * (c.view === 'week' ? 7 : c.view === '3day' ? 3 : c.view === 'agenda' ? 30 : 1)); C.render(); break; }
     case 'calgo': { const c = calLoad(); c.date = d.v; if (!d.keep) c.view = 'day'; C.render(); break; }
     case 'calcat': { const c = calLoad(); c.off.has(d.v) ? c.off.delete(d.v) : c.off.add(d.v); try { localStorage.setItem('calOff', JSON.stringify([...c.off])); } catch {} C.render(); break; }
     case 'caladd': calAdd(d.v); break;
@@ -8944,6 +8944,7 @@ function calRange(c) {
   if (c.view === 'month') { const first = iso(new Date(d.getFullYear(), d.getMonth(), 1)), start = weekMon(first); return [start, addDays(start, 41)]; }
   if (c.view === 'week') { const s = weekMon(c.date); return [s, addDays(s, 6)]; }
   if (c.view === 'day') return [c.date, c.date];
+  if (c.view === '3day') return [c.date, addDays(c.date, 2)];
   return [c.date, addDays(c.date, 30)];
 }
 function calPageInner(host) {
@@ -8952,14 +8953,14 @@ function calPageInner(host) {
   const cyc = d => cm[d] ? 'cy-' + cm[d].type : '';
   L.calMap = Object.fromEntries(ev.map(e => [e.id, e]));
   const byDay = {}; for (const e of ev) (byDay[e.date] ||= []).push(e);
-  const dt = fromISO(c.date), title = c.view === 'month' ? dt.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' }) : c.view === 'week' ? `Week van ${calDayLabel(from)}` : c.view === 'day' ? dt.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Komende 30 dagen';
+  const dt = fromISO(c.date), title = c.view === 'month' ? dt.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' }) : c.view === 'week' ? `Week van ${calDayLabel(from)}` : c.view === '3day' ? `${calDayLabel(from)} tot ${calDayLabel(to)}` : c.view === 'day' ? dt.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Komende 30 dagen';
   const addBtn = d => `<button class="caladd" data-act="caladd" data-v="${d}" aria-label="Iets toevoegen op ${esc(calDayLabel(d))}">+</button>`;
   let body = '';
   if (c.view === 'month') {
     const mo = dt.getMonth();
     body = `<div class="calmonth"><div class="calwd">${NL_WD.map(w => `<span>${w}</span>`).join('')}</div><div class="calgrid">${Array.from({ length: 42 }, (_, i) => addDays(from, i)).map(d => { const l = byDay[d] || [], x = fromISO(d); return `<div class="calday ${x.getMonth() !== mo ? 'out' : ''} ${d === t ? 'now' : ''} ${cyc(d)}" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${x.getDate()}</button>${addBtn(d)}</div>${cm[d] ? `<div class="calcyl">${cyMark(d, cm[d])}</div>` : ''}${l.slice(0, 4).map(e => calItem(e)).join('')}${l.length > 4 ? `<button class="calmore" data-act="calgo" data-v="${d}">+${l.length - 4} meer</button>` : ''}</div>`; }).join('')}</div></div>`;
-  } else if (c.view === 'week') {
-    body = `<div class="calweek">${Array.from({ length: 7 }, (_, i) => addDays(from, i)).map(d => `<div class="calcol ${d === t ? 'now' : ''} ${cyc(d)}" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${esc(calDayLabel(d))}</button>${cyMark(d, cm[d])}${addBtn(d)}</div>${(byDay[d] || []).map(e => calItem(e)).join('') || '<p class="lnone">Niets gepland</p>'}</div>`).join('')}</div>`;
+  } else if (c.view === 'week' || c.view === '3day') {
+    body = `<div class="calweek ${c.view === '3day' ? 'three' : ''}">${Array.from({ length: c.view === '3day' ? 3 : 7 }, (_, i) => addDays(from, i)).map(d => `<div class="calcol ${d === t ? 'now' : ''} ${cyc(d)}" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${esc(calDayLabel(d))}</button>${cyMark(d, cm[d])}${addBtn(d)}</div>${(byDay[d] || []).map(e => calItem(e)).join('') || '<p class="lnone">Niets gepland</p>'}</div>`).join('')}</div>`;
   } else if (c.view === 'day') {
     const l = byDay[c.date] || [], allday = l.filter(e => hmToMin(e.time) == null), timed = l.filter(e => hmToMin(e.time) != null);
     let rhythm = []; try { rhythm = dayItems(c.date).map(x => ({ min: x.min, label: x.label, sub: x.sub })); } catch {}
@@ -8970,7 +8971,7 @@ function calPageInner(host) {
     body = `<div class="calagenda">${days.map(d => `<div class="calag ${cyc(d)}" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${esc(calDayLabel(d))}${d === t ? ' · vandaag' : ''}</button>${cyMark(d, cm[d])}${addBtn(d)}</div>${byDay[d].map(e => calItem(e, 'wide')).join('')}</div>`).join('') || quiet('Niets gepland in de komende 30 dagen.')}</div>`;
   }
   host.innerHTML = `<div class="viewhead"><h1>Calendar</h1><span class="sub">${esc(title)}</span></div>
-  <div class="caltools"><div class="seg" role="group" aria-label="Weergave">${[['month', 'Maand'], ['week', 'Week'], ['day', 'Dag'], ['agenda', 'Agenda']].map(([k, l]) => `<button data-act="calview" data-v="${k}" aria-pressed="${c.view === k}">${l}</button>`).join('')}</div>
+  <div class="caltools"><div class="seg" role="group" aria-label="Weergave">${[['month', 'Maand'], ['week', 'Week'], ['3day', '3 dagen'], ['day', 'Dag'], ['agenda', 'Agenda']].map(([k, l]) => `<button data-act="calview" data-v="${k}" aria-pressed="${c.view === k}">${l}</button>`).join('')}</div>
     <div class="calnav"><button class="iconbtn" data-act="calstep" data-v="-1" aria-label="Vorige">‹</button><button class="btn small" data-act="calgo" data-v="${t}" data-keep="1">Vandaag</button><button class="iconbtn" data-act="calstep" data-v="1" aria-label="Volgende">›</button></div></div>
   <div class="calcats" role="group" aria-label="Onderdelen">${CAL_CATS.map(([k, l]) => `<button class="chip calcat cal-${k}" data-act="calcat" data-v="${k}" aria-pressed="${!c.off.has(k)}"><span class="caldot"></span>${l}</button>`).join('')}</div>
   ${Object.keys(cm).length ? `<p class="lnone calcylegend"><span class="calcy cy-period">🩸</span> menstruatie <span class="calcy cy-predict">🩸</span> verwacht <span class="calcy cy-fertile">🌸</span> vruchtbaar <span class="calcy cy-ovul">🌼</span> eisprong <button class="chip link small" data-act="go" data-v="care/cycle">Cyclus ›</button></p>` : ''}

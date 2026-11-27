@@ -1771,7 +1771,7 @@ function fillCalAlt(host, v) {
     const ws = S.calWeek || weekStartIso(), days = Array.from({ length: 7 }, (_, i) => addDaysIso(ws, i));
     $('#calTitle', host).textContent = 'Week van ' + new Date(ws + 'T12:00:00').toLocaleDateString('nl-NL', { day: 'numeric', month: 'long' });
     alt.innerHTML = `<div class="calweekbar"><button class="iconbtn" data-calw="-1" aria-label="Vorige week">${I.left}</button><span class="spacer"></span><button class="iconbtn" data-calw="1" aria-label="Volgende week">${I.right}</button></div>
-      <div class="calweek">${days.map(k => { const w = wxDay(k), th = dayThumb(k); return `<button class="cwday ${k === t ? 'today' : ''}" data-day="${k}"><span class="cwh"><b>${new Date(k + 'T12:00:00').toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric' })}</b>${w ? `<i>${wmo(w.c)[1]} ${w.hi}°</i>` : ''}</span><div class="cwthumb">${th || '<span class="cwplus">+</span>'}</div><small>${esc(dayName(k) || (k > t ? 'Plannen' : 'Niets gelogd'))}</small></button>`; }).join('')}</div>`;
+      <div class="ocweek">${days.map(k => { const w = wxDay(k), th = dayThumb(k); return `<button class="cwday ${k === t ? 'today' : ''}" data-day="${k}"><span class="cwh"><b>${new Date(k + 'T12:00:00').toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric' })}</b>${w ? `<i>${wmo(w.c)[1]} ${w.hi}°</i>` : ''}</span><div class="cwthumb">${th || '<span class="cwplus">+</span>'}</div><small>${esc(dayName(k) || (k > t ? 'Plannen' : 'Niets gelogd'))}</small></button>`; }).join('')}</div>`;
   } else {
     const ks = Object.keys(S.days).filter(k => k <= addDaysIso(t, 14) && dayThumb(k)).sort().reverse().slice(0, 90);
     $('#calTitle', host).textContent = 'Wat je droeg';
@@ -2401,7 +2401,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v209';
+const APP_VERSION = 'hangtag-v210';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],

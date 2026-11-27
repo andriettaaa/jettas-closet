@@ -1787,7 +1787,7 @@ details.fpanel[open] > summary { margin-bottom: 10px; }
 /* outfit calendar: week with big photos, and a list */
 .seg.calview { margin: 0 0 10px; }
 .calweekbar { display: flex; align-items: center; margin: 0 0 8px; } .calweekbar .spacer { flex: 1; }
-.calweek { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.ocweek { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .cwday { all: unset; box-sizing: border-box; cursor: pointer; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 8px; display: grid; gap: 6px; }
 .cwday.today { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
 .cwh { display: flex; justify-content: space-between; font-size: 12.5px; } .cwh i { font-style: normal; color: var(--muted); }
@@ -1848,3 +1848,5 @@ details.room { border-top: 1px solid var(--line); padding: 10px 0; } details.roo
 .swacts { position: absolute; top: 0; bottom: 0; left: 100%; display: flex; gap: 4px; padding-left: 6px; width: 200px; }
 .swacts button { flex: 1; border: 0; border-radius: 12px; color: #fff; font-size: 18px; display: grid; place-items: center; align-content: center; gap: 2px; } .swacts small { font-size: 10.5px; font-weight: 700; }
 .swacts .ok { background: #5f9b6b; } .swacts .later { background: #d99a4e; } .swacts .del { background: #d9707c; }
+.calweek.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.story > * { min-width: 0; } .story { grid-template-columns: minmax(0, 1fr); }
