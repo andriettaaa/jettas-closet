@@ -1387,7 +1387,7 @@ const azSort = (a, b) => String(a).localeCompare(String(b), undefined, { sensiti
 const daysOn = it => it.wishSince ? Math.max(0, Math.round((Date.now() - fromISO(it.wishSince)) / 864e5)) : it.created ? Math.max(0, Math.round((Date.now() - it.created) / 864e5)) : null;
 const saving = it => it.origPrice > 0 && it.price > 0 && it.origPrice > it.price ? it.origPrice - it.price : 0;
 const SORTS = {
-  closet: [['new', 'Newest first'], ['worn', 'Most worn'], ['least', 'Least worn'], ['cpw', 'Highest cost per wear'], ['price', 'Price'], ['name', 'Name A–Z']],
+  closet: [['new', 'Nieuwste eerst'], ['name', 'A tot Z'], ['worn', 'Vaakst gedragen'], ['least', 'Minst gedragen'], ['idle', 'Langst niet gedragen'], ['cpw', 'Hoogste prijs per keer'], ['price', 'Prijs']],
   wishlist: [['new', 'Newest first'], ['old', 'Longest on wishlist'], ['price', 'Price high–low'], ['cheap', 'Price low–high'], ['sale', 'Biggest discount'], ['name', 'Name A–Z']]
 };
 const SORTFN = {
@@ -1399,7 +1399,8 @@ const SORTFN = {
   price: (a, b) => (b.price || 0) - (a.price || 0),
   cheap: (a, b) => (a.price ?? 1e9) - (b.price ?? 1e9),
   sale: (a, b) => saving(b) - saving(a),
-  name: (a, b) => azSort(a.name, b.name)
+  name: (a, b) => azSort(a.name, b.name),
+  idle: (a, b) => (S.lastWorn[a.id] || '').localeCompare(S.lastWorn[b.id] || '')
 };
 function baseList(view, f) {
   return S.items.filter(it => view === 'wishlist' ? (f.showGone ? isPassed(it) : isWish(it)) : !isInbox(it) && !isWishAll(it) && (f.showGone || inCloset(it)));
@@ -1425,6 +1426,7 @@ function goFilter(view, k, value) {
   if (S.view === view) { $('#main').innerHTML = ''; render(); window.scrollTo(0, 0); } else go(view);
 }
 const fchip = (k, v, label = v) => `<button class="chip link" data-go="${k}" data-v="${esc(v)}">${k === 'colors' ? `<i class="dot" style="background:${swatchBg(v)}"></i>` : ''}${esc(label)}</button>`;
+const closetView = () => pref.get('closetView', 'grid');
 function itemCard(it, extraCls = '') {
   const w = wearCount(it), c = cpw(it), inbox = isInbox(it), wish = isWishAll(it);
   const sub = inbox ? [it.brand || it.shop, it.price ? eur(it.price) : ''].filter(Boolean).join(' · ')
@@ -1433,7 +1435,7 @@ function itemCard(it, extraCls = '') {
   // prices never sit on the hangtag; they live in the line under the name
   const tag = inbox ? `<div class="hangtag"><small>from</small>${esc((it.shop || 'link').slice(0, 14))}</div>` : '';
   return `<button class="card ${inCloset(it) || inbox || wish ? '' : 'gone'} ${wish ? 'wish' : ''} ${extraCls}" data-item="${esc(it.id)}">
-    <div class="stage">${it.photo ? pimg(it.photo, it.name, 'loading="lazy"') : PH}</div>${tag}
+    <div class="stage">${it.photo ? pimg(it.photo, it.name, 'loading="lazy"') : PH}</div>${tag}${!inbox && !wish ? `<span class="wearb">👗 ${w}×</span>${c != null ? `<span class="cpwb">${esc(eur(c))}</span>` : ''}` : ''}
     <div class="meta"><b>${esc(it.name || 'Untitled piece')}</b><span ${inbox ? '' : 'class="wrap"'}>${esc(sub)}</span></div>
   </button>`;
 }
@@ -1469,6 +1471,7 @@ function renderRail(host) {
         <select class="pill" id="sort" aria-label="Sort">${SORTS[view].map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
         <button class="btn" data-selmode>Select</button>
       </div>
+      ${view === 'closet' ? `<div class="seg cview" role="group" aria-label="Weergave">${[['grid', 'Fotogrid'], ['shelves', 'Planken'], ['rail', 'Rek']].map(([k, l]) => `<button type="button" data-cview="${k}" aria-pressed="${closetView() === k}">${l}</button>`).join('')}</div>` : ''}
       <div class="chips" id="catChips" role="group" aria-label="Category"></div>
       <div class="chips facets" id="facetTabs" role="group" aria-label="Filter by"></div>
       <div class="chips" id="facetVals" role="group"></div>
@@ -1481,6 +1484,7 @@ function renderRail(host) {
     host.addEventListener('click', e => {
       const t = e.target;
       if (t.closest('[data-selmode]') || t.closest('[data-rseldone]')) { S.rsel = S.rsel ? null : new Set(); return fillRail(host); }
+      const cvb = t.closest('[data-cview]'); if (cvb) { pref.set('closetView', cvb.dataset.cview); host.querySelectorAll('[data-cview]').forEach(b => b.setAttribute('aria-pressed', b === cvb)); return fillRail(host); }
       if (S.rsel) {
         const si = t.closest('[data-item]'); if (si) { toggleSet(S.rsel, si.dataset.item); return fillRail(host); }
         if (t.closest('[data-rselall]')) { const vis = [...host.querySelectorAll('#railGrid [data-item]')].map(b => b.dataset.item); const allOn = vis.every(id => S.rsel.has(id)); vis.forEach(id => allOn ? S.rsel.delete(id) : S.rsel.add(id)); return fillRail(host); }
@@ -1547,8 +1551,12 @@ function fillRail(host) {
   if (!base.length && view === 'wishlist' && f.showGone) { f.showGone = false; return fillRail(host); }
   if (!base.length) { grid.className = ''; grid.innerHTML = view === 'wishlist' ? emptyWishlist() : emptyCloset(); return; }
   const list = base.filter(it => matches(it, f)).sort(SORTFN[f.sort] || SORTFN.new);
-  grid.className = list.length ? 'grid' : '';
-  grid.innerHTML = list.length ? list.map(it => itemCard(it)).join('') : `<p class="muted">No pieces match these filters. <button class="chip ghost" data-clearall>Clear all</button></p>`;
+  // the closet three ways: a photo grid with times worn and price per wear, shelves per category, or a rail
+  const cv = view === 'closet' && !S.rsel ? closetView() : 'grid', none = `<p class="muted">No pieces match these filters. <button class="chip ghost" data-clearall>Clear all</button></p>`;
+  if (cv === 'grid' || !list.length) { grid.className = list.length ? 'grid' + (view === 'closet' ? ' wearbadges' : '') : ''; grid.innerHTML = list.length ? list.map(it => itemCard(it)).join('') : none; }
+  else { const byCat = [...new Set(list.map(it => it.cat || 'Overig'))].map(c => [c, list.filter(it => (it.cat || 'Overig') === c)]);
+    grid.className = cv === 'rail' ? 'rails' : 'shelves';
+    grid.innerHTML = byCat.map(([c, l]) => `<section class="shelf"><div class="shelfh"><b>${esc(c)}</b><span>${l.length}</span></div><div class="${cv === 'rail' ? 'rail' : 'shelfrow'}">${l.map(it => itemCard(it, cv === 'rail' ? 'onrail' : '')).join('')}</div></section>`).join(''); }
   // select mode: tap pieces to pick them, then act on all of them at once
   grid.classList.toggle('selecting', !!S.rsel);
   const sb = host.querySelector('[data-selmode]'); if (sb) { sb.textContent = S.rsel ? 'Done' : 'Select'; sb.classList.toggle('primary', !!S.rsel); }
