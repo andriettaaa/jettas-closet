@@ -10,6 +10,9 @@ This repo is public. Never commit personal data, tokens or secrets, and never as
 - When she has to import, copy or paste something, give the file or the full text again in that step, with direct links.
 - Her iPhone is set to English. Write steps on the iPhone (Shortcuts, Settings, Health) in English with the English button names (Shortcuts, Automation, Get Contents of URL, Show More, Done).
 
+## Design
+Read `DESIGN.md` before changing how the app looks or works: it holds the owner's choices per page and per device.
+
 ## Making a change
 1. Work on a new branch and open a draft PR.
 2. Raise `VERSION` in `sw.js` and `APP_VERSION` in `index.html` (hangtag-vNNN) by one.
