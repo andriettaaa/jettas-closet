@@ -2772,6 +2772,38 @@ function packDash(el) {
 }
 let dashW = 0;
 window.addEventListener('resize', () => { const el = document.querySelector('.dash'); if (!el || Math.abs(el.clientWidth - dashW) < 40) return; dashW = el.clientWidth; const n = Math.max(1, Math.floor((dashW + 16) / 316)); if (String(n) !== el.dataset.n) packDash(el); });
+/* wiggle to arrange Today on this device: press and hold a block, drag it up or down, ⊖ hides it, Klaar saves */
+let wig = null;
+function wiggleStart() {
+  const st = document.querySelector('.story'); if (!st || wig) return; wig = {}; st.classList.add('wiggle'); try { navigator.vibrate?.(20); } catch {}
+  st.querySelectorAll('.sblk').forEach(b => b.insertAdjacentHTML('afterbegin', `<button type="button" class="wigx" data-wigx="${b.dataset.blk}" aria-label="Verbergen">−</button><span class="wigh" aria-hidden="true">⋮⋮</span>`));
+  document.body.insertAdjacentHTML('beforeend', '<div class="wigbar"><span>Sleep om te ordenen · − verbergt</span><button class="btn primary" data-wigdone>Klaar</button></div>');
+}
+function wiggleDone() {
+  const st = document.querySelector('.story'); if (!wig) return; wig = null; document.querySelector('.wigbar')?.remove();
+  if (st) { const order = [...st.querySelectorAll('.sblk')].map(b => b.dataset.blk), d = devT(), rest = devOrder().filter(k => !order.includes(k)); d.order = [...order, ...rest]; try { localStorage.setItem('dev:today', JSON.stringify(d)); } catch {} }
+  render(); toast('✓ Vandaag staat zo op deze ' + deviceName());
+}
+(() => {
+  let hold = null, drag = null;
+  document.addEventListener('pointerdown', e => {
+    const b = e.target.closest?.('.story .sblk'); if (!b) return;
+    if (wig) { if (e.target.closest('[data-wigx]')) return; drag = { b, y: e.clientY }; b.classList.add('dragging'); b.setPointerCapture?.(e.pointerId); e.preventDefault(); return; }
+    if (e.target.closest('[data-dpwrap], button, a, input, select')) return;
+    hold = setTimeout(wiggleStart, 600);
+  });
+  const stop = () => { clearTimeout(hold); hold = null; };
+  document.addEventListener('pointermove', e => { if (hold && (Math.abs(e.movementX) > 4 || Math.abs(e.movementY) > 4)) stop();
+    if (!drag) return; const b = drag.b, sibs = [...b.parentElement.querySelectorAll('.sblk')].filter(x => x !== b);
+    const after = sibs.find(x => { const r = x.getBoundingClientRect(); return e.clientY < r.top + r.height / 2; }); after ? b.parentElement.insertBefore(b, after) : b.parentElement.appendChild(b); });
+  document.addEventListener('pointerup', () => { stop(); if (drag) { drag.b.classList.remove('dragging'); drag = null; } });
+  document.addEventListener('pointercancel', () => { stop(); if (drag) { drag.b.classList.remove('dragging'); drag = null; } });
+  document.addEventListener('click', e => {
+    if (e.target.closest('[data-wigdone]')) return wiggleDone();
+    const x = e.target.closest('[data-wigx]'); if (x) { const d = devT(), k = x.dataset.wigx; d.vis = { ...(d.vis || {}), [k]: false }; try { localStorage.setItem('dev:today', JSON.stringify(d)); } catch {} x.closest('.sblk').remove(); toast('Verborgen. Terugzetten kan in Settings › Vandaag.'); }
+  });
+  document.addEventListener('dptab', () => {}); window.addEventListener('hashchange', () => { if (wig) { wig = null; document.querySelector('.wigbar')?.remove(); } });
+})();
 const devT = () => { try { return JSON.parse(localStorage.getItem('dev:today') || '{}') || {}; } catch { return {}; } };
 const devOff = k => [].concat(devT().hide || []).includes(k);
 // Today as one story; per device you choose the order and what shows (Settings › Vandaag, or the button under Today)
@@ -2826,13 +2858,14 @@ function renderOverview(host) {
     find: () => `<button class="findbar" data-find>${I.search}<span>Search recipes, notes, pages, settings…</span></button>`,
     quick: () => `<div class="quickacts">${QUICK.filter(q => q[2]()).map(([k, l]) => `<button class="chip" data-quick="${k}">${esc(l)}</button>`).join('')}</div>`
   };
-  host.innerHTML = `<div class="story">${devVis('day') ? window.LIFE?.dayNow?.() || '' : ''}${devOrder().filter(devVis).map(k => { try { return BLK[k]?.() || ''; } catch (err) { console.error(err); return ''; } }).join('')}</div>
-    <div class="ltools dashfoot"><button class="btn small" data-devtoday>📱 Vandaag op deze ${esc(deviceName())}</button>${window.LIFE ? '<button class="chip link" data-act="export">Back up all your lists</button>' : ''}</div>`;
+  host.innerHTML = `<div class="story">${devVis('day') ? window.LIFE?.dayNow?.() || '' : ''}${devOrder().filter(devVis).map(k => { try { const h = BLK[k]?.() || ''; return h ? `<div class="sblk" data-blk="${k}">${h}</div>` : ''; } catch (err) { console.error(err); return ''; } }).join('')}</div>
+    <div class="ltools dashfoot"><button class="btn small" data-devtoday>📱 Vandaag op deze ${esc(deviceName())}</button><button class="btn small" data-wigstart>✋ Ordenen</button>${window.LIFE ? '<button class="chip link" data-act="export">Back up all your lists</button>' : ''}</div>`;
   if (!host.dataset.wired) {
     host.dataset.wired = '1';
     host.addEventListener('click', e => {
       if (e.target.closest('[data-dasharrange]')) return arrangeDash();
       if (e.target.closest('[data-devtoday]')) return devTodaySheet();
+      if (e.target.closest('[data-wigstart]')) return wiggleStart();
       if (e.target.closest('[data-affsheet]')) return affirmSheet();
       const d = e.target.closest('[data-overday], .wxday[data-day]'); if (d) return openDay(d.dataset.overday || d.dataset.day);
       const g = e.target.closest('[data-overgo]'); if (g) go(g.dataset.overgo);
