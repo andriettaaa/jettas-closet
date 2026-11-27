@@ -218,6 +218,18 @@ function sleepask(recs: Rec[], today: string) {
   return { title: 'Hoe sliep je?', body: said + 'Tik om je nacht in één tik te beoordelen.', url: './#care/sleep', tag: 'sleepask' };
 }
 
+// at 10, 12, 14, 16, 18 and 20 hours, only when you are behind on your drinks goal (Kitchen › Drinken)
+function drinkNudge(recs: Rec[], prefs: any, today: string, hour: number) {
+  const goal = Number(prefs?.drinkGoal) || 2000, log = recs.filter(r => r.kind === 'drinklog' && r.date === today);
+  const waterLogged = log.filter(r => r.drink === 'water' || r.drink === 'bruis').length;
+  const glasses = Number(recs.find(r => r.kind === 'water' && r.date === today)?.glasses) || 0;
+  const total = log.reduce((n, r) => n + (Number(r.ml) || 0), 0) + Math.max(0, glasses - waterLogged) * 250;
+  const expected = goal * Math.min(1, (hour - 8) / 12);
+  if (total >= expected * 0.85) return null;
+  const l = (ml: number) => (Math.round(ml / 100) / 10).toFixed(1).replace('.', ',');
+  return { title: 'Even drinken? 💧', body: `Je zit op ${l(total)} van ${l(goal)} L. Tik om een glas toe te voegen.`, url: './#kitchen/drinks', tag: 'drink' };
+}
+
 // two days before your period is due, from your own average cycle
 function period(recs: Rec[], today: string) {
   const starts = recs.filter(r => r.kind === 'cycles' && r.start).map(r => r.start).sort();
@@ -410,6 +422,14 @@ async function runUser(uid: string, prefs: any, force = false, only: string[] | 
   const on = (k: string) => k === 'bedtime' ? cfg.bedtime?.on !== false : ({ ...DEF[k], ...(cfg[k] || {}) }).on && (!SUNDAY.includes(k) || now.wd === 'sun' || force);
   const inHour = (t: number) => force || (now.mins >= t && now.mins < t + 60);
   const dt = dayTimes(prefs, now.day), wkend = ['sat', 'sun'].includes(now.wd);
+  // the drinks reminder has its own rhythm: every two hours, once per hour slot, only when you are behind
+  if (!only && cfg.drink?.on) {
+    const h = Math.floor(now.mins / 60);
+    if ([10, 12, 14, 16, 18, 20].includes(h) && now.mins % 60 < 30) {
+      const m = drinkNudge(await loadAll(uid), prefs, now.day, h);
+      if (m && (force || await claim(uid, 'drink' + h, now.day))) await send(uid, m);
+    }
+  }
   const msgOf = async (recs: Rec[], k: string) => k === 'morning' ? morning(recs, now.day, await outfitToday(uid, now.day), prefs) : k === 'evening' ? evening(recs, now.wd)
     : k === 'bills' ? bills(recs, now.day) : k === 'payday' ? payday(recs, now.day) : k === 'weekahead' ? weekahead(recs, prefs, now.day)
     : k === 'reminders' ? reminders(recs, prefs, now.day) : k === 'content' ? content(recs, now.day) : k === 'socialweek' ? socialweek(recs, now.day) : k === 'skindiary' ? skindiary(recs, now.day) : k === 'progress' ? progress(recs, prefs, now.day) : k === 'period' ? period(recs, now.day) : k === 'sleepask' ? sleepask(recs, now.day) : k === 'freezer' ? freezer(recs, now.day)

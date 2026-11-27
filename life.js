@@ -385,6 +385,12 @@ const EMO = {
 };
 const emoOf = (scale, v) => (EMO[scale] || EMO.mood).find(x => x[0] === Math.round(num(v)))?.[1] || '';
 const DRINKS = [['water', 'Water', '💧'], ['soda', 'Soda', '🥤'], ['juice', 'Juice', '🧃'], ['coffee', 'Coffee', '☕'], ['matcha', 'Matcha', '🍵'], ['tea', 'Tea', '🫖'], ['alcohol', 'Alcohol', '🍷']];
+// drinks for the drink tracker on Today (see drinkSheet)
+const DKS = [['water', '💧', 'Water', 'water'], ['bruis', '🫧', 'Bruiswater', 'water'], ['thee', '🍵', 'Thee', 'warm'], ['koffie', '☕', 'Koffie', 'warm'], ['matcha', '🍵', 'Matcha', 'warm'],
+  ['melk', '🥛', 'Melk', 'milk'], ['havermelk', '🥛', 'Havermelk', 'milk'], ['smoothie', '🥤', 'Smoothie', 'milk'], ['ijskoffie', '🧋', 'IJskoffie', 'milk'],
+  ['fris', '🥤', 'Frisdrank', 'less'], ['sap', '🧃', 'Sap', 'less'], ['alcohol', '🍷', 'Alcohol', 'less']];
+const DK_GROUP = { water: ['Water', '#7fa6c9'], warm: ['Thee en koffie', '#c99a6b'], milk: ['Melk en smoothie', '#d8c7a8'], less: ['Minderen', '#d9707c'] };
+const dkOf = k => DKS.find(d => d[0] === k) || DKS[0];
 const nailDays = r => { if (!r?.date) return null; const off = r.off || recs('naillog').filter(x => x.date > r.date && x.kind !== 'Care').map(x => x.date).sort()[0]; return off ? diffDays(r.date, off) : null; };
 const FEELINGS = ['Happy', 'Grateful', 'Proud', 'Calm', 'Loved', 'Excited', 'Tired', 'Restless', 'Anxious', 'Irritated', 'Sad', 'Lonely', 'Overwhelmed', 'Bored'];
 const MOOD_FACTORS = ['Work', 'People', 'Sleep', 'Food', 'Cycle', 'Social media', 'Weather', 'Money', 'Training', 'Home', 'Health'];
@@ -513,9 +519,9 @@ const KINDS = {
   meals: {
     one: 'meal', many: 'Meals',
     fields: [F('date', 'Date', 'date', { half: 1 }), F('slot', 'Meal', 'select', { options: MEALS, half: 1 }),
-      F('recipe', 'Recipe', 'rel', { to: 'recipes' }), F('what', 'Or just write what you eat'), F('away', 'Not eating at home', 'check'), F('leftover', 'Leftovers', 'select', { options: ['None', 'Fridge', 'Freezer'], half: 1 }),
+      F('recipe', 'Recipe', 'rel', { to: 'recipes' }), F('ing', 'Or from your pantry (an apple, a banana…)', 'rel', { to: 'ingredients', multi: 1 }), F('what', 'Or just write what you eat'), F('away', 'Not eating at home', 'check'), F('leftover', 'Leftovers', 'select', { options: ['None', 'Fridge', 'Freezer'], half: 1 }),
       F('ate', 'Eaten', 'check', { half: 1 }), F('photo', 'Photo of what you ate', 'photo'), F('notes', 'Notes', 'long')],
-    title: r => ((r.parts || []).length > 1 ? partsTitle(r.parts) : '') || relName(r.recipe) || r.what || (r.away ? 'Not at home' : '') || r.slot || 'Meal',
+    title: r => ((r.parts || []).length > 1 ? partsTitle(r.parts) : '') || relName(r.recipe) || relNames(r.ing).join(', ') || r.what || (r.away ? 'Not at home' : '') || r.slot || 'Meal',
     sorts: [['-date', 'Newest']], sub: r => [r.date && niceDate(r.date), r.slot].filter(Boolean).join(' · ')
   },
   mealprep: {
@@ -588,6 +594,8 @@ const KINDS = {
     title: r => relName(r.supplement) || 'Supplement', sorts: [['-date', 'Newest']],
     sub: r => [niceDate(r.date), r.time].filter(Boolean).join(' · ')
   },
+  drinklog: { one: 'drink', many: 'Drinks', fields: [F('date', 'Date', 'date', { half: 1 }), F('time', 'Time', 'time', { half: 1 }), F('drink', 'Drink', 'select', { options: DKS.map(d => d[0]), half: 1 }), F('ml', 'Amount (ml)', 'num', { half: 1 })],
+    title: r => dkOf(r.drink)[2], sorts: [['-date', 'Newest']], sub: r => [niceDate(r.date), r.time, r.ml ? r.ml + ' ml' : ''].filter(Boolean).join(' · '), side: r => dkOf(r.drink)[1] },
   water: { one: 'day', many: 'Water', fields: [F('date', 'Date', 'date', { half: 1 }), F('glasses', 'Glasses', 'num', { half: 1 })], title: r => niceDate(r.date), sorts: [['-date', 'Newest']], sub: r => plural(r.glasses || 0, 'glass', 'glasses') },
   nlog: {
     one: 'day', many: 'Food check',
@@ -1610,7 +1618,7 @@ const SECTIONS = [
       ['wish/today', 'Overview', P.grid, 'wish'], ['wish/inbox', 'Inbox', P.inbox, 'wish'], ['wish/master', 'Master', P.heart, 'wish'], ['wish/orders', 'Orders', P.box, 'wish'], ['wish/stats', 'Analyse', P.trend, 'wish'], ['weekplan', 'Plan my week', P.list], ['reports', 'Reports', P.trend], ['todo', 'To do', P.check]] },
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile,
     groups: { food: ['Food', P.book], shop: ['Shop', P.cart] },
-    views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['foodlog', 'Food log', P.pen, 'food'], ['cooked', 'Cooking log', P.camera, 'food'], ['pantry', 'Pantry', P.jar, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['shops', 'Shops', P.house, 'shop'], ['stats', 'Analyse', P.trend], ['todo', 'To do', P.check]] },
+    views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['foodlog', 'Food log', P.pen, 'food'], ['drinks', 'Drinken', P.drop, 'food'], ['cooked', 'Cooking log', P.camera, 'food'], ['pantry', 'Pantry', P.jar, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['shops', 'Shops', P.house, 'shop'], ['stats', 'Analyse', P.trend], ['todo', 'To do', P.check]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile,
     groups: { plan: ['Plan', P.target], look: ['Review', P.trend] },
     views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['impulse', 'Impulses', P.heart], ['plan', 'Goals', P.target, 'plan'], ['debt', 'Debt', P.card, 'plan'], ['insurance', 'Insurance', P.doc, 'plan'], ['forecast', 'Forecast', P.trend, 'plan'], ['year', 'Year', P.calendar, 'look'], ['networth', 'Net worth', P.wallet, 'look'], ['reviews', 'Reviews', P.doc, 'look'], ['todo', 'To do', P.check]] },
@@ -1629,6 +1637,7 @@ const PAGES = {
   'kitchen/quit': { render: quitPage, adds: ['recipes', 'ingredients'] },
   'kitchen/recipes': { title: 'Recipes', segs: [{ kind: 'recipes', top: seasonTop }] },
   'kitchen/foodlog': { render: foodLog, adds: ['meals', 'nlog', 'rreviews'] },
+  'kitchen/drinks': { render: drinksPage, adds: ['drinklog'] },
   'kitchen/cooked': { title: 'Cooking log', segs: [{ kind: 'rreviews' }] },
   'care/hair': { render: hairPage, adds: ['hairlog', 'beauty', 'reslinks'] },
   'care/nails': { render: nailsPage, adds: ['naillog', 'ideas', 'reslinks'] },
@@ -4589,6 +4598,79 @@ async function toggleSupp(id, tm) {
   const low = n <= (num(r.min) ?? doses * 7);
   try { await save(r, { left: n, low }); if (low && !r.low) C.toast(`${r.name} is bijna op: nog ${n}`); } catch {}
 }
+/* ---------- drinks: what and how much, the app adds it up ----------
+   Each drink is one record (drinklog: date, time, drink, ml). Everything counts toward your goal in liters (Kitchen ›
+   Drinken), water is shown on its own. Old water glasses still count as 250 ml each. */
+const drinkSizes = () => [...new Set([200, 250, 300, 500, ...[].concat(C?.prefs?.().drinkSizes || []).map(Number).filter(n => n > 0 && n < 3000)])].sort((a, b) => a - b);
+const drinkGoal = () => num(C?.prefs?.().drinkGoal) || 2000;
+const drinksOn = d => recs('drinklog').filter(x => x.date === d).sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
+// the counters of the Food log (water glasses, coffee, tea…) stay in step: a drink here also counts there, and a count
+// made there without a drink here adds its usual size
+const DK_LEG = { water: 'water', bruis: 'water', thee: 'tea', koffie: 'coffee', matcha: 'matcha', fris: 'soda', sap: 'juice', alcohol: 'alcohol' };
+const LEG_ML = { water: 250, tea: 250, coffee: 150, matcha: 250, soda: 330, juice: 250, alcohol: 150 };
+const LEG_DK = { water: 'water', tea: 'thee', coffee: 'koffie', matcha: 'matcha', soda: 'fris', juice: 'sap', alcohol: 'alcohol' };
+function drinkTotals(d = today()) {
+  const l = drinksOn(d), by = {}, legN = {};
+  for (const x of l) { by[x.drink] = (by[x.drink] || 0) + (num(x.ml) || 0); const k = DK_LEG[x.drink]; if (k) legN[k] = (legN[k] || 0) + 1; }
+  for (const [k, ml] of Object.entries(LEG_ML)) { const extra = Math.max(0, drinkOfOld(d, k) - (legN[k] || 0)); if (extra) by[LEG_DK[k]] = (by[LEG_DK[k]] || 0) + extra * ml; }
+  const all = Object.values(by).reduce((n, v) => n + v, 0), water = (by.water || 0) + (by.bruis || 0);
+  return { all, water, by, list: l };
+}
+const drinkOfOld = (d, k) => k === 'water' ? num(waterOn(d)?.glasses) || 0 : num(nlOn(d)?.[k]) || 0;
+async function legBump(drink, delta, d = today()) { const k = DK_LEG[drink]; if (!k) return; const v = Math.max(0, drinkOfOld(d, k) + delta); try { await drinkSet(d, k, v); } catch {} }
+const liters = ml => (Math.round(ml / 100) / 10).toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+async function drinkAdd(drink, ml) {
+  const n = new Date(), t = `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`;
+  let id; try { id = await create('drinklog', { date: today(), time: t, drink, ml }); await legBump(drink, 1); } catch { C.toast('Opslaan lukte niet. Probeer het opnieuw.'); return; }
+  const tot = drinkTotals(), dk = dkOf(drink);
+  C.toast(`${dk[1]} +${ml} ml · ${liters(tot.all)} L${tot.all >= drinkGoal() && tot.all - ml < drinkGoal() ? ' · doel gehaald 🎉' : ''}`, { label: 'Ongedaan', run: () => drinkDel(id) });
+  L.dpCheer = `${dk[1]} ${dk[2]} +${ml} ml`; L.dpCheerAt = Date.now();
+}
+async function drinkDel(id) { const r = L.byId[id]; if (!r) return; try { await del(id); await legBump(r.drink, -1, r.date); } catch {} }
+// tap the drinks bar: pick what, then how much; a size you type can be kept as a button
+function drinkSheet() {
+  let pick = L.drinkPick || 'water';
+  const body = () => { const tot = drinkTotals(), g = drinkGoal();
+    return `<div class="dkhead"><span class="ring" style="--p:${Math.min(100, Math.round(100 * tot.all / g))}%"><b>🥤</b></span><div><b>${liters(tot.all)} van ${liters(g)} L</b><small>waarvan water ${liters(tot.water)} L</small></div></div>
+      <p class="dsub">Wat dronk je?</p><div class="dkgrid">${DKS.map(([k, e, l]) => `<button type="button" class="dkt ${k === pick ? 'on' : ''}" data-dk="${k}"><b>${e}</b>${esc(l)}</button>`).join('')}</div>
+      <p class="dsub">Hoeveel?</p><div class="lwrap dksz">${drinkSizes().map(n => `<button type="button" class="chip" data-dkml="${n}">${n} ml</button>`).join('')}</div>
+      <form class="dkown" data-dkown><input class="finp" type="number" inputmode="numeric" min="10" max="2000" placeholder="Eigen maat in ml" aria-label="Eigen maat in ml"><button class="btn small" type="submit">Toevoegen</button><label class="settog"><input type="checkbox" data-dkkeep checked> Bewaar als knop</label></form>
+      ${tot.list.length ? `<p class="dsub">Vandaag</p><div class="dklog">${tot.list.slice().reverse().map(x => `<div class="dkrow"><span>${esc(x.time || '')}</span><b>${dkOf(x.drink)[1]} ${esc(dkOf(x.drink)[2])}</b><span>${num(x.ml) || 0} ml</span><button type="button" class="iconbtn small" data-dkdel="${x.id}" aria-label="Weghalen">×</button></div>`).join('')}</div>` : ''}
+      <button type="button" class="chip link" data-act="go" data-v="kitchen/drinks">Alles over je drinken ›</button>`; };
+  const sh = C.sheet({ title: 'Drinken', body: `<div data-dkbody>${body()}</div>` });
+  const redraw = () => { const b = sh.querySelector('[data-dkbody]'); if (b) b.innerHTML = body(); };
+  sh.addEventListener('click', async e => {
+    const t = e.target.closest('[data-dk]'), m = e.target.closest('[data-dkml]'), x = e.target.closest('[data-dkdel]');
+    if (t) { pick = L.drinkPick = t.dataset.dk; redraw(); }
+    if (m) { await drinkAdd(pick, Number(m.dataset.dkml)); redraw(); }
+    if (x) { await drinkDel(x.dataset.dkdel); redraw(); }
+    if (e.target.closest('[data-act="go"]')) C.closeSheet();
+  });
+  sh.addEventListener('submit', async e => {
+    if (!e.target.matches('[data-dkown]')) return; e.preventDefault();
+    const ml = Math.round(Number(e.target.querySelector('input').value)); if (!(ml > 0 && ml < 3000)) return;
+    if (e.target.querySelector('[data-dkkeep]').checked && !drinkSizes().includes(ml)) await C.savePrefs({ drinkSizes: [...new Set([...(C.prefs().drinkSizes || []), ml])] }).catch(() => {});
+    await drinkAdd(pick, ml); redraw();
+  });
+}
+// Kitchen › Drinken: today, your week per kind of drink, your sizes, goal and reminder
+function drinksPage(host) {
+  const t = today(), tot = drinkTotals(t), g = drinkGoal(), days = dayList(7), sizes = drinkSizes(), own = [].concat(C.prefs().drinkSizes || []).map(Number);
+  const wk = days.map(d => { const x = drinkTotals(d), per = {}; for (const [k, ml] of Object.entries(x.by)) { const grp = dkOf(k)[3]; per[grp] = (per[grp] || 0) + ml; } return { d, all: x.all, per }; });
+  const max = Math.max(g, ...wk.map(w => w.all));
+  const rem = (C.prefs().notify || {}).drink || {};
+  host.innerHTML = `<div class="viewhead"><h1>Drinken</h1><span class="sub">${liters(tot.all)} van ${liters(g)} L vandaag</span></div>
+    <div class="lplanhead"><button class="btn primary" data-act="drinkadd">🥤 Drankje toevoegen</button></div>
+    <div class="panels">
+      ${panel('Vandaag', `<div class="dkhead big"><span class="ring" style="--p:${Math.min(100, Math.round(100 * tot.all / g))}%"><b>${Math.min(100, Math.round(100 * tot.all / g))}%</b></span><div><b>${liters(tot.all)} van ${liters(g)} L</b><small>💧 water ${liters(tot.water)} L · ${Object.entries(tot.by).filter(([k]) => !['water', 'bruis'].includes(k)).map(([k, ml]) => `${dkOf(k)[1]} ${ml} ml`).join(' · ') || 'verder niets'}</small></div></div>
+        ${tot.list.length ? `<div class="dklog">${tot.list.slice().reverse().map(x => `<div class="dkrow"><span>${esc(x.time || '')}</span><b>${dkOf(x.drink)[1]} ${esc(dkOf(x.drink)[2])}</b><span>${num(x.ml) || 0} ml</span><button type="button" class="iconbtn small" data-act="drinkdel" data-id="${x.id}" aria-label="Weghalen">×</button></div>`).join('')}</div>` : quiet('Nog niets gedronken vandaag.')}`)}
+      ${panel('Je week', `<div class="dkweek">${wk.map(w => `<div class="dkcol"><div class="dkstack" style="height:${Math.round(100 * w.all / max)}%">${Object.keys(DK_GROUP).filter(k => w.per[k]).map(k => `<i style="flex:${w.per[k]};background:${DK_GROUP[k][1]}"></i>`).join('')}</div><span>${esc(wdShort(w.d))}</span><small>${w.all ? liters(w.all) : ''}</small></div>`).join('')}<div class="dkgoal" style="bottom:calc(${Math.round(100 * g / max)}% * .78 + 34px)"></div></div>
+        <div class="leg">${Object.values(DK_GROUP).map(([l, c]) => `<span><i style="background:${c}"></i>${esc(l)}</span>`).join('')}</div><p class="lnone">Gemiddeld ${liters(wk.reduce((n, w) => n + w.all, 0) / 7)} L per dag, waarvan water ${liters(days.reduce((n, d) => n + drinkTotals(d).water, 0) / 7)} L.</p>`)}
+      ${panel('Instellen', `<div class="fset"><div><b>Doel per dag</b><span>Alles telt mee; water zie je apart.</span></div><select class="finp" data-dkgoal>${[1500, 1750, 2000, 2250, 2500, 3000].map(v => `<option value="${v}" ${v === g ? 'selected' : ''}>${liters(v)} L</option>`).join('')}</select></div>
+        <div class="fset"><div><b>Je maten</b><span>Tik × om een eigen maat weg te halen. Nieuwe maten voeg je toe bij Drankje toevoegen.</span></div><div class="dksizes">${sizes.map(n => `<span class="chip">${n} ml${own.includes(n) ? ` <button type="button" class="linkx" data-act="dksizedel" data-v="${n}" aria-label="Weghalen">×</button>` : ''}</span>`).join('')}</div></div>
+        <div class="fset"><div><b>Herinnering</b><span>Om 10, 12, 14, 16, 18 en 20 uur een seintje, alleen als je achterloopt op je doel.</span></div><label class="settog"><input type="checkbox" data-dkrem ${rem.on ? 'checked' : ''}> Aan</label></div>`)}
+    </div>`;
+}
 async function water(delta) {
   const w = waterToday(), n = Math.max(0, (w?.glasses || 0) + delta);
   try { w ? await put('water', w.id, { ...dataOf(w), glasses: n }) : await create('water', { date: today(), glasses: n }); } catch {}
@@ -6861,6 +6943,9 @@ document.addEventListener('click', async e => {
     case 'openitem': C.openItem?.(d.id); break;
     case 'hday': { const r = L.byId[d.id]; if (r) toggleDay(r, d.d); break; }
     case 'water': water(Number(d.v)); break;
+    case 'drinkadd': drinkSheet(); break;
+    case 'drinkdel': drinkDel(d.id); break;
+    case 'dksizedel': C.savePrefs({ drinkSizes: [].concat(C.prefs().drinkSizes || []).map(Number).filter(n => n !== Number(d.v)) }).catch(() => {}); break;
     case 'sleeprate': sleepRate(d.id, d.v); break;
     case 'watergoal': { const v = prompt('How many glasses a day?', C.prefs().waterGoal || 8); const n = Math.round(Number(v)); if (n > 0 && n < 40) C.savePrefs({ waterGoal: n }).catch(() => C.toast('Could not save. Try again.')); break; }
     case 'periodstart': create('cycles', { start: today() }).then(() => C.toast('Logged. Tap “Period ended” when it’s over.')).catch(() => {}); break;
@@ -7871,6 +7956,8 @@ document.addEventListener('change', e => {
   if (t.matches?.('[data-dayset]')) C.savePrefs({ day: { ...(C.prefs().day || {}), [t.dataset.dayset]: t.type === 'number' ? num(t.value) : t.value } }).catch(() => C.toast('Opslaan lukte niet.'));
   if (t.matches?.('[data-pinroom]')) { const m = L.byId[t.dataset.pinroom]; if (m) save(m, { room: t.value }); }
   if (t.matches?.('[data-stepgoal]')) { const v = Math.round(Number(t.value)); if (v >= 0 && v < 100000) C.savePrefs({ stepGoals: { ...(C.prefs().stepGoals || {}), [t.dataset.stepgoal]: v } }).catch(() => C.toast('Could not save. Try again.')); }
+  if (t.matches?.('[data-dkgoal]')) C.savePrefs({ drinkGoal: Number(t.value) }).catch(() => C.toast('Opslaan lukte niet.'));
+  if (t.matches?.('[data-dkrem]')) C.savePrefs({ notify: { ...(C.prefs().notify || {}), drink: { on: t.checked } } }).catch(() => C.toast('Opslaan lukte niet.'));
   if (t.matches?.('[data-top3pin]')) { const d = today(); try { localStorage.setItem('top3:' + d, t.value.trim()); } catch {} C.render(); }
 });
 async function cleanMoveWeek() {
@@ -7947,20 +8034,20 @@ function dayPlan(d = today()) {
   for (const tm of ['AM', 'Midday', 'PM']) {
     const list = sups.filter(sp => [].concat(sp.times?.length ? sp.times : ['AM']).includes(tm)); if (!list.length) continue;
     const n = list.filter(sp => isTaken(sp, tm)).length;
-    add({ key: 'sup:' + tm, min: supAt[tm], label: 'Supplementen ' + supSub[tm], sub: list.length === 1 ? list[0].name : `${n} van ${list.length}`, done: n === list.length, type: 'sup', sups: list.map(sp => ({ sp, tm, on: isTaken(sp, tm) })),
+    add({ key: 'sup:' + tm, min: supAt[tm], label: 'Supplementen ' + supSub[tm], sub: list.length === 1 ? list[0].name : `${n} van ${list.length}`, prog: n / list.length, moment: tm, done: n === list.length, type: 'sup', sups: list.map(sp => ({ sp, tm, on: isTaken(sp, tm) })),
       act: async () => { const open = list.filter(sp => !isTaken(sp, tm)); for (const sp of open.length ? open : list) await toggleSupp(sp.id, tm); } });
   }
   // routines: one line per routine, its steps in the sheet
   for (const [k, min, label] of [['Morning', w + 15, 'Ochtendroutine'], ['Evening', bed - 40, 'Avondroutine']]) {
     const steps = recs('routines').filter(r => r.routine === k && onDay(r, d)); if (!steps.length) continue;
     const n = steps.filter(routineDone).length;
-    add({ key: 'routine:' + k, min, label, sub: `${n} van ${steps.length}`, done: n === steps.length, type: 'routine', steps, act: async () => { const open = steps.filter(r => !routineDone(r)); for (const r of open.length ? open : steps) await toggleDay(r); } });
+    add({ key: 'routine:' + k, min, label, sub: `${n} van ${steps.length}`, prog: n / steps.length, done: n === steps.length, type: 'routine', steps, act: async () => { const open = steps.filter(r => !routineDone(r)); for (const r of open.length ? open : steps) await toggleDay(r); } });
   }
   // appointments and the planned workout have a time of their own
   for (const a of recs('appts').filter(a => a.date === d)) add({ key: 'rec:' + a.id, min: hmToMin(a.time), label: a.what || a.type || 'Afspraak', sub: a.where || a.location || 'afspraak', done: !!a.done, type: 'rec', rec: a, move: nd => save(a, { date: nd }) });
   for (const wo of recs('workouts').filter(x => x.date === d && !x.skipped)) add({ key: 'rec:' + wo.id, min: hmToMin(wo.time) ?? (t === 'weekend' ? 11 * 60 : toMin(DAYCFG().workEnd) + 45), label: wo.name || wo.type || 'Workout', sub: 'workout', done: !!wo.done, type: 'rec', rec: wo, move: nd => save(wo, { date: nd }) });
   // the rest has no set time: tasks, chores, plants, habits, posts, bills and water
-  for (const k of recs('tasks').filter(k => k.date && (k.date < d ? !['Done', 'Dropped'].includes(k.status) : k.date === d) && k.status !== 'Dropped')) add({ key: 'rec:' + k.id, min: hmToMin(k.time), label: k.name || 'Taak', sub: k.date < d ? 'te laat' : 'taak', late: k.date < d, done: k.status === 'Done', type: 'rec', rec: k, move: nd => save(k, { date: nd }) });
+  for (const k of recs('tasks').filter(k => k.date && (k.date < d ? !['Done', 'Completed', 'Dropped'].includes(k.status) : k.date === d) && k.status !== 'Dropped')) add({ key: 'rec:' + k.id, min: hmToMin(k.time), label: k.name || 'Taak', sub: k.date < d ? 'te laat' : 'taak', late: k.date < d, done: ['Done', 'Completed'].includes(k.status), type: 'rec', rec: k, move: nd => save(k, { date: nd }) });
   for (const c of recs('chores').filter(c => c.last === d || choreDue(c) <= d)) add({ key: 'rec:' + c.id, min: null, label: c.name || 'Klusje', sub: choreLate(c) && c.last !== d ? 'ligt er al even' : 'klusje', late: choreLate(c) && c.last !== d, done: c.last === d, type: 'rec', rec: c, move: nd => save(c, { last: addDays(nd, -(FREQ[c.freq] || 7)) }) });
   for (const pl of recs('plants').filter(p => p.last === d || (plantDue(p) && plantDue(p) <= d))) add({ key: 'rec:' + pl.id, min: null, label: 'Water geven: ' + (pl.name || 'plant'), sub: 'plant', done: pl.last === d, type: 'rec', rec: pl });
   for (const h of recs('habits').filter(h => !h.paused && onDay(h, d))) add({ key: 'rec:' + h.id, min: null, label: h.name || 'Gewoonte', sub: 'gewoonte', done: daysSet(h).has(d), type: 'habit', rec: h, act: () => toggleDay(h, d) });
@@ -7971,37 +8058,122 @@ function dayPlan(d = today()) {
   return out.sort((a, b) => (a.min ?? 1e4) - (b.min ?? 1e4) || norm(a.label).localeCompare(norm(b.label)));
 }
 const dpRow = (x, now) => `<button type="button" class="dpi ${x.done ? 'on' : ''} ${x.skipped ? 'skip' : ''} ${(x.late || (x.min != null && x.min < now - 30)) && !x.done && !x.skipped ? 'late' : ''}" data-dp="${esc(x.key)}"><span class="bx" aria-hidden="true"></span><b>${esc(x.label)}</b><small>${esc([x.min != null ? hm(x.min) : '', x.skipped ? 'overgeslagen' : x.sub].filter(Boolean).join(' · '))}</small></button>`;
+// an emoji per kind of thing, so the tiles read at a glance
+function dpIcon(x) {
+  if (x.type === 'meal') return { Breakfast: '🍳', Lunch: '🥪', Snack: '🍎', Dinner: '🍲' }[x.slot] || '🍽';
+  if (x.type === 'sup') return '💊';
+  if (x.type === 'routine') return x.key.endsWith('Morning') ? '🌅' : '🌙';
+  if (x.type === 'bill') return '💶';
+  if (x.type === 'habit') return '✨';
+  const k = x.rec?.kind, n = norm(x.label);
+  if (k === 'appts') return /tand/.test(n) ? '🦷' : /arts|dokter|huisarts/.test(n) ? '🩺' : /kapper|haar/.test(n) ? '💇🏾‍♀️' : '📅';
+  return { workouts: '🏃🏾‍♀️', tasks: '📝', chores: '🧽', plants: '🪴', posts: '📱' }[k] || '✅';
+}
+const dpProg = x => x.done ? 1 : x.prog || 0;
+const dpTile = (x, now) => `<button type="button" class="dpt ${x.done ? 'on' : ''} ${x.skipped ? 'skip' : ''} ${(x.late || (x.min != null && x.min < now - 30)) && !x.done && !x.skipped ? 'late' : ''}" data-dpt="${esc(x.key)}"><span class="ring" style="--p:${Math.round(100 * dpProg(x))}%"><b>${dpIcon(x)}</b></span><span class="dptl">${esc(x.label)}</span><small>${esc(x.skipped ? 'overgeslagen' : x.min != null ? hm(x.min) : x.sub)}</small></button>`;
 function dayPlanHTML() {
   if (!C) return '';
-  const d = today(), now = nowMin(), items = dayPlan(d), cur = dpPart(now), open = items.filter(x => !x.done && !x.skipped), done = items.filter(x => x.done || x.skipped);
+  const d = today(), now = nowMin(), items = dayPlan(d).filter(x => x.type !== 'water'), cur = dpPart(now);
   L.dpMap = Object.fromEntries(items.map(x => [x.key, x]));
-  const timed = open.filter(x => x.min != null), loose = open.filter(x => x.min == null), cs = cleanStats();
-  const part = ([k, ic, label]) => {
-    const l = timed.filter(x => dpPart(x.min) === k), isNow = k === cur, past = DP_PARTS.findIndex(p => p[0] === k) < DP_PARTS.findIndex(p => p[0] === cur);
-    let rows = ''; let marked = false;
-    for (const x of l) { if (isNow && !marked && x.min > now) { rows += `<div class="dpnow">Nu ${hm(now)}</div>`; marked = true; } rows += dpRow(x, now); }
-    if (isNow && !marked) rows += `<div class="dpnow">Nu ${hm(now)}</div>`;
-    return `<details class="dppart ${isNow ? 'now' : ''}" ${isNow || (past && l.length) ? 'open' : ''}><summary><span>${ic} ${label}</span><i>${l.length ? `${l.length} open` : isNow ? 'nu' : past ? 'klaar' : ''}</i></summary>${rows || '<p class="lnone">Niets meer.</p>'}</details>`;
+  const open = items.filter(x => !x.done && !x.skipped), done = items.filter(x => x.done || x.skipped);
+  const pct = items.length ? Math.round(100 * done.length / items.length) : 0, tab = L.dpTab || cur;
+  const supNow = open.find(x => x.type === 'sup' && dpPart(x.min) === cur) || items.find(x => x.type === 'sup' && dpPart(x.min) === cur);
+  const curOpen = open.filter(x => x.min != null && dpPart(x.min) === cur && x !== supNow), nu = curOpen[0];
+  const loose = open.filter(x => x.min == null), name = { morning: 'ochtend', midday: 'middag', evening: 'avond' }[cur];
+  const cheer = L.dpCheer && Date.now() - (L.dpCheerAt || 0) < 15000 ? L.dpCheer : '';
+  const tot = drinkTotals(d), g = drinkGoal(), cs = cleanStats();
+  const doneLabel = x => ({ meal: 'Gegeten', sup: 'Ingenomen', routine: 'Alles gedaan', bill: 'Betaald' })[x.type] || 'Gedaan';
+  const hero = x => `<div class="dphero"><div class="dphk">Nu${x.min != null ? ' · ' + hm(x.min) : ''}</div><div class="dpht"><span>${dpIcon(x)}</span>${esc(x.label)}</div>${x.sub && x.sub !== hm(x.min) ? `<div class="dphs">${esc(x.sub)}</div>` : ''}
+    <div class="dphb"><button type="button" class="p" data-dphero="done" data-v="${esc(x.key)}">✓ ${doneLabel(x)}</button><button type="button" data-dphero="other" data-v="${esc(x.key)}">Iets anders</button><button type="button" data-dphero="later" data-v="${esc(x.key)}">Later</button></div></div>`;
+  const bar = `<div class="dpbar2"><button type="button" class="dpq" data-act="drinkadd"><span class="ring" style="--p:${Math.min(100, Math.round(100 * tot.all / g))}%"><b>🥤</b></span><span><b>${liters(tot.all)} / ${liters(g)} L</b><small>💧 ${liters(tot.water)} L water</small></span></button>${supNow ? `<button type="button" class="dpq" data-dpt="${esc(supNow.key)}"><span class="ring" style="--p:${Math.round(100 * dpProg(supNow))}%"><b>💊</b></span><span><b>${esc(supNow.sub)}</b><small>${esc(supNow.label.replace('Supplementen ', ''))}</small></span></button>` : ''}</div>`;
+  const pane = ([k, ic, label]) => {
+    const isNow = k === cur, inPart = x => x.min != null && dpPart(x.min) === k;
+    const tiles = open.filter(x => inPart(x) && !(isNow && (x === nu || x === supNow)));
+    const fin = done.filter(x => inPart(x) || (isNow && x.min == null));
+    return `<div class="dppane" data-dppane="${k}" ${k === tab ? '' : 'hidden'}>
+      ${isNow && nu ? hero(nu) : ''}${isNow ? bar : ''}
+      ${tiles.length ? `<div class="dptiles">${tiles.map(x => dpTile(x, now)).join('')}</div>` : isNow && nu ? '' : `<p class="lnone dpempty">${fin.length ? `Klaar voor de ${label.toLowerCase()} 🎉` : 'Niets gepland.'}</p>`}
+      ${isNow && loose.length ? `<p class="dsub">Vandaag ergens</p><div class="dptiles">${loose.map(x => dpTile(x, now)).join('')}</div>` : ''}
+      ${fin.length ? `<details class="dpdone"><summary><span>✓ Gedaan</span><i>${fin.length}</i></summary><div class="dptiles">${fin.map(x => dpTile(x, now)).join('')}</div></details>` : ''}
+    </div>`;
   };
-  return `<section class="panel dplan"><div class="lph3"><h3>Vandaag</h3><span class="muted">${open.length ? `${open.length} open` : 'Alles gedaan 🎉'}</span>${cs.start ? '<button class="btn small" data-act="crave">Ik heb trek</button>' : ''}</div>
-    ${DP_PARTS.map(part).join('')}
-    ${loose.length ? `<div class="dploose"><p class="dsub">Vandaag, geen vaste tijd</p>${loose.map(x => dpRow(x, now)).join('')}</div>` : ''}
-    ${done.length ? `<details class="dpdone"><summary><span>✓ Gedaan</span><i>${done.length}</i></summary>${done.map(x => dpRow(x, now)).join('')}</details>` : ''}
+  return `<section class="panel dplan2" data-dpwrap>
+    <div class="dphead"><span class="ring ${cheer ? 'pop' : ''}" style="--p:${pct}%"><b>${pct}%</b></span><div><b>${done.length} van ${items.length} klaar</b><small>${cheer ? '✨ ' + esc(cheer) : `Nog ${curOpen.length + (supNow && !supNow.done ? 1 : 0)} deze ${name}`}</small></div>${cs.start ? '<button class="btn small" data-act="crave">Ik heb trek</button>' : ''}</div>
+    <div class="dptabs" role="tablist">${[...DP_PARTS, ['ov', '📋', 'Overzicht']].map(([k, ic, l]) => `<button type="button" role="tab" data-dptab="${k}" aria-selected="${k === tab}"><span class="dpti">${ic}</span> ${l}</button>`).join('')}</div>
+    ${DP_PARTS.map(pane).join('')}
+    <div class="dppane" data-dppane="ov" ${tab === 'ov' ? '' : 'hidden'}>${todoHub()}${calStrip()}<p class="lnone dpovnote">Je tegels per onderdeel staan hieronder.</p></div>
   </section>`;
 }
+// switch tabs without drawing the page again; swipe left or right on the card does the same
+const DP_TABS = ['morning', 'midday', 'evening', 'ov'];
+function dpTabTo(k) {
+  L.dpTab = k;
+  document.querySelectorAll('[data-dppane]').forEach(p => { p.hidden = p.dataset.dppane !== k; });
+  document.querySelectorAll('[data-dptab]').forEach(b => b.setAttribute('aria-selected', b.dataset.dptab === k));
+  document.dispatchEvent(new CustomEvent('dptab', { detail: k }));
+}
+let dpTouch = null, dpPress = null, dpLong = false;
+document.addEventListener('touchstart', e => { const w = e.target.closest?.('[data-dpwrap]'); dpTouch = w ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null; }, { passive: true });
+document.addEventListener('touchend', e => {
+  if (!dpTouch) return; const t = e.changedTouches[0], dx = t.clientX - dpTouch.x, dy = t.clientY - dpTouch.y; dpTouch = null;
+  if (Math.abs(dx) < 60 || Math.abs(dy) > 45) return;
+  const i = DP_TABS.indexOf(L.dpTab || dpPart(nowMin())), n = Math.max(0, Math.min(DP_TABS.length - 1, i + (dx < 0 ? 1 : -1))); if (n !== i) dpTabTo(DP_TABS[n]);
+}, { passive: true });
+// press and hold a tile for all choices (later, skip); a short tap ticks simple things right away
+document.addEventListener('pointerdown', e => { const b = e.target.closest?.('[data-dpt]'); if (!b) return; dpLong = false; clearTimeout(dpPress); dpPress = setTimeout(() => { dpLong = true; dpSheet(b.dataset.dpt); }, 520); });
+['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => document.addEventListener(ev, () => clearTimeout(dpPress)));
+document.addEventListener('contextmenu', e => { if (e.target.closest?.('[data-dpt]')) e.preventDefault(); });
+async function dpQuick(x) {
+  try { if (x.act) await x.act(); else { const q = KINDS[x.rec?.kind]?.quick?.(x.rec); if (q) await q.act(); } } catch (err) { failed(err); return; }
+  if (!x.done) { L.dpCheer = `${x.label} afgevinkt`; L.dpCheerAt = Date.now(); }
+  C.toast(x.done ? `${x.label}: toch niet gedaan` : `✓ ${x.label}`, x.done ? undefined : { label: 'Ongedaan', run: () => dpQuick({ ...x, done: true }) });
+  C.render();
+}
+document.addEventListener('click', e => {
+  if (!C) return;
+  const tb = e.target.closest?.('[data-dptab]'); if (tb) return dpTabTo(tb.dataset.dptab);
+  const h = e.target.closest?.('[data-dphero]'); if (h) { const x = L.dpMap?.[h.dataset.v]; if (!x) return; if (h.dataset.dphero === 'done') return x.type === 'meal' ? dpSheet(x.key) : dpQuick(x); return dpSheet(x.key, h.dataset.dphero); }
+  const t = e.target.closest?.('[data-dpt]'); if (!t || t.closest('.sheet')) return;
+  if (dpLong) { dpLong = false; return; }
+  const x = L.dpMap?.[t.dataset.dpt]; if (!x) return;
+  if (['meal', 'sup', 'routine'].includes(x.type) || x.skipped) return dpSheet(x.key);
+  dpQuick(x);
+});
+// the pantry as pictures: what you have in stock, fruit and snacks first, with an emoji when the name gives one
+const FOOD_EMO = [[/appel/, '🍎'], [/banaan/, '🍌'], [/mandarijn|sinaas|clementine/, '🍊'], [/peer/, '🍐'], [/druif/, '🍇'], [/aardbei/, '🍓'], [/bes|blauwe/, '🫐'], [/kiwi/, '🥝'], [/mango/, '🥭'], [/ananas/, '🍍'], [/meloen/, '🍈'], [/cracker|beschuit|rijstwafel/, '🍘'], [/\bkers/, '🍒'],
+  [/kaas/, '🧀'], [/ei(eren)?\b|eitje/, '🥚'], [/yoghurt|kwark|skyr/, '🥣'], [/brood|bol|pistolet|croissant/, '🍞'], [/cracker|beschuit|rijstwafel/, '🍘'], [/komkommer/, '🥒'], [/tomaat/, '🍅'], [/wortel/, '🥕'], [/paprika/, '🫑'],
+  [/noot|noten|amandel|cashew|pinda/, '🥜'], [/popcorn/, '🍿'], [/chips/, '🥔'], [/chocola/, '🍫'], [/koek|cookie/, '🍪'], [/avocado/, '🥑'], [/rookvlees|kip|ham|vlees/, '🥩'], [/zalm|vis|tonijn|makreel/, '🐟'], [/hummus|dip/, '🫙']];
+const foodEmo = n => FOOD_EMO.find(([re]) => re.test(norm(n)))?.[1] || '🍽';
+const pantryNow = () => recs('ingredients').filter(r => r.stock !== false && (r.stock || (cntOf(r) ?? 0) > 0) && r.location !== 'Vriezer')
+  .sort((a, b) => (FOOD_EMO.some(([re]) => re.test(norm(b.name))) ? 1 : 0) - (FOOD_EMO.some(([re]) => re.test(norm(a.name))) ? 1 : 0) || norm(a.name).localeCompare(norm(b.name)));
+// eating something from the pantry: the meal gets it, and the app asks whether one comes off your stock
+async function mealFromPantry(x, ing) {
+  const d = today(), m = recs('meals').find(m => m.date === d && m.slot === x.slot);
+  try { m ? await save(m, { ing: [...new Set([...[].concat(m.ing || []), ing.id])], ate: true }) : await create('meals', { date: d, slot: x.slot, ing: [ing.id], ate: true }); if (!x.done) await x.act?.(); } catch (e) { failed(e); return; }
+  L.dpCheer = `${foodEmo(ing.name)} ${ing.name} gegeten`; L.dpCheerAt = Date.now();
+  const step = stepOf(ing), sh = C.sheet({ title: `${foodEmo(ing.name)} ${ing.name}`, body: `<p>${esc(unitShort(step, unitOf(ing)).replace(/^1×$/, 'Eén'))} ${esc(ing.name.toLowerCase())} van je voorraad af?</p><p class="lnone">Nu: ${esc(cntOf(ing) == null ? 'aantal onbekend' : unitShort(cntOf(ing), unitOf(ing)))}</p>`,
+    foot: '<button class="btn" data-pno>Nee</button><div class="spacer"></div><button class="btn primary" data-pyes>Ja, haal eraf</button>' });
+  sh.addEventListener('click', async e => {
+    if (e.target.closest('[data-pno]')) { C.closeSheet(); C.render(); }
+    if (e.target.closest('[data-pyes]')) { C.closeSheet(); try { await save(ing, countPatch(ing, -1)); C.toast(`Voorraad: ${unitShort(cntOf(L.byId[ing.id] || ing) ?? 0, unitOf(ing))} ${ing.name.toLowerCase()} over`); } catch (err) { failed(err); } C.render(); }
+  });
+}
 // the sheet behind a tap: done, something else, skipped, later
-function dpSheet(key) {
+function dpSheet(key, mode = '') {
   const x = L.dpMap?.[key]; if (!x) return;
   const d = today(), now = nowMin(), doneLabel = { meal: 'Gegeten', sup: 'Alles ingenomen', routine: 'Alles gedaan', bill: 'Betaald' }[x.type] || 'Gedaan';
   const hours = [...new Set([now + 60, ...[15, 17, 20, 21].map(h => h * 60)].map(m => Math.ceil(m / 30) * 30))].filter(m => m > now && m < 24 * 60).sort((a, b) => a - b).slice(0, 4);
   const other = x.type === 'meal' ? '<button class="btn" data-dpother>Iets anders gegeten</button>' : x.rec ? '<button class="btn" data-dpopen>Openen</button>' : x.go ? '<button class="btn" data-dpgo>Openen</button>' : '';
   const steps = x.type === 'routine' ? `<div class="lwrap dpsteps">${x.steps.map(r => tick(r.name, routineDone(r), `data-dpstep="${r.id}"`)).join('')}</div>`
     : x.type === 'sup' ? `<div class="lwrap dpsteps">${x.sups.map(o => tick(o.sp.name || 'Supplement', o.on, `data-dpsup="${o.sp.id}" data-t="${o.tm}"`)).join('')}</div>` : '';
+  const pantry = x.type === 'meal' && !x.done ? (() => { const l = pantryNow(); return l.length ? `<p class="dsub">Uit je voorraad</p><input class="finp dpfind" type="search" placeholder="Zoek in je voorraad" aria-label="Zoek in je voorraad" data-dpfind><div class="dpgrid" data-dpgrid>${l.slice(0, 40).map(r => `<button type="button" class="dkt" data-dping="${r.id}" data-n="${esc(norm(r.name))}"><b>${foodEmo(r.name)}</b>${esc(r.name)}${cntOf(r) != null ? `<small>${esc(unitShort(cntOf(r), unitOf(r)))}</small>` : ''}</button>`).join('')}</div>` : ''; })() : '';
   const water = x.type === 'water' ? `<div class="lwater small"><button class="iconbtn small" data-dpwater="-1" aria-label="Eén glas minder">${svg(P.minus)}</button><div class="lwv"><b>${waterOn(d)?.glasses || 0}</b><span>${esc(x.sub)}</span></div><button class="iconbtn small lplus" data-dpwater="1" aria-label="Nog een glas">${svg(P.plus)}</button></div>` : '';
-  const sh = C.sheet({ title: x.label, body: `<p class="lnone">${esc([x.min != null ? hm(x.min) : 'geen vaste tijd', x.skipped ? 'overgeslagen' : x.sub].filter(Boolean).join(' · '))}</p>${steps}${water}
+  const sh = C.sheet({ title: x.label, body: `<p class="lnone">${esc([x.min != null ? hm(x.min) : 'geen vaste tijd', x.skipped ? 'overgeslagen' : x.sub].filter(Boolean).join(' · '))}</p>${steps}${water}${pantry}
     <div class="dpbar">${x.type === 'water' ? '' : x.done ? '<button class="btn" data-dpundo>Toch niet gedaan</button>' : `<button class="btn primary" data-dpdone>✓ ${doneLabel}</button>`}${other}${x.skipped ? '<button class="btn" data-dpunskip>Toch niet overslaan</button>' : x.done ? '' : '<button class="btn" data-dpskip>Overgeslagen</button>'}${x.done ? '' : '<button class="btn" data-dplater>Later ▾</button>'}</div>
     <div class="dplater" hidden><div class="lwrap">${hours.map(m => `<button class="chip" data-dpat="${m}">${hm(m)}</button>`).join('')}<button class="chip" data-dpday="${addDays(d, 1)}">Morgen</button></div><label class="lfield"><span>Kies een dag</span><input class="finp" type="date" data-dppick min="${addDays(d, 1)}"></label></div>` });
   const close = msg => { C.closeSheet(); if (msg) C.toast(msg); C.render(); };
+  if (mode === 'later') sh.querySelector('.dplater').hidden = false;
+  if (mode === 'other') { const b = sh.querySelector('[data-dpother], [data-dpopen], [data-dpgo]'); if (b && x.type !== 'meal') setTimeout(() => b.click(), 0); }
   const toDay = async nd => {
     if (x.move) { try { await x.move(nd); } catch (e) { failed(e); return; } close(`Verplaatst naar ${nd === addDays(d, 1) ? 'morgen' : fromISO(nd).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'short' })}`); }
     else { await dpSave(d, { skip: [...new Set([...(dpState(d).skip || []), key])] }); close(nd === addDays(d, 1) ? 'Voor vandaag weg. Morgen staat hij er weer.' : 'Voor vandaag weg.'); }
@@ -8017,11 +8189,13 @@ function dpSheet(key) {
     else if (b.hasAttribute('data-dpopen')) { C.closeSheet(); openRecord(x.rec.id); }
     else if (b.hasAttribute('data-dpgo')) { C.closeSheet(); C.go(x.go); }
     else if (b.hasAttribute('data-dpother')) { C.closeSheet(); const m = recs('meals').find(m => m.date === d && m.slot === x.slot); m ? openEditor('meals', m.id) : openEditor('meals', null, { date: d, slot: x.slot }); if (!x.done) x.act?.(); }
+    else if (b.dataset.dping) { const ing = L.byId[b.dataset.dping]; if (ing) { C.closeSheet(); mealFromPantry(x, ing); } }
     else if (b.dataset.dpsup) { await toggleSupp(b.dataset.dpsup, b.dataset.t); b.classList.toggle('on'); b.setAttribute('aria-pressed', b.classList.contains('on')); }
     else if (b.dataset.dpstep) { const r = L.byId[b.dataset.dpstep]; if (r) { await toggleDay(r); b.classList.toggle('on'); b.setAttribute('aria-pressed', b.classList.contains('on')); } }
     else if (b.dataset.dpwater) { await water(Number(b.dataset.dpwater)); const v = sh.querySelector('.lwv b'); if (v) v.textContent = waterOn(d)?.glasses || 0; }
   });
   sh.addEventListener('change', e => { if (e.target.matches('[data-dppick]') && e.target.value) toDay(e.target.value); });
+  sh.addEventListener('input', e => { if (!e.target.matches('[data-dpfind]')) return; const q = norm(e.target.value); sh.querySelectorAll('[data-dping]').forEach(b => { b.hidden = q && !b.dataset.n.includes(q); }); });
 }
 document.addEventListener('click', e => { const b = e.target.closest?.('[data-dp]'); if (!b || !C || b.closest('.sheet')) return; dpSheet(b.dataset.dp); });
 // what is still open on the To do pages of every tab, so nothing gets lost between the tabs
