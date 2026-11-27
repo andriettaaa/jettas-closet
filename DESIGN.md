@@ -81,3 +81,8 @@ Answers from the Nails rounds (November 2026).
 - **Nails layout**: tabs (Overzicht, Routines, Bitjes, Kleuren, Spullen, Tutorials, Log); the overview has a big card with the next treatment and ▶ Start routine, then tiles that show what is going on; on the iPad a workplace view while doing a routine: step with timer, the holder with the bit you need lit up, and the video side by side.
 - **Adding bits**: a built-in bit guide with the common shapes (tap your shape, explanation, step, grit colours and speed come with it), a shop link that fills in name, photo, shape, grit and material, a photo (the nightly run guesses the shape, she confirms) and a whole set at once with the slots in her holder.
 - **Automatic**: a fill reminder after the number of days she picks (notification plus a card on Today with ▶ Start routine); bits count their uses and warn when almost worn, products that run low go on the shopping list; inspiration (a tutorial from Nog proberen at a new set, colours she has not worn for long); cuticle oil twice a day as a tick in the Ochtend and Avond tabs on Today, plus a notification at 11:00 or 22:00 when it is not ticked yet.
+
+## Today, round 3 (November 2026)
+- The Nu card (with the drinks ring and the supplement of now) sits at the very top of Today, above the greeting. An item later than 20 minutes from now says "Straks" instead of "Nu".
+- Outfits live in the day parts: today's pick in Ochtend, laying out tomorrow's in Avond. No separate outfit block any more.
+- The tiles per section are gone from Overzicht (too busy). What only lived there moved into the day: a money chip "€… vandaag" at the top, bills as ticks, a Boodschappen tick on shopping day, skincare as a tick in Ochtend and Avond.

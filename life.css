@@ -1671,3 +1671,6 @@ h2 .tdside { font-size: .8em; color: var(--muted); }
 .mxbar { display: inline-block; vertical-align: middle; width: 120px; height: 8px; border-radius: 99px; background: rgba(255,255,255,.3); margin-right: 8px; overflow: hidden; }
 .mxbar i { display: block; height: 100%; background: #fff; border-radius: inherit; }
 .ofhost { margin: 0 0 16px; }
+/* the Nu card at the very top of Today */
+.dpnowtop { display: grid; gap: 10px; }
+.dpnowtop .dphero { margin: 0; }

@@ -2175,10 +2175,12 @@ function ofClick(e) {
         DB.put('days', t, { outfit: wp.outfit || null, items: wp.outfit ? cur.items || [] : [...new Set([...(cur.items || []), ...wp.ids])], note: cur.note || '', photos: cur.photos || [], place: cur.place || '' }).then(() => toast('Logged for today')).catch(err => saveErr(err, 'Could not log that. Try again.')); return true; }
   return false;
 }
-function outfitBlock() {
+// the outfit in the day parts of Today: today's in Ochtend, tomorrow's in Avond
+const outfitPart = k => { try { return k === 'morning' ? outfitBlock('today') : k === 'evening' ? outfitBlock('tomorrow') : ''; } catch (e) { console.error(e); return ''; } };
+function outfitBlock(only = '') {
   const t = today(), hr = new Date().getHours(), rec = S.days[t], tm = iso(new Date(Date.now() + 864e5));
   let out = '';
-  if (!rec && hr < 12) {
+  if (only === 'tomorrow') {} else if (!rec && hr < 12) {
     const r = weatherPicks(t), n = S.wxPickN || 0, three = r ? [0, 1, 2].map(i => r.picks[(n + i) % r.picks.length]).filter((x, i, a) => a.indexOf(x) === i) : [];
     if (three.length) out += `<section class="ofhero"><div class="dphk">Ochtend${r ? ' · ' + esc(r.why) : ''}</div><div class="dpht"><span>👗</span>Kies je outfit</div>
       <div class="ofpicks">${three.map((p, i) => `<button type="button" class="ofpick" data-ofwear="${(n + i) % r.picks.length}" aria-label="${esc(p.name)}">${pickThumb(p)}<span>${esc(p.name)}</span></button>`).join('')}</div>
@@ -2193,7 +2195,7 @@ function outfitBlock() {
     if (wp) out += `<div class="ofstrip"><button type="button" class="ofth" data-overday="${t}">${pickThumb(wp)}</button><div><b>${esc(wp.name)}</b><small>Voorstel · ${esc(wp.why)}</small>
       <div class="ofbtns"><button type="button" class="chip small primary" data-wxwear>Draag ik</button>${wp.count > 1 ? '<button type="button" class="chip small" data-wxnext>Ander</button>' : ''}</div></div></div>`;
   }
-  if (hr >= 18) {
+  if (only === 'tomorrow' || (!only && hr >= 18)) {
     const tr = S.days[tm], tp = weatherPick(tm, S.wxTmN || 0);
     if (tr) out += `<div class="ofstrip tomorrow"><button type="button" class="ofth" data-overday="${tm}">${tr.outfit && S.outById[tr.outfit] ? boardHTML(S.outById[tr.outfit].pieces) : pickThumb({ ids: dayItems(tr).filter(id => S.byId[id]) })}</button><div><b>Morgen klaargelegd ✓</b><small>${esc(tr.outfit && S.outById[tr.outfit]?.name || 'Je outfit voor morgen')}</small><div class="ofbtns"><button type="button" class="chip small" data-overday="${tm}">Wissel</button></div></div></div>`;
     else if (tp) out += `<div class="ofstrip tomorrow"><button type="button" class="ofth" data-overday="${tm}">${pickThumb(tp)}</button><div><b>Morgen 👗 ${esc(tp.name)}</b><small>${esc(tp.why)} · klaarleggen voor het slapen</small>
@@ -2650,8 +2652,8 @@ window.addEventListener('resize', () => { const el = document.querySelector('.da
 const devT = () => { try { return JSON.parse(localStorage.getItem('dev:today') || '{}') || {}; } catch { return {}; } };
 const devOff = k => [].concat(devT().hide || []).includes(k);
 // Today as one story; per device you choose the order and what shows (Settings › Vandaag, or the button under Today)
-const TODAY_BLOCKS = [['greet', '👋 Groet en voortgang'], ['chips', '🌦 Weer, affirmatie en focus'], ['outfit', '👗 Outfit'], ['day', '📅 Je dag'], ['affbig', '✨ Grote affirmatie'], ['wx', '🌤 Weer per dag'], ['find', '🔍 Zoekbalk'], ['quick', '⚡ Snelle knoppen']];
-const TODAY_DEF = { greet: true, chips: true, outfit: true, day: true, affbig: false, wx: false, find: false, quick: false };
+const TODAY_BLOCKS = [['greet', '👋 Groet en voortgang'], ['chips', '🌦 Weer, geld, affirmatie en focus'], ['day', '📅 Je dag (met je outfit in Ochtend en Avond)'], ['affbig', '✨ Grote affirmatie'], ['wx', '🌤 Weer per dag'], ['find', '🔍 Zoekbalk'], ['quick', '⚡ Snelle knoppen']];
+const TODAY_DEF = { greet: true, chips: true, day: true, affbig: false, wx: false, find: false, quick: false };
 const devVis = k => { const d = devT(); if ([].concat(d.hide || []).includes(k === 'affbig' ? 'aff' : k)) return false; if (d.vis && k in d.vis) return !!d.vis[k]; return TODAY_DEF[k] ?? true; };
 const devOrder = () => { const o = [].concat(devT().order || []).filter(k => TODAY_BLOCKS.some(b => b[0] === k)); return [...o, ...TODAY_BLOCKS.map(b => b[0]).filter(k => !o.includes(k))]; };
 function devTodaySheet() {
@@ -2692,26 +2694,15 @@ function renderOverview(host) {
   const aff = S.prefs.affirm?.off && !pin ? '' : pin ? (pin.text || 'Affirmatie') : affirmToday(S.affShift || 0);
   const BLK = {
     greet: () => `<div class="sthead ${G.part}"><div><h1>${esc(G.hello)}</h1><p class="greetline">${esc(G.line)}</p><span class="sub">${t.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })}</span>${st?.cheer ? `<p class="stcheer">✨ ${esc(st.cheer)}</p>` : ''}</div>${st ? `<span class="ring string ${st.cheer ? 'pop' : ''}" style="--p:${st.pct}%" title="${st.done} van ${st.total} klaar"><b>${st.pct}%</b></span>` : ''}</div>`,
-    chips: () => `<div class="stchips">${wx ? `<button type="button" class="stchip" data-overday="${today()}"><span>${wmo(wx.c)[1]}</span>${wx.hi}°${wx.p != null && wx.p >= 30 ? ` · ${wx.p}% regen` : ` · ${esc(wmo(wx.c)[2]).toLowerCase()}`}</button>` : ''}${aff ? `<button type="button" class="stchip aff" data-affsheet>${pin?.img ? `<img src="${esc(pin.img)}" referrerpolicy="no-referrer" alt="">` : '<span>✨</span>'}<em>${esc(aff)}</em></button>` : ''}${intent ? `<span class="stchip"><span>🎯</span><em>${esc(intent)}</em></span>` : ''}${window.LIFE?.cardChips?.() || ''}</div>`,
-    outfit: () => outfitBlock(),
+    chips: () => `<div class="stchips">${wx ? `<button type="button" class="stchip" data-overday="${today()}"><span>${wmo(wx.c)[1]}</span>${wx.hi}°${wx.p != null && wx.p >= 30 ? ` · ${wx.p}% regen` : ` · ${esc(wmo(wx.c)[2]).toLowerCase()}`}</button>` : ''}${aff ? `<button type="button" class="stchip aff" data-affsheet>${pin?.img ? `<img src="${esc(pin.img)}" referrerpolicy="no-referrer" alt="">` : '<span>✨</span>'}<em>${esc(aff)}</em></button>` : ''}${window.LIFE?.moneyChip?.() || ''}${intent ? `<span class="stchip"><span>🎯</span><em>${esc(intent)}</em></span>` : ''}${window.LIFE?.cardChips?.() || ''}</div>`,
     day: () => window.LIFE?.dayStory?.() || window.LIFE?.todayTop?.() || '',
     affbig: () => affirmBlock() + (window.LIFE?.pinAffirm?.() || ''),
     wx: () => wxStrip(),
     find: () => `<button class="findbar" data-find>${I.search}<span>Search recipes, notes, pages, settings…</span></button>`,
     quick: () => `<div class="quickacts">${QUICK.filter(q => q[2]()).map(([k, l]) => `<button class="chip" data-quick="${k}">${esc(l)}</button>`).join('')}</div>`
   };
-  host.innerHTML = `<div class="story">${devOrder().filter(devVis).map(k => { try { return BLK[k]?.() || ''; } catch (err) { console.error(err); return ''; } }).join('')}</div>
-    ${cards.length || devOff('tiles') ? '' : '<p class="muted">Every card is hidden. Tap Arrange Today at the bottom to bring some back.</p>'}
-    <div class="dash">${cards.map(s => {
-      const body = s.key === 'closet' ? closetTile() : window.LIFE?.tile(s.key) || `<p class="muted">Open ${esc(s.label)} to see what's there.</p>`;
-      return `<section class="panel dtile"><div class="dhead"><button class="dtitle" data-gosec="${s.key}">${icon(s.icon)}<h2>${esc(s.label)}</h2></button><button class="chip link" data-gosec="${s.key}">Open</button></div>${body}</section>`;
-    }).join('')}</div>
-    <div class="ltools dashfoot"><button class="btn small" data-devtoday>📱 Vandaag op deze ${esc(deviceName())}</button><button class="btn small" data-dasharrange>Arrange Today</button>${window.LIFE ? '<button class="chip link" data-act="export">Back up all your lists</button>' : ''}</div>`;
-  // with the new Today the tiles per section live behind the Overzicht tab
-  const dashEl = host.querySelector('.dash'), ovPane = host.querySelector('[data-dppane="ov"]');
-  if (dashEl && ovPane) dashEl.hidden = ovPane.hidden;
-  packDash(dashEl);
-  if (!window.__dpTabWired) { window.__dpTabWired = true; document.addEventListener('dptab', e => { const el = document.querySelector('#viewHost .dash, .dash'); if (!el) return; el.hidden = e.detail !== 'ov'; if (!el.hidden) packDash(el); }); }
+  host.innerHTML = `<div class="story">${devVis('day') ? window.LIFE?.dayNow?.() || '' : ''}${devOrder().filter(devVis).map(k => { try { return BLK[k]?.() || ''; } catch (err) { console.error(err); return ''; } }).join('')}</div>
+    <div class="ltools dashfoot"><button class="btn small" data-devtoday>📱 Vandaag op deze ${esc(deviceName())}</button>${window.LIFE ? '<button class="chip link" data-act="export">Back up all your lists</button>' : ''}</div>`;
   if (!host.dataset.wired) {
     host.dataset.wired = '1';
     host.addEventListener('click', e => {
@@ -4242,7 +4233,7 @@ async function start(session) {
   await obFlush(); // send changes made offline before loading fresh data over them
   subscribeLive(); wxRefresh();
   // what life.js needs from the closet: the signed-in Supabase client, photos, sheets and settings
-  const lifeLoad = window.LIFE?.start({ sb, uid: () => UID, view: () => S.view, outfits: () => S.outfits.map(o => ({ id: o.id, name: o.name || 'Outfit', board: boardHTML(o.pieces) })), go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url, shop: it.shop, planBuy: it.planBuy || '' })),
+  const lifeLoad = window.LIFE?.start({ sb, uid: () => UID, outfitPart, view: () => S.view, outfits: () => S.outfits.map(o => ({ id: o.id, name: o.name || 'Outfit', board: boardHTML(o.pieces) })), go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url, shop: it.shop, planBuy: it.planBuy || '' })),
     undoQuiet, sbWrite, sbWriteMany, obFlush, uploadFile,
     // what you typed before in the closet (shops, brands), offered as buttons in the rest of the app too
     closetVals: k => valuesOf(k),

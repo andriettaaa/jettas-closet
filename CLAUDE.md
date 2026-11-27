@@ -13,6 +13,9 @@ This repo is public. Never commit personal data, tokens or secrets, and never as
 ## Design
 Read `DESIGN.md` before changing how the app looks or works: it holds the owner's choices per page and per device.
 
+## Think as an expert
+For every part of the app, think and design as an expert in that field (a stylist for Closet, a financial coach for Finance, a chef and dietitian for Kitchen, a nail tech for Nails, a coach for Life, and so on). Aim for the best app in that field: propose what such an expert would build and ask the questions from that knowledge.
+
 ## Big redesigns
 For a redesign of several pages, first ask every question about the whole app (rounds of visual examples with clickable answers), write the answers in `DESIGN.md`, and only then build everything in one go. Do not ask her to approve parts in between.
 

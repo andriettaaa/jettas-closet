@@ -8173,6 +8173,11 @@ function dayPlan(d = today()) {
   for (const h of recs('habits').filter(h => !h.paused && onDay(h, d))) add({ key: 'rec:' + h.id, min: null, label: h.name || 'Gewoonte', sub: 'gewoonte', done: daysSet(h).has(d), type: 'habit', rec: h, act: () => toggleDay(h, d) });
   for (const p of recs('posts').filter(p => p.date === d && p.stage !== 'Posted')) add({ key: 'rec:' + p.id, min: hmToMin(p.time), label: 'Posten: ' + (p.name || p.brand || 'content'), sub: [].concat(p.platforms || []).join(' + ') || 'content', done: false, type: 'rec', rec: p, move: nd => save(p, { date: nd }) });
   try { for (const o of fOccs(d, d)) add({ key: 'bill:' + o.key, min: null, label: 'Betalen: ' + (o.bill.name || 'rekening'), sub: eur(o.amount), done: !!o.paid, type: 'bill', go: 'money/repeats', act: () => o.paid ? null : fPayOcc(o) }); } catch {}
+  // your shopping day: one tick with the list (and your shop's card in the sheet); skincare morning and evening from your skin plan
+  const ticked = new Set(st.done || []), tick = k => () => dpSave(d, { done: ticked.has(k) ? [...ticked].filter(x => x !== k) : [...ticked, k] });
+  try { if (shopDateIn(weekMon(d)) === d) { const n = recs('ingredients').filter(i => i.list).length; add({ key: 'shop', min: null, label: 'Boodschappen', sub: n ? plural(n, 'ding', 'dingen') + ' op je lijst' : 'je lijst is leeg', done: ticked.has('shop'), type: 'shop', go: 'kitchen/groceries', act: tick('shop') }); } } catch {}
+  try { for (const eve of [false, true]) { const ps = slotOn(d, eve); if (!ps.length) continue; const k = 'skin:' + (eve ? 'PM' : 'AM');
+    add({ key: k, min: eve ? bed - 50 : w + 20, label: eve ? 'Skincare avond' : 'Skincare ochtend', sub: ps.length === 1 ? titleOf(ps[0]) : plural(ps.length, 'stap', 'stappen'), done: ticked.has(k), type: 'skin', go: 'care/skin', act: tick(k) }); } } catch {}
   const wgoal = Number(C?.prefs?.().waterGoal) || 8, wn = waterOn(d)?.glasses || 0;
   add({ key: 'water', min: null, label: 'Water', sub: `${wn} van ${wgoal} glazen`, done: wn >= wgoal, type: 'water' });
   return out.sort((a, b) => (a.min ?? 1e4) - (b.min ?? 1e4) || norm(a.label).localeCompare(norm(b.label)));
@@ -8184,6 +8189,8 @@ function dpIcon(x) {
   if (x.type === 'sup') return '💊';
   if (x.type === 'routine') return x.key.endsWith('Morning') ? '🌅' : '🌙';
   if (x.type === 'bill') return '💶';
+  if (x.type === 'shop') return '🛒';
+  if (x.type === 'skin') return '🧴';
   if (x.type === 'habit') return '✨';
   const k = x.rec?.kind, n = norm(x.label);
   if (k === 'appts') return /tand/.test(n) ? '🦷' : /arts|dokter|huisarts/.test(n) ? '🩺' : /kapper|haar/.test(n) ? '💇🏾‍♀️' : '📅';
@@ -8191,7 +8198,7 @@ function dpIcon(x) {
 }
 const dpProg = x => x.done ? 1 : x.prog || 0;
 const dpTile = (x, now) => `<button type="button" class="dpt ${x.done ? 'on' : ''} ${x.skipped ? 'skip' : ''} ${(x.late || (x.min != null && x.min < now - 30)) && !x.done && !x.skipped ? 'late' : ''}" data-dpt="${esc(x.key)}"><span class="ring" style="--p:${Math.round(100 * dpProg(x))}%"><b>${dpIcon(x)}</b></span><span class="dptl">${esc(x.label)}</span><small>${esc(x.skipped ? 'overgeslagen' : x.min != null ? hm(x.min) : x.sub)}</small></button>`;
-function dayPlanHTML(head = true) {
+function dayPlanHTML(head = true, mode = '') {
   if (!C) return '';
   const d = today(), now = nowMin(), items = dayPlan(d).filter(x => x.type !== 'water'), cur = dpPart(now);
   L.dpMap = Object.fromEntries(items.map(x => [x.key, x]));
@@ -8203,7 +8210,7 @@ function dayPlanHTML(head = true) {
   const cheer = L.dpCheer && Date.now() - (L.dpCheerAt || 0) < 15000 ? L.dpCheer : '';
   const tot = drinkTotals(d), g = drinkGoal(), cs = cleanStats();
   const doneLabel = x => ({ meal: 'Gegeten', sup: 'Ingenomen', routine: 'Alles gedaan', bill: 'Betaald' })[x.type] || 'Gedaan';
-  const hero = x => `<div class="dphero"><div class="dphk">Nu${x.min != null ? ' · ' + hm(x.min) : ''}</div><div class="dpht"><span>${dpIcon(x)}</span>${esc(x.label)}</div>${x.sub && x.sub !== hm(x.min) ? `<div class="dphs">${esc(x.sub)}</div>` : ''}
+  const hero = x => `<div class="dphero"><div class="dphk">${x.min != null && x.min > now + 20 ? 'Straks · ' + hm(x.min) : 'Nu' + (x.min != null ? ' · ' + hm(x.min) : '')}</div><div class="dpht"><span>${dpIcon(x)}</span>${esc(x.label)}</div>${x.sub && x.sub !== hm(x.min) ? `<div class="dphs">${esc(x.sub)}</div>` : ''}
     <div class="dphb"><button type="button" class="p" data-dphero="done" data-v="${esc(x.key)}">✓ ${doneLabel(x)}</button><button type="button" data-dphero="other" data-v="${esc(x.key)}">Iets anders</button><button type="button" data-dphero="later" data-v="${esc(x.key)}">Later</button></div></div>`;
   const bar = `<div class="dpbar2"><button type="button" class="dpq" data-act="drinkadd"><span class="ring" style="--p:${Math.min(100, Math.round(100 * tot.all / g))}%"><b>🥤</b></span><span><b>${liters(tot.all)} / ${liters(g)} L</b><small>💧 ${liters(tot.water)} L water</small></span></button>${supNow ? `<button type="button" class="dpq" data-dpt="${esc(supNow.key)}"><span class="ring" style="--p:${Math.round(100 * dpProg(supNow))}%"><b>💊</b></span><span><b>${esc(supNow.sub)}</b><small>${esc(supNow.label.replace('Supplementen ', ''))}</small></span></button>` : ''}</div>`;
   const pane = ([k, ic, label]) => {
@@ -8211,17 +8218,19 @@ function dayPlanHTML(head = true) {
     const tiles = open.filter(x => inPart(x) && !(isNow && (x === nu || x === supNow)));
     const fin = done.filter(x => inPart(x) || (isNow && x.min == null));
     return `<div class="dppane" data-dppane="${k}" ${k === tab ? '' : 'hidden'}>
-      ${isNow && nu ? hero(nu) : ''}${isNow ? bar : ''}
+      ${mode === 'rest' ? '' : `${isNow && nu ? hero(nu) : ''}${isNow ? bar : ''}`}${C.outfitPart?.(k) || ''}
       ${tiles.length ? `<div class="dptiles">${tiles.map(x => dpTile(x, now)).join('')}</div>` : isNow && nu ? '' : `<p class="lnone dpempty">${fin.length ? `Klaar voor de ${label.toLowerCase()} 🎉` : 'Niets gepland.'}</p>`}
       ${isNow && loose.length ? `<p class="dsub">Vandaag ergens</p><div class="dptiles">${loose.map(x => dpTile(x, now)).join('')}</div>` : ''}
       ${fin.length ? `<details class="dpdone"><summary><span>✓ Gedaan</span><i>${fin.length}</i></summary><div class="dptiles">${fin.map(x => dpTile(x, now)).join('')}</div></details>` : ''}
     </div>`;
   };
+  // the Nu card on its own, for the very top of Today
+  if (mode === 'now') return `<section class="dpnowtop">${nu ? hero(nu) : supNow && !supNow.done ? hero(supNow) : ''}${bar}</section>`;
   return `<section class="panel dplan2" data-dpwrap>
     ${head ? '' : '<!--'}<div class="dphead"><span class="ring ${cheer ? 'pop' : ''}" style="--p:${pct}%"><b>${pct}%</b></span><div><b>${done.length} van ${items.length} klaar</b><small>${cheer ? '✨ ' + esc(cheer) : `Nog ${curOpen.length + (supNow && !supNow.done ? 1 : 0)} deze ${name}`}</small></div>${cs.start ? '<button class="btn small" data-act="crave">Ik heb trek</button>' : ''}</div>${head ? '' : '-->'}
     <div class="dptabs" role="tablist">${[...DP_PARTS, ['ov', '📋', 'Overzicht']].map(([k, ic, l]) => `<button type="button" role="tab" data-dptab="${k}" aria-selected="${k === tab}"><span class="dpti">${ic}</span> ${l}</button>`).join('')}</div>
     ${DP_PARTS.map(pane).join('')}
-    <div class="dppane" data-dppane="ov" ${tab === 'ov' ? '' : 'hidden'}>${todoHub()}${calStrip()}<p class="lnone dpovnote">Je tegels per onderdeel staan hieronder.</p></div>
+    <div class="dppane" data-dppane="ov" ${tab === 'ov' ? '' : 'hidden'}>${todoHub()}${calStrip()}</div>
   </section>`;
 }
 // the day's numbers for the ring next to the greeting, and confetti when a part of the day or the whole day is done
@@ -10202,7 +10211,9 @@ return {
   userName: () => (C && fset()?.name) || '',
   todayTop: () => { try { return todayTop(); } catch (e) { console.error(e); return ''; } },
   // Today as one story: the greeting gets the ring, the day comes without its own header
-  dayStory: () => { try { return C ? dayPlanHTML(false) : ''; } catch (e) { console.error(e); return ''; } },
+  dayStory: () => { try { return C ? dayPlanHTML(false, 'rest') : ''; } catch (e) { console.error(e); return ''; } },
+  dayNow: () => { try { return C ? dayPlanHTML(false, 'now') : ''; } catch (e) { console.error(e); return ''; } },
+  moneyChip: () => { try { if (!C || !recs('faccounts').length) return ''; const st = fState(); return `<button type="button" class="stchip money" data-overgo="money/today"><span>💶</span>${moneyHidden() ? '€•••' : (st.perDay < 0 ? '−' : '') + eur(Math.abs(st.perDay))} vandaag</button>`; } catch { return ''; } },
   dayStats: () => { try { return C ? dayStats() : null; } catch { return null; } },
   pinAffirm: () => { try { return C ? pnAffirmHTML() : ''; } catch { return ''; } },
   pinAffirmToday: () => { try { return C ? pnAffirmToday(L.pnShift || 0) : null; } catch { return null; } },
