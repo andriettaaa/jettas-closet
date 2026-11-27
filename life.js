@@ -8059,15 +8059,18 @@ function top3() {
   if (chore) out.push({ label: chore.name, sub: 'ligt er al even', go: 'home/chores' });
   return out.slice(0, 3);
 }
+// what Today shows on this device (iPhone, iPad, Mac each their own): kept in this browser only, set under "Vandaag op dit apparaat"
+const devToday = () => { try { return JSON.parse(localStorage.getItem('dev:today') || '{}') || {}; } catch { return {}; } };
+const devHidden = k => [].concat(devToday().hide || []).includes(k);
 function todayTop() {
   if (!C) return '';
   const it = intentNow();
   return `<div class="ttop">
-    ${it?.text ? `<p class="tintent"><span>Focus deze week</span><b>${esc(it.text)}</b></p>` : ''}
-    ${pnAffirmHTML()}
-    ${dayPlanHTML()}
-    ${todoHub()}
-    ${calStrip()}
+    ${it?.text && !devHidden('intent') ? `<p class="tintent"><span>Focus deze week</span><b>${esc(it.text)}</b></p>` : ''}
+    ${devHidden('aff') ? '' : pnAffirmHTML()}
+    ${devHidden('day') ? '' : dayPlanHTML()}
+    ${devHidden('hub') ? '' : todoHub()}
+    ${devHidden('week') ? '' : calStrip()}
   </div>`;
 }
 
@@ -8161,8 +8164,10 @@ const affLook = () => { const v = C.prefs?.().affLook; return AFF_LOOKS.some(x =
 function pnAffirmHTML() {
   const p = pnAffirmToday(L.pnShift || 0); if (!p) return '';
   const look = affLook(), pin = (x, cls = '') => `<a href="https://www.pinterest.com/pin/${esc(x.id)}/" target="_blank" rel="noopener" class="pnaffimg ${cls}"><img referrerpolicy="no-referrer" src="${esc(x.img)}" alt="${esc(x.text || 'Affirmatie van je Pinterest-bord')}" loading="lazy"></a>`;
-  const all = (pnAcc()?.pnAffirm || []).filter(x => x.img), start = all.indexOf(p);
-  const media = look === 'row' ? `<div class="pnaffrow">${Array.from({ length: Math.min(all.length, 8) }, (_, i) => all[(start + i) % all.length]).map(x => pin(x)).join('')}</div>`
+  const all = (pnAcc()?.pnAffirm || []).filter(x => x.img), start = all.indexOf(p), dv = devToday();
+  // on this device you picked how many cards and how big: that wins over the look from Settings
+  const media = dv.affCount || dv.affSize ? `<div class="pnaffdev sz-${esc(dv.affSize || 'm')}">${Array.from({ length: Math.min(all.length || 1, Number(dv.affCount) || 1) }, (_, i) => all.length ? all[(start + i) % all.length] : p).map(x => pin(x)).join('')}</div>`
+    : look === 'row' ? `<div class="pnaffrow">${Array.from({ length: Math.min(all.length, 8) }, (_, i) => all[(start + i) % all.length]).map(x => pin(x)).join('')}</div>`
     : look === 'strip' ? pin(p, 'pnaffstrip')
     : `<div class="pnaffbig"><img class="pnaffbg" referrerpolicy="no-referrer" src="${esc(p.img)}" alt="" aria-hidden="true">${pin(p)}</div>`;
   return `<section class="panel pnaff pnaff-${look}">${media}<div class="pnafftxt"><span>Affirmatie van vandaag</span>${p.text && look !== 'row' ? `<small>${esc(p.text)}</small>` : ''}<div class="pnaffbar"><button class="chip link" data-act="pnnext">Een andere</button><div class="seg pnaffseg" role="group" aria-label="Weergave">${AFF_LOOKS.map(([k, l]) => `<button data-act="afflook" data-v="${k}" aria-pressed="${look === k}">${l}</button>`).join('')}</div></div></div></section>`;

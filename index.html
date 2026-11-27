@@ -2176,7 +2176,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v202';
+const APP_VERSION = 'hangtag-v203';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2540,26 +2540,48 @@ function packDash(el) {
 }
 let dashW = 0;
 window.addEventListener('resize', () => { const el = document.querySelector('.dash'); if (!el || Math.abs(el.clientWidth - dashW) < 40) return; dashW = el.clientWidth; const n = Math.max(1, Math.floor((dashW + 16) / 316)); if (String(n) !== el.dataset.n) packDash(el); });
+const devT = () => { try { return JSON.parse(localStorage.getItem('dev:today') || '{}') || {}; } catch { return {}; } };
+const devOff = k => [].concat(devT().hide || []).includes(k);
+// the blocks of Today you can hide on one device only
+const DEV_BLOCKS = [['aff', 'Affirmaties'], ['intent', 'Focus deze week'], ['day', 'Je dag (Vandaag)'], ['hub', 'Nog na te lopen'], ['week', 'Komende week'], ['find', 'Zoekbalk'], ['quick', 'Snelle knoppen'], ['wx', 'Weer en outfit'], ['tiles', 'Tegels per onderdeel']];
+function devTodaySheet() {
+  const name = deviceName(), body = () => { const d = devT(), hide = new Set(d.hide || []), on = (k, v, cur, label) => `<button type="button" class="chip" data-dev="${k}" data-v="${v}" aria-pressed="${String(cur) === String(v)}">${label}</button>`;
+    return `<p class="muted">Alleen voor deze ${esc(name)}. Je andere apparaten houden hun eigen keuze.</p>
+      <p class="dsub">Affirmaties</p><div class="lwrap">${on('aff', 'on', hide.has('aff') ? 'off' : 'on', 'Aan')}${on('aff', 'off', hide.has('aff') ? 'off' : 'on', 'Uit')}</div>
+      <p class="dsub">Grootte</p><div class="lwrap">${[['s', 'Klein'], ['m', 'Middel'], ['l', 'Groot']].map(([v, l]) => on('affSize', v, d.affSize || '', l)).join('')}</div>
+      <p class="dsub">Aantal kaarten</p><div class="lwrap">${[1, 2, 3].map(v => on('affCount', v, d.affCount || '', String(v))).join('')}</div>
+      <p class="dsub">Blokken op Vandaag</p><div class="lwrap">${DEV_BLOCKS.filter(([k]) => k !== 'aff').map(([k, l]) => `<button type="button" class="chip" data-devblock="${k}" aria-pressed="${!hide.has(k)}">${esc(l)}</button>`).join('')}</div>
+      <button type="button" class="chip link" data-devreset>Terug naar standaard</button>`; };
+  const sh = sheet({ title: 'Vandaag op deze ' + name, body: `<div data-devbody>${body()}</div>` });
+  const put = d => { try { localStorage.setItem('dev:today', JSON.stringify(d)); } catch {} $('[data-devbody]', sh).innerHTML = body(); render(); };
+  sh.addEventListener('click', e => {
+    const b = e.target.closest('[data-dev]'), k = e.target.closest('[data-devblock]'), d = devT(), hide = new Set(d.hide || []);
+    if (b) { const key = b.dataset.dev, v = b.dataset.v; if (key === 'aff') { v === 'off' ? hide.add('aff') : hide.delete('aff'); put({ ...d, hide: [...hide] }); } else put({ ...d, [key]: key === 'affCount' ? Number(v) : v, ...(key === 'affSize' || key === 'affCount' ? (() => { hide.delete('aff'); return { hide: [...hide] }; })() : {}) }); }
+    if (k) { hide.has(k.dataset.devblock) ? hide.delete(k.dataset.devblock) : hide.add(k.dataset.devblock); put({ ...d, hide: [...hide] }); }
+    if (e.target.closest('[data-devreset]')) { try { localStorage.removeItem('dev:today'); } catch {} $('[data-devbody]', sh).innerHTML = body(); render(); }
+  });
+}
 function renderOverview(host) {
   const t = new Date(), G = greeting(t);
-  const hidden = dashHidden(), cards = dashCards().filter(s => !hidden.has(s.key));
+  const hidden = dashHidden(), cards = devOff('tiles') ? [] : dashCards().filter(s => !hidden.has(s.key));
   host.innerHTML = `<div class="viewhead dviewhead greet ${G.part}"><h1>${esc(G.hello)}</h1><p class="greetline">${esc(G.line)}</p><span class="sub">${t.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span></div>
-    ${affirmBlock()}
+    ${devOff('aff') ? '' : affirmBlock()}
     ${window.LIFE?.todayTop?.() || ''}
-    <button class="findbar" data-find>${I.search}<span>Search recipes, notes, pages, settings…</span></button>
-    <div class="quickacts">${QUICK.filter(q => q[2]()).map(([k, l]) => `<button class="chip" data-quick="${k}">${esc(l)}</button>`).join('')}</div>
-    ${wxStrip()}
-    ${cards.length ? '' : '<p class="muted">Every card is hidden. Tap Arrange Today at the bottom to bring some back.</p>'}
+    ${devOff('find') ? '' : `<button class="findbar" data-find>${I.search}<span>Search recipes, notes, pages, settings…</span></button>`}
+    ${devOff('quick') ? '' : `<div class="quickacts">${QUICK.filter(q => q[2]()).map(([k, l]) => `<button class="chip" data-quick="${k}">${esc(l)}</button>`).join('')}</div>`}
+    ${devOff('wx') ? '' : wxStrip()}
+    ${cards.length || devOff('tiles') ? '' : '<p class="muted">Every card is hidden. Tap Arrange Today at the bottom to bring some back.</p>'}
     <div class="dash">${cards.map(s => {
       const body = s.key === 'closet' ? closetTile() : window.LIFE?.tile(s.key) || `<p class="muted">Open ${esc(s.label)} to see what's there.</p>`;
       return `<section class="panel dtile"><div class="dhead"><button class="dtitle" data-gosec="${s.key}">${icon(s.icon)}<h2>${esc(s.label)}</h2></button><button class="chip link" data-gosec="${s.key}">Open</button></div>${body}</section>`;
     }).join('')}</div>
-    <div class="ltools dashfoot"><button class="btn small" data-dasharrange>Arrange Today</button>${window.LIFE ? '<button class="chip link" data-act="export">Back up all your lists</button>' : ''}</div>`;
+    <div class="ltools dashfoot"><button class="btn small" data-devtoday>📱 Vandaag op deze ${esc(deviceName())}</button><button class="btn small" data-dasharrange>Arrange Today</button>${window.LIFE ? '<button class="chip link" data-act="export">Back up all your lists</button>' : ''}</div>`;
   packDash(host.querySelector('.dash'));
   if (!host.dataset.wired) {
     host.dataset.wired = '1';
     host.addEventListener('click', e => {
       if (e.target.closest('[data-dasharrange]')) return arrangeDash();
+      if (e.target.closest('[data-devtoday]')) return devTodaySheet();
       const d = e.target.closest('[data-overday], .wxday[data-day]'); if (d) return openDay(d.dataset.overday || d.dataset.day);
       const g = e.target.closest('[data-overgo]'); if (g) go(g.dataset.overgo);
       if (e.target.closest('[data-wxnext]')) { S.wxPickN = (S.wxPickN || 0) + 1; render(); }
