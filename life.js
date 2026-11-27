@@ -10133,6 +10133,14 @@ const PHASE_TIPS = {
   Ovulation: ['☀️', 'Often your strongest and most social days: good for filming content, meetings and hard workouts. Warm up well.'],
   Luteal: ['🍂', 'You may tire sooner and crave sweets: plan protein and a hearty snack, and keep sugar steady. Keep the weights, rest a bit longer. Skin can break out: be gentle and consistent.']
 };
+// the cycle coach: per phase what helps for food, sport, energy and skin (general guidance, not medical advice)
+const PHASE_COACH = {
+  Period: { nl: 'Menstruatie', food: 'Warme maaltijden en ijzer: rundvlees, spinazie, een ei. Genoeg drinken.', sport: 'Wandelen, stretchen, rustige pilates. Zwaar mag als je je goed voelt.', energy: 'Plan minder en gun jezelf rust; vroeg naar bed helpt.', skin: 'Huid kan droger zijn: extra hydratatie, geen nieuwe actieve producten.' },
+  Follicular: { nl: 'Folliculair', food: 'Vers en kleurrijk: veel groente, vis en volkoren.', sport: 'Je sterkste weken om op te bouwen: zwaarder trainen en nieuwe dingen.', energy: 'Energie stijgt: goed voor plannen, leren en nieuwe projecten.', skin: 'Huid is vaak op z\'n best: goed moment voor een nieuw product of exfoliant.' },
+  Ovulation: { nl: 'Ovulatie', food: 'Licht en voedzaam, met genoeg eiwit rond je training.', sport: 'Piekkracht: intervals en zware sets, warm goed op.', energy: 'Sociaal en zichtbaar: goed voor filmen, afspraken en presenteren.', skin: 'Meer talg mogelijk: lichte texturen en dubbel reinigen.' },
+  Luteal: { nl: 'Luteaal', food: 'Eiwit en een stevige snack; bloedsuiker stabiel houden. Trek in zoet is normaal.', sport: 'Blijf trainen, langere rust tussen sets; in de laatste dagen meer pilates en wandelen.', energy: 'Je kunt sneller moe zijn: plan buffer en zeg vaker nee.', skin: 'Puistjes rond je kin: BHA, niet aankomen, genoeg slaap.' }
+};
+const cycleCoachHTML = ph => { const c = PHASE_COACH[ph]; if (!c) return ''; return `<div class="ccoach">${[['🍽', 'Eten', c.food], ['🏃🏾‍♀️', 'Sport', c.sport], ['⚡', 'Energie', c.energy], ['✨', 'Huid', c.skin]].map(([e, l, t]) => `<div><b>${e} ${l}</b><p>${esc(t)}</p></div>`).join('')}</div>`; };
 function cycleInsights() {
   const cy = cycleStats(); if (!cy.last) return '';
   const t = today(), next = cy.next, ov = addDays(next, -14), fert = [addDays(ov, -5), addDays(ov, 1)], ph = cyclePhase(cy.day), tip = PHASE_TIPS[ph];
@@ -10145,7 +10153,7 @@ function cycleInsights() {
     `Most logged symptoms: ${[...symAll.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([s, n]) => `${s} (${n}×)`).join(', ') || 'none logged'}`];
   return `<div class="panels">
     ${panel('🔮 Coming up', `<div class="tiles lt3"><div class="tile tilelink" role="button" tabindex="0" data-act="cycal" data-v="${esc(next)}"><div class="k">🩸 Next period</div><div class="v">${esc(shortDate(next))}</div><div class="h">in ${Math.max(0, diffDays(t, next))} days</div></div><div class="tile tilelink" role="button" tabindex="0" data-act="cycal" data-v="${esc(fert[0])}"><div class="k">🌸 Fertile days</div><div class="v">${esc(shortDate(fert[0]))}</div><div class="h">to ${esc(shortDate(fert[1]))}, a guess</div></div><div class="tile"><div class="k">${tip?.[0] || ''} Now</div><div class="v">${esc(PHASE_NL?.[ph] || ph || '–')}</div><div class="h">day ${cy.day}</div></div></div><p class="lnone">Predictions from your own average cycle. Not reliable as contraception.</p><div class="dbtns">${newBtn('cyclelog', '📝 Log today')}<button class="btn small" data-act="cycal" data-v="${esc(t)}">📅 See it in your calendar</button></div>`)}
-    ${tip ? panel(`${tip[0]} Tips for this phase`, `<p>${esc(tip[1])}</p>`) : ''}
+    ${tip ? panel(`${tip[0]} Coach: ${PHASE_COACH[ph]?.nl || ph}`, `<p>${esc(tip[1])}</p>${cycleCoachHTML(ph)}`) : ''}
     ${panel('🔁 Your patterns', Object.keys(byPh).length ? ['Period', 'Follicular', 'Ovulation', 'Luteal'].filter(p => byPh[p]).map(p => `<p class="dsub">${PHASE_TIPS[p][0]} ${esc(PHASE_NL?.[p] || p)}</p><div class="lwrap">${[...byPh[p].entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([s, n]) => `<span class="chip">${esc(s)} <span class="n">${n}</span></span>`).join('')}</div>`).join('') : quiet('Log how you feel in your cycle diary: after a cycle or two your patterns show up here.'))}
     ${panel('🩺 For your GP', `<p class="lpre">${esc(gp.join('\n'))}</p><div class="dbtns"><button class="btn small" data-copy="${esc(gp.join('\n'))}">Copy</button></div>`)}
     ${resLinks('Cycle')}</div>`;
@@ -10719,6 +10727,7 @@ return {
   todayTop: () => { try { return todayTop(); } catch (e) { console.error(e); return ''; } },
   // Today as one story: the greeting gets the ring, the day comes without its own header
   dayStory: () => { try { return C ? dayPlanHTML(false, 'rest') : ''; } catch (e) { console.error(e); return ''; } },
+  cycleChip: () => { try { if (!C || !recs('cycles').length) return ''; const cy = cycleStats(); if (!cy?.day) return ''; const ph = cyclePhase(cy.day), t = PHASE_TIPS[ph]; return t ? `<button type="button" class="stchip" data-overgo="care/cycle"><span>${t[0]}</span><em>Dag ${cy.day} · ${esc(PHASE_COACH[ph]?.nl || ph)}</em></button>` : ''; } catch { return ''; } },
   dayNow: () => { try { return C ? dayPlanHTML(false, 'now') : ''; } catch (e) { console.error(e); return ''; } },
   moneyChip: () => { try { if (!C || !recs('faccounts').length) return ''; const st = fState(); return `<button type="button" class="stchip money" data-overgo="money/today"><span>💶</span>${moneyHidden() ? '€•••' : (st.perDay < 0 ? '−' : '') + eur(Math.abs(st.perDay))} vandaag</button>`; } catch { return ''; } },
   dayStats: () => { try { return C ? dayStats() : null; } catch { return null; } },
