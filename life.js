@@ -386,12 +386,36 @@ const EMO = {
 const emoOf = (scale, v) => (EMO[scale] || EMO.mood).find(x => x[0] === Math.round(num(v)))?.[1] || '';
 const DRINKS = [['water', 'Water', '💧'], ['soda', 'Soda', '🥤'], ['juice', 'Juice', '🧃'], ['coffee', 'Coffee', '☕'], ['matcha', 'Matcha', '🍵'], ['tea', 'Tea', '🫖'], ['alcohol', 'Alcohol', '🍷']];
 // drinks for the drink tracker on Today (see drinkSheet)
+/* ---------- nails: what a nail tech keeps track of ----------
+   The bit guide holds the common shapes with what they are for, the step in your routine, a fitting grit and speed. */
+const BIT_GUIDE = [
+  ['Barrel', '▮', 'Plat over het nageloppervlak: gel of acryl eraf vijlen en de bovenkant egaal maken.', ['Removal', 'Finish'], 'Medium', '15.000 tot 25.000'],
+  ['UNC', '⬭', 'Smal en rond: onder de vrije rand en de C-curve netjes maken.', ['Removal', 'Finish'], 'Medium', '10.000 tot 15.000'],
+  ['Cone', '◣', 'Taps: zijwanden en lastige hoekjes.', ['Removal', 'Finish'], 'Fine', '10.000 tot 15.000'],
+  ['Flame', '🔥', 'Vlamvorm: nagelriemen en zijkanten, ook dode huid.', ['Prep'], 'Fine', '5.000 tot 10.000'],
+  ['Safety bit', '🛡️', 'Afgeronde top: veilig langs de nagelriem zonder in de huid te snijden.', ['Prep', 'Removal'], 'Fine', '8.000 tot 15.000'],
+  ['Ball', '●', 'Bolletje: de nagelriem omhoog en de riemplooi schoon.', ['Prep'], 'Fine', '5.000 tot 10.000'],
+  ['Needle', '│', 'Dunne naald: precies werk rond de riemen.', ['Prep'], 'Fine', '5.000 tot 8.000'],
+  ['Mandrel', '◼', 'Houder voor sanding bands: vorm geven en de natuurlijke nagel licht opruwen.', ['Prep', 'Finish'], 'Medium', '8.000 tot 12.000'],
+  ['Smooth top', '⚙️', 'Groot carbide bitje dat veel tegelijk doet: verwijderen, vorm en zijkanten.', ['Removal', 'Finish'], 'Medium', '15.000 tot 25.000'],
+  ['Buffer', '✨', 'Zacht polijsten voor glans of de laatste finish.', ['Finish', 'Aftercare'], 'Extra fine', '5.000 tot 8.000']
+];
+const GRITS = [['Extra fine', '#e8c234'], ['Fine', '#3fae5a'], ['Medium', '#3a7bd5'], ['Coarse', '#e04040'], ['Extra coarse', '#3b2a20']];
+const NPARTS = [['Removal', '🧴', '#c4646a'], ['Prep', '✂️', '#d99a4e'], ['Application', '💧', '#6f9a5b'], ['Finish', '✨', '#5b7fb3'], ['Aftercare', '🌿', '#8a6bb0']];
+const NFINISH = ['Crème', 'Shimmer', 'Jelly', 'Cat eye', 'Glitter', 'Chrome', 'Neon', 'Thermal', 'Glow'];
+const NTYPES = ['Gel polish', 'BIAB', 'Builder gel', 'Polygel', 'Acryl', 'Nagellak', 'Press-on'];
+const NPROD_CATS = [['Base, top en builder', ['Base', 'Top', 'Rubber base', 'BIAB', 'Builder gel', 'Polygel', 'Acryl']], ['Prep-vloeistoffen', ['Cleaner', 'Dehydrator', 'Primer', 'Remover', 'Cuticle oil']],
+  ['Tips en nail art', ['Tips', 'Forms', 'Stickers', 'Foils', 'Chrome-poeder', 'Glitter', 'Charms']], ['Apparaten en penselen', ['Drill', 'Lamp', 'Penseel', 'Dotting tool', 'Stofzuiger', 'Ander apparaat']]];
+const NTUT_CATS = [['Nail art', ['French', 'Chrome', 'Aura', 'Ombré', 'Cat eye', '3D', 'Stamping', 'Line art', 'Stickers']], ['Applicatie', ['BIAB', 'Gel polish', 'Polygel', 'Acryl', 'Tips / Gel-X']],
+  ['Technieken', ['Vormen en vijlen', 'Apex', 'Capping', 'Drill gebruiken']], ['Removal', ['Soak off', 'Eraf drillen', 'Fill']], ['Prep', ['Nagelriemen', 'Dehydrator en primer']],
+  ['Finish', ['Top coat', 'Glans', 'Matte']], ['Aftercare', ['Nagelgezondheid', 'Olie', 'Reparatie']], ['Producten', ['Reviews', 'Swatches', 'Unboxings']]];
+
 const DKS = [['water', '💧', 'Water', 'water'], ['bruis', '🫧', 'Bruiswater', 'water'], ['thee', '🍵', 'Thee', 'warm'], ['koffie', '☕', 'Koffie', 'warm'], ['matcha', '🍵', 'Matcha', 'warm'],
   ['melk', '🥛', 'Melk', 'milk'], ['havermelk', '🥛', 'Havermelk', 'milk'], ['smoothie', '🥤', 'Smoothie', 'milk'], ['ijskoffie', '🧋', 'IJskoffie', 'milk'],
   ['fris', '🥤', 'Frisdrank', 'less'], ['sap', '🧃', 'Sap', 'less'], ['alcohol', '🍷', 'Alcohol', 'less']];
 const DK_GROUP = { water: ['Water', '#7fa6c9'], warm: ['Thee en koffie', '#c99a6b'], milk: ['Melk en smoothie', '#d8c7a8'], less: ['Minderen', '#d9707c'] };
 const dkOf = k => DKS.find(d => d[0] === k) || DKS[0];
-const nailDays = r => { if (!r?.date) return null; const off = r.off || recs('naillog').filter(x => x.date > r.date && x.kind !== 'Care').map(x => x.date).sort()[0]; return off ? diffDays(r.date, off) : null; };
+const nailDays = r => { if (!r?.date) return null; const off = r.off || recs('naillog').filter(x => x.date > r.date && x.what !== 'Care').map(x => x.date).sort()[0]; return off ? diffDays(r.date, off) : null; };
 const FEELINGS = ['Happy', 'Grateful', 'Proud', 'Calm', 'Loved', 'Excited', 'Tired', 'Restless', 'Anxious', 'Irritated', 'Sad', 'Lonely', 'Overwhelmed', 'Bored'];
 const MOOD_FACTORS = ['Work', 'People', 'Sleep', 'Food', 'Cycle', 'Social media', 'Weather', 'Money', 'Training', 'Home', 'Health'];
 const CYCLE_SYM = ['Cramps', 'Headache', 'Bloating', 'Fatigue', 'Acne', 'Tender breasts', 'Back pain', 'Cravings', 'Nausea', 'Diarrhoea', 'Constipation', 'Insomnia'];
@@ -1088,13 +1112,65 @@ const KINDS = {
     sub: r => [niceDate(r.date), ...['moisture', 'breakage', 'shine'].map(k => emoOf('hair', r[k])), r.length ? r.length + ' cm' : '', relNames(r.steps).slice(0, 3).join(', ')].filter(Boolean).join(' · ')
   },
   naillog: {
-    one: 'nail set', many: 'Nail log', facet: 'kind', photo: 'photo', display: 'cards',
-    fields: [F('date', 'Date', 'date', { half: 1 }), F('kind', 'What', 'select', { options: ['Full set', 'Fill', 'Repair', 'Care', 'Removed'], half: 1 }),
+    one: 'nail set', many: 'Nail log', facet: 'what', photo: 'photo', display: 'cards',
+    fields: [F('date', 'Date', 'date', { half: 1 }), F('what', 'What', 'select', { options: ['Full set', 'Fill', 'Repair', 'Care', 'Removed'], half: 1 }),
       F('technique', 'Technique', 'select', { options: ['Biab', 'Gel', 'Polygel', 'Press-ons', 'Tips', 'Natural'], half: 1 }), F('shape', 'Shape', 'select', { options: ['Almond', 'Oval', 'Square', 'Squoval', 'Coffin', 'Stiletto', 'Round'], half: 1 }),
       F('photo', 'Photo', 'photo'), F('design', 'Design and colour', 'text'), F('minutes', 'Minutes', 'num', { half: 1 }), F('off', 'Removed or broke on', 'date', { half: 1 }),
-      F('inspo', 'From inspiration', 'rel', { to: 'ideas' }), F('notes', 'Notes', 'long')],
-    title: r => r.design || r.kind || 'Nails', sorts: [['-date', 'Newest']],
+      F('inspo', 'From inspiration', 'rel', { to: 'ideas' }), F('colors', 'Kleuren', 'rel', { to: 'ncolors', multi: 1 }), F('routine', 'Routine', 'rel', { to: 'nroutines', half: 1 }), F('notes', 'Notes', 'long')],
+    title: r => r.design || r.what || 'Nails', sorts: [['-date', 'Newest']],
     sub: r => [niceDate(r.date), r.technique, r.minutes ? r.minutes + ' min' : '', nailDays(r) != null ? `lasted ${nailDays(r)} days` : ''].filter(Boolean).join(' · ')
+  },
+  nbits: {
+    one: 'bit', many: 'Drill bits', facet: 'shape', photo: 'photo', display: 'cards',
+    fields: [F('name', 'Naam (optioneel)'), F('shape', 'Vorm', 'select', { options: BIT_GUIDE.map(b => b[0]), half: 1 }), F('grit', 'Grit', 'select', { options: GRITS.map(g => g[0]), half: 1 }),
+      F('material', 'Materiaal', 'select', { options: ['Carbide', 'Diamant', 'Keramiek', 'Sanding band', 'Rubber', 'Silicone'], half: 1 }), F('steps', 'Stap in je routine', 'multi', { options: NPARTS.map(p => p[0]) }),
+      F('use', 'Waarvoor gebruik je hem', 'text'), F('rpm', 'Snelheid (rpm)', 'text', { half: 1 }), F('dir', 'Richting', 'select', { options: ['Vooruit', 'Achteruit', 'Allebei'], half: 1 }),
+      F('count', 'Hoeveel heb je er', 'num', { half: 1 }), F('spare', 'Waarvan in reserve', 'num', { half: 1 }), F('worn', 'Waarvan versleten', 'num', { half: 1 }), F('slots', 'Plekken in je houder (bijv. 1, 2)', 'text', { half: 1 }),
+      F('uses', 'Keer gebruikt', 'num', { half: 1 }), F('life', 'Versleten na ± keer', 'num', { half: 1 }),
+      F('photo', 'Foto', 'photo'), F('url', 'Link van de shop', 'url'), F('brand', 'Merk', 'text', { half: 1 }), F('price', 'Prijs', 'money', { half: 1 }), F('score', 'Review', 'rating'), F('notes', 'Notities', 'long')],
+    title: r => r.name || [r.shape, r.grit].filter(Boolean).join(' · ') || 'Bitje',
+    sub: r => [r.grit, r.material, [].concat(r.steps || []).join(' + '), num(r.count) > 1 ? '×' + num(r.count) : ''].filter(Boolean).join(' · ')
+  },
+  nsets: {
+    one: 'set', many: 'Gelsets', photo: 'photo', display: 'cards',
+    fields: [F('name', 'Naam van de set'), F('brand', 'Merk', 'text', { half: 1 }), F('code', 'Code (bijv. BP-A)', 'text', { half: 1 }), F('color', 'Kleur van het label', 'text', { half: 1 }), F('size', 'Aantal kleuren', 'num', { half: 1 }),
+      F('photo', 'Foto van de kleurenkaart', 'photo'), F('url', 'Link van de set', 'url'), F('bought', 'Gekocht op', 'date', { half: 1 }), F('price', 'Prijs', 'money', { half: 1 }), F('notes', 'Notities', 'long')],
+    title: r => [r.code, r.name].filter(Boolean).join(' · ') || 'Set', sub: r => [r.brand, nColorsOf(r.id).length ? plural(nColorsOf(r.id).length, 'kleur', 'kleuren') : ''].filter(Boolean).join(' · ')
+  },
+  ncolors: {
+    one: 'colour', many: 'Nagelkleuren', facet: 'finish', photo: 'photo', display: 'cards',
+    fields: [F('name', 'Naam'), F('hex', 'Kleur (hex, bijv. #c4464f)', 'text', { half: 1 }), F('finish', 'Finish', 'select', { options: NFINISH, half: 1 }), F('type', 'Soort', 'select', { options: NTYPES, half: 1 }),
+      F('brand', 'Merk', 'text', { half: 1 }), F('set', 'Uit set', 'rel', { to: 'nsets', half: 1 }), F('num', 'Nummer in de set', 'text', { half: 1 }), F('wanted', 'Wil ik nog hebben', 'check'),
+      F('photo', 'Foto of swatch', 'photo'), F('url', 'Link', 'url'), F('price', 'Prijs', 'money', { half: 1 }), F('ml', 'Inhoud (ml)', 'num', { half: 1 }),
+      F('score', 'Sterren', 'rating'), F('coverage', 'Dekking', 'select', { options: ['1 laag', '2 lagen', '3 lagen'], half: 1 }), F('spread', 'Hoe smeert hij', 'multi', { options: ['Zelfnivellerend', 'Strepen', 'Te dun', 'Te dik', 'Krimpt'] }),
+      F('truecol', 'Kleur echt tegenover het flesje', 'select', { options: ['Precies', 'Bijna', 'Anders'], half: 1 }), F('again', 'Opnieuw kopen?', 'select', { options: ['Ja', 'Misschien', 'Nee'], half: 1 }), F('notes', 'Notities', 'long')],
+    title: r => r.name || (r.set && L.byId[r.set] ? nSetCode(L.byId[r.set]) + ' ' + (r.num || '') : 'Kleur'),
+    sub: r => [nCode(r), r.finish, r.brand, r.wanted ? '🛒 wil ik' : ''].filter(Boolean).join(' · ')
+  },
+  nprods: {
+    one: 'product', many: 'Nagelspullen', facet: 'cat', photo: 'photo', display: 'cards',
+    fields: [F('name', 'Naam'), F('cat', 'Soort', 'select', { options: NPROD_CATS.flatMap(c => c[1]), half: 1 }), F('brand', 'Merk', 'text', { half: 1 }), F('left', 'Hoeveel zit er nog in', 'pct'),
+      F('photo', 'Foto', 'photo'), F('url', 'Link', 'url'), F('price', 'Prijs', 'money', { half: 1 }), F('ml', 'Inhoud (ml)', 'num', { half: 1 }), F('warranty', 'Garantie tot', 'date', { half: 1 }), F('care', 'Onderhoud', 'text'),
+      F('score', 'Review', 'rating'), F('again', 'Opnieuw kopen?', 'select', { options: ['Ja', 'Misschien', 'Nee'], half: 1 }), F('notes', 'Notities', 'long')],
+    sub: r => [r.cat, r.brand, num(r.left) != null ? num(r.left) + '% over' : ''].filter(Boolean).join(' · ')
+  },
+  nroutines: {
+    one: 'routine', many: 'Nagelroutines', display: 'cards',
+    fields: [F('name', 'Naam (bijv. BIAB fill)'), F('emoji', 'Emoji', 'text', { half: 1 }), F('minutes', 'Duur ± (min)', 'num', { half: 1 }), F('parts', 'Onderdelen in deze volgorde', 'multi', { options: NPARTS.map(p => p[0]) }),
+      F('url', 'Video of bron', 'url'), F('notes', 'Notities', 'long')],
+    sub: r => [[].concat(r.parts || []).join(' › '), r.minutes ? '± ' + r.minutes + ' min' : ''].filter(Boolean).join(' · ')
+  },
+  nsteps: {
+    one: 'step', many: 'Routinestappen', facet: 'part',
+    fields: [F('name', 'Stap'), F('part', 'Onderdeel', 'select', { options: NPARTS.map(p => p[0]), half: 1 }), F('order', 'Volgorde', 'num', { half: 1 }), F('only', 'Alleen in deze routines (leeg = in alle)', 'rel', { to: 'nroutines', multi: 1 }),
+      F('bit', 'Bitje', 'rel', { to: 'nbits', half: 1 }), F('minutes', 'Minuten', 'num', { half: 1 }), F('prods', 'Producten', 'rel', { to: 'nprods', multi: 1 }), F('tip', 'Tip of uitleg', 'long', { rows: 2 }), F('tut', 'Tutorial', 'rel', { to: 'ntuts' })],
+    sub: r => [r.part, r.bit && L.byId[r.bit] ? titleOf(L.byId[r.bit]) : '', r.minutes ? r.minutes + ' min' : ''].filter(Boolean).join(' · ')
+  },
+  ntuts: {
+    one: 'tutorial', many: 'Nagel-tutorials', facet: 'cats', photo: 'photo', display: 'cards',
+    fields: [F('name', 'Titel'), F('url', 'Link (TikTok, YouTube, Instagram)', 'url'), F('cats', 'Categorie', 'multi', { options: NTUT_CATS.map(c => c[0]) }), F('subs', 'Onderwerp', 'multi', { options: NTUT_CATS.flatMap(c => c[1]) }),
+      F('status', 'Status', 'select', { options: ['Nog proberen', 'Gedaan', 'Bewaard'], half: 1 }), F('creator', 'Maker', 'text', { half: 1 }), F('photo', 'Plaatje', 'photo'), F('steps', 'Stappen uit de video', 'long', { rows: 4 }), F('notes', 'Notities', 'long')],
+    sub: r => [tutSource(r.url), [].concat(r.cats || []).join(', '), r.status].filter(Boolean).join(' · ')
   },
   cyclelog: {
     one: 'day', many: 'Cycle diary', facet: 'flow',
@@ -1467,7 +1543,7 @@ function seasonTop() {
     ${picks.length ? `<div class="lrows">${picks.slice(0, 6).map(({ r, h }) => `<div class="lrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(r.name || 'Recipe')}</b><span>${esc(h.map(x => x[1] + ' ' + x[0].toLowerCase()).join(' · '))}</span></button></div>`).join('')}</div><p class="lnone">Pick <b>🍂 In season</b> in the filters to see them all.</p>` : '<p class="lnone">None of your recipes use these yet. Add one with pumpkin, kale or leek and it shows up here.</p>'}</div></details>`;
 }
 // paste a link and the record fills itself: what the page says right away, the rest by the nightly Claude task (needsFill)
-const LINKFILL = { recipes: 'link', ingredients: 'url', gear: 'url', supplements: 'url', beauty: 'url', inventory: 'url', invopts: 'url', fwait: 'url', fitgear: 'url', wishes: 'url', gifts: 'url', orders: 'url', books: 'url', stays: 'url', fragsugs: 'url', courses: 'url' };
+const LINKFILL = { nbits: 'url', ncolors: 'url', nsets: 'url', nprods: 'url', ntuts: 'url', nroutines: 'url', recipes: 'link', ingredients: 'url', gear: 'url', supplements: 'url', beauty: 'url', inventory: 'url', invopts: 'url', fwait: 'url', fitgear: 'url', wishes: 'url', gifts: 'url', orders: 'url', books: 'url', stays: 'url', fragsugs: 'url', courses: 'url' };
 function linkFields(kind, info) {
   const has = k => KINDS[kind].fields.some(f => f.k === k), out = {};
   const put = (k, v) => { if (v != null && v !== '' && !(Array.isArray(v) && !v.length) && has(k)) out[k] = v; };
@@ -1647,7 +1723,7 @@ const PAGES = {
   'kitchen/drinks': { render: drinksPage, adds: ['drinklog'] },
   'kitchen/cooked': { title: 'Cooking log', segs: [{ kind: 'rreviews' }] },
   'care/hair': { render: hairPage, adds: ['hairlog', 'beauty', 'reslinks'] },
-  'care/nails': { render: nailsPage, adds: ['naillog', 'ideas', 'reslinks'] },
+  'care/nails': { render: nailsPage, adds: ['naillog', 'nbits', 'ncolors', 'nsets', 'nprods', 'nroutines', 'nsteps', 'ntuts', 'ideas', 'reslinks'] },
   'care/sleep': { render: sleepPage, adds: ['sleep', 'reslinks'] },
   'care/checkin': { render: checkinPage, adds: ['checkin', 'journal', 'reslinks'] },
   'care/learn': { title: 'Learning', segs: [{ kind: 'books', top: learnTop }, { kind: 'learnlog' }, { kind: 'courses' }] },
@@ -1775,7 +1851,7 @@ async function load() {
     if (data.length < 1000) break;
   }
   L.missing = false; L.status = 'ok'; L.fresh = true;
-  L.all = rows.map(r => ({ ...r.data, id: r.id, kind: r.kind })); index(); cacheSave(); C.render();
+  L.all = rows.map(r => ({ ...r.data, ...(r.data?.kind && r.data.kind !== r.kind && r.data.what == null ? { what: r.data.kind } : {}), id: r.id, kind: r.kind })); index(); cacheSave(); C.render();
   movePostIdeas();
   comboMigrate().catch(console.error);
   fAutoPay().catch(console.error);
@@ -1847,7 +1923,7 @@ async function putMany(rows, progress, label) {
     await C.sbWriteMany('records', part.map(r => ({ user_id: C.uid(), id: r.id, kind: r.kind, data: r.data, updated_at: now })));
     progress?.(Math.min(rows.length, i + 400), rows.length);
   }
-  for (const r of rows) { const i = L.all.findIndex(x => x.id === r.id); const v = { ...r.data, id: r.id, kind: r.kind }; i >= 0 ? (L.all[i] = v) : L.all.push(v); }
+  for (const r of rows) { const i = L.all.findIndex(x => x.id === r.id); const v = { ...r.data, ...(r.data?.kind && r.data.kind !== r.kind && r.data.what == null ? { what: r.data.kind } : {}), id: r.id, kind: r.kind }; i >= 0 ? (L.all[i] = v) : L.all.push(v); }
   index(); cacheSave(); C.render();
 }
 function failed(e) {
@@ -5972,7 +6048,7 @@ function repSections(from, to) {
     { k: 'skin', t: '✨ Skin, hair and nails', stats: [s('Skin score', avgOf(skin.map(x => num(x.score))), { unit: '/10', good: 'up' }), s('Diary entries', skin.length, { good: 'up' }),
       s('Products running low', recs('beauty').filter(b => b.low && !b.finished && !b.archived).length, { good: 'down' }), s('Techniques planned', days.reduce((n, d) => n + techOn(d, false).length + techOn(d, true).length, 0)),
       s('🚿 Wash days', hair.filter(x => x.type === 'Wash day').length), s('💧 Hair moisture', avgK(hair, 'moisture'), { unit: '/5', good: 'up' }), s('🌙 Night routines', hair.filter(x => x.type === 'Night routine').length, { good: 'up' }),
-      s('💅 Nail sets', nails.filter(x => ['Full set', 'Fill'].includes(x.kind)).length), s('⏳ Nails lasted', avgOf(nails.map(nailDays).filter(v => v != null)), { unit: ' days', good: 'up' })] },
+      s('💅 Nail sets', nails.filter(x => ['Full set', 'Fill'].includes(x.what)).length), s('⏳ Nails lasted', avgOf(nails.map(nailDays).filter(v => v != null)), { unit: ' days', good: 'up' })] },
     { k: 'home', t: '🏠 Home and planning', stats: [s('Chores done', ch.length, { good: 'up' }), s('Tasks done', tasksDone.length, { good: 'up' }), s('Habits kept', hDue.length ? 100 * hDue.filter(Boolean).length / hDue.length : null, { unit: '%', good: 'up' }),
       s('Week checklist', wk && WPCFG().custom.length ? 100 * (WPCFG().checks[from] || []).length / WPCFG().custom.length : null, { unit: '%', good: 'up' }),
       s('🧽 Minutes cleaned', sumOf(hl.map(x => x.minutes)), { good: 'up' }), s('✨ Daily reset', rDone(r => r.area === 'Home'), { unit: '%', good: 'up' })],
@@ -8178,6 +8254,9 @@ function dayPlan(d = today()) {
   try { if (shopDateIn(weekMon(d)) === d) { const n = recs('ingredients').filter(i => i.list).length; add({ key: 'shop', min: null, label: 'Boodschappen', sub: n ? plural(n, 'ding', 'dingen') + ' op je lijst' : 'je lijst is leeg', done: ticked.has('shop'), type: 'shop', go: 'kitchen/groceries', act: tick('shop') }); } } catch {}
   try { for (const eve of [false, true]) { const ps = slotOn(d, eve); if (!ps.length) continue; const k = 'skin:' + (eve ? 'PM' : 'AM');
     add({ key: k, min: eve ? bed - 50 : w + 20, label: eve ? 'Skincare avond' : 'Skincare ochtend', sub: ps.length === 1 ? titleOf(ps[0]) : plural(ps.length, 'stap', 'stappen'), done: ticked.has(k), type: 'skin', go: 'care/skin', act: tick(k) }); } } catch {}
+  // nails: cuticle oil morning and evening, and the fill when your set is old enough
+  try { if (nailPrefs().oil !== false && (recs('naillog').length || recs('nprods').some(p => p.cat === 'Cuticle oil'))) for (const [k, min] of [['oil:AM', w + 25], ['oil:PM', bed - 30]]) add({ key: k, min, label: 'Cuticle oil', sub: k === 'oil:AM' ? 'ochtend' : 'avond', done: ticked.has(k), type: 'oil', act: tick(k) });
+    const ls = lastNailSet(), age = ls ? diffDays(ls.date, d) : null; if (age != null && age >= nailFillDays() && !['Removed'].includes(byDate('naillog')[0]?.what)) add({ key: 'nails:fill', min: null, label: 'Tijd voor een fill', sub: `je set is ${age} dagen oud`, done: ticked.has('nails:fill'), type: 'nails', go: 'care/nails', act: tick('nails:fill') }); } catch {}
   const wgoal = Number(C?.prefs?.().waterGoal) || 8, wn = waterOn(d)?.glasses || 0;
   add({ key: 'water', min: null, label: 'Water', sub: `${wn} van ${wgoal} glazen`, done: wn >= wgoal, type: 'water' });
   return out.sort((a, b) => (a.min ?? 1e4) - (b.min ?? 1e4) || norm(a.label).localeCompare(norm(b.label)));
@@ -8191,6 +8270,8 @@ function dpIcon(x) {
   if (x.type === 'bill') return '💶';
   if (x.type === 'shop') return '🛒';
   if (x.type === 'skin') return '🧴';
+  if (x.type === 'oil') return '💧';
+  if (x.type === 'nails') return '💅';
   if (x.type === 'habit') return '✨';
   const k = x.rec?.kind, n = norm(x.label);
   if (k === 'appts') return /tand/.test(n) ? '🦷' : /arts|dokter|huisarts/.test(n) ? '🩺' : /kapper|haar/.test(n) ? '💇🏾‍♀️' : '📅';
@@ -9568,17 +9649,343 @@ const NAIL_RES = [['Doing your own nails', [
   ['Fills instead of new sets', 'A fill every 2 to 3 weeks keeps your nails stronger than soaking off and starting over each time.'],
   ['Nail health', 'Cuticle oil every day, gloves for cleaning, and a break of a week if your nails get thin, soft or painful. Never pick or peel gel off.'],
   ['Allergies', 'Keep gel and liquid off your skin. Itching, redness or swelling around the nails can be an allergy to acrylates: stop and see your GP.']]]];
+/* ---------- Nails: your own nail studio ----------
+   Tabs: Overzicht (next treatment and what is going on), Routines (builder, sets and a do-mode with timer), Bitjes (holder,
+   per step or photo cards), Kleuren (wall, bottles, wheel; sets with codes), Spullen, Tutorials, Log, Inspiratie, Tips. */
+const nColorsOf = setId => recs('ncolors').filter(c => c.set === setId);
+const nSetCode = s => s?.code || String(s?.name || 'Set').split(/\s+/).map(w => w[0]).join('').slice(0, 3).toUpperCase();
+const nCode = c => { const s = c?.set && L.byId[c.set]; return s ? nSetCode(s) + (c.num ? ' ' + String(c.num).padStart(2, '0') : '') : ''; };
+const tutSource = u => { const h = hostOf(u || ''); return /tiktok/.test(h) ? 'TikTok' : /youtu/.test(h) ? 'YouTube' : /instagram/.test(h) ? 'Instagram' : /pinterest/.test(h) ? 'Pinterest' : h; };
+const gritCol = g => (GRITS.find(x => x[0] === g) || [0, '#b8a898'])[1];
+const bitGuide = shape => BIT_GUIDE.find(b => b[0] === shape);
+const bitGlyph = r => bitGuide(r.shape)?.[1] || '🔩';
+const BIT_LIFE = { Carbide: 300, Diamant: 120, Keramiek: 200, 'Sanding band': 1, Rubber: 50, Silicone: 50 };
+const bitLife = r => num(r.life) || BIT_LIFE[r.material] || 150;
+const bitWearing = r => (num(r.uses) || 0) >= bitLife(r) * .85;
+const partOf = p => NPARTS.find(x => x[0] === p) || [p, '•', '#b8a898'];
+const hexOk = h => /^#?[0-9a-f]{6}$/i.test(String(h || '').trim()) ? '#' + String(h).trim().replace('#', '').toLowerCase() : '';
+function hexHsl(h) { const x = hexOk(h); if (!x) return null; const r = parseInt(x.slice(1, 3), 16) / 255, g = parseInt(x.slice(3, 5), 16) / 255, b = parseInt(x.slice(5, 7), 16) / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+  let hh = 0; if (d) hh = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return { h: (hh * 60 + 360) % 360, s: d ? d / (1 - Math.abs(2 * l - 1)) : 0, l }; }
+function hexLab(h) { const x = hexOk(h); if (!x) return null; const f = v => { v /= 255; return v > .04045 ? ((v + .055) / 1.055) ** 2.4 : v / 12.92; }; const [r, g, b] = [1, 3, 5].map(i => f(parseInt(x.slice(i, i + 2), 16)));
+  const X = (r * .4124 + g * .3576 + b * .1805) / .95047, Y = r * .2126 + g * .7152 + b * .0722, Z = (r * .0193 + g * .1192 + b * .9505) / 1.08883, t = v => v > .008856 ? Math.cbrt(v) : 7.787 * v + 16 / 116;
+  return [116 * t(Y) - 16, 500 * (t(X) - t(Y)), 200 * (t(Y) - t(Z))]; }
+const deltaE = (a, b) => { const p = hexLab(a), q = hexLab(b); return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : 99; };
+const colorSort = (a, b) => { const p = hexHsl(a.hex), q = hexHsl(b.hex); if (!p || !q) return p ? -1 : q ? 1 : 0; const grey = x => x.s < .12 || x.l > .93 || x.l < .08; if (grey(p) !== grey(q)) return grey(p) ? 1 : -1; return grey(p) ? q.l - p.l : (Math.round(p.h / 15) - Math.round(q.h / 15)) || q.l - p.l; };
+const COLOR_FAMILIES = [['rood', 345, 15], ['oranje', 15, 40], ['geel', 40, 70], ['groen', 70, 170], ['blauw', 170, 250], ['paars', 250, 290], ['roze', 290, 345]];
+const familyOf = h => { const x = hexHsl(h); if (!x) return ''; if (x.s < .15 || x.l > .9 || x.l < .1) return 'neutraal'; if (x.l < .45 && x.h > 10 && x.h < 50 && x.s < .6) return 'bruin'; return (COLOR_FAMILIES.find(([, a, b]) => a > b ? x.h >= a || x.h < b : x.h >= a && x.h < b) || ['rood'])[0]; };
+const nView = (k, def) => { try { return localStorage.getItem('nails:' + k) || def; } catch { return def; } };
+const nViewSet = (k, v) => { try { localStorage.setItem('nails:' + k, v); } catch {} };
+const nailPrefs = () => (C?.prefs?.() || {}).nails || {};
+const nailSave = patch => C.savePrefs({ nails: { ...nailPrefs(), ...patch } }).catch(() => C.toast('Opslaan lukte niet. Probeer het opnieuw.'));
+const lastNailSet = () => byDate('naillog').find(r => ['Full set', 'Fill'].includes(r.what));
+const nailFillDays = () => num(nailPrefs().fillDays) || 21;
+const colorDays = c => { const sets = byDate('naillog').filter(r => [].concat(r.colors || []).includes(c.id)).map(nailDays).filter(x => x != null); return sets.length ? Math.round(sets.reduce((a, b) => a + b, 0) / sets.length) : null; };
+const avgNailDays = () => { const l = byDate('naillog').map(nailDays).filter(x => x != null); return l.length ? Math.round(l.reduce((a, b) => a + b, 0) / l.length) : null; };
+const nStars = s => { const x = sc10(s); if (!x) return ''; const n = Math.round(x / 2); return '★'.repeat(n) + '☆'.repeat(5 - n); };
+
+// the holder: every copy of a bit gets a slot; slots you typed first, then the next free ones
+function holderSlots() {
+  const out = [], taken = new Set(), bits = recs('nbits').slice().sort((a, b) => NPARTS.findIndex(p => p[0] === [].concat(a.steps || [])[0]) - NPARTS.findIndex(p => p[0] === [].concat(b.steps || [])[0]) || norm(titleOf(a)).localeCompare(norm(titleOf(b))));
+  const want = []; for (const b of bits) { const n = Math.max(1, num(b.count) || 1), fixed = String(b.slots || '').split(/[^0-9]+/).map(Number).filter(Boolean); for (let i = 0; i < n; i++) want.push({ b, i, n, slot: fixed[i] || null }); }
+  for (const w of want) if (w.slot && !taken.has(w.slot)) { taken.add(w.slot); out.push(w); } else w.slot = null;
+  let next = 1; for (const w of want.filter(w => !w.slot)) { while (taken.has(next)) next++; w.slot = next; taken.add(next); out.push(w); }
+  return out.sort((a, b) => a.slot - b.slot);
+}
+function bitsBody() {
+  const v = nView('bits', innerWidth >= 700 ? 'holder' : 'steps'), bits = recs('nbits');
+  const tools = `<div class="ntools">${tabsHTML('data-nbv', v, [['holder', 'Houder'], ['steps', 'Per stap'], ['cards', 'Kaarten']])}<span class="spacer"></span><button class="btn small primary" data-nguide>+ Uit de gids</button><button class="btn small" data-lnew="nbits" data-pre="{}">+ Link of foto</button><button class="btn small" data-nbitset>+ Hele set</button></div>`;
+  // the same bit twice as separate cards: offer to merge
+  const key = r => [r.shape, r.grit, r.material].map(norm).join('|'), groups = {}; for (const r of bits) if (r.shape) (groups[key(r)] ||= []).push(r);
+  const dups = Object.values(groups).filter(g => g.length > 1);
+  const dupHTML = dups.map(g => `<div class="nwarn">🔎 <b>Waarschijnlijk dubbel:</b> ${g.length} kaarten voor <b>${esc([g[0].shape, g[0].grit, g[0].material].filter(Boolean).join(' · '))}</b>. <button class="chip small primary" data-nmerge="${g.map(r => r.id).join(',')}">Samenvoegen (×${g.reduce((n, r) => n + Math.max(1, num(r.count) || 1), 0)})</button></div>`).join('');
+  if (!bits.length) return tools + `<div class="emptyx"><p class="ebig">🔩</p><p><b>Nog geen bitjes.</b> Kies je vormen uit de gids, plak een shop-link of voer een hele set in één keer in.</p><div class="lwrap">${BIT_GUIDE.slice(0, 3).map(g => `<button class="chip" data-nguideadd="${esc(g[0])}">${g[1]} ${esc(g[0])}</button>`).join('')}</div></div>`;
+  const pill = r => r.grit ? `<span class="npill" style="background:${gritCol(r.grit)}">${esc(r.grit)}</span>` : '';
+  let body = '';
+  if (v === 'holder') {
+    const sl = holderSlots(), max = Math.max(...sl.map(s => s.slot), 0);
+    const cell = n => { const s = sl.find(x => x.slot === n); if (!s) return `<button class="nslot empty" data-lnew="nbits" data-pre='${esc(JSON.stringify({ slots: String(n) }))}'><span class="n">${n}</span><span class="plus">+</span><small>leeg</small></button>`;
+      const r = s.b, worn = s.i >= (num(r.count) || 1) - (num(r.worn) || 0); return `<button class="nslot ${worn ? 'worn' : ''}" data-nbit="${r.id}"><span class="n">${n}</span><span class="glyph">${bitGlyph(r)}</span><span class="g" style="background:${gritCol(r.grit)}"></span><b>${esc(r.shape || titleOf(r))}</b><small>${esc([].concat(r.steps || [])[0] || '')}${s.n > 1 ? ` · ${s.i + 1} van ${s.n}` : ''}</small>${bitWearing(r) ? '<i class="nwear">bijna op</i>' : ''}</button>`; };
+    body = `<div class="nholder">${Array.from({ length: max + 1 }, (_, i) => cell(i + 1)).join('')}</div><div class="nleg">${GRITS.map(([g, c]) => `<span><i style="background:${c}"></i>${g}</span>`).join('')}</div>`;
+  } else if (v === 'steps') {
+    body = NPARTS.map(([p, ic]) => { const l = bits.filter(r => [].concat(r.steps || []).includes(p)); return l.length ? `<p class="nstep">${ic} ${esc(p)}</p>${l.map(r => `<button class="nrow" data-nbit="${r.id}"><span class="nic">${bitGlyph(r)}</span><span><b>${esc(r.shape || titleOf(r))}</b>${pill(r)}${num(r.count) > 1 ? ` <em>×${num(r.count)}</em>` : ''}<small>${esc(r.use || bitGuide(r.shape)?.[2] || '')}</small></span></button>`).join('')}` : ''; }).join('')
+      + (() => { const l = bits.filter(r => ![].concat(r.steps || []).length); return l.length ? `<p class="nstep">• Nog zonder stap</p>${l.map(r => `<button class="nrow" data-nbit="${r.id}"><span class="nic">${bitGlyph(r)}</span><span><b>${esc(titleOf(r))}</b>${pill(r)}</span></button>`).join('')}` : ''; })();
+  } else {
+    body = `<div class="ncards">${bits.map(r => `<button class="ncard" data-nbit="${r.id}"><div class="nimg" style="background:color-mix(in srgb, ${gritCol(r.grit)} 18%, var(--surface))">${r.photo ? `<img src="${esc(photoURL(r.photo))}" alt="" loading="lazy">` : `<span>${bitGlyph(r)}</span>`}${num(r.count) > 1 ? `<em>×${num(r.count)}</em>` : ''}</div><div class="nbd"><b>${esc(r.shape || titleOf(r))}</b><div class="ntags">${pill(r)}${r.material ? `<span>${esc(r.material)}</span>` : ''}${[].concat(r.steps || []).map(s => `<span>${esc(s)}</span>`).join('')}</div><small>${esc(r.use || bitGuide(r.shape)?.[2] || '')}</small></div></button>`).join('')}</div>`;
+  }
+  return tools + dupHTML + body;
+}
+function bitSheet(id) {
+  const r = L.byId[id]; if (!r) return; const g = bitGuide(r.shape), n = Math.max(1, num(r.count) || 1), worn = num(r.worn) || 0, spare = num(r.spare) || 0, uses = num(r.uses) || 0, life = bitLife(r);
+  const sh = C.sheet({ title: titleOf(r), body: `<div class="nbitbig" style="--gc:${gritCol(r.grit)}"><span class="glyph">${bitGlyph(r)}</span><div><b>${esc([r.shape, r.grit, r.material].filter(Boolean).join(' · '))}</b><p>${esc(r.use || g?.[2] || '')}</p>
+      <p class="lnone">${[[].concat(r.steps || g?.[3] || []).join(' + '), r.rpm || g?.[5] ? (r.rpm || g[5]) + ' rpm' : '', r.dir].filter(Boolean).map(esc).join(' · ')}</p></div></div>
+    <div class="ncount"><span>Je hebt er</span><button class="btn small" data-nb="count" data-d="-1">−</button><b>×${n}</b><button class="btn small" data-nb="count" data-d="1">+</button></div>
+    <div class="lwrap"><span class="chip">🟢 ${Math.max(0, n - spare - worn)} in gebruik</span><button class="chip" data-nb="spare" data-d="1">📦 ${spare} reserve +</button><button class="chip" data-nb="worn" data-d="1">🪫 ${worn} versleten +</button>${worn ? '<button class="chip" data-nb="worn" data-d="-1">↺ versleten −1</button>' : ''}</div>
+    <p class="lnone">Gebruikt: <b>${uses}</b> van ± ${life} keer${bitWearing(r) ? ' · <b>bijna versleten</b>, pak je reserve of zet hem op je lijst' : ''}.</p>
+    <div class="lbar2"><button class="btn primary" data-nb="uses" data-d="1">✓ Net gebruikt</button><button class="btn" data-nbedit>Bewerken</button>${r.url ? `<a class="btn" href="${esc(r.url)}" target="_blank" rel="noopener">Shop</a>` : ''}</div>` });
+  sh.addEventListener('click', async e => {
+    const b = e.target.closest('[data-nb]'); if (b) { const k = b.dataset.nb, d = Number(b.dataset.d), cur = num(r[k]) || (k === 'count' ? 1 : 0); let nv = Math.max(k === 'count' ? 1 : 0, cur + d);
+      if (k === 'worn' && nv > n) nv = n; await save(r, { [k]: nv }); if (k === 'worn' && d > 0 && nv >= n && !(num(r.spare) > 0)) C.toast('🪫 Alle exemplaren versleten. Zet hem op je verlanglijst.'); C.closeSheet(); bitSheet(id); C.render(); }
+    if (e.target.closest('[data-nbedit]')) { C.closeSheet(); openEditor('nbits', id); }
+  });
+}
+function bitGuideSheet() {
+  const sh = C.sheet({ title: 'Bitjes-gids', body: `<p class="lnone">Tik op de vorm die je hebt. Uitleg, stap, grit en snelheid komen er meteen bij.</p><div class="nguide">${BIT_GUIDE.map(([s, gl, txt, steps, grit, rpm]) => `<button class="nguideit" data-nguideadd="${esc(s)}"><span class="glyph">${gl}</span><span><b>${esc(s)}</b><small>${esc(txt)}</small><em>${steps.join(' + ')} · ${esc(grit)} · ${rpm} rpm</em></span></button>`).join('')}</div>` });
+  sh.addEventListener('click', e => { const b = e.target.closest('[data-nguideadd]'); if (b) { C.closeSheet(); addFromGuide(b.dataset.nguideadd); } });
+}
+async function addFromGuide(shape, extra = {}) {
+  const g = bitGuide(shape); if (!g) return;
+  const same = recs('nbits').find(r => r.shape === shape && (r.grit || '') === (extra.grit || g[4]) && (r.material || '') === (extra.material || ''));
+  if (same && confirm(`Deze heb je al (${titleOf(same)}). Eén erbij?`)) { await save(same, { count: Math.max(1, num(same.count) || 1) + 1 }); C.toast('+1 ' + titleOf(same)); return C.render(); }
+  const id = await create('nbits', { shape, grit: g[4], steps: g[3], use: g[2], rpm: g[5], count: 1, ...extra }); openEditor('nbits', id);
+}
+function bitSetSheet() {
+  const sh = C.sheet({ title: 'Hele set invoeren', body: `<p class="lnone">Zet bij elke vorm hoeveel je ervan in de set hebt. Ze krijgen de volgende vrije plekken in je houder.</p>
+    <div class="nsetrows">${BIT_GUIDE.map(([s, gl]) => `<label class="nsetrow"><span>${gl} ${esc(s)}</span><select class="pill" data-nsg="${esc(s)}">${GRITS.map(([g]) => `<option ${g === bitGuide(s)[4] ? 'selected' : ''}>${g}</option>`).join('')}</select><input class="finp" type="number" min="0" max="20" value="0" data-nsn="${esc(s)}"></label>`).join('')}</div>
+    <label class="nsetrow"><span>Materiaal</span><select class="pill" data-nsmat>${['', 'Carbide', 'Diamant', 'Keramiek'].map(m => `<option value="${m}">${m || 'Weet ik niet'}</option>`).join('')}</select></label>`,
+    foot: '<div class="spacer"></div><button class="btn primary" data-nsetgo>Toevoegen</button>' });
+  sh.addEventListener('click', async e => { if (!e.target.closest('[data-nsetgo]')) return; const mat = sh.querySelector('[data-nsmat]').value; let made = 0;
+    for (const inp of sh.querySelectorAll('[data-nsn]')) { const n = Number(inp.value) || 0; if (!n) continue; const s = inp.dataset.nsn, g = bitGuide(s); await create('nbits', { shape: s, grit: sh.querySelector(`[data-nsg="${CSS.escape(s)}"]`).value, material: mat, steps: g[3], use: g[2], rpm: g[5], count: n }); made += n; }
+    C.closeSheet(); C.toast(made ? `🔩 ${made} bitjes toegevoegd` : 'Niets gekozen'); C.render(); });
+}
+
+// colours: wall, bottles and wheel; sets have a code and colour of their own
+function colorsBody() {
+  const v = nView('colors', 'wall'), F2 = L.nColF ||= { finish: '', set: '' }, all = recs('ncolors'), sets = recs('nsets');
+  const l = all.filter(c => (!F2.finish || (F2.finish === 'wil' ? c.wanted : c.finish === F2.finish)) && (!F2.set || c.set === F2.set)).sort(colorSort);
+  const chips = `<div class="nchips"><button class="chip ${!F2.finish ? 'on' : ''}" data-ncf="">Alles ${all.length}</button>${NFINISH.filter(f => all.some(c => c.finish === f)).map(f => `<button class="chip ${F2.finish === f ? 'on' : ''}" data-ncf="${esc(f)}">${esc(f)}</button>`).join('')}${all.some(c => c.wanted) ? `<button class="chip ${F2.finish === 'wil' ? 'on' : ''}" data-ncf="wil">🛒 Wil ik</button>` : ''}</div>
+    ${sets.length ? `<div class="nchips">${sets.map(s => `<button class="chip nsetchip ${F2.set === s.id ? 'on' : ''}" style="--sc:${hexOk(s.color) || '#6b4a3c'}" data-ncs="${s.id}"><i></i>${esc(nSetCode(s))}</button>`).join('')}</div>` : ''}`;
+  const tools = `<div class="ntools">${tabsHTML('data-ncv', v, [['wall', 'Wand'], ['bottles', 'Flesjes'], ['wheel', 'Wiel'], ['sets', 'Sets']])}<span class="spacer"></span><button class="btn small primary" data-lnew="ncolors" data-pre="{}">+ Kleur</button><button class="btn small" data-nsetnew>+ Set</button><button class="btn small" data-ncompare>Vergelijken</button></div>`;
+  if (!all.length && v !== 'sets') return tools + `<div class="emptyx"><p class="ebig">🎨</p><p><b>Nog geen kleuren.</b> Plak een link van een kleur, of voer een hele set in met een foto van de kleurenkaart.</p><button class="btn primary" data-nsetnew>+ Set invoeren</button></div>`;
+  // almost the same colour in two different sets
+  const ok = new Set(nailPrefs().okPairs || []), pairs = [];
+  for (let i = 0; i < all.length && pairs.length < 3; i++) for (let j = i + 1; j < all.length && pairs.length < 3; j++) { const a = all[i], b = all[j]; if (!a.hex || !b.hex || a.set === b.set || a.wanted || b.wanted) continue; const k = [a.id, b.id].sort().join('|'); if (!ok.has(k) && deltaE(a.hex, b.hex) < 5) pairs.push([a, b, k]); }
+  const warn = pairs.map(([a, b, k]) => `<div class="nwarn"><span class="ndot" style="background:${hexOk(a.hex)}"></span><span class="ndot" style="background:${hexOk(b.hex)}"></span>🔎 <b>${esc(nCode(a) || titleOf(a))}</b> lijkt bijna gelijk aan <b>${esc(nCode(b) || titleOf(b))}</b>. <button class="chip small" data-nokpair="${k}">Allebei houden</button><button class="chip small" data-ncomp="${a.id},${b.id}">Vergelijken</button></div>`).join('');
+  const drop = c => `<button class="ndrop" style="--c:${hexOk(c.hex) || '#ccc'}" data-act="open" data-id="${c.id}" title="${esc(titleOf(c))}">${c.set ? `<span>${esc(String(c.num || '').padStart(2, '0'))}</span>` : ''}</button>`;
+  let body = '';
+  if (v === 'wall') body = `<div class="nwall">${l.map(drop).join('')}</div>`;
+  else if (v === 'bottles') body = `<div class="nbottles">${l.map(c => `<button class="nbottle" data-act="open" data-id="${c.id}">${c.brand || c.set ? `<span class="nbrand">${esc(nCode(c) || c.brand)}</span>` : ''}<div class="nb"><i class="cap"></i><i class="gl" style="background:${hexOk(c.hex) || '#ddd'}"></i></div><b>${esc(titleOf(c))}</b><small>${esc([c.finish, c.type].filter(Boolean).join(' · '))}${c.wanted ? ' · 🛒 wil ik' : ''}</small><span class="nstars">${nStars(c.score) || (c.wanted ? '' : '<em>nog geen review</em>')}</span></button>`).join('')}</div>`;
+  else if (v === 'wheel') {
+    const have = new Set(all.filter(c => !c.wanted).map(c => familyOf(c.hex)).filter(Boolean)), miss = [...COLOR_FAMILIES.map(f => f[0]), 'bruin', 'neutraal'].filter(f => !have.has(f));
+    const pin = c => { const x = hexHsl(c.hex); if (!x) return ''; const r = 30 + 70 * (1 - Math.abs(x.l - .5) * 2) * Math.min(1, x.s + .2), a = (x.h - 90) * Math.PI / 180; return `<button class="npin" style="left:${50 + r / 2 * Math.cos(a)}%;top:${50 + r / 2 * Math.sin(a)}%;background:${hexOk(c.hex)}" data-act="open" data-id="${c.id}" title="${esc(titleOf(c))}"></button>`; };
+    body = `<div class="nwheel">${l.map(pin).join('')}</div><p class="lnone" style="text-align:center">${miss.length ? 'Je hebt nog geen ' + miss.join(', ') + '.' : 'Je hebt van elke kleurfamilie iets 🎉'}</p>`;
+  } else body = sets.length ? `<div class="nsetlist">${sets.map(s => { const cs = nColorsOf(s.id).sort((a, b) => (Number(a.num) || 0) - (Number(b.num) || 0)); return `<div class="nsetcard"><div class="nsethead"><span class="nbadge" style="background:${hexOk(s.color) || '#6b4a3c'}">${esc(nSetCode(s))}</span><b>${esc(s.name || 'Set')}</b><span class="spacer"></span><button class="chip small" data-nsetfill="${s.id}">Kleuren invoeren</button><button class="chip small" data-nstick="${s.id}">Stickers</button><button class="chip small" data-act="open" data-id="${s.id}">Bewerken</button></div><p class="lnone">${esc([s.brand, plural(cs.length, 'kleur', 'kleuren') + (num(s.size) ? ' van ' + num(s.size) : '')].filter(Boolean).join(' · '))}</p><div class="nmini">${cs.map(c => `<i style="background:${hexOk(c.hex) || '#ddd'}" title="${esc(nCode(c))}"></i>`).join('')}</div></div>`; }).join('')}</div>` : `<p class="lnone">Nog geen sets. Tik op + Set.</p>`;
+  return tools + (v === 'sets' ? '' : chips) + warn + body;
+}
+// a set: new or existing, then its numbers: from a photo of the colour card (tap the first and the last swatch) or one by one with the camera as a pipette
+function setNewSheet() {
+  const sets = recs('nsets');
+  const sh = C.sheet({ title: 'Set invoeren', body: `${sets.length ? `<p class="dsub">Bestaande set</p><div class="lwrap">${sets.map(s => `<button class="chip" data-nsetfill="${s.id}">${esc(nSetCode(s))} · ${esc(s.name || '')}</button>`).join('')}</div><p class="dsub">Of een nieuwe</p>` : ''}
+    <form class="nsetform" data-nsetform><input class="finp" name="name" placeholder="Naam (bijv. Born Pretty set A)" required><input class="finp" name="code" placeholder="Code (bijv. BP-A)" maxlength="6"><input class="finp" name="size" type="number" min="1" max="200" placeholder="Aantal kleuren"><input class="finp" name="url" type="url" placeholder="Link van de set (optioneel)"><label class="nsetcol">Kleur van het label <input type="color" name="color" value="#c4646a"></label><button class="btn primary">Verder</button></form>` });
+  sh.addEventListener('click', e => { const b = e.target.closest('[data-nsetfill]'); if (b) { C.closeSheet(); setFillSheet(b.dataset.nsetfill); } });
+  sh.addEventListener('submit', async e => { e.preventDefault(); const f = new FormData(e.target), url = String(f.get('url') || '').trim();
+    const id = await create('nsets', { name: f.get('name'), code: String(f.get('code') || '').toUpperCase(), size: Number(f.get('size')) || null, color: f.get('color'), url, ...(url ? { needsFill: true, fillHow: 'Lees de kleuren van deze set van de pagina: zet ze in het veld list, één per regel als "01 Naam #hex".' } : {}) });
+    C.closeSheet(); setFillSheet(id); });
+}
+function setFillSheet(setId) {
+  const s = L.byId[setId]; if (!s) return; const size = num(s.size) || Math.max(12, ...nColorsOf(setId).map(c => Number(c.num) || 0));
+  const draw = () => { const cs = nColorsOf(setId), at = n => cs.find(c => Number(c.num) === n);
+    return `<p class="lnone">Tik op een nummer en richt je camera op de swatch, of maak één foto van de hele kleurenkaart.</p>
+      <div class="lbar2"><label class="btn primary">📷 Foto van de kaart<input type="file" accept="image/*" class="vh" data-ncardphoto></label>${s.list ? `<button class="btn" data-nsetlist>✨ ${String(s.list).split('\n').filter(Boolean).length} kleuren van de pagina toevoegen</button>` : ''}</div>
+      <div class="nnumgrid">${Array.from({ length: size }, (_, i) => i + 1).map(n => { const c = at(n); return `<button class="nnum ${c ? 'on' : ''}" style="${c ? `--c:${hexOk(c.hex) || '#ccc'}` : ''}" data-nnum="${n}"><span>${String(n).padStart(2, '0')}</span></button>`; }).join('')}</div><div data-npick></div>`; };
+  const sh = C.sheet({ title: `${nSetCode(s)} · ${s.name || 'Set'}`, body: `<div data-nsetbody>${draw()}</div>` }), redraw = () => { sh.querySelector('[data-nsetbody]').innerHTML = draw(); };
+  const saveNum = async (n, hex, name = '') => { const cur = nColorsOf(setId).find(c => Number(c.num) === n); if (cur) await save(cur, { hex, ...(name ? { name } : {}) }); else await create('ncolors', { set: setId, num: String(n), hex, brand: s.brand || '', type: 'Gel polish', ...(name ? { name } : {}) }); };
+  sh.addEventListener('click', async e => {
+    if (e.target.closest('[data-nsetlist]')) { for (const line of String(s.list).split('\n')) { const m = line.match(/^\s*(\d+)\s+(.*?)\s*(#[0-9a-f]{6})?\s*$/i); if (m) await saveNum(Number(m[1]), m[3] || '', m[2]); } C.toast('✨ Kleuren toegevoegd'); redraw(); return; }
+    const b = e.target.closest('[data-nnum]'); if (!b) return; const n = Number(b.dataset.nnum);
+    sh.querySelector('[data-npick]').innerHTML = `<div class="npickbox"><b>Nummer ${String(n).padStart(2, '0')}</b><label class="btn small">📷 Camera als pipet<input type="file" accept="image/*" capture="environment" class="vh" data-npipet="${n}"></label><input type="color" data-nhex="${n}" value="${hexOk(nColorsOf(setId).find(c => Number(c.num) === n)?.hex) || '#c4646a'}"><input class="finp" data-nname="${n}" placeholder="Naam (optioneel)"><button class="btn small primary" data-nsave="${n}">Opslaan</button></div><div data-npimg></div>`;
+  });
+  sh.addEventListener('click', async e => { const b = e.target.closest('[data-nsave]'); if (!b) return; const n = Number(b.dataset.nsave); await saveNum(n, sh.querySelector(`[data-nhex="${n}"]`).value, sh.querySelector(`[data-nname="${n}"]`).value.trim()); redraw(); });
+  sh.addEventListener('change', async e => {
+    const t = e.target, file = t.files?.[0]; if (!file) return;
+    const img = await loadImg(file), box = t.dataset.npipet ? sh.querySelector('[data-npimg]') : sh.querySelector('[data-npick]');
+    const cv = document.createElement('canvas'), W = Math.min(900, img.naturalWidth), H = Math.round(img.naturalHeight * W / img.naturalWidth); cv.width = W; cv.height = H; cv.className = 'npcanvas'; const cx = cv.getContext('2d'); cx.drawImage(img, 0, 0, W, H);
+    const at = (x, y) => { const d = cx.getImageData(Math.max(0, x - 3), Math.max(0, y - 3), 7, 7).data; let r = 0, g = 0, b2 = 0, k = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b2 += d[i + 2]; k++; } return '#' + [r, g, b2].map(v => Math.round(v / k).toString(16).padStart(2, '0')).join(''); };
+    const pos = ev => { const rc = cv.getBoundingClientRect(); return [Math.round((ev.clientX - rc.left) * W / rc.width), Math.round((ev.clientY - rc.top) * H / rc.height)]; };
+    box.innerHTML = ''; box.appendChild(cv);
+    if (t.dataset.npipet) { const n = t.dataset.npipet; const p = document.createElement('p'); p.className = 'lnone'; p.textContent = 'Tik op de kleur in de foto.'; box.prepend(p);
+      cv.addEventListener('click', ev => { const [x, y] = pos(ev); sh.querySelector(`[data-nhex="${n}"]`).value = at(x, y); p.textContent = 'Kleur gekozen. Tik op Opslaan.'; }); return; }
+    // the whole card: rows and columns, then tap the first and the last swatch
+    const form = document.createElement('div'); form.className = 'npickbox'; form.innerHTML = `<label>Rijen <input class="finp" type="number" min="1" max="20" value="${Math.ceil(size / 6)}" data-nrows></label><label>Kolommen <input class="finp" type="number" min="1" max="20" value="6" data-ncols></label><p class="lnone" data-nhint>Tik op het midden van de <b>eerste</b> kleur (01).</p>`; box.prepend(form);
+    let first = null;
+    cv.addEventListener('click', async ev => { const p = pos(ev); if (!first) { first = p; form.querySelector('[data-nhint]').innerHTML = 'Tik nu op het midden van de <b>laatste</b> kleur.'; return; }
+      const rows = Number(form.querySelector('[data-nrows]').value) || 1, cols = Number(form.querySelector('[data-ncols]').value) || 1, [x0, y0] = first, [x1, y1] = p; let n = 0;
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { n++; if (n > size) break; const x = cols > 1 ? x0 + (x1 - x0) * c / (cols - 1) : x0, y = rows > 1 ? y0 + (y1 - y0) * r / (rows - 1) : y0; await saveNum(n, at(Math.round(x), Math.round(y))); }
+      C.toast(`✨ ${Math.min(n, size)} kleuren gevonden. Tik op een nummer om iets aan te passen.`); redraw(); });
+  });
+}
+const loadImg = file => new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = URL.createObjectURL(file); });
+function stickerSheet(setId) {
+  const s = L.byId[setId], cs = nColorsOf(setId).sort((a, b) => (Number(a.num) || 0) - (Number(b.num) || 0)); if (!s) return;
+  const html = `<!doctype html><meta charset="utf-8"><title>Stickers ${esc(nSetCode(s))}</title><style>body{font:700 11px system-ui;margin:12mm}div{display:grid;grid-template-columns:repeat(8,18mm);gap:4mm}span{width:18mm;height:18mm;border-radius:50%;display:grid;place-items:center;border:2.5mm solid ${hexOk(s.color) || '#6b4a3c'};background:#fff}</style><div>${cs.map(c => `<span>${esc(nSetCode(s).replace(/^[A-Z]+-?/, '') || nSetCode(s))}${esc(String(c.num || '').padStart(2, '0'))}</span>`).join('')}</div><script>print()<\/script>`;
+  const w = window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank'); if (!w) C.toast('Sta pop-ups toe om de stickers te printen.');
+}
+function compareSheet(ids = []) {
+  const all = recs('ncolors').filter(c => !c.wanted).sort(colorSort), opt = sel => all.map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc((nCode(c) ? nCode(c) + ' · ' : '') + titleOf(c))}</option>`).join('');
+  const table = (a, b) => { if (!a || !b) return ''; const ppm = c => num(c.price) && num(c.ml) ? num(c.price) / num(c.ml) : null, row = (l, x, y, better) => `<div class="ncrow"><span>${l}</span><b class="${better === 1 ? 'win' : ''}">${x ?? '–'}</b><b class="${better === 2 ? 'win' : ''}">${y ?? '–'}</b></div>`;
+    const cmp = (x, y, hi = true) => x == null || y == null || x === y ? 0 : (hi ? x > y : x < y) ? 1 : 2, da = colorDays(a), db = colorDays(b), pa = ppm(a), pb = ppm(b), cov = c => c.coverage ? parseInt(c.coverage) : null;
+    return `<div class="ncmp"><div class="ncc"><i style="background:${hexOk(a.hex)}"></i><b>${esc(nCode(a) || titleOf(a))}</b></div><div class="ncc"><i style="background:${hexOk(b.hex)}"></i><b>${esc(nCode(b) || titleOf(b))}</b></div></div>
+      ${row('Sterren', nStars(a.score) || null, nStars(b.score) || null, cmp(sc10(a.score), sc10(b.score)))}${row('Dekking', a.coverage, b.coverage, cmp(cov(a), cov(b), false))}${row('Hield', da != null ? da + ' dagen' : null, db != null ? db + ' dagen' : null, cmp(da, db))}${row('Prijs per ml', pa != null ? eur(pa) : null, pb != null ? eur(pb) : null, cmp(pa, pb, false))}${row('Opnieuw kopen', a.again, b.again, 0)}`; };
+  const sh = C.sheet({ title: 'Vergelijken', body: `<div class="lbar2"><select class="pill" data-nca>${opt(ids[0])}</select><select class="pill" data-ncb>${opt(ids[1] || all[1]?.id)}</select></div><div data-nct></div>` });
+  const upd = () => { sh.querySelector('[data-nct]').innerHTML = table(L.byId[sh.querySelector('[data-nca]').value], L.byId[sh.querySelector('[data-ncb]').value]); }; upd(); sh.addEventListener('change', upd);
+}
+
+// things: per group, with how much is left
+function thingsBody() {
+  const all = recs('nprods'), grp = c => NPROD_CATS.find(g => g[1].includes(c))?.[0] || 'Overig';
+  const tools = `<div class="ntools"><span class="spacer"></span>${NPROD_CATS.map(([g, l]) => `<button class="btn small" data-lnew="nprods" data-pre='${esc(JSON.stringify({ cat: l[0] }))}'>+ ${esc(g.split(' ')[0])}</button>`).join('')}</div>`;
+  if (!all.length) return tools + `<div class="emptyx"><p class="ebig">🧴</p><p><b>Nog geen spullen.</b> Zet je base, top, builder, prep-vloeistoffen, nail art en apparaten erin, dan zie je wat bijna op is.</p></div>`;
+  return tools + [...NPROD_CATS.map(g => g[0]), 'Overig'].map(g => { const l = all.filter(r => grp(r.cat) === g); return l.length ? `<p class="nstep">${esc(g)}</p>${l.map(r => { const left = num(r.left); return `<button class="nrow" data-act="open" data-id="${r.id}"><span class="nic">${r.photo ? `<img src="${esc(photoURL(r.photo))}" alt="">` : '🧴'}</span><span><b>${esc(titleOf(r))}</b><small>${esc([r.cat, r.brand, nStars(r.score)].filter(Boolean).join(' · '))}${r.warranty ? ' · garantie tot ' + esc(niceDate(r.warranty)) : ''}</small>${left != null ? `<span class="nleft"><i style="width:${left}%;background:${left <= 20 ? '#d9707c' : 'var(--accent)'}"></i></span>` : ''}</span>${left != null && left <= 20 ? '<em class="nlow">bijna op</em>' : ''}</button>`; }).join('')}` : ''; }).join('');
+}
+
+// tutorials: rows per category, a grid with chips, and on the steps of your routines
+function tutsBody() {
+  const v = nView('tuts', 'rows'), F2 = L.nTutF ||= { cat: '', st: '' }, all = recs('ntuts');
+  const cats = [...new Set([...NTUT_CATS.map(c => c[0]), ...all.flatMap(r => [].concat(r.cats || []))])];
+  const card = r => `<button class="ntut" data-act="open" data-id="${r.id}"><div class="ntim" ${r.photo ? `style="background-image:url('${esc(photoURL(r.photo))}')"` : ''}><span class="src">${esc(tutSource(r.url) || 'Video')}</span><span class="play">▶</span>${r.status === 'Gedaan' ? '<span class="done">Gedaan</span>' : r.status === 'Bewaard' ? '<span class="done">⭐</span>' : ''}</div><b>${esc(titleOf(r))}</b></button>`;
+  const tools = `<div class="ntools">${tabsHTML('data-ntv', v, [['rows', 'Rijen'], ['grid', 'Grid']])}<span class="spacer"></span><button class="btn small primary" data-ntutlink>+ Link</button></div>`;
+  if (!all.length) return tools + `<div class="emptyx"><p class="ebig">🎬</p><p><b>Nog geen tutorials.</b> Plak een link van TikTok, YouTube of Instagram. De app zet hem er meteen in, en 's nachts komen de stappen en de categorie erbij.</p><button class="btn primary" data-ntutlink>+ Link plakken</button></div>`;
+  if (v === 'rows') return tools + cats.map(c => { const l = all.filter(r => [].concat(r.cats || []).includes(c)); return l.length ? `<div class="nrowt"><b>${esc(c)}</b><small>${l.length}</small></div><div class="nstrip">${l.map(card).join('')}</div>` : ''; }).join('')
+    + (() => { const l = all.filter(r => ![].concat(r.cats || []).length); return l.length ? `<div class="nrowt"><b>Nog zonder categorie</b><small>${l.length}</small></div><div class="nstrip">${l.map(card).join('')}</div>` : ''; })();
+  const l = all.filter(r => (!F2.cat || [].concat(r.cats || []).includes(F2.cat)) && (!F2.st || r.status === F2.st));
+  return tools + `<div class="nchips"><button class="chip ${!F2.cat && !F2.st ? 'on' : ''}" data-ntc="">Alles</button>${cats.filter(c => all.some(r => [].concat(r.cats || []).includes(c))).map(c => `<button class="chip ${F2.cat === c ? 'on' : ''}" data-ntc="${esc(c)}">${esc(c)}</button>`).join('')}${['Bewaard', 'Nog proberen', 'Gedaan'].map(s => `<button class="chip ${F2.st === s ? 'on' : ''}" data-nts="${s}">${s === 'Bewaard' ? '⭐ ' : ''}${s}</button>`).join('')}</div><div class="ngrid">${l.map(card).join('')}</div>`;
+}
+function tutLinkSheet(makeRoutine = false) {
+  const sh = C.sheet({ title: makeRoutine ? 'Routine uit een video' : 'Tutorial toevoegen', body: `<form data-ntlform class="nsetform"><input class="finp" type="url" name="url" placeholder="Plak hier de link" required autofocus><select class="pill" name="cat"><option value="">Categorie (de nachtronde kiest anders zelf)</option>${NTUT_CATS.map(c => `<option>${esc(c[0])}</option>`).join('')}</select><button class="btn primary">Toevoegen</button></form><p class="lnone">De video staat er meteen in. 's Nachts leest de nachtronde de beschrijving en zet de stappen erbij${makeRoutine ? ', en morgen maak je er met één tik een routine van' : ''}.</p>` });
+  sh.addEventListener('submit', async e => { e.preventDefault(); const f = new FormData(e.target), url = String(f.get('url')).trim(); let meta = {};
+    try { const r = await fetch('https://noembed.com/embed?url=' + encodeURIComponent(url)); meta = await r.json(); } catch {}
+    await create('ntuts', { url, name: String(meta.title || '').slice(0, 140) || tutSource(url) + ' video', photo: meta.thumbnail_url || '', creator: meta.author_name || '', cats: f.get('cat') ? [f.get('cat')] : [], status: 'Nog proberen', needsFill: true, makeRoutine: makeRoutine || undefined,
+      fillHow: 'Nagel-tutorial: zet in "steps" de stappen uit de video, één per regel als "Onderdeel: stap" (Removal, Prep, Application, Finish of Aftercare), vul cats en subs uit de vaste lijst en creator in.' });
+    C.closeSheet(); C.toast('🎬 Toegevoegd. De stappen komen er vannacht bij.'); C.render(); });
+}
+// the steps the nightly run read from a video become a routine with one tap
+async function tutToRoutine(id) {
+  const t = L.byId[id]; if (!t?.steps) return C.toast('Deze video heeft nog geen stappen.');
+  const lines = String(t.steps).split('\n').map(x => x.trim()).filter(Boolean), parts = [];
+  const rid = await create('nroutines', { name: titleOf(t), emoji: '💅', url: t.url, parts: [] });
+  let i = 0; for (const line of lines) { const m = line.match(/^(Removal|Prep|Application|Finish|Aftercare)\s*[:\-]\s*(.+)$/i), part = m ? NPARTS.find(p => p[0].toLowerCase() === m[1].toLowerCase())[0] : 'Application'; if (!parts.includes(part)) parts.push(part);
+    await create('nsteps', { name: (m ? m[2] : line).slice(0, 120), part, order: ++i, only: [rid], tut: id }); }
+  await save(L.byId[rid], { parts: NPARTS.map(p => p[0]).filter(p => parts.includes(p)) }); C.toast('📋 Routine gemaakt. Kijk hem even na.'); L.nailT = 'routines'; C.render(); routineBuilder(rid);
+}
+
+// routines: sets made of blocks per part; a step without "only" is shared by every routine with that part
+const stepsFor = (rt, part) => recs('nsteps').filter(s => s.part === part && (![].concat(s.only || []).length || [].concat(s.only || []).includes(rt.id))).sort((a, b) => (num(a.order) ?? 99) - (num(b.order) ?? 99));
+const routineSteps = rt => [].concat(rt.parts || []).flatMap(p => stepsFor(rt, p));
+function routinesBody() {
+  const all = recs('nroutines');
+  const tools = `<div class="ntools"><span class="spacer"></span><button class="btn small primary" data-lnew="nroutines" data-pre='${esc(JSON.stringify({ parts: NPARTS.map(p => p[0]), emoji: '💅' }))}'>+ Routine</button><button class="btn small" data-ntutlink="routine">+ Uit een video</button></div>`;
+  const fromVid = recs('ntuts').filter(t => t.steps && t.makeRoutine && !recs('nroutines').some(r => r.url === t.url));
+  const ask = fromVid.map(t => `<div class="nwarn">🎬 <b>Nieuwe routine uit video:</b> ${esc(titleOf(t))}. Klopt dit? <button class="chip small primary" data-ntut2r="${t.id}">Maak routine</button></div>`).join('');
+  if (!all.length) return tools + ask + `<div class="emptyx"><p class="ebig">📋</p><p><b>Nog geen routines.</b> Bouw er een per behandeling, zoals BIAB fill of gel polish. De blokken per onderdeel deel je tussen routines.</p><div class="lwrap">${['BIAB fill', 'Gel polish nieuw', 'Acryl full set'].map(n => `<button class="chip" data-nrtex="${esc(n)}">${esc(n)}</button>`).join('')}</div></div>`;
+  return tools + ask + `<div class="nroutines">${all.map(r => { const st = routineSteps(r), done = byDate('naillog').filter(x => x.routine === r.id).length, mins = num(r.minutes) || st.reduce((n, s) => n + (num(s.minutes) || 0), 0);
+    return `<div class="nrt"><div class="nrth"><b>${esc(r.emoji || '💅')} ${esc(titleOf(r))}</b><small>${mins ? '± ' + mins + ' min · ' : ''}${plural(st.length, 'stap', 'stappen')}${done ? ' · ' + done + ' keer gedaan' : ''}</small></div><div class="nblocks">${[].concat(r.parts || []).map(p => `<span style="background:${partOf(p)[2]}">${esc(p)} <i>${stepsFor(r, p).length}</i></span>`).join('')}</div><div class="lbar2"><button class="btn small primary" data-nrun="${r.id}">▶ Start</button><button class="btn small" data-nbuild="${r.id}">Bouwen</button></div></div>`; }).join('')}</div>`;
+}
+function routineBuilder(rid) {
+  const rt = L.byId[rid]; if (!rt) return; const P2 = L.nbPart ||= [].concat(rt.parts || [])[0] || 'Prep';
+  const draw = () => { const r = L.byId[rid], part = L.nbPart, st = stepsFor(r, part);
+    return `<div class="nchips">${NPARTS.map(([p, ic]) => `<button class="chip ${p === part ? 'on' : ''}" data-nbp="${p}">${ic} ${p}${[].concat(r.parts || []).includes(p) ? '' : ' (uit)'}</button>`).join('')}</div>
+      <p class="lnone">${[].concat(r.parts || []).includes(part) ? 'Stappen zonder "alleen hier" gelden in elke routine met dit onderdeel.' : `${esc(part)} zit nog niet in deze routine. <button class="chip small" data-nbon>Aanzetten</button>`}</p>
+      ${st.map((s, i) => `<div class="nbstep"><span class="num">${i + 1}</span><button class="lmain" data-act="open" data-id="${s.id}"><b>${esc(s.name || 'Stap')}</b><span>${esc([s.bit && L.byId[s.bit] ? bitGlyph(L.byId[s.bit]) + ' ' + titleOf(L.byId[s.bit]) : '', s.minutes ? '⏱ ' + s.minutes + ' min' : '', relNames(s.prods).join(', '), s.tut ? '🎬' : '', [].concat(s.only || []).length ? 'alleen hier' : 'gedeeld'].filter(Boolean).join(' · '))}</span></button><button class="iconbtn" data-nbmv="${s.id}" data-d="-1" aria-label="Omhoog">↑</button><button class="iconbtn" data-nbmv="${s.id}" data-d="1" aria-label="Omlaag">↓</button></div>`).join('') || '<p class="lnone">Nog geen stappen.</p>'}
+      <div class="lbar2"><button class="btn small primary" data-nbadd>+ Stap</button><button class="btn small" data-nbadd="only">+ Stap alleen voor deze routine</button></div>`; };
+  const sh = C.sheet({ title: 'Bouwen: ' + titleOf(rt), body: `<div data-nbbody>${draw()}</div>`, foot: `<div class="spacer"></div><button class="btn primary" data-nrun="${rid}">▶ Start</button>` }), redraw = () => { sh.querySelector('[data-nbbody]').innerHTML = draw(); };
+  sh.addEventListener('click', async e => {
+    const p = e.target.closest('[data-nbp]'); if (p) { L.nbPart = p.dataset.nbp; return redraw(); }
+    if (e.target.closest('[data-nbon]')) { const r = L.byId[rid]; await save(r, { parts: NPARTS.map(x => x[0]).filter(x => [].concat(r.parts || []).includes(x) || x === L.nbPart) }); return redraw(); }
+    const a = e.target.closest('[data-nbadd]'); if (a) { const st = stepsFor(L.byId[rid], L.nbPart); C.closeSheet(); return openEditor('nsteps', null, { part: L.nbPart, order: st.length + 1, ...(a.dataset.nbadd === 'only' ? { only: [rid] } : {}) }); }
+    const m = e.target.closest('[data-nbmv]'); if (m) { const st = stepsFor(L.byId[rid], L.nbPart), i = st.findIndex(s => s.id === m.dataset.nbmv), j = i + Number(m.dataset.d); if (j < 0 || j >= st.length) return;
+      [st[i], st[j]] = [st[j], st[i]]; for (let k = 0; k < st.length; k++) if (num(st[k].order) !== k + 1) await save(st[k], { order: k + 1 }); return redraw(); }
+    const run = e.target.closest('[data-nrun]'); if (run) { C.closeSheet(); doMode(run.dataset.nrun); }
+  });
+}
+// do-mode: one step at a time, big, with the bit, the speed and a timer; on the iPad the holder and the video sit next to it
+function doMode(rid) {
+  const rt = L.byId[rid]; if (!rt) return; const st = routineSteps(rt); if (!st.length) { C.toast('Deze routine heeft nog geen stappen.'); return routineBuilder(rid); }
+  let i = 0, left = 0, timer = null, started = Date.now(); const usedBits = new Set();
+  const wide = innerWidth >= 900, slots = holderSlots();
+  const draw = () => { const s = st[i], b = s.bit && L.byId[s.bit], g = b && bitGuide(b.shape), t = s.tut && L.byId[s.tut], slot = b && slots.find(x => x.b.id === b.id)?.slot;
+    left = (num(s.minutes) || 0) * 60;
+    const main = `<div class="ndo"><div class="k">${esc(s.part)} · stap ${i + 1} van ${st.length}</div><h2>${esc(s.name || 'Stap')}</h2>
+      ${b ? `<div class="ndobit" style="--gc:${gritCol(b.grit)}"><span class="glyph">${bitGlyph(b)}</span><b>${esc([b.shape, b.grit].filter(Boolean).join(' · '))}${slot ? ` · plek ${slot}` : ''}</b><small>${esc([b.rpm || g?.[5] ? (b.rpm || g[5]) + ' rpm' : '', b.dir].filter(Boolean).join(' · '))}</small></div>` : ''}
+      ${s.tip ? `<p class="ndotip">${esc(s.tip)}</p>` : ''}${relNames(s.prods).length ? `<p class="ndotip">🧴 ${esc(relNames(s.prods).join(', '))}</p>` : ''}
+      ${left ? `<div class="ndotm" data-ntm>${String(Math.floor(left / 60)).padStart(2, '0')}:00</div><div class="ndoprog"><i data-ntp style="width:0%"></i></div>` : ''}
+      <div class="ndob"><button class="btn" data-ndo="back" ${i ? '' : 'disabled'}>← Terug</button>${left ? '<button class="btn" data-ndo="time">⏱ Start timer</button>' : ''}<button class="btn primary" data-ndo="next">✓ ${i === st.length - 1 ? 'Klaar' : 'Volgende'}</button>${t?.url && !wide ? `<a class="btn" href="${esc(t.url)}" target="_blank" rel="noopener">🎬 Video</a>` : ''}</div></div>`;
+    const side = wide ? `<div class="ndoside">${t ? `<a class="ndovid" href="${esc(t.url)}" target="_blank" rel="noopener" ${t.photo ? `style="background-image:url('${esc(photoURL(t.photo))}')"` : ''}><span>▶</span></a><b>${esc(titleOf(t))}</b>` : '<p class="lnone">Geen video bij deze stap.</p>'}
+      <div class="nholder mini">${slots.map(x => `<span class="nslot ${b && x.b.id === b.id ? 'lit' : ''}"><span class="n">${x.slot}</span><span class="glyph">${bitGlyph(x.b)}</span></span>`).join('')}</div></div>` : '';
+    return wide ? `<div class="ndowide">${main}${side}</div>` : main; };
+  const sh = C.sheet({ title: (rt.emoji || '💅') + ' ' + titleOf(rt), body: `<div data-ndobody>${draw()}</div>` }), body = sh.querySelector('[data-ndobody]');
+  const stop = () => { clearInterval(timer); timer = null; };
+  sh.addEventListener('click', async e => { const b = e.target.closest('[data-ndo]'); if (!b) return; const a = b.dataset.ndo;
+    if (a === 'time') { if (timer) { stop(); b.textContent = '⏱ Verder'; return; } const total = (num(st[i].minutes) || 0) * 60; b.textContent = '⏸ Pauze';
+      timer = setInterval(() => { left = Math.max(0, left - 1); const tm = body.querySelector('[data-ntm]'), tp = body.querySelector('[data-ntp]'); if (tm) tm.textContent = `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`; if (tp) tp.style.width = (100 - 100 * left / total) + '%'; if (!left) { stop(); try { navigator.vibrate?.(200); } catch {} C.toast('⏱ Tijd voor deze stap is om'); } }, 1000); return; }
+    stop(); if (st[i].bit) usedBits.add(st[i].bit);
+    if (a === 'back' && i > 0) { i--; body.innerHTML = draw(); return; }
+    if (a === 'next') { if (i < st.length - 1) { i++; body.innerHTML = draw(); return; }
+      const mins = Math.round((Date.now() - started) / 60000); for (const id of usedBits) { const r = L.byId[id]; if (r) await save(r, { uses: (num(r.uses) || 0) + 1 }); }
+      await create('naillog', { date: today(), what: /fill/i.test(rt.name || '') ? 'Fill' : /remov|eraf/i.test(rt.name || '') ? 'Removed' : 'Full set', routine: rid, minutes: mins || null, design: '' });
+      C.closeSheet(); confetti(true); C.toast(`🎉 ${titleOf(rt)} klaar in ${mins} min. Kies nog je kleuren in de log.`); C.render(); }
+  });
+}
+
+// Overzicht: the next treatment big on top, then tiles that show what is going on
+function nailsOverview() {
+  const last = lastNailSet(), days = last ? diffDays(last.date, today()) : null, due = days != null ? nailFillDays() - days : null, rts = recs('nroutines'), rt = rts.find(r => /fill/i.test(r.name || '')) || rts[0];
+  const hero = `<section class="mixhero nails"><p class="mxk">💅 Volgende behandeling</p><h2>${last ? (due > 0 ? `${esc(rt ? titleOf(rt) : 'Fill')} over ${plural(due, 'dag', 'dagen')}` : 'Tijd voor een fill') : 'Nog geen set gelogd'}</h2>
+    <p class="mxs">${last ? `Je set is ${plural(days, 'dag', 'dagen')} oud${rt ? ' · ' + esc(titleOf(rt)) : ''}` : 'Log je eerste set, dan rekent de app je volgende fill uit.'} · herinnering na <select class="mxsel" data-nfilldays>${[14, 18, 21, 24, 28, 35].map(n => `<option ${n === nailFillDays() ? 'selected' : ''}>${n}</option>`).join('')}</select> dagen</p>
+    <div class="mxb">${rt ? `<button class="btn primary" data-nrun="${rt.id}">▶ Start routine</button>` : `<button class="btn primary" data-nailtab="routines">Routine bouwen</button>`}<button class="btn" data-nailtab="colors">Kleur kiezen</button></div></section>`;
+  const bits = recs('nbits'), worn = bits.filter(r => bitWearing(r) || (num(r.worn) || 0) >= Math.max(1, num(r.count) || 1)), low = recs('nprods').filter(r => num(r.left) != null && num(r.left) <= 20), tryT = recs('ntuts').filter(t => t.status === 'Nog proberen');
+  const cols = recs('ncolors').filter(c => !c.wanted), avg = avgNailDays();
+  const tile = (tab, e, t, s) => `<button class="ntile" data-nailtab="${tab}"><span class="e">${e}</span><b>${t}</b><small>${s}</small></button>`;
+  const tiles = `<div class="ntiles">${tile('colors', '🎨', 'Kleuren', cols.length ? `${cols.length}${recs('nsets').length ? ' · ' + plural(recs('nsets').length, 'set', 'sets') : ''}` : 'nog leeg')}${tile('bits', '🔩', 'Bitjes', bits.length ? `${bits.reduce((n, r) => n + Math.max(1, num(r.count) || 1), 0)}${worn.length ? ' · ' + worn.length + ' bijna op' : ''}` : 'nog leeg')}
+    ${tile('routines', '📋', 'Routines', rts.length ? plural(rts.length, 'routine', 'routines') : 'nog leeg')}${tile('tuts', '🎬', 'Tutorials', tryT.length ? tryT.length + ' nog proberen' : plural(recs('ntuts').length, 'video', "video's"))}
+    ${tile('things', '🧴', 'Spullen', low.length ? esc(titleOf(low[0])) + ' bijna op' : plural(recs('nprods').length, 'ding', 'dingen'))}${tile('log', '📖', 'Log', avg != null ? 'gem. ' + avg + ' dagen' : plural(byDate('naillog').length, 'set', 'sets'))}</div>`;
+  // inspiration: a video to try and a colour you haven't worn for a while
+  const pickT = tryT.length ? tryT[new Date().getDate() % tryT.length] : null, worn60 = cols.filter(c => { const l = byDate('naillog').find(r => [].concat(r.colors || []).includes(c.id)); return !l || diffDays(l.date, today()) > 60; });
+  const pickC = worn60.length ? worn60[new Date().getDate() % worn60.length] : null;
+  const insp = pickT || pickC ? `<div class="ninsp">${pickT ? `<button class="nrow" data-act="open" data-id="${pickT.id}"><span class="nic">🎬</span><span><b>Probeer eens: ${esc(titleOf(pickT))}</b><small>${esc(tutSource(pickT.url))}</small></span></button>` : ''}${pickC ? `<button class="nrow" data-act="open" data-id="${pickC.id}"><span class="nic"><i class="ndot big" style="background:${hexOk(pickC.hex) || '#ccc'}"></i></span><span><b>Lang niet gedragen: ${esc(nCode(pickC) || titleOf(pickC))}</b><small>${esc(titleOf(pickC))}</small></span></button>` : ''}</div>` : '';
+  const lowHTML = low.length ? `<p class="nstep">Bijna op</p>${low.map(r => `<div class="nrow"><span class="nic">🧴</span><span><b>${esc(titleOf(r))}</b><small>${num(r.left)}% over</small></span><button class="chip small" data-nwish="${r.id}">+ Verlanglijst</button></div>`).join('')}` : '';
+  return hero + tiles + insp + lowHTML;
+}
 function nailsPage(host) {
-  const T = L.nailT ||= 'log', l = byDate('naillog'), ins = recs('ideas').filter(r => r.area === 'Nails');
+  const T = L.nailT ||= 'ov', l = byDate('naillog'), ins = recs('ideas').filter(r => r.area === 'Nails');
   const lasted = l.map(nailDays).filter(x => x != null), mins = l.map(r => num(r.minutes)).filter(x => x != null);
-  const card = r => `<button class="lcard" data-act="open" data-id="${r.id}"><div class="lph"><span>💅</span>${r.photo ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(r.photo))}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div><div class="meta"><b>${esc(titleOf(r))}</b><span>${esc(KINDS[r.kind].sub?.(r) || '')}</span></div></button>`;
-  const body = T === 'log' ? `<div class="tiles lt3"><div class="tile"><div class="k">💅 Sets</div><div class="v">${l.filter(r => ['Full set', 'Fill'].includes(r.kind)).length}</div><div class="h">full sets and fills</div></div><div class="tile"><div class="k">⏳ They last</div><div class="v">${lasted.length ? Math.round(avgOf(lasted)) : '–'}</div><div class="h">days on average</div></div><div class="tile"><div class="k">⏱ Time</div><div class="v">${mins.length ? Math.round(avgOf(mins)) : '–'}</div><div class="h">minutes on average</div></div></div>
-      <div class="lplanhead">${newBtn('naillog', '+ Full set', { kind: 'Full set' })}${newBtn('naillog', '+ Fill', { kind: 'Fill' })}${newBtn('naillog', 'Removed or broke', { kind: 'Removed' })}</div>${l.length ? `<div class="lgrid">${l.map(card).join('')}</div>` : quiet('Log your nails with a photo after each set.')}`
-    : T === 'inspo' ? `<div class="lplanhead">${newBtn('ideas', '+ Inspiration', { area: 'Nails', what: 'Look' })}</div>${ins.length ? `<div class="lgrid">${ins.map(r => `<button class="lcard" data-act="open" data-id="${r.id}"><div class="lph"><span>✨</span>${r.photo ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(r.photo))}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div><div class="meta"><b>${esc(titleOf(r))}</b><span>${r.tried ? 'tried ✓' : ''}</span></div></button>`).join('')}</div>` : quiet('Share nail designs with “Naar A’s Life”: they land here.')}`
+  const card = r => `<button class="lcard" data-act="open" data-id="${r.id}"><div class="lph"><span>💅</span>${r.photo ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(r.photo))}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div><div class="lcb"><b>${esc(titleOf(r))}</b><span>${esc(KINDS.naillog.sub(r))}</span>${[].concat(r.colors || []).length ? `<span class="nmini">${[].concat(r.colors).map(id => L.byId[id] ? `<i style="background:${hexOk(L.byId[id].hex) || '#ccc'}"></i>` : '').join('')}</span>` : ''}</div></button>`;
+  const body = T === 'ov' ? nailsOverview() : T === 'routines' ? routinesBody() : T === 'bits' ? bitsBody() : T === 'colors' ? colorsBody() : T === 'things' ? thingsBody() : T === 'tuts' ? tutsBody()
+    : T === 'log' ? `<div class="tiles lt3"><div class="tile"><div class="k">💅 Sets</div><div class="v">${l.filter(r => ['Full set', 'Fill'].includes(r.what)).length}</div><div class="h">full sets en fills</div></div><div class="tile"><div class="k">⏳ Hield</div><div class="v">${lasted.length ? Math.round(lasted.reduce((a, b) => a + b, 0) / lasted.length) : '–'}</div><div class="h">dagen gemiddeld</div></div><div class="tile"><div class="k">⏱ Tijd</div><div class="v">${mins.length ? Math.round(mins.reduce((a, b) => a + b, 0) / mins.length) : '–'}</div><div class="h">minuten gemiddeld</div></div></div>
+      <div class="lplanhead">${newBtn('naillog', '+ Full set', { what: 'Full set' })}${newBtn('naillog', '+ Fill', { what: 'Fill' })}${newBtn('naillog', 'Eraf of gebroken', { what: 'Removed' })}</div>${l.length ? `<div class="lgrid">${l.map(card).join('')}</div>` : quiet('Log je sets, dan zie je hoe lang ze houden en welke kleuren het best zijn.')}`
+    : T === 'inspo' ? `<div class="lplanhead">${newBtn('ideas', '+ Inspiratie', { area: 'Nails', what: 'Look' })}</div>${ins.length ? `<div class="lgrid">${ins.map(r => `<button class="lcard" data-act="open" data-id="${r.id}"><div class="lph"><span>✨</span>${r.photo ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(r.photo))}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div><div class="lcb"><b>${esc(titleOf(r))}</b></div></button>`).join('')}</div>` : quiet('Bewaar looks die je wilt proberen.')}`
     : `<div class="panels">${resTips(NAIL_RES, 'Nails')}${resLinks('Nails')}</div>`;
-  host.innerHTML = `<div class="viewhead"><h1>Nails</h1><span class="sub">Your own sets, inspiration and tips</span></div>${tabsHTML('data-nailt', T, [['log', 'Log'], ['inspo', 'Inspiration'], ['res', 'Resources']])}${body}`;
+  host.innerHTML = `<div class="viewhead"><h1>Nails</h1><span class="sub">Je eigen nagelstudio</span></div><div class="ntabs">${tabsHTML('data-nailt', T, [['ov', 'Overzicht'], ['routines', 'Routines'], ['bits', 'Bitjes'], ['colors', 'Kleuren'], ['things', 'Spullen'], ['tuts', 'Tutorials'], ['log', 'Log'], ['inspo', 'Inspiratie'], ['res', 'Tips']])}</div>${body}`;
   if (host.dataset.nailw) return; host.dataset.nailw = '1';
-  host.addEventListener('click', e => { const b = e.target.closest('[data-nailt]'); if (b) { L.nailT = b.dataset.nailt; nailsPage(host); } });
+  host.addEventListener('change', e => { const s = e.target.closest('[data-nfilldays]'); if (s) nailSave({ fillDays: Number(s.value) }).then(() => nailsPage(host)); });
+  host.addEventListener('click', async e => {
+    const q = s => e.target.closest(s), redo = () => nailsPage(host);
+    let b;
+    if ((b = q('[data-nailt]')) || (b = q('[data-nailtab]'))) { L.nailT = b.dataset.nailt || b.dataset.nailtab; return redo(); }
+    if ((b = q('[data-nbv]'))) { nViewSet('bits', b.dataset.nbv); return redo(); }
+    if ((b = q('[data-ncv]'))) { nViewSet('colors', b.dataset.ncv); return redo(); }
+    if ((b = q('[data-ntv]'))) { nViewSet('tuts', b.dataset.ntv); return redo(); }
+    if ((b = q('[data-ncf]'))) { L.nColF.finish = b.dataset.ncf; return redo(); }
+    if ((b = q('[data-ncs]'))) { L.nColF.set = L.nColF.set === b.dataset.ncs ? '' : b.dataset.ncs; return redo(); }
+    if ((b = q('[data-ntc]'))) { L.nTutF = { cat: b.dataset.ntc, st: '' }; return redo(); }
+    if ((b = q('[data-nts]'))) { L.nTutF.st = L.nTutF.st === b.dataset.nts ? '' : b.dataset.nts; return redo(); }
+    if ((b = q('[data-nbit]'))) return bitSheet(b.dataset.nbit);
+    if (q('[data-nguide]')) return bitGuideSheet();
+    if ((b = q('[data-nguideadd]'))) return addFromGuide(b.dataset.nguideadd);
+    if (q('[data-nbitset]')) return bitSetSheet();
+    if ((b = q('[data-nmerge]'))) { const ids = b.dataset.nmerge.split(','), [keep, ...rest] = ids.map(id => L.byId[id]).filter(Boolean); if (!keep) return;
+      await save(keep, { count: [keep, ...rest].reduce((n, r) => n + Math.max(1, num(r.count) || 1), 0), uses: [keep, ...rest].reduce((n, r) => n + (num(r.uses) || 0), 0) }); for (const r of rest) await del(r.id); C.toast('🔩 Samengevoegd'); return redo(); }
+    if (q('[data-nsetnew]')) return setNewSheet();
+    if ((b = q('[data-nsetfill]'))) return setFillSheet(b.dataset.nsetfill);
+    if ((b = q('[data-nstick]'))) return stickerSheet(b.dataset.nstick);
+    if (q('[data-ncompare]')) return compareSheet();
+    if ((b = q('[data-ncomp]'))) return compareSheet(b.dataset.ncomp.split(','));
+    if ((b = q('[data-nokpair]'))) { await nailSave({ okPairs: [...(nailPrefs().okPairs || []), b.dataset.nokpair] }); return redo(); }
+    if ((b = q('[data-ntutlink]'))) return tutLinkSheet(b.dataset.ntutlink === 'routine');
+    if ((b = q('[data-ntut2r]'))) return tutToRoutine(b.dataset.ntut2r);
+    if ((b = q('[data-nrtex]'))) { const n = b.dataset.nrtex, parts = /acryl/i.test(n) ? ['Prep', 'Application', 'Finish', 'Aftercare'] : NPARTS.map(p => p[0]); const id = await create('nroutines', { name: n, emoji: /acryl/i.test(n) ? '🧊' : /gel polish/i.test(n) ? '✨' : '💅', parts }); return routineBuilder(id); }
+    if ((b = q('[data-nbuild]'))) { L.nbPart = ''; return routineBuilder(b.dataset.nbuild); }
+    if ((b = q('[data-nrun]'))) return doMode(b.dataset.nrun);
+    if ((b = q('[data-nwish]'))) { const r = L.byId[b.dataset.nwish]; if (!r) return; await create('wishes', { name: titleOf(r), brand: r.brand || '', url: r.url || '', photo: r.photo || '', price: r.price || null, category: WISH_CATS.find(c => /beaut/i.test(c)) || WISH_CATS[0] }); C.toast('🛒 Op je verlanglijst'); }
+  });
 }
 
 /* sleep: your log, morning and evening routine and what helps */

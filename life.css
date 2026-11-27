@@ -1674,3 +1674,81 @@ h2 .tdside { font-size: .8em; color: var(--muted); }
 /* the Nu card at the very top of Today */
 .dpnowtop { display: grid; gap: 10px; }
 .dpnowtop .dphero { margin: 0; }
+
+/* ---------- Nails ---------- */
+.ntabs .seg { flex-wrap: wrap; }
+.ntools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; } .ntools .spacer { flex: 1; }
+.nchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; } .nchips .chip.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.nsetchip i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--sc); margin-right: 5px; }
+.nwarn { background: color-mix(in srgb, #f0c040 14%, var(--surface)); border: 1px solid color-mix(in srgb, #f0c040 45%, transparent); border-radius: 14px; padding: 10px 12px; font-size: 13.5px; margin: 0 0 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ndot { width: 18px; height: 18px; border-radius: 50%; display: inline-block; box-shadow: inset 0 0 0 1px rgba(0,0,0,.1); } .ndot.big { width: 28px; height: 28px; }
+.mixhero.nails { background: linear-gradient(135deg, #c4646a, #e6a2a0); }
+.mxsel { background: rgba(255,255,255,.25); color: inherit; border: 0; border-radius: 8px; padding: 2px 4px; font: inherit; }
+.ntiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 0 0 14px; }
+.ntile { all: unset; box-sizing: border-box; cursor: pointer; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; display: grid; gap: 2px; }
+.ntile .e { font-size: 22px; } .ntile b { font-size: 15px; } .ntile small { color: var(--muted); font-size: 12.5px; }
+.ninsp { display: grid; gap: 8px; margin-bottom: 14px; }
+.nstep { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 16px 0 8px; }
+.nrow { all: unset; box-sizing: border-box; cursor: pointer; display: flex; gap: 12px; align-items: center; width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; }
+.nrow > span:nth-child(2) { flex: 1; min-width: 0; } .nrow b { font-size: 14.5px; } .nrow small { display: block; color: var(--muted); font-size: 12.5px; }
+.nic { width: 40px; height: 40px; border-radius: 11px; background: color-mix(in srgb, var(--ink) 7%, var(--surface)); display: grid; place-items: center; font-size: 19px; flex: none; overflow: hidden; } .nic img { width: 100%; height: 100%; object-fit: cover; }
+.npill { font-size: 10.5px; font-weight: 800; color: #fff; padding: 2px 8px; border-radius: 99px; margin-left: 6px; vertical-align: 2px; }
+.nleft { display: block; height: 6px; border-radius: 99px; background: color-mix(in srgb, var(--ink) 10%, transparent); margin-top: 6px; overflow: hidden; } .nleft i { display: block; height: 100%; border-radius: inherit; }
+.nlow, .nwear { font-style: normal; font-size: 11px; font-weight: 700; color: #d9707c; }
+.nholder { background: #2b1d10; border-radius: 22px; padding: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 10px; }
+.nslot { all: unset; box-sizing: border-box; cursor: pointer; background: #3d2b1f; border-radius: 14px; padding: 8px 4px; text-align: center; color: #f3eee8; display: grid; justify-items: center; gap: 2px; position: relative; min-height: 112px; }
+.nslot .n { font-size: 10px; opacity: .6; } .nslot .glyph { font-size: 22px; line-height: 1.4; } .nslot .g { width: 24px; height: 6px; border-radius: 3px; } .nslot b { font-size: 11.5px; } .nslot small { font-size: 10px; opacity: .75; }
+.nslot.empty { background: none; border: 1px dashed #7a6656; } .nslot.empty .plus { font-size: 22px; opacity: .7; } .nslot.worn { opacity: .45; } .nslot .nwear { position: absolute; top: 4px; right: 6px; font-size: 9px; }
+.nholder.mini { grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); padding: 8px; gap: 6px; margin-top: 10px; } .nholder.mini .nslot { min-height: 0; padding: 4px; } .nholder.mini .nslot.lit { outline: 3px solid #e8b4a0; background: #5a4030; }
+.nleg { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12.5px; margin: 10px 0; } .nleg i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.ncards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+.ncard { all: unset; box-sizing: border-box; cursor: pointer; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.ncard .nimg { height: 96px; display: grid; place-items: center; font-size: 34px; position: relative; } .ncard .nimg img { width: 100%; height: 100%; object-fit: cover; } .ncard .nimg em { position: absolute; right: 8px; top: 8px; font-style: normal; font-weight: 800; font-size: 12px; background: var(--ink); color: var(--bg); border-radius: 99px; padding: 2px 7px; }
+.ncard .nbd { padding: 10px; display: grid; gap: 4px; } .ncard small { color: var(--muted); font-size: 12px; }
+.ntags { display: flex; flex-wrap: wrap; gap: 4px; } .ntags span { font-size: 10.5px; background: color-mix(in srgb, var(--ink) 8%, transparent); border-radius: 99px; padding: 2px 7px; } .ntags .npill { margin: 0; }
+.nbitbig { display: flex; gap: 14px; align-items: flex-start; background: color-mix(in srgb, var(--gc) 14%, var(--surface)); border-radius: 16px; padding: 14px; } .nbitbig .glyph { font-size: 34px; } .nbitbig p { margin: 4px 0 0; }
+.ncount { display: flex; align-items: center; gap: 10px; margin: 12px 0 6px; } .ncount b { font-size: 20px; min-width: 40px; text-align: center; }
+.lbar2 { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.nguide { display: grid; gap: 8px; } .nguideit { all: unset; box-sizing: border-box; cursor: pointer; display: flex; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.nguideit .glyph { font-size: 24px; width: 32px; text-align: center; } .nguideit small { display: block; color: var(--muted); font-size: 12.5px; } .nguideit em { display: block; font-style: normal; font-size: 11.5px; font-weight: 700; margin-top: 3px; }
+.nsetrows { display: grid; gap: 6px; } .nsetrow { display: grid; grid-template-columns: 1fr auto 70px; gap: 8px; align-items: center; }
+.nwall { display: grid; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px; }
+.ndrop { all: unset; cursor: pointer; aspect-ratio: 1; border-radius: 50% 50% 46% 46% / 60% 60% 40% 40%; background: var(--c); box-shadow: inset -4px -6px 10px rgba(0,0,0,.18), inset 4px 4px 8px rgba(255,255,255,.35), 0 0 0 1px rgba(0,0,0,.06); position: relative; }
+.ndrop span { position: absolute; right: -3px; bottom: -3px; font-size: 9px; font-weight: 800; background: var(--bg); color: var(--ink); border-radius: 6px; padding: 0 3px; }
+.nbottles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.nbottle { all: unset; box-sizing: border-box; cursor: pointer; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px; display: grid; gap: 3px; }
+.nbrand { justify-self: start; font-size: 9.5px; font-weight: 800; padding: 2px 7px; border-radius: 6px; background: var(--ink); color: var(--bg); }
+.nb { width: 46px; height: 74px; margin: 4px auto 6px; display: grid; } .nb .cap { width: 20px; height: 24px; background: #222; border-radius: 4px; margin: 0 auto; } .nb .gl { height: 48px; border-radius: 11px; box-shadow: inset -5px -6px 10px rgba(0,0,0,.2), inset 4px 4px 8px rgba(255,255,255,.4); }
+.nbottle small { color: var(--muted); font-size: 12px; } .nstars { color: #e0a020; font-size: 13px; } .nstars em { color: var(--muted); font-style: normal; font-size: 11.5px; }
+.nwheel { width: min(320px, 86vw); aspect-ratio: 1; border-radius: 50%; margin: 10px auto; position: relative; background: conic-gradient(#c4464f, #d98c5f, #e8d3a8, #6fae8c, #4f86c6, #6b4fb0, #e8a3a8, #c4464f); }
+.nwheel::after { content: ''; position: absolute; inset: 28%; border-radius: 50%; background: var(--bg); }
+.npin { all: unset; cursor: pointer; position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.25); z-index: 2; }
+.nsetlist { display: grid; gap: 10px; } .nsetcard { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px; } .nsethead { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; } .nsethead .spacer { flex: 1; }
+.nbadge { font-size: 10.5px; font-weight: 800; color: #fff; padding: 3px 8px; border-radius: 99px; }
+.nmini { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 6px; } .nmini i { width: 16px; height: 16px; border-radius: 50%; display: inline-block; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+.nsetform { display: grid; gap: 8px; } .nsetcol { display: flex; gap: 10px; align-items: center; font-size: 14px; }
+.nnumgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 8px; margin: 12px 0; }
+.nnum { all: unset; cursor: pointer; aspect-ratio: 1; border-radius: 50%; border: 2px dashed var(--line); display: grid; place-items: end; position: relative; } .nnum.on { border: 0; background: var(--c); }
+.nnum span { font-size: 9.5px; font-weight: 800; background: var(--bg); border-radius: 6px; padding: 0 3px; }
+.npickbox { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px; margin: 8px 0; } .npickbox .finp { width: 80px; }
+.npcanvas { width: 100%; height: auto; border-radius: 12px; cursor: crosshair; touch-action: manipulation; }
+.ncmp { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; } .ncc { background: var(--surface); border-radius: 14px; padding: 10px; text-align: center; } .ncc i { display: block; width: 44px; height: 44px; border-radius: 50%; margin: 0 auto 6px; }
+.ncrow { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 6px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13.5px; } .ncrow b { font-weight: 600; } .ncrow b.win { color: #3f9a5a; font-weight: 800; }
+.nrowt { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 0 8px; } .nrowt b { font-size: 16px; } .nrowt small { color: var(--muted); }
+.nstrip { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px; scrollbar-width: none; } .nstrip .ntut { flex: 0 0 116px; scroll-snap-align: start; }
+.ngrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.ntut { all: unset; box-sizing: border-box; cursor: pointer; display: grid; gap: 5px; } .ntut b { font-size: 12.5px; line-height: 1.25; }
+.ntim { aspect-ratio: 9 / 13; border-radius: 14px; position: relative; background: linear-gradient(160deg, #f3b6c4, #c4646a) center / cover; }
+.ntim .src, .ntim .done { position: absolute; left: 6px; top: 6px; font-size: 10px; background: rgba(0,0,0,.55); color: #fff; border-radius: 99px; padding: 2px 7px; } .ntim .done { left: auto; right: 6px; background: #3f9a5a; }
+.ntim .play { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 26px; text-shadow: 0 2px 8px rgba(0,0,0,.35); }
+.nroutines { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.nrt { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px; } .nrth b { display: block; font-size: 16px; } .nrth small { color: var(--muted); font-size: 12.5px; }
+.nblocks { display: flex; gap: 4px; margin-top: 10px; } .nblocks span { flex: 1; font-size: 10.5px; font-weight: 700; text-align: center; padding: 8px 2px; border-radius: 8px; color: #fff; } .nblocks i { font-style: normal; opacity: .8; }
+.nbstep { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 8px 10px; margin-bottom: 8px; } .nbstep .lmain { flex: 1; min-width: 0; }
+.nbstep .num { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--accent-ink, #fff); font-size: 12px; font-weight: 800; display: grid; place-items: center; flex: none; }
+.ndo { background: #2b1d10; color: #f3eee8; border-radius: 22px; padding: 20px; text-align: center; } .ndo .k { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; opacity: .7; } .ndo h2 { color: inherit; font-size: clamp(22px, 5vw, 30px); margin: 8px 0 12px; }
+.ndobit { display: grid; justify-items: center; gap: 4px; margin: 8px 0; } .ndobit .glyph { font-size: 54px; line-height: 1; } .ndobit .glyph::after { content: ''; display: block; height: 6px; width: 40px; margin: 6px auto 0; border-radius: 3px; background: var(--gc); } .ndobit small { opacity: .75; }
+.ndotip { opacity: .9; margin: 6px 0; } .ndotm { font: 800 44px/1 var(--display, inherit); margin: 14px 0 6px; } .ndoprog { height: 6px; border-radius: 99px; background: #4b3a2e; overflow: hidden; } .ndoprog i { display: block; height: 100%; background: #e8b4a0; transition: width 1s linear; }
+.ndob { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 16px; } .ndob .btn { background: #4b3a2e; color: #f3eee8; border-color: transparent; } .ndob .btn.primary { background: #f3eee8; color: #2b1d10; }
+.ndowide { display: grid; grid-template-columns: 1.2fr 1fr; gap: 14px; align-items: start; } .ndoside { display: grid; gap: 8px; }
+.ndovid { aspect-ratio: 9 / 13; max-height: 360px; border-radius: 16px; background: linear-gradient(160deg, #f3b6c4, #c4646a) center / cover; display: grid; place-items: center; color: #fff; font-size: 40px; text-decoration: none; }
