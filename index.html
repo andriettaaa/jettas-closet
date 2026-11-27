@@ -1691,16 +1691,46 @@ function renderCalendar(host) {
     host.dataset.built = '1';
     host.innerHTML = `<div class="viewhead"><h1>Calendar</h1><span class="sub">Log what you wore, plan what's next</span></div>
       <div class="calhead"><button class="iconbtn" data-cal="-1" aria-label="Previous month">${I.left}</button><h2 id="calTitle"></h2><button class="iconbtn" data-cal="1" aria-label="Next month">${I.right}</button><button class="btn small" data-cal="0">Today</button></div>
-      <div class="cal" id="calGrid"></div><p class="calnote" id="calNote"></p>`;
+      <div class="seg calview" role="group" aria-label="Weergave">${[['month', 'Maand'], ['week', 'Week'], ['list', 'Lijst']].map(([k, l]) => `<button type="button" data-calv="${k}" aria-pressed="${pref.get('calView', 'month') === k}">${l}</button>`).join('')}</div>
+      <div class="cal" id="calGrid"></div><div id="calAlt" hidden></div><p class="calnote" id="calNote"></p>`;
     host.addEventListener('click', e => {
       const c = e.target.closest('[data-cal]');
       if (c) { const n = +c.dataset.cal, m = S.calMonth; S.calMonth = n === 0 ? new Date(new Date().getFullYear(), new Date().getMonth(), 1) : new Date(m.getFullYear(), m.getMonth() + n, 1); fillCal(host); return; }
+      const cv = e.target.closest('[data-calv]'); if (cv) { pref.set('calView', cv.dataset.calv); host.querySelectorAll('[data-calv]').forEach(b => b.setAttribute('aria-pressed', b === cv)); S.calWeek = null; fillCal(host); return; }
+      const cw = e.target.closest('[data-calw]'); if (cw) { S.calWeek = addDaysIso(S.calWeek || weekStartIso(), 7 * Number(cw.dataset.calw)); fillCal(host); return; }
       const d = e.target.closest('[data-day]'); if (d) openDay(d.dataset.day);
     });
   }
   fillCal(host);
 }
+// the outfit calendar per week (big photos) or as a list of what you wore
+const addDaysIso = (k, n) => { const d = new Date(k + 'T12:00:00'); d.setDate(d.getDate() + n); return iso(d); };
+const weekStartIso = () => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return iso(d); };
+function dayThumb(k) {
+  const rec = S.days[k]; if (!rec) { const tr = tripOn(k); return tr ? thumbFor(tripDayPieces(tr, tripDates(tr).indexOf(k))) : ''; }
+  const o = rec.outfit && S.outById[rec.outfit];
+  if (rec.photos?.length) return pimg(rec.photos[0], '', 'class="look" loading="lazy"');
+  if (o) return boardHTML(o.pieces);
+  const ids = dayItems(rec).filter(id => S.byId[id]?.photo); return ids.length === 1 ? pimg(S.byId[ids[0]].photo, '', 'class="single" loading="lazy"') : ids.length ? boardHTML(autoLayout(ids)) : '';
+}
+const dayName = k => { const rec = S.days[k], o = rec?.outfit && S.outById[rec.outfit]; return o ? o.name || 'Outfit' : rec ? dayItems(rec).map(id => S.byId[id]?.name).filter(Boolean).slice(0, 2).join(' + ') : ''; };
+function fillCalAlt(host, v) {
+  const alt = $('#calAlt', host), t = today();
+  if (v === 'week') {
+    const ws = S.calWeek || weekStartIso(), days = Array.from({ length: 7 }, (_, i) => addDaysIso(ws, i));
+    $('#calTitle', host).textContent = 'Week van ' + new Date(ws + 'T12:00:00').toLocaleDateString('nl-NL', { day: 'numeric', month: 'long' });
+    alt.innerHTML = `<div class="calweekbar"><button class="iconbtn" data-calw="-1" aria-label="Vorige week">${I.left}</button><span class="spacer"></span><button class="iconbtn" data-calw="1" aria-label="Volgende week">${I.right}</button></div>
+      <div class="calweek">${days.map(k => { const w = wxDay(k), th = dayThumb(k); return `<button class="cwday ${k === t ? 'today' : ''}" data-day="${k}"><span class="cwh"><b>${new Date(k + 'T12:00:00').toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric' })}</b>${w ? `<i>${wmo(w.c)[1]} ${w.hi}°</i>` : ''}</span><div class="cwthumb">${th || '<span class="cwplus">+</span>'}</div><small>${esc(dayName(k) || (k > t ? 'Plannen' : 'Niets gelogd'))}</small></button>`; }).join('')}</div>`;
+  } else {
+    const ks = Object.keys(S.days).filter(k => k <= addDaysIso(t, 14) && dayThumb(k)).sort().reverse().slice(0, 90);
+    $('#calTitle', host).textContent = 'Wat je droeg';
+    alt.innerHTML = ks.length ? `<div class="callist">${ks.map(k => `<button class="clrow" data-day="${k}"><div class="clthumb">${dayThumb(k)}</div><span><b>${esc(dayName(k) || 'Outfit')}</b><small>${new Date(k + 'T12:00:00').toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })}${k > t ? ' · gepland' : ''}</small></span></button>`).join('')}</div>` : '<p class="muted">Nog niets gelogd.</p>';
+  }
+}
 function fillCal(host) {
+  const cv = pref.get('calView', 'month'), grid = $('#calGrid', host), alt = $('#calAlt', host);
+  host.querySelectorAll('.calhead [data-cal]').forEach(b => { b.hidden = cv !== 'month'; });
+  if (grid && alt) { grid.hidden = cv !== 'month'; alt.hidden = cv === 'month'; if (cv !== 'month') { fillCalAlt(host, cv); return; } }
   const m = S.calMonth, y = m.getFullYear(), mo = m.getMonth();
   $('#calTitle', host).textContent = m.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   const start = new Date(y, mo, 1 - ((m.getDay() + 6) % 7));

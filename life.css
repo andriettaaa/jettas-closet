@@ -1784,3 +1784,17 @@ details.fpanel[open] > summary { margin-bottom: 10px; }
 .rail { position: relative; padding-top: 22px; background: linear-gradient(var(--line), var(--line)) no-repeat 0 10px / 100% 5px; }
 .rail .card.onrail { flex: 0 0 120px; scroll-snap-align: start; position: relative; overflow: visible; }
 .rail .card.onrail::before { content: ''; position: absolute; top: -14px; left: 50%; width: 2px; height: 14px; background: var(--muted); }
+/* outfit calendar: week with big photos, and a list */
+.seg.calview { margin: 0 0 10px; }
+.calweekbar { display: flex; align-items: center; margin: 0 0 8px; } .calweekbar .spacer { flex: 1; }
+.calweek { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.cwday { all: unset; box-sizing: border-box; cursor: pointer; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 8px; display: grid; gap: 6px; }
+.cwday.today { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
+.cwh { display: flex; justify-content: space-between; font-size: 12.5px; } .cwh i { font-style: normal; color: var(--muted); }
+.cwthumb { aspect-ratio: 3 / 4; border-radius: 12px; overflow: hidden; background: color-mix(in srgb, var(--ink) 5%, var(--surface)); display: grid; place-items: center; }
+.cwthumb img { width: 100%; height: 100%; object-fit: cover; } .cwplus { font-size: 28px; color: var(--muted); }
+.cwday small { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.callist { display: grid; gap: 8px; }
+.clrow { all: unset; box-sizing: border-box; cursor: pointer; display: flex; gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 8px; }
+.clthumb { width: 64px; height: 84px; border-radius: 10px; overflow: hidden; flex: none; background: color-mix(in srgb, var(--ink) 5%, var(--surface)); } .clthumb img { width: 100%; height: 100%; object-fit: cover; }
+.clrow small { display: block; color: var(--muted); font-size: 12.5px; }
