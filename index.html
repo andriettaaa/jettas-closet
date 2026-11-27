@@ -844,7 +844,11 @@ async function syncNow() {
 }
 // look and feel: stored in prefs so every device matches, cached here so it shows before you're signed in
 const LOOK_FONTS = { house: null, classic: 'Fraunces:opsz,wght@9..144,600;9..144,800', round: 'Nunito:wght@400;500;600;700;800', clean: 'Inter:wght@400;500;600;700;800', hand: 'Caveat:wght@600;700' };
+// this device can differ from the synced look: its own theme, motion and spacing (Settings › Look › Op deze …)
+const devLook = () => { try { return JSON.parse(localStorage.getItem('dev:look') || '{}') || {}; } catch { return {}; } };
 function applyLook(look = pref.get('look', {})) {
+  const dl = devLook(); look = { ...look, ...(dl.theme ? { theme: dl.theme } : {}) };
+  document.documentElement.setAttribute('data-motion', dl.motion || 'lively'); document.documentElement.setAttribute('data-density', dl.density || (innerWidth >= 900 ? 'compact' : 'roomy'));
   const r = document.documentElement, set = (k, v) => v ? r.setAttribute('data-' + k, v) : r.removeAttribute('data-' + k);
   set('theme', look.theme && look.theme !== 'auto' ? look.theme : ''); set('accent', look.accent && look.accent !== 'brown' ? look.accent : '');
   set('font', look.font && look.font !== 'house' ? look.font : ''); set('size', look.size && look.size !== 'm' ? look.size : ''); set('compact', look.compact ? '1' : '');
@@ -2226,6 +2230,10 @@ function lookPanel() {
     ${row('accent', 'Accent colour', o => `<span class="sw" style="background:${o[2]}"></span><small>${o[1]}</small>`)}
     ${row('font', 'Letters', o => `<span class="fs" style="font-family:${o[3]}">${o[1]}</span><small>${o[2]}</small>`)}
     ${row('size', 'Text size', o => `<b>${o[1]}</b><small>${o[2]}</small>`)}
+    ${(() => { const dl = devLook(), dn = deviceName(), g = (k, title, opts, cur) => `<div class="setgroup"><p class="dsub">${title}</p><div class="lookopts">${opts.map(([v, l, h]) => `<button data-devlook="${k}" data-v="${v}" aria-pressed="${cur === v}"><b>${l}</b><small>${h}</small></button>`).join('')}</div></div>`;
+      return `<div class="devlookbox"><p class="dsub">Alleen op deze ${esc(dn)}</p>${g('theme', 'Licht of donker', [['', 'Zoals hierboven', 'gelijk overal'], ['auto', 'Volgt dit apparaat', 'licht of donker'], ['light', 'Licht', 'altijd'], ['dark', 'Donker', 'altijd']], dl.theme || '')}
+        ${g('motion', 'Beweging', [['calm', 'Rustig', 'zachte overgangen'], ['lively', 'Levendig', 'ringen, veren, confetti'], ['buzz', 'Levendig + trilling', 'waar het kan']], dl.motion || 'lively')}
+        ${g('density', 'Ruimte', [['compact', 'Compact', 'meer op je scherm'], ['roomy', 'Ruim', 'grotere tegels']], dl.density || (innerWidth >= 900 ? 'compact' : 'roomy'))}</div>`; })()}
     <div class="setrow"><label class="settog"><input type="checkbox" data-lookcompact ${L.compact ? 'checked' : ''}> <b>Compact closet</b></label><span class="muted setsub">More pieces and products per row, with smaller text under each tile.</span></div></section>`;
 }
 async function saveLook(patch) {
@@ -2234,6 +2242,7 @@ async function saveLook(patch) {
   try { await DB.savePrefs({ look }); } catch (err) { saveErr(err, 'Saved on this device only. Try again to save it everywhere.'); }
 }
 document.addEventListener('click', e => { const b = e.target.closest?.('[data-look]'); if (b) saveLook({ [b.dataset.look]: b.dataset.v }); });
+document.addEventListener('click', e => { const b = e.target.closest?.('[data-devlook]'); if (!b) return; const d = { ...devLook(), [b.dataset.devlook]: b.dataset.v }; if (!b.dataset.v) delete d[b.dataset.devlook]; try { localStorage.setItem('dev:look', JSON.stringify(d)); } catch {} applyLook(S.prefs.look || pref.get('look', {})); render(); });
 document.addEventListener('change', e => { if (e.target.matches?.('[data-lookcompact]')) saveLook({ compact: e.target.checked }); });
 document.addEventListener('click', async e => { if (!e.target.closest?.('[data-savename]')) return; const v = $('#set-name')?.value.trim() || ''; try { await DB.savePrefs({ name: v }); toast(v ? `Hi ${v}!` : 'Name removed'); } catch (err) { saveErr(err, 'Could not save. Try again.'); } });
 const myName = () => String(S.prefs.name || window.LIFE?.userName?.() || '').trim();

@@ -8142,7 +8142,7 @@ document.addEventListener('pointerdown', e => { const b = e.target.closest?.('[d
 ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => document.addEventListener(ev, () => clearTimeout(dpPress)));
 document.addEventListener('contextmenu', e => { if (e.target.closest?.('[data-dpt]')) e.preventDefault(); });
 async function dpQuick(x) {
-  const before = dayStats();
+  const before = dayStats(); if (document.documentElement.dataset.motion === 'buzz') try { navigator.vibrate?.(15); } catch {}
   try { if (x.act) await x.act(); else { const q = KINDS[x.rec?.kind]?.quick?.(x.rec); if (q) await q.act(); } } catch (err) { failed(err); return; }
   if (!x.done) { L.dpCheer = `${x.label} afgevinkt`; L.dpCheerAt = Date.now(); }
   C.toast(x.done ? `${x.label}: toch niet gedaan` : `✓ ${x.label}`, x.done ? undefined : { label: 'Ongedaan', run: () => dpQuick({ ...x, done: true }) });
