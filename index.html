@@ -289,6 +289,34 @@ dl.props dd .chip.link { margin-right: 6px; }
 .hscroll .card { flex: 0 0 132px; }
 
 nav.bottom { display: none; }
+.sidefold { display: none; }
+/* the side bar (MacBook, iPad on its side) */
+body.side { --sidew: 248px; padding-left: var(--sidew); }
+body.side.folded { --sidew: 76px; }
+body.side header.top { position: fixed; left: 0; top: 0; bottom: 0; width: var(--sidew); border-bottom: 0; border-right: 1px solid var(--line); overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); transition: width .2s ease; }
+body.side header.top > .wrap { flex-direction: column; align-items: stretch; gap: 8px; padding: 16px 12px; max-width: none; margin: 0; }
+body.side header.top .spacer { display: none; }
+body.side .brand { padding: 0 6px 8px; }
+body.side .sidefold { display: inline-grid; margin-left: auto; width: 34px; height: 34px; }
+body.side nav.tabs { flex-direction: column; margin: 0; overflow: visible; order: 3; gap: 2px; }
+body.side nav.tabs button { border-radius: 12px; padding: 10px 12px; width: 100%; }
+body.side .findbtn { order: 2; display: flex; width: 100%; border-radius: 12px; justify-content: flex-start; gap: 10px; padding: 10px 12px; height: auto; }
+body.side .findbtn::after { content: 'Zoeken'; font-weight: 600; color: var(--muted); }
+body.side #addBtn { order: 1; width: 100%; justify-content: center; }
+body.side header.top .secwrap { padding: 2px 0 8px 14px; margin: 0; max-width: none; }
+body.side header.top .secwrap .secbar, body.side .secwrap .subbar { flex-direction: column; overflow: visible; gap: 2px; padding: 0; border: 0; margin: 0; }
+body.side header.top .secwrap .secbar button { border: 0; background: none; border-radius: 10px; padding: 8px 10px; width: 100%; justify-content: flex-start; }
+body.side header.top .secwrap .secbar button[aria-current="true"] { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--ink); }
+body.side header.top .secwrap .subbar { padding-left: 26px; }
+body.side header.top .secwrap .subbar button { padding: 6px 0; text-align: left; border-bottom: 0; }
+body.side header.top .secwrap .subbar button[aria-current="true"] { color: var(--accent); }
+body.side main.wrap { padding-top: 20px; }
+body.side.folded .brandname, body.side.folded nav.tabs button span:not(.badge), body.side.folded .addlabel, body.side.folded .findbtn::after { display: none; }
+body.side.folded .brand { flex-direction: column; gap: 8px; padding: 0 0 8px; }
+body.side.folded .sidefold { margin: 0; }
+body.side.folded nav.tabs button, body.side.folded .findbtn { justify-content: center; padding: 10px 0; }
+body.side.folded header.top > .secwrap { display: none; }
+body.side.folded > .secwrap { position: sticky; top: 0; z-index: 15; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); padding-top: 12px; }
 @media (max-width: 720px) {
   nav.tabs { display: none; }
   nav.bottom { display: grid; grid-template-columns: repeat(6, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; background: var(--surface); border-top: 1px solid var(--line); padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); }
@@ -596,7 +624,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><img src="logo-mark.png" alt="" width="34" height="34">A’s Life</div>
+    <div class="brand"><img src="logo-mark.png" alt="" width="34" height="34"><span class="brandname">A’s Life</span><button class="iconbtn sidefold" id="sideFold" type="button" aria-label="Zijbalk in- of uitklappen" title="Zijbalk in- of uitklappen"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9.5 4.5v15" stroke="currentColor" stroke-width="1.8"/></svg></button></div>
     <nav class="tabs" id="tabsTop" aria-label="Sections"></nav>
     <div class="spacer"></div>
     <button class="iconbtn findbtn" id="findBtn" hidden aria-label="Search everything" title="Search everything (/)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
@@ -1093,7 +1121,18 @@ const outfitPhotos = id => lookPhotos().filter(l => l.outfit === id);
     t = setTimeout(() => bar.classList.remove('away'), 350);
   }, { passive: true });
 })();
+/* wide screens in landscape (MacBook, iPad on its side) get a side bar: sections under each other, the pages of the
+   section you're in right under it. It folds to icons with the button by the logo; that choice is kept per device. */
+const SIDE_MQ = matchMedia('(min-width: 1000px) and (min-aspect-ratio: 1/1)');
+const sideFolded = () => { try { return localStorage.getItem('dev:side') === 'fold'; } catch { return false; } };
+function applySide() {
+  const on = SIDE_MQ.matches; document.body.classList.toggle('side', on); document.body.classList.toggle('folded', on && sideFolded());
+}
+SIDE_MQ.addEventListener?.('change', () => { applySide(); renderTabs(); });
+document.addEventListener('click', e => { if (!e.target.closest('#sideFold')) return; try { localStorage.setItem('dev:side', sideFolded() ? 'open' : 'fold'); } catch {} renderTabs(); });
 function renderTabs() {
+  applySide();
+  const sw = document.querySelector('.secwrap'); if (sw && sw.parentElement !== document.querySelector('header.top')) document.querySelector('header.top').appendChild(sw);
   const n = inboxItems().length;
   const views = tabsFor(S.view), sec = secOf(S.view);
   const jumpOn = SECTIONS.find(s => s.to === S.view && navSections().includes(s))?.key;
@@ -1126,6 +1165,8 @@ function renderTabs() {
   const openSub = row2.find(t => t.sg && t.sg === curSub);
   sub2.hidden = !openSub;
   sub2.innerHTML = openSub ? openSub.vs.map(([k, label]) => `<button data-view="${k}" aria-current="${S.view === k}">${label}</button>`).join('') : '';
+  // open side bar: the pages sit right under the section; folded: they run along the top of the page
+  if (document.body.classList.contains('side') && sw) { if (document.body.classList.contains('folded')) { if (!bar.hidden) $('#main').before(sw); } else { const cur = $('#tabsTop [aria-current="page"]'); if (cur && !bar.hidden) cur.after(sw); } }
   for (const b of [bar, sub, sub2]) { const c = b.querySelector('[aria-current="true"]'); if (c && (c.offsetLeft < b.scrollLeft || c.offsetLeft + c.offsetWidth > b.scrollLeft + b.clientWidth)) b.scrollLeft = c.offsetLeft - 16; }
   $('#addBtn').hidden = sec === 'overview' || sec === 'settings' || isSecSettings(S.view);
   $('#addBtn .addlabel').textContent = sec === 'closet' ? 'Add piece' : sec === 'overview' ? 'Add' : window.LIFE.addLabel(S.view);

@@ -1018,7 +1018,7 @@ img.nophoto { background: var(--line); }
 /* top menu: tighter on laptop widths so every section and More fit without scrolling */
 @media (max-width: 1600px) { nav.tabs button { padding: 8px 10px; gap: 6px; } }
 @media (max-width: 1000px) { nav.tabs { margin-left: 4px; gap: 2px; } nav.tabs button { padding: 6px 7px; font-size: 14px; } }
-@media (max-width: 1200px) { nav.tabs button svg { display: none; } }
+@media (max-width: 1200px) { body:not(.side) nav.tabs button svg { display: none; } }
 /* calendar filter chips: on = soft tint with a coloured edge, so every dot stays visible */
 .calcat[aria-pressed="true"] { background: color-mix(in srgb, var(--c) 18%, var(--surface)); color: var(--ink); border: 1px solid color-mix(in srgb, var(--c) 70%, var(--line)); }
 .calcat[aria-pressed="false"] { background: var(--surface); }
