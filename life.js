@@ -3401,6 +3401,32 @@ function balanceHTML(d = today()) {
   const dots = [['🥦', 'Groente', Math.min(1, veg / 250), `${veg} van 250 g`], ['🍗', 'Eiwit', prot, prot >= 1 ? 'in je maaltijd' : 'nog niet'], ['🌾', 'Vezels', fib, fib >= 1 ? 'goed' : 'kan meer'], ['🍎', 'Fruit', Math.min(1, fruit / 2), `${fruit} van 2 stuks`]];
   return `<div class="balance" title="Ongeveer, zonder calorieën">${dots.map(([e, l, v, t]) => `<div class="bdot"><span class="ring" style="--p:${Math.round(v * 100)}%"><b>${e}</b></span><small><b>${l}</b>${esc(t)}</small></div>`).join('')}</div>`;
 }
+const MOODS = [['Blij', '😊'], ['Rustig', '😌'], ['Gestrest', '😣'], ['Down', '😔']], ENERGY = [['Top', '⚡'], ['Goed', '🔋'], ['Oké', '🪫'], ['Laag', '😴']];
+// mood and energy: one tap each, with what goes together with a good day over the last 30 days
+function moodSheet(d = today()) {
+  const nl = nlOn(d) || {}, l = recs('nlog').filter(x => x.date >= addDays(today(), -30) && x.energy), good = x => ['Top', 'Goed'].includes(x.energy);
+  const sleepOf = x => { const r = recs('sleep').find(y => y.date === x.date); return r ? sleepHours(r) : null; };
+  const pct = f => { const a = l.filter(f); return a.length >= 3 ? Math.round(a.filter(good).length / a.length * 100) : null; };
+  const links = [[x => (sleepOf(x) || 0) >= 7, 'na 7 uur slaap of meer'], [x => (num(x.veg) || 0) >= 200, 'met genoeg groente'], [x => recs('workouts').some(w => w.date === x.date && w.done), 'op dagen dat je sportte'], [x => [].concat(x.meals || []).includes('Breakfast'), 'als je ontbeet']]
+    .map(([f, t]) => [t, pct(f), pct(x => !f(x))]).filter(([, a, b]) => a != null && b != null && a - b >= 15);
+  const sh = C.sheet({ title: 'Hoe was je dag?', body: `<p class="dsub">Stemming</p><div class="lwrap moodrow">${MOODS.map(([m, e]) => `<button class="chip ${nl.mood === m ? 'on' : ''}" data-mood="${m}">${e} ${m}</button>`).join('')}</div>
+    <p class="dsub">Energie</p><div class="lwrap moodrow">${ENERGY.map(([m, e]) => `<button class="chip ${nl.energy === m ? 'on' : ''}" data-energy="${m}">${e} ${m}</button>`).join('')}</div>
+    ${links.length ? `<p class="dsub">Wat je opvalt (laatste 30 dagen)</p>${links.map(([t, a, b]) => `<p class="lnone">⚡ Je energie was vaker goed <b>${esc(t)}</b>: ${a}% tegen ${b}%.</p>`).join('')}` : '<p class="lnone">Na een paar weken laat de app hier zien wat samengaat met goede dagen.</p>'}` });
+  sh.addEventListener('click', async e => { const m = e.target.closest('[data-mood]'), en = e.target.closest('[data-energy]'); if (!m && !en) return;
+    await nlSet(m ? { mood: m.dataset.mood } : { energy: en.dataset.energy }, d); sh.querySelectorAll(m ? '[data-mood]' : '[data-energy]').forEach(b => b.classList.toggle('on', b === (m || en)));
+    const n2 = nlOn(d) || {}; if (n2.mood && n2.energy) { C.closeSheet(); C.toast('🙂 Opgeslagen'); C.render(); } });
+}
+// the Sunday week review: your numbers and one focus for the coming week
+function weekReview() {
+  const wk = weekMon(), days = Array.from({ length: 7 }, (_, i) => addDays(wk, i)).filter(x => x <= today());
+  const sl = avgOf(recs('sleep').filter(x => days.includes(x.date)).map(sleepHours)), wo = recs('workouts').filter(x => days.includes(x.date) && x.done).length;
+  const nls = days.map(nlOn).filter(Boolean), veg = avgOf(nls.map(x => num(x.veg))), moods = nls.map(x => x.mood).filter(Boolean), topMood = moods.sort((a, b) => moods.filter(x => x === b).length - moods.filter(x => x === a).length)[0];
+  const spent = (() => { try { return fSum(recs('ftx').filter(x => days.includes(x.date))); } catch { return null; } })(), dp = days.map(d => dayPlan(d).filter(x => x.type !== 'water')), done = dp.flat().filter(x => x.done).length, tot = dp.flat().length;
+  const tile = (e, l, v) => `<div class="tile"><div class="k">${e} ${l}</div><div class="v">${v ?? '–'}</div></div>`;
+  const sh = C.sheet({ title: '📊 Je week', body: `<div class="tiles lt3">${tile('😴', 'Slaap', sl != null ? sl.toFixed(1) + ' u' : null)}${tile('🏃🏾‍♀️', 'Gesport', wo + '×')}${tile('🥦', 'Groente', veg != null ? Math.round(veg) + ' g' : null)}${tile('🙂', 'Stemming', topMood || null)}${tile('✅', 'Afgevinkt', tot ? Math.round(done / tot * 100) + '%' : null)}${tile('💶', 'Uitgegeven', spent != null ? eur(spent) : null)}</div>
+    <p class="dsub">Eén focus voor volgende week</p><input class="finp" data-wrfocus placeholder="Bijvoorbeeld: elke dag ontbijten" value="${esc(intentNow()?.text || '')}">`, foot: '<div class="spacer"></div><button class="btn primary" data-wrsave>Opslaan</button>' });
+  sh.querySelector('[data-wrsave]').onclick = () => { const v = sh.querySelector('[data-wrfocus]').value.trim(); C.savePrefs({ intent: { week: weekMon(addDays(today(), new Date().getDay() === 0 ? 1 : 0)), text: v } }).then(() => { C.closeSheet(); C.toast('🎯 Je focus staat op Vandaag'); C.render(); }); };
+}
 const withHero = (key, html) => html.replace(/(<div class="viewhead">[\s\S]*?<\/div>)/, `$1${mixHero(key)}`);
 function kitchenToday(host) {
   setTimeout(stapleRestock, 0);
@@ -8320,6 +8346,9 @@ function dayPlan(d = today()) {
   try { if (shopDateIn(weekMon(d)) === d) { const n = recs('ingredients').filter(i => i.list).length; add({ key: 'shop', min: null, label: 'Boodschappen', sub: n ? plural(n, 'ding', 'dingen') + ' op je lijst' : 'je lijst is leeg', done: ticked.has('shop'), type: 'shop', go: 'kitchen/groceries', act: tick('shop') }); } } catch {}
   try { for (const eve of [false, true]) { const ps = slotOn(d, eve); if (!ps.length) continue; const k = 'skin:' + (eve ? 'PM' : 'AM');
     add({ key: k, min: eve ? bed - 50 : w + 20, label: eve ? 'Skincare avond' : 'Skincare ochtend', sub: ps.length === 1 ? titleOf(ps[0]) : plural(ps.length, 'stap', 'stappen'), done: ticked.has(k), type: 'skin', go: 'care/skin', act: tick(k) }); } } catch {}
+  // mood and energy, one tap in the evening; the week review on Sunday
+  try { add({ key: 'mood', min: bed - 75, label: 'Hoe was je dag?', sub: nl.mood && nl.energy ? `${nl.mood} · energie ${String(nl.energy).toLowerCase()}` : 'stemming en energie', done: !!(nl.mood && nl.energy), type: 'mood', act: () => moodSheet(d) });
+    if (fromISO(d).getDay() === 0) add({ key: 'weekreview', min: 19 * 60, label: 'Week-review', sub: 'je week in cijfers en één focus', done: !!(intentNow() && intentNow().week > weekMon(d)), type: 'review', act: () => weekReview() }); } catch {}
   // nails: cuticle oil morning and evening, and the fill when your set is old enough
   try { if (nailPrefs().oil !== false && (recs('naillog').length || recs('nprods').some(p => p.cat === 'Cuticle oil'))) for (const [k, min] of [['oil:AM', w + 25], ['oil:PM', bed - 30]]) add({ key: k, min, label: 'Cuticle oil', sub: k === 'oil:AM' ? 'ochtend' : 'avond', done: ticked.has(k), type: 'oil', act: tick(k) });
     const ls = lastNailSet(), age = ls ? diffDays(ls.date, d) : null; if (age != null && age >= nailFillDays() && !['Removed'].includes(byDate('naillog')[0]?.what)) add({ key: 'nails:fill', min: null, label: 'Tijd voor een fill', sub: `je set is ${age} dagen oud`, done: ticked.has('nails:fill'), type: 'nails', go: 'care/nails', act: tick('nails:fill') }); } catch {}
@@ -8337,6 +8366,8 @@ function dpIcon(x) {
   if (x.type === 'shop') return '🛒';
   if (x.type === 'skin') return '🧴';
   if (x.type === 'oil') return '💧';
+  if (x.type === 'mood') return '🙂';
+  if (x.type === 'review') return '📊';
   if (x.type === 'nails') return '💅';
   if (x.type === 'habit') return '✨';
   const k = x.rec?.kind, n = norm(x.label);
@@ -8418,6 +8449,7 @@ document.addEventListener('pointerdown', e => { const b = e.target.closest?.('[d
 ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => document.addEventListener(ev, () => clearTimeout(dpPress)));
 document.addEventListener('contextmenu', e => { if (e.target.closest?.('[data-dpt]')) e.preventDefault(); });
 async function dpQuick(x) {
+  if (['mood', 'review'].includes(x.type)) return x.act();
   const before = dayStats(); if (document.documentElement.dataset.motion === 'buzz') try { navigator.vibrate?.(15); } catch {}
   try { if (x.act) await x.act(); else { const q = KINDS[x.rec?.kind]?.quick?.(x.rec); if (q) await q.act(); } } catch (err) { failed(err); return; }
   if (!x.done) { L.dpCheer = `${x.label} afgevinkt`; L.dpCheerAt = Date.now(); }
