@@ -588,7 +588,8 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .setfold > summary small { color: var(--muted); font-size: 12.5px; line-height: 1.35; }
 .setfold > summary i { font-style: normal; color: var(--muted); font-size: 20px; transition: transform .15s; }
 .setfold[open] > summary i { transform: rotate(90deg); }
-.setfold > section.setpanel { border: 0; background: none; margin: 0; padding-top: 0; box-shadow: none; }
+.fsetgrid > .setfold { margin-bottom: 10px; }
+.setfold > section.setpanel, .setfold > section.mpanel { border: 0; background: none; margin: 0; padding-top: 0; box-shadow: none; }
 </style>
 <link rel="stylesheet" href="life.css">
 </head>
@@ -2262,10 +2263,12 @@ function affirmManage() {
    while the page redraws, and search opens the panel it jumps to */
 const SET_OPEN = new Set();
 function foldSettings(host) {
-  for (const p of host.querySelectorAll('.setpanels section.setpanel')) {
-    if (p.parentElement.closest('section.setpanel') || p.parentElement.matches('details.setfold')) continue;
-    const h = p.querySelector(':scope > h3'), title = h?.textContent.trim() || 'Settings', id = p.id || S.view + ':' + title;
-    const hint = (p.querySelector(':scope > p.muted')?.textContent || '').trim().replace(/\s+/g, ' ');
+  for (const p of host.querySelectorAll('.setpanels section.setpanel, .setpanels .fsetgrid > section.mpanel')) {
+    if (p.parentElement.closest('section.setpanel, section.mpanel') || p.parentElement.matches('details.setfold')) continue;
+    const h = p.querySelector(':scope > h3, :scope > .lph3 > h3'), title = h?.textContent.trim() || 'Settings', id = p.id || S.view + ':' + title;
+    // a panel of settings rows names its first few settings; any other panel uses its first line of help
+    const rowsHint = [...p.querySelectorAll(':scope > .fset > div > b')].slice(0, 4).map(b => b.textContent.trim()).join(' · ');
+    const hint = (p.querySelector(':scope > p.muted, :scope > p.lnone')?.textContent || rowsHint).trim().replace(/\s+/g, ' ');
     const d = document.createElement('details'); d.className = 'setfold'; d.dataset.fold = id; if (SET_OPEN.has(id)) d.open = true;
     d.innerHTML = `<summary><span><b>${esc(title)}</b>${hint ? `<small>${esc(hint.length > 90 ? hint.slice(0, 88) + '…' : hint)}</small>` : ''}</span><i aria-hidden="true">›</i></summary>`;
     p.replaceWith(d); d.appendChild(p); if (h) h.hidden = true;
