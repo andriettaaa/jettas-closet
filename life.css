@@ -1825,3 +1825,8 @@ details.fpanel[open] > summary { margin-bottom: 10px; }
 .mxbar.dark { width: 100%; background: color-mix(in srgb, var(--ink) 10%, transparent); } .mxbar.dark i { background: var(--accent); }
 details.room { border-top: 1px solid var(--line); padding: 10px 0; } details.room > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; } details.room > summary::-webkit-details-marker { display: none; } details.room > summary span { color: var(--muted); font-size: 13px; text-align: right; } details.room[open] > summary { margin-bottom: 8px; }
 .ccoach { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; margin-top: 10px; } .ccoach > div { background: color-mix(in srgb, var(--ink) 5%, var(--surface)); border-radius: 12px; padding: 10px; } .ccoach p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+.lday.drop { outline: 2px dashed var(--accent); }
+.pipe { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(180px, 1fr); gap: 10px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 14px; }
+.pcol { background: color-mix(in srgb, var(--ink) 5%, var(--surface)); border-radius: 14px; padding: 8px; display: grid; gap: 6px; align-content: start; }
+.pch { display: flex; justify-content: space-between; font-size: 13px; } .pch span { color: var(--muted); }
+.pcard { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px; display: grid; gap: 6px; } .pcard .lmain span { display: block; color: var(--muted); font-size: 12px; }

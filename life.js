@@ -1824,7 +1824,7 @@ const PAGES = {
   'social/tips': { title: 'Tips', segs: [{ kind: 'stips' }] },
   'social/plan': { render: socialPlan, adds: ['posts'] },
   'social/goals': { title: 'Goals', segs: [{ kind: 'sgoals' }, { kind: 'accounts' }] },
-  'social/collabs': { title: 'Collabs', segs: [{ kind: 'deals' }] },
+  'social/collabs': { title: 'Samenwerkingen', segs: [{ kind: 'deals', top: collabPipe }] },
   'social/brand': { title: 'Brand', segs: [{ kind: 'pillars' }, { kind: 'accounts' }] },
   'social/kit': { title: 'Toolkit', segs: [{ kind: 'stemplates' }, { kind: 'hashsets' }] },
   'social/inspo': { title: 'Inspiration', segs: [{ kind: 'inspo' }] },
@@ -2788,16 +2788,23 @@ function batchDay() {
 }
 const STEP_CLS = { scriptOn: 'sscript', filmOn: 'sfilm', editOn: 'sedit', date: 'spost', collab: 'scollab' };
 const DEAL_DATES = [['draftBy', 'Collab draft'], ['postBy', 'Collab post'], ['due', 'Collab due'], ['payBy', 'Collab payment']];
+// collaborations as a pipeline: one column per status, a tap moves a deal to the next step
+const PIPE = ['Pitched', 'Talking', 'Confirmed', 'Creating', 'Delivered', 'Paid'], PIPE_NL = { Pitched: 'Aangevraagd', Talking: 'In gesprek', Confirmed: 'Bevestigd', Creating: 'Maken', Delivered: 'Gepost', Paid: 'Betaald' };
+function collabPipe() {
+  const all = recs('deals').filter(d => d.status !== 'Declined'); if (!all.length) return '';
+  return `<div class="pipe">${PIPE.map(st => { const l = all.filter(d => (d.status || 'Pitched') === st); return `<div class="pcol"><div class="pch"><b>${PIPE_NL[st]}</b><span>${l.length}</span></div>${l.map(d => `<div class="pcard"><button class="lmain" data-act="open" data-id="${d.id}"><b>${esc(titleOf(d))}</b><span>${esc([d.type, d.due ? 'deadline ' + shortDate(d.due) : '', num(d.fee ?? d.amount) ? eur(num(d.fee ?? d.amount)) : ''].filter(Boolean).join(' · '))}</span></button>${st !== 'Paid' ? `<button class="chip small" data-pnext="${d.id}">→ ${PIPE_NL[PIPE[PIPE.indexOf(st) + 1]]}</button>` : ''}</div>`).join('')}</div>`; }).join('')}</div>`;
+}
+document.addEventListener('click', async e => { const b = e.target.closest('[data-pnext]'); if (!b) return; const r = L.byId[b.dataset.pnext]; if (!r) return; const nx = PIPE[PIPE.indexOf(r.status || 'Pitched') + 1]; if (!nx) return; await save(r, { status: nx }); C.toast(`🤝 ${titleOf(r)}: ${PIPE_NL[nx]}`); C.render(); });
 function socialPlan(host) {
   const P2 = L.splan ||= { mode: 'week', off: 0 }, t = today();
-  const ev = e => `<button class="chip lstep ${STEP_CLS[e.k]} ${e.done ? 'done' : ''}" data-act="open" data-id="${e.p.id}">${e.done ? svg(P.check) : ''}<b>${esc(e.label)}</b> ${esc(titleOf(e.p))}</button>`;
+  const ev = e => `<button class="chip lstep ${STEP_CLS[e.k]} ${e.done ? 'done' : ''}" data-act="open" data-id="${e.p.id}" ${e.p.kind === 'posts' ? `draggable="true" data-pdrag="${e.p.id}|${e.k}"` : ''}>${e.done ? svg(P.check) : ''}<b>${esc(e.label)}</b> ${esc(titleOf(e.p))}</button>`;
   const seg = `<div class="seg" role="group" aria-label="View"><button data-splan="week" aria-pressed="${P2.mode === 'week'}">Week</button><button data-splan="month" aria-pressed="${P2.mode === 'month'}">Month</button></div>`;
   const legend = `<p class="lnone llegend">${[...POST_STEPS, ['collab', 'Collab']].map(([k, l]) => `<span class="lstep ${STEP_CLS[k]}"><i></i>${esc(l)}</span>`).join('')}</p>`;
   let body;
   if (P2.mode === 'week') {
     const start = weekStart(P2.off), days = Array.from({ length: 7 }, (_, i) => addDays(start, i)), es = postEvents(days[0], days[6]);
     body = `<div class="lweeknav"><button class="iconbtn" data-splanmove="-1" aria-label="Previous week">${svg(P.left)}</button><b>${shortDate(days[0])} to ${shortDate(days[6])}</b><button class="iconbtn" data-splanmove="1" aria-label="Next week">${svg(P.right)}</button>${P2.off ? '<button class="chip" data-splanmove="0">This week</button>' : ''}</div>
-      <div class="lweek">${days.map(d => { const de = es.filter(e => e.d === d); return `<div class="lday ${d === t ? 'now' : ''}"><div class="ldh"><b>${dayName(d)}</b><span>${shortDate(d)}</span></div><div class="lwrap">${de.map(ev).join('') || '<span class="lnone">Nothing planned</span>'}</div></div>`; }).join('')}</div>`;
+      <div class="lweek">${days.map(d => { const de = es.filter(e => e.d === d); return `<div class="lday ${d === t ? 'now' : ''}" data-pday="${d}"><div class="ldh"><b>${dayName(d)}</b><span>${shortDate(d)}</span></div><div class="lwrap">${de.map(ev).join('') || '<span class="lnone">Nothing planned</span>'}</div></div>`; }).join('')}</div>`;
   } else {
     const m0 = addMonths(t.slice(0, 7) + '-01', P2.off), first = fromISO(m0), lead = (first.getDay() + 6) % 7, n = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
     const cells = [...Array(lead).fill(''), ...Array.from({ length: n }, (_, i) => addDays(m0, i))], es = postEvents(m0, addDays(m0, n - 1));
@@ -8970,6 +8977,12 @@ function calStrip() {
   return `<section class="panel calstrip"><div class="lph3"><h3>Komende week</h3><button class="chip link" data-act="go" data-v="plan/week">Calendar</button></div><div class="calsd">${Array.from({ length: 7 }, (_, i) => addDays(t, i)).map(d => { const l = byDay[d] || [], cats = [...new Set(l.map(e => e.cat))], top = l.find(e => e.imp) || l[0]; return `<button class="calsday ${d === t ? 'now' : ''} ${cm[d] ? 'cy-' + cm[d].type : ''}" data-act="calopenday" data-v="${d}"><small>${NL_WD[(fromISO(d).getDay() + 6) % 7]}</small><b>${fromISO(d).getDate()}</b><span class="caldots">${cm[d] ? `<span class="calcyi" title="${esc(CY_LABEL[cm[d].type])}">${cm[d].type === 'period' || cm[d].type === 'predict' ? '🩸' : '🌸'}</span>` : ''}${cats.slice(0, 5).map(k => `<i class="caldot cal-${k}"></i>`).join('')}</span><em>${top ? esc(top.title) : ''}</em></button>`; }).join('')}</div></section>`;
 }
 document.addEventListener('click', e => { const b = e.target.closest?.('[data-cal]'); if (!b || !C || b.closest('.sheet')) return; calSheet(b.dataset.cal); });
+// the content calendar: drag a post (or one of its steps) to another day
+document.addEventListener('dragstart', e => { const b = e.target.closest?.('[data-pdrag]'); if (b) { e.dataTransfer.setData('text/x-post', b.dataset.pdrag); e.dataTransfer.effectAllowed = 'move'; } });
+document.addEventListener('dragover', e => { const d = e.target.closest?.('[data-pday]'); if (d && [...(e.dataTransfer?.types || [])].includes('text/x-post')) { e.preventDefault(); d.classList.add('drop'); } });
+document.addEventListener('dragleave', e => { e.target.closest?.('[data-pday]')?.classList.remove('drop'); });
+document.addEventListener('drop', async e => { const d = e.target.closest?.('[data-pday]'); if (!d) return; const v = e.dataTransfer.getData('text/x-post'); if (!v) return; e.preventDefault(); d.classList.remove('drop');
+  const [id, k] = v.split('|'), r = L.byId[id]; if (!r || r[k] === d.dataset.pday) return; await save(r, { [k]: d.dataset.pday }); C.toast(`📅 Verplaatst naar ${niceDate(d.dataset.pday)}`); C.render(); });
 document.addEventListener('dragstart', e => { const b = e.target.closest?.('[data-cal][draggable="true"]'); if (!b) return; e.dataTransfer.setData('text/x-cal', b.dataset.cal); e.dataTransfer.effectAllowed = 'move'; });
 document.addEventListener('dragover', e => { const d = e.target.closest?.('[data-calday]'); if (d && [...(e.dataTransfer?.types || [])].includes('text/x-cal')) { e.preventDefault(); d.classList.add('drop'); } });
 document.addEventListener('dragleave', e => { e.target.closest?.('[data-calday]')?.classList.remove('drop'); });
