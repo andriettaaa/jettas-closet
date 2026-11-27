@@ -948,11 +948,11 @@ const KINDS = {
   },
   faccounts: {
     one: 'account', many: 'Accounts', facet: 'type',
-    fields: [F('name', 'Name'), F('type', 'Type', 'select', { options: ['Spending', 'Savings', 'Pot', 'Card'], half: 1 }),
+    fields: [F('name', 'Name'), F('type', 'Type', 'select', { options: ['Spending', 'Savings', 'Pot', 'Card', 'Pay later'], half: 1 }),
       F('safe', 'Counts toward safe to spend', 'check', { half: 1 }), F('potGoal', 'Pot goal (optional)', 'money', { half: 1 }), F('cards', 'Apple Wallet cards (names, comma separated)', 'text'), F('archived', 'Archived', 'check', { half: 1 }), F('iban', 'IBAN (for bank imports)'), F('notes', 'Notes', 'long')],
     sorts: [['order', 'Your order'], ['name', 'A to Z']], hide: r => r.archived, hideLabel: 'Show archived',
     sub: r => [r.type, r.iban ? '…' + String(r.iban).replace(/\s+/g, '').slice(-4) : '', r.safe ? 'in safe to spend' : ''].filter(Boolean).join(' · '),
-    side: r => { if (r.type === 'Card') { const o = cardOwed(r); return o == null ? 'not checked' : 'owe ' + eur(o); } const b = fBalance(r); return b == null ? 'not checked' : eur(b); }
+    side: r => { if (isOwe(r)) { const o = cardOwed(r); return o == null ? 'not checked' : 'owe ' + eur(o); } const b = fBalance(r); return b == null ? 'not checked' : eur(b); }
   },
   fchecks: {
     one: 'balance check', many: 'Balance checks',
@@ -3270,11 +3270,13 @@ const fBuffer = () => num(fset().buffer) ?? 100;
 const fSeq = r => num(r.seq) ?? (r.created || 0);
 const fSum = (list, k = 'amount') => list.reduce((n, x) => n + (num(x[k]) || 0), 0);
 // your own order (Arrange, like in your bank app); without one: everyday, savings, pots, cards, then A to Z
-const ACC_TYPES = ['Spending', 'Savings', 'Pot', 'Card'];
+const ACC_TYPES = ['Spending', 'Savings', 'Pot', 'Card', 'Pay later'];
+// Pay later is Klarna, Riverty, in3 and the like: buy now, pay later. It works like a credit card: what you buy with it is what you owe
+const isOwe = a => a?.type === 'Card' || a?.type === 'Pay later';
 const accCmp = (a, b) => (num(a.order) ?? 1e9) - (num(b.order) ?? 1e9) || ACC_TYPES.indexOf(a.type || 'Spending') - ACC_TYPES.indexOf(b.type || 'Spending') || norm(a.name).localeCompare(norm(b.name));
 const fAccs = () => recs('faccounts').filter(a => !a.archived).sort(accCmp);
 // what tells two accounts apart at a glance: the kind, the last digits of the IBAN and the balance
-const accHint = a => { const b = a.type === 'Card' ? (o => o == null ? null : -o)(cardOwed(a)) : fBalance(a), ib = String(a.iban || '').replace(/\s+/g, ''); return [a.type === 'Pot' ? 'Pot' : a.type === 'Savings' ? 'Savings' : a.type === 'Card' ? 'Card' : 'Everyday', ib ? '…' + ib.slice(-4) : '', b == null ? 'not checked' : eur(b)].filter(Boolean).join(' · '); };
+const accHint = a => { const b = isOwe(a) ? (o => o == null ? null : -o)(cardOwed(a)) : fBalance(a), ib = String(a.iban || '').replace(/\s+/g, ''); return [a.type === 'Pot' ? 'Pot' : a.type === 'Savings' ? 'Savings' : isOwe(a) ? 'Card' : 'Everyday', ib ? '…' + ib.slice(-4) : '', b == null ? 'not checked' : eur(b)].filter(Boolean).join(' · '); };
 function fAccOrder() {
   const list = fAccs(); if (list.length < 2) { C.toast('Add a second account first.'); return; }
   const rows = () => list.map((a, i) => `<div class="lrow facc"><span class="lmain"><b>${accIcon(a)} ${esc(a.name || 'Account')}</b><span>${esc(accHint(a))}</span></span><button class="btn small" data-mv="${i}" data-d="-1" aria-label="Move ${esc(a.name || 'account')} up" ${i ? '' : 'disabled'}>↑</button><button class="btn small" data-mv="${i}" data-d="1" aria-label="Move ${esc(a.name || 'account')} down" ${i < list.length - 1 ? '' : 'disabled'}>↓</button></div>`).join('');
@@ -3347,7 +3349,7 @@ const fSpentBy = catId => { const s = fStart(), t = today(); return fSum(recs('f
 function fState() {
   const t = today(), pay = fPayday(), start = fStart(), buf = fBuffer();
   const accs = fAccs(), bal = new Map(accs.map(a => [a.id, fBalance(a)]));
-  const safeAccs = accs.filter(a => a.safe && a.type !== 'Card'), safeIds = new Set(safeAccs.map(a => a.id));
+  const safeAccs = accs.filter(a => a.safe && !isOwe(a)), safeIds = new Set(safeAccs.map(a => a.id));
   const inAcc = safeAccs.reduce((n, a) => n + (bal.get(a.id) || 0), 0);
   const counts = o => !o.paid && !o.skipped && !potCovers(o) && (!o.bill.account || safeIds.has(o.bill.account));
   const occs = pay ? fOccs(start, addDays(pay, -1)) : fOccs(start, addDays(t, 30));
@@ -3396,7 +3398,8 @@ function fQuick(src) {
 }
 // a credit card's balance is what you owe on it: the debt that belongs to the card
 const cardDebt = a => recs('fdebts').find(d => d.account === a.id) || null;
-const cardOwed = a => { const d = cardDebt(a); return d ? fDebtBal(d) : null; };
+// a pay-later account you never checked starts at zero: what you bought with it is what you owe
+const cardOwed = a => { const d = cardDebt(a); return d ? fDebtBal(d) : a?.type === 'Pay later' ? fSum(recs('ftx').filter(x => x.account === a.id && !x.debt)) : null; };
 // purchases this pay without a category: pick one per line; other unsorted lines with the same name get it too
 function fUnsorted() {
   const s = fStart(), t = today(), cats = recs('fcats').sort((a, b) => (a.nospend ? 1 : 0) - (b.nospend ? 1 : 0) || norm(titleOf(a)).localeCompare(norm(titleOf(b))));
@@ -3437,12 +3440,12 @@ function fRulesApply() {
   };
 }
 function fCheckSheet() {
-  const accs = fAccs().filter(a => a.type !== 'Card'), cards = fAccs().filter(a => a.type === 'Card'), v2 = b => b == null ? '' : (Math.round(b * 100) / 100).toFixed(2);
+  const accs = fAccs().filter(a => !isOwe(a)), cards = fAccs().filter(a => isOwe(a)), v2 = b => b == null ? '' : (Math.round(b * 100) / 100).toFixed(2);
   const sh = C.sheet({
     title: 'Check my money',
     body: `<p class="lnone">Type what your banking app says. Leave an account as it is if it hasn't changed.</p>
       <div class="lrows">${accs.map(a => { const b = fBalance(a); return `<label class="lrow mcheck"><span class="lmain"><b>${esc(a.name)}</b><span>${b == null ? 'never checked' : 'now ' + eur(b)}</span></span><input inputmode="decimal" data-acc="${a.id}" value="${v2(b)}" aria-label="${esc(a.name)} balance"></label>`; }).join('')}</div>
-      ${cards.length ? `<p class="dsub">Credit cards: what you owe</p><div class="lrows">${cards.map(a => { const b = cardOwed(a); return `<label class="lrow mcheck"><span class="lmain"><b>💳 ${esc(a.name)}</b><span>${b == null ? 'never checked' : 'you owe ' + eur(b)}</span></span><input inputmode="decimal" data-card="${a.id}" value="${v2(b)}" aria-label="${esc(a.name)} amount owed"></label>`; }).join('')}</div>` : ''}`,
+      ${cards.length ? `<p class="dsub">Cards and pay later: what you owe</p><div class="lrows">${cards.map(a => { const b = cardOwed(a); return `<label class="lrow mcheck"><span class="lmain"><b>${accIcon(a)} ${esc(a.name)}</b><span>${b == null ? 'never checked' : 'you owe ' + eur(b)}</span></span><input inputmode="decimal" data-card="${a.id}" value="${v2(b)}" aria-label="${esc(a.name)} amount owed"></label>`; }).join('')}</div>` : ''}`,
     foot: `<div class="spacer"></div><button class="btn primary" data-fsave>Save balances</button>`
   });
   sh.querySelector('[data-fsave]').addEventListener('click', async () => {
@@ -3651,10 +3654,10 @@ function fPaymentsFill(fill) {
 /* net worth */
 function fNetFill(fill) {
   const st = fState(), accs = fAccs(), debts = recs('fdebts');
-  const owned = accs.reduce((n, a) => n + (a.type !== 'Card' ? st.bal.get(a.id) || 0 : 0), 0), owed = debts.reduce((n, d) => n + Math.max(0, fDebtBal(d)), 0);
+  const owned = accs.reduce((n, a) => n + (!isOwe(a) ? st.bal.get(a.id) || 0 : 0), 0), owed = debts.reduce((n, d) => n + Math.max(0, fDebtBal(d)), 0);
   const line = (name, v, id, sub = '') => `<div class="lrow"><button class="lmain" data-act="open" data-id="${id}"><b>${esc(name)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</button><span class="lside">${v}</span></div>`;
-  fill.innerHTML = `<div class="tiles lt3">${fTile('Net worth', fSigned(owned - owed), 'what you own minus what you owe', owned - owed < 0 ? 'mneg' : '')}${fTile('Owned', eur(owned), plural(accs.filter(a => a.type !== 'Card').length, 'account'))}${fTile('Owed', eur(owed), plural(debts.length, 'debt'))}</div>
-    <div class="panels">${panel('What you own', `<div class="lrows">${accs.filter(a => a.type !== 'Card').map(a => { const b = st.bal.get(a.id); return line(a.name, b == null ? 'not checked' : fSigned(b), a.id, [a.type, a.safe ? 'in safe to spend' : ''].filter(Boolean).join(' · ')); }).join('')}</div>`)}
+  fill.innerHTML = `<div class="tiles lt3">${fTile('Net worth', fSigned(owned - owed), 'what you own minus what you owe', owned - owed < 0 ? 'mneg' : '')}${fTile('Owned', eur(owned), plural(accs.filter(a => !isOwe(a)).length, 'account'))}${fTile('Owed', eur(owed), plural(debts.length, 'debt'))}</div>
+    <div class="panels">${panel('What you own', `<div class="lrows">${accs.filter(a => !isOwe(a)).map(a => { const b = st.bal.get(a.id); return line(a.name, b == null ? 'not checked' : fSigned(b), a.id, [a.type, a.safe ? 'in safe to spend' : ''].filter(Boolean).join(' · ')); }).join('')}</div>`)}
     ${panel('What you owe', debts.length ? `<div class="lrows">${debts.map(d => line(d.name, eur(fDebtBal(d)), d.id, num(d.payment) ? eur(num(d.payment)) + ' a month' : '')).join('')}</div>` : quiet('Nothing owed.'))}</div>
     <div class="dbtns"><button class="btn small" data-act="fcheck">Check my money</button><button class="btn small" data-act="faccorder">↕ Arrange</button></div>`;
 }
@@ -3886,7 +3889,7 @@ function moneyToday(host) {
   const w0 = addDays(t, -6), w7 = tx.filter(x => x.date >= w0 && x.date <= t);
   const last7 = `<div class="mpair col"><p><span>Spent</span><b>${eur(fSum(w7.filter(fEveryday)))}</b></p><p><span>Bills paid</span><b>${eur(fSum(w7.filter(x => !fEveryday(x) && !fMoved(x))))}</b></p><p><span>Money in</span><b>${eur(fSum(recs('fincome').filter(i => i.date >= w0 && i.date <= t)))}</b></p></div>`;
   /* goals, debt, net worth */
-  const owned = [...st.bal.entries()].reduce((n, [id, b]) => n + (L.byId[id]?.type !== 'Card' && b != null ? b : 0), 0);
+  const owned = [...st.bal.entries()].reduce((n, [id, b]) => n + (!isOwe(L.byId[id]) && b != null ? b : 0), 0);
   const owed = recs('fdebts').reduce((n, d) => n + Math.max(0, fDebtBal(d)), 0);
   const tile = (k, v, h, bar) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="h">${h}</div>${bar != null ? `<span class="lprog mprog"><i style="width:${Math.min(100, bar)}%"></i></span>` : ''}</div>`;
   const goals = recs('fgoals').filter(g => !g.done), gT = fSum(goals, 'target'), gS = fSum(goals, 'saved');
@@ -4859,7 +4862,7 @@ function wishHistory() {
    saving for one makes a goal, each wish says whether it fits in safe to spend, letting one go counts as money
    saved, and planned buys show up in the forecast. Each action is one step to undo. */
 const isWishTx = x => [].concat(x.tags || []).includes('wishlist');
-const fMainAcc = () => fAccs().find(a => a.safe && a.type === 'Spending') || fAccs().find(a => a.type !== 'Card') || fAccs()[0] || null;
+const fMainAcc = () => fAccs().find(a => a.safe && a.type === 'Spending') || fAccs().find(a => !isOwe(a)) || fAccs()[0] || null;
 const wishGoal = id => recs('fgoals').find(g => g.wish === id && !g.done) || null;
 const wishBudget = () => num(fset().wishBudget) || 0;
 const wishSpent = (w = fWindow()) => fSum(recs('ftx').filter(x => isWishTx(x) && x.date >= w.start && x.date <= w.end && x.date <= today()));
@@ -7041,10 +7044,10 @@ function fWaitFill(fill) {
 }
 /* finance settings */
 const CURRENCIES = [['EUR', 'EUR €'], ['USD', 'USD $'], ['GBP', 'GBP £'], ['CHF', 'CHF'], ['SEK', 'SEK kr'], ['DKK', 'DKK kr'], ['NOK', 'NOK kr']];
-const accIcon = a => a.type === 'Card' ? '💳' : a.type === 'Savings' ? '🐖' : a.type === 'Pot' ? '🫙' : '🏦';
+const accIcon = a => a.type === 'Pay later' ? '🛍️' : isOwe(a) ? '💳' : a.type === 'Savings' ? '🐖' : a.type === 'Pot' ? '🫙' : '🏦';
 function accRow(a) {
-  const b = fBalance(a), debt = a.type === 'Card' ? recs('fdebts').find(d => d.account === a.id) : null;
-  if (a.type === 'Card') return `<div class="lrow facc"><span class="lmain"><b>${accIcon(a)} ${esc(a.name || 'Card')}</b><span>Credit card · ${(o => o == null ? 'not checked' : 'you owe ' + eur(o))(cardOwed(a))}</span></span>${debt ? '<button class="btn small" data-act="go" data-v="money/debt">On Debt</button>' : ''}<button class="btn small" data-act="open" data-id="${a.id}">Edit</button></div>`;
+  const b = fBalance(a), debt = isOwe(a) ? recs('fdebts').find(d => d.account === a.id) : null;
+  if (isOwe(a)) return `<div class="lrow facc"><span class="lmain"><b>${accIcon(a)} ${esc(a.name || 'Card')}</b><span>${a.type === 'Pay later' ? 'Pay later' : 'Credit card'} · ${(o => o == null ? 'not checked' : 'you owe ' + eur(o))(cardOwed(a))}</span></span>${debt ? '<button class="btn small" data-act="go" data-v="money/debt">On Debt</button>' : ''}<button class="btn small" data-act="open" data-id="${a.id}">Edit</button></div>`;
   return `<div class="lrow facc ${a.archived ? 'gone' : ''}"><span class="lmain"><b>${accIcon(a)} ${esc(a.name || 'Account')}</b><span>${esc(accHint(a))}</span></span><label class="settog"><input type="checkbox" data-accsafe="${a.id}" ${a.safe ? 'checked' : ''}> Counts</label><button class="btn small" data-act="acchist" data-id="${a.id}">History</button><button class="btn small" data-act="open" data-id="${a.id}">Edit</button></div>`;
 }
 function fSettings() {
@@ -7264,7 +7267,7 @@ function accHistory(id) {
   C.sheet({ title: a.name || 'Account', body: `<p class="lnone">${fBalance(a) == null ? 'No balance yet' : 'About ' + fSigned(fBalance(a)) + ' now'}</p><div class="lrows">${rows.map(({ x, s }) => `<div class="lrow"><button class="lmain" data-act="open" data-id="${x.id}"><b>${esc(s ? x.name || 'Line' : 'Balance check')}</b><span>${esc(niceDate(x.date || x.at))}${x.transfer ? ' · transfer' : ''}</span></button><span class="lside ${s > 0 ? 'mgood' : ''}">${s ? (s < 0 ? '−' : '+') + eur(num(x.amount)) : '= ' + eur(num(x.amount))}</span></div>`).join('') || quiet('Nothing on this account yet.')}</div>` });
 }
 function moveMoney(pre = {}) {
-  const accs = fAccs().filter(a => a.type !== 'Card'), fi = id => Math.max(0, accs.findIndex(a => a.id === id)), opt = sel => accs.map((a, i) => `<option value="${a.id}" ${i === sel ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
+  const accs = fAccs().filter(a => !isOwe(a)), fi = id => Math.max(0, accs.findIndex(a => a.id === id)), opt = sel => accs.map((a, i) => `<option value="${a.id}" ${i === sel ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
   if (accs.length < 2) { C.toast('Add at least two accounts first.'); return; }
   const sh = C.sheet({ title: 'Move money', body: `<div class="field"><label>From</label><select class="pill" data-mv="from">${opt(pre.from ? fi(pre.from) : 0)}</select></div><div class="field"><label>To</label><select class="pill" data-mv="to">${opt(pre.to ? fi(pre.to) : 1)}</select></div><div class="field"><label>Amount</label><input type="number" inputmode="decimal" step="0.01" data-mv="amt" value="${pre.amt ?? ''}"></div><div class="field"><label>Date</label><input type="date" data-mv="date" value="${pre.date || today()}"></div><p class="lnone">Moves money between your own accounts. It never counts as spending.</p>`, foot: '<div class="spacer"></div><button class="btn primary" data-mvgo>Move</button>' });
   sh.querySelector('[data-mvgo]').onclick = async () => {
