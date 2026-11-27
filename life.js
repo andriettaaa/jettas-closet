@@ -3390,6 +3390,8 @@ function mixHero(key) {
   }
   return '';
 }
+document.addEventListener('click', async e => { const b = e.target.closest('[data-hstock]'); if (!b) return; const r = L.byId[b.dataset.hstock]; if (!r) return; const v = b.dataset.v;
+  await save(r, v === 'low' ? { low: true, list: true } : v === 'out' ? { stock: false, low: false, list: true } : { stock: true, low: false, list: false }); C.toast(v === 'got' ? '✓ Weer genoeg' : '🛒 Op je boodschappenlijst'); C.render(); });
 document.addEventListener('click', async e => { const b = e.target.closest('[data-mixchore]'); if (!b) return; const r = L.byId[b.dataset.mixchore]; if (!r) return; await save(r, { last: today() }); C.toast('✨ ' + (r.name || 'Klusje') + ' gedaan'); C.render(); });
 // balance per day as four dots, no calories: vegetables, protein, fibre and fruit (roughly, from your food check and what you ate)
 function balanceHTML(d = today()) {
@@ -5580,8 +5582,16 @@ function homeToday(host) {
   const must = sortList(wish.filter(i => ['Must-have', 'Eerste week'].includes(i.priority)), KINDS.inventory, 'room');
   const wishCost = wish.reduce((s, i) => s + (num(i.budget ?? i.price) || 0), 0);
   const wty = recs('inventory').filter(i => i.warranty && i.warranty >= t && i.warranty <= addDays(t, 90)).sort((a, b) => a.warranty.localeCompare(b.warranty));
+  // a quarter of an hour a day: the due chores that fit in about 15 minutes
+  const q15 = []; let mm = 0; for (const c of chores) { const m = num(c.mins) || 10; if (mm + m <= 15 || !q15.length) { q15.push(c); mm += m; } }
+  const house = recs('ingredients').filter(i => ['Household', 'Personal care'].includes(i.category)).sort((a, b) => (b.list ? 1 : 0) - (a.list ? 1 : 0) || norm(a.name).localeCompare(norm(b.name)));
+  const rooms = [...new Set([...recs('chores').flatMap(c => [].concat(c.space || [])), ...recs('inventory').map(i => i.room)].filter(Boolean))];
   host.innerHTML = `${head('Home')}${mixHero('home')}
   <div class="panels">
+    ${q15.length ? panel(`⏱ Vandaag ± ${mm} minuten`, `<p class="lnone">Een kwartier per dag houdt je huis bij, zonder grote schoonmaakdag.</p><div class="lrows">${q15.map(row).join('')}</div>`) : ''}
+    ${panel('🧻 Voorraad in huis', `${house.length ? `<div class="lrows">${house.map(i => `<div class="lrow"><span class="lmain"><b>${esc(i.name)}</b><span>${i.list ? '🛒 op je lijst' : i.low ? 'bijna op' : i.stock ? 'genoeg' : 'op'}</span></span><div class="lwrap"><button class="chip small" data-hstock="${i.id}" data-v="low">Bijna op</button><button class="chip small" data-hstock="${i.id}" data-v="out">Op</button><button class="chip small" data-hstock="${i.id}" data-v="got">Gekocht</button></div></div>`).join('')}</div>` : quiet('Zet hier wc-papier, wasmiddel en zo. Bijna op? Dan staat het vanzelf op je boodschappenlijst.')}${newBtn('ingredients', '+ Huishoudspul', { category: 'Household', stock: true })}`)}
+    ${rooms.length ? panel('🚪 Kamer voor kamer', rooms.map(rm => { const ch = recs('chores').filter(c => [].concat(c.space || []).includes(rm)), due = ch.filter(c => choreDue(c) <= t), inv = recs('inventory').filter(i => i.room === rm), want = inv.filter(i => INV_WANT.includes(invStatus(i)));
+      return `<details class="room"><summary><b>${esc(rm)}</b><span>${[due.length ? due.length + ' klusje' + (due.length > 1 ? 's' : '') + ' nu' : '', inv.length ? inv.length + ' spullen' : '', want.length ? want.length + ' nog kopen' : ''].filter(Boolean).join(' · ') || 'alles bij'}</span></summary>${due.length ? `<div class="lrows">${due.map(row).join('')}</div>` : ''}${want.length ? `<p class="dsub">Nog kopen</p><div class="lwrap">${want.map(i => `<button class="chip" data-act="open" data-id="${i.id}">${esc(i.name)}</button>`).join('')}</div>` : ''}</details>`; }).join('')) : ''}
     ${wty.length ? panel('Warranty ending', `<div class="lrows">${wty.map(i => `<div class="lrow"><button class="lmain" data-act="open" data-id="${i.id}"><b>${esc(i.name)}</b><span>warranty until ${esc(niceDate(i.warranty))} · ${esc(relDay(i.warranty))}${i.receipt ? ' · receipt saved' : ' · no receipt yet'}</span></button></div>`).join('')}</div><p class="lnone">Something broken? Claim it before the date.</p>`, ['home/inventory', 'Inventory']) : ''}
     ${panel('Chores due', chores.length ? `<div class="lrows">${chores.slice(0, 10).map(row).join('')}</div>` : quiet(recs('chores').length ? 'All caught up.' : 'Add your chores with how often they need doing; they come back here when they’re due.'), ['home/chores', 'All chores'])}
     ${doneToday.length ? panel('Done today', `<div class="lrows">${doneToday.map(row).join('')}</div>`) : ''}
