@@ -64,3 +64,16 @@ The owner picked these from visual examples. Every change to the app follows the
 - Empty lists: a tip with an emoji and one button, three examples to take over in one tap, and empty parts hidden from overviews until something is in them.
 - Before anything goes live: show a working preview that behaves like the real app.
 - Language: leave as it is.
+
+## Nails (Beauty › Nails)
+Answers from the Nails rounds (November 2026).
+- **Drill bits**: a mix of all three views, switchable per device: a holder grid like the real bit holder (numbered slots, a colour per grit), grouped per routine step, and photo cards with labels (shape, grit, material, step, what it is for, speed).
+- **More of the same bit**: one card per bit with a count (×3) and per copy in use, spare or worn; in the holder every copy gets its own slot ("1 van 3").
+- **Routines**: a builder per part (Removal, Prep, Application, Finish, Aftercare) with steps that link a bit, products, time and a tutorial, drag to reorder; a do-mode that shows one step big with the bit, speed and a timer; sets (BIAB fill, gel polish, acrylic) made of shared blocks per part.
+- **Routine from a link**: share a TikTok (or other) link, the app saves it at once with title and thumbnail; the nightly run reads the caption and text and builds a draft routine or tutorial, linking bits and products; in the morning she checks it. No paid AI key.
+- **Tutorials**: rows per category, a grid with filter chips (category, Bewaard, Nog proberen, Gedaan) and videos on the routine step they belong to (one tap in do-mode).
+- **Tutorial categories**: Nail art (French, Chrome, Aura, Ombré, Cat eye, 3D, Stamping, Line art, Stickers), Applicatie (BIAB, Gel polish, Polygel, Acryl, Tips / Gel-X), Technieken (Vormen en vijlen, Apex, Capping, Drill), Removal, Prep, Finish, Aftercare, Producten; plus her own categories (add and rename). A video can be in more categories; the nightly run picks them.
+- **Nail colours**: a colour wall (drops sorted by colour, chips per finish), bottle cards (bottle in the real colour, brand, finish, stars, also wanted colours) and a colour wheel that shows what she is missing.
+- **Adding colours from a link**: one product comes in at once via her own Supabase function; a whole collection goes through the nightly run, then "toevoegen?".
+- **Big gel sets**: a photo of the set's colour card (the app finds the swatches and numbers), a numbered grid with the camera as a pipette (or the set's link), and every set gets its own code and colour (BP-A 07), a warning when two colours are almost the same, and sticker codes for the caps.
+- **Reviews**: a quick review (stars, coverage, how it spreads, true colour, buy again), tested by itself from the nail log (days it lasted against her average, swatch photos day 1, 10, 19) and comparing two side by side (stars, coverage, days, price per ml).
