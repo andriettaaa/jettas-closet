@@ -303,13 +303,16 @@ body.side nav.tabs button { border-radius: 12px; padding: 10px 12px; width: 100%
 body.side .findbtn { order: 2; display: flex; width: 100%; border-radius: 12px; justify-content: flex-start; gap: 10px; padding: 10px 12px; height: auto; }
 body.side .findbtn::after { content: 'Zoeken'; font-weight: 600; color: var(--muted); }
 body.side #addBtn { order: 1; width: 100%; justify-content: center; }
-body.side header.top .secwrap { padding: 2px 0 8px 14px; margin: 0; max-width: none; }
-body.side header.top .secwrap .secbar, body.side .secwrap .subbar { flex-direction: column; overflow: visible; gap: 2px; padding: 0; border: 0; margin: 0; }
-body.side header.top .secwrap .secbar button { border: 0; background: none; border-radius: 10px; padding: 8px 10px; width: 100%; justify-content: flex-start; }
+body.side header.top .secwrap { padding: 0 0 0 10px; margin: 4px 0 8px 18px; max-width: none; border-left: 2px solid var(--line); }
+body.side header.top .secwrap .secbar, body.side header.top .secwrap .subbar { flex-direction: column; overflow: visible; gap: 2px; padding: 0; border: 0; margin: 0; }
+body.side header.top .secwrap .secbar button { border: 0; background: none; border-radius: 10px; padding: 8px 10px; width: 100%; justify-content: flex-start; font-size: 14px; font-weight: 600; color: var(--muted); }
 body.side header.top .secwrap .secbar button[aria-current="true"] { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--ink); }
-body.side header.top .secwrap .subbar { padding-left: 26px; }
-body.side header.top .secwrap .subbar button { padding: 6px 0; text-align: left; border-bottom: 0; }
-body.side header.top .secwrap .subbar button[aria-current="true"] { color: var(--accent); }
+body.side header.top .secwrap .subbar { margin: 2px 0 6px 18px !important; padding: 0 0 0 12px !important; border-left: 2px solid var(--line) !important; }
+body.side header.top .secwrap .subbar button, body.side header.top .secwrap .subbar.sub2 button { border: 0; background: none; border-radius: 8px; padding: 6px 8px; text-align: left; font-size: 13.5px; font-weight: 600; color: var(--muted); width: 100%; }
+body.side header.top .secwrap .subbar button[aria-current="true"], body.side header.top .secwrap .subbar.sub2 button[aria-current="true"] { color: var(--ink); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+body.side header.top .secwrap .subbar.sub2 button { font-size: 13px; font-weight: 500; }
+body.side header.top .secwrap .subbar.sub2 button[aria-current="true"] { font-weight: 700; color: var(--accent); background: none; }
+body.side header.top .secwrap .subbar.sub2 button[aria-current="true"]::before { content: '● '; font-size: 9px; vertical-align: 2px; }
 body.side main.wrap { padding-top: 20px; }
 body.side.folded .brandname, body.side.folded nav.tabs button span:not(.badge), body.side.folded .addlabel, body.side.folded .findbtn::after { display: none; }
 body.side.folded .brand { flex-direction: column; gap: 8px; padding: 0 0 8px; }
@@ -1133,6 +1136,8 @@ document.addEventListener('click', e => { if (!e.target.closest('#sideFold')) re
 function renderTabs() {
   applySide();
   const sw = document.querySelector('.secwrap'); if (sw && sw.parentElement !== document.querySelector('header.top')) document.querySelector('header.top').appendChild(sw);
+  // the page rows go back to their own place first (in the side bar they sit nested under the item they belong to)
+  if (sw) sw.append($('#secBar'), $('#subBar'), $('#sub2Bar'));
   const n = inboxItems().length;
   const views = tabsFor(S.view), sec = secOf(S.view);
   const jumpOn = SECTIONS.find(s => s.to === S.view && navSections().includes(s))?.key;
@@ -1166,7 +1171,12 @@ function renderTabs() {
   sub2.hidden = !openSub;
   sub2.innerHTML = openSub ? openSub.vs.map(([k, label]) => `<button data-view="${k}" aria-current="${S.view === k}">${label}</button>`).join('') : '';
   // open side bar: the pages sit right under the section; folded: they run along the top of the page
-  if (document.body.classList.contains('side') && sw) { if (document.body.classList.contains('folded')) { if (!bar.hidden) $('#main').before(sw); } else { const cur = $('#tabsTop [aria-current="page"]'); if (cur && !bar.hidden) cur.after(sw); } }
+  if (document.body.classList.contains('side') && sw) { if (document.body.classList.contains('folded')) { if (!bar.hidden) $('#main').before(sw); } else {
+    const cur = $('#tabsTop [aria-current="page"]'); if (cur && !bar.hidden) cur.after(sw);
+    // each level sits right under the item it belongs to: Body › Overview, Health… › Sleep, Cycle…
+    const g = bar.querySelector('[aria-current="true"]'); if (g && !sub.hidden) g.after(sub);
+    const g2 = sub.querySelector('[aria-current="true"]'); if (g2 && !sub2.hidden) g2.after(sub2);
+  } }
   for (const b of [bar, sub, sub2]) { const c = b.querySelector('[aria-current="true"]'); if (c && (c.offsetLeft < b.scrollLeft || c.offsetLeft + c.offsetWidth > b.scrollLeft + b.clientWidth)) b.scrollLeft = c.offsetLeft - 16; }
   $('#addBtn').hidden = sec === 'overview' || sec === 'settings' || isSecSettings(S.view);
   $('#addBtn .addlabel').textContent = sec === 'closet' ? 'Add piece' : sec === 'overview' ? 'Add' : window.LIFE.addLabel(S.view);
@@ -2267,7 +2277,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v206';
+const APP_VERSION = 'hangtag-v207';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
