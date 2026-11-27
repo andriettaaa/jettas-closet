@@ -1676,7 +1676,7 @@ h2 .tdside { font-size: .8em; color: var(--muted); }
 .dpnowtop .dphero { margin: 0; }
 
 /* ---------- Nails ---------- */
-.ntabs .seg { flex-wrap: wrap; }
+.ntabs .seg { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none; display: flex; } .ntabs .seg button { white-space: nowrap; }
 .ntools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; } .ntools .spacer { flex: 1; }
 .nchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; } .nchips .chip.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .nsetchip i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--sc); margin-right: 5px; }
