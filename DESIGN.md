@@ -86,3 +86,18 @@ Answers from the Nails rounds (November 2026).
 - The Nu card (with the drinks ring and the supplement of now) sits at the very top of Today, above the greeting. An item later than 20 minutes from now says "Straks" instead of "Nu".
 - Outfits live in the day parts: today's pick in Ochtend, laying out tomorrow's in Avond. No separate outfit block any more.
 - The tiles per section are gone from Overzicht (too busy). What only lived there moved into the day: a money chip "€… vandaag" at the top, bills as ticks, a Boodschappen tick on shopping day, skincare as a tick in Ochtend and Avond.
+
+## Whole app, expert round (November 2026)
+Design every part as an expert in that field would.
+- **Kitchen** (chef, dietitian): week menu in one tap from her recipes, pantry and deals, missing things straight on the list; cook mode (step by step, big, timers per step, screen stays on); balance per day in colours (vegetables, protein, fibre; no calories); leftovers and use-by first, with recipes that use them.
+- **Finance** (coach): pots as glasses that empty, a colour when going too fast; a short month story (where the money went, what went well, one tip); savings goals with a photo, a bar and how much per week to be on time; a subscriptions check (all fixed costs, a nudge when one gets dearer or goes unused). On one of the tabs: everything, in and out, with a filter for in or out.
+- **Closet** (stylist): capsules (small sets that all combine, per season or trip, with how many outfits); cost per wear and what she never wears; an outfit board to move pieces freely; gaps in the closet (what would unlock more outfits).
+- **Home** (organizer): a cleaning schedule spread over the week (a quarter of an hour a day); room by room (to do, what is there, what to buy); household stock that goes on the shopping list when low; the move as a plan per week up to the moving date, with budget.
+- **Life, Body, Mind** (coach): cycle coach (tips per phase for food, sport, energy, skin; a nudge before the period); a Sunday week review with her numbers and one focus; habits as rings with streaks and a friendly reminder; one tap a day for mood and energy, with links to sleep, food and cycle.
+- **Social** (content manager): content calendar per week with drag; an idea bank (catch ideas in one tap, also from a link; suggestions for this week); statistics (best posts, best time); collaborations as a pipeline (asked, confirmed, posted, paid).
+- **Calendar**: everything in one place with a colour per kind (appointments, cycle, bills, chores, posts, outfits); filter chips per kind; plan the week ahead (meals, sport, chores, free time); appointments in the iPhone calendar too; and plain calendar items of her own that are not an appointment, goal or task.
+- **Lists everywhere**: cards with photo, rows with swipe, a table, and per list and per device her own choice.
+- **Notifications**: a morning briefing at 8:00 (appointments, weather, outfit, what she can spend); in-the-moment ones (supplements, drinks, cuticle oil, evening routine); an evening check at 21:00 (what is open, outfit for tomorrow); Sunday week start (review and planner).
+- **Deals**: she plans the week ahead from Friday to Sunday, so next week's offers must be visible by Friday; the deal runs move from Wednesday to Friday, with a Sunday refresh.
+- **Search**: everywhere (clothes, recipes, cards, colours, notes, settings); quick add by typing ("melk op lijst", "tandarts vrijdag 10:00"); recent and often opened on top.
+- **Preview**: a live test version that works like the app, before anything goes live.
