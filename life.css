@@ -1798,3 +1798,10 @@ details.fpanel[open] > summary { margin-bottom: 10px; }
 .clrow { all: unset; box-sizing: border-box; cursor: pointer; display: flex; gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 8px; }
 .clthumb { width: 64px; height: 84px; border-radius: 10px; overflow: hidden; flex: none; background: color-mix(in srgb, var(--ink) 5%, var(--surface)); } .clthumb img { width: 100%; height: 100%; object-fit: cover; }
 .clrow small { display: block; color: var(--muted); font-size: 12.5px; }
+/* capsules */
+.seg.outseg { margin: 0 0 12px; }
+.capcard { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px; margin-bottom: 10px; }
+.caph { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; } .caph b { font-size: 16px; } .caph span { color: var(--muted); font-size: 13px; }
+.capstrip { display: flex; gap: 6px; overflow-x: auto; margin: 10px 0; scrollbar-width: none; } .capth { flex: 0 0 64px; height: 84px; border-radius: 10px; overflow: hidden; background: color-mix(in srgb, var(--ink) 5%, var(--surface)); display: grid; place-items: center; } .capth img { width: 100%; height: 100%; object-fit: contain; }
+.capb { display: flex; flex-wrap: wrap; gap: 6px; }
+.card.picked { outline: 3px solid var(--accent); }

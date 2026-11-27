@@ -1590,16 +1590,60 @@ function boardHTML(pieces, cls = 'board mini') {
   const ps = (pieces || []).filter(p => S.byId[p.id]?.photo);
   return `<div class="${cls}">${ps.map(p => pimg(S.byId[p.id].photo, '', `class="piece" loading="lazy" style="left:${p.x}%;top:${p.y}%;width:${p.w}%;z-index:${p.z || 1}"`)).join('')}</div>`;
 }
+/* capsules: small sets that all combine. The app proposes one from what you wear most this season; you keep it and change it.
+   Outfits = tops (or knitwear) × bottoms × shoes, plus dresses × shoes. Saved in your settings, so they sync to every device. */
+const capsAll = () => S.prefs.capsules || [];
+const capsSave = list => DB.savePrefs({ capsules: list }).then(() => { const h = $('#main'); if (h) render(); }).catch(err => saveErr(err, 'Could not save. Try again.'));
+const capsOutfits = ids => { const k = id => catKey(S.byId[id]?.cat), n = c => ids.filter(id => k(id) === c).length, top = n('tops') + n('knitwear'), sh = Math.max(1, n('shoes')); return top * n('bottoms') * sh + n('dresses') * sh; };
+function capsPropose() {
+  const now = SEASONS[[3, 3, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3][new Date().getMonth()]];
+  const pool = S.items.filter(it => inCloset(it) && atHand(it) && (!(it.seasons || []).length || it.seasons.includes(now)));
+  const best = (cat, n) => pool.filter(it => catKey(it.cat) === cat).sort((a, b) => wearCount(b) - wearCount(a)).slice(0, n).map(it => it.id);
+  const ids = [...best('tops', 3), ...best('knitwear', 1), ...best('bottoms', 2), ...best('outerwear', 1), ...best('shoes', 2)];
+  return { id: 'cap' + Date.now().toString(36), name: { Winter: 'Winter', Spring: 'Lente', Summer: 'Zomer', Autumn: 'Herfst' }[now] + ' basis', ids, proposed: true };
+}
+const capThumbs = ids => `<div class="capstrip">${ids.filter(id => S.byId[id]).map(id => `<span class="capth">${S.byId[id].photo ? pimg(S.byId[id].photo, '', 'loading="lazy"') : PH}</span>`).join('')}</div>`;
+function capsHTML() {
+  const list = capsAll(), prop = S.capProp ||= capsPropose();
+  const card = c => `<div class="capcard"><div class="caph"><b>${esc(c.name || 'Capsule')}</b><span>${c.ids.length} stukken · ${capsOutfits(c.ids)} outfits</span></div>${capThumbs(c.ids)}
+    <div class="capb">${c.proposed ? `<button class="btn small primary" data-capkeep>Bewaren</button><button class="btn small" data-capnew>Ander voorstel</button>` : `<button class="btn small" data-capedit="${c.id}">Aanpassen</button><button class="btn small" data-capshuffle="${c.id}">Outfit uit deze capsule</button><button class="btn small" data-capdel="${c.id}">Weg</button>`}</div></div>`;
+  return `<p class="muted">Een capsule is een kleine set kleding die allemaal met elkaar combineert. Hoe meer combinaties, hoe meer outfits uit weinig stukken.</p>
+    ${prop.ids.length ? `<p class="dsub">✨ Voorstel voor nu</p>${card(prop)}` : ''}
+    ${list.length ? `<p class="dsub">Jouw capsules</p>${list.map(card).join('')}` : ''}<button class="btn" data-capblank>+ Eigen capsule</button>`;
+}
+function capEdit(id) {
+  const c = capsAll().find(x => x.id === id); if (!c) return; const sel = new Set(c.ids);
+  const pool = S.items.filter(inCloset).sort((a, b) => azSort(a.cat || '', b.cat || '') || azSort(a.name, b.name));
+  const sh = sheet({ title: c.name || 'Capsule', body: `<input class="finp" data-capname value="${esc(c.name || '')}" placeholder="Naam"><p class="muted" data-capcount>${sel.size} stukken · ${capsOutfits([...sel])} outfits</p><div class="grid">${pool.map(it => `<button class="card ${sel.has(it.id) ? 'picked' : ''}" data-cappick="${it.id}"><div class="stage">${it.photo ? pimg(it.photo, it.name, 'loading="lazy"') : PH}</div><div class="meta"><b>${esc(it.name || '')}</b></div></button>`).join('')}</div>`,
+    foot: '<div class="spacer"></div><button class="btn primary" data-capsave>Opslaan</button>' });
+  sh.addEventListener('click', e => { const b = e.target.closest('[data-cappick]'); if (b) { const k = b.dataset.cappick; sel.has(k) ? sel.delete(k) : sel.add(k); b.classList.toggle('picked'); sh.querySelector('[data-capcount]').textContent = `${sel.size} stukken · ${capsOutfits([...sel])} outfits`; }
+    if (e.target.closest('[data-capsave]')) { closeSheet(); capsSave(capsAll().map(x => x.id === id ? { ...x, name: sh.querySelector('[data-capname]').value.trim() || x.name, ids: [...sel] } : x)); } });
+}
+function capsClick(e) {
+  const q = s => e.target.closest(s); let b;
+  if (q('[data-capkeep]')) { const p = { ...S.capProp, proposed: false }; S.capProp = null; capsSave([...capsAll(), p]); return true; }
+  if (q('[data-capnew]')) { const p = capsPropose(); p.ids = p.ids.sort(() => Math.random() - .5).slice(0, Math.max(4, p.ids.length - 2)); S.capProp = p; render(); return true; }
+  if (q('[data-capblank]')) { const c = { id: 'cap' + Date.now().toString(36), name: 'Nieuwe capsule', ids: [] }; capsSave([...capsAll(), c]).then(() => capEdit(c.id)); return true; }
+  if ((b = q('[data-capedit]'))) { capEdit(b.dataset.capedit); return true; }
+  if ((b = q('[data-capdel]'))) { if (confirm('Deze capsule weghalen? Je kleding blijft.')) capsSave(capsAll().filter(x => x.id !== b.dataset.capdel)); return true; }
+  if ((b = q('[data-capshuffle]'))) { const c = capsAll().find(x => x.id === b.dataset.capshuffle); if (!c) return true; const pick = cat => { const l = c.ids.filter(id => catKey(S.byId[id]?.cat) === cat); return l.length ? [l[Math.floor(Math.random() * l.length)]] : []; };
+    const ids = [...(pick('tops').length ? pick('tops') : pick('knitwear')), ...pick('bottoms'), ...pick('shoes'), ...pick('outerwear')]; openBuilder(null, autoLayout(ids), c.name + ' look'); return true; }
+  return false;
+}
 function renderOutfits(host) {
   if (!host.dataset.built) {
     host.dataset.built = '1';
     host.innerHTML = `<div class="viewhead"><h1>Outfits</h1><span class="sub" id="outSub"></span><div class="spacer"></div>
       <div class="tools" style="margin:0"><button class="btn" data-shuffle>${I.shuffle} Shuffle an outfit</button><button class="btn primary" data-newoutfit>${I.plus} New outfit</button></div></div>
-      <div id="wxHost"></div>
+      <div class="seg outseg" role="group" aria-label="Outfits">${[['looks', 'Looks'], ['caps', 'Capsules'], ['board', 'Bord']].map(([k, l]) => `<button type="button" data-outt="${k}" aria-pressed="${(S.outT || 'looks') === k}">${l}</button>`).join('')}</div>
+      <div id="capsHost" hidden></div>
+      <div data-lookspane><div id="wxHost"></div>
       <div id="looksHost"></div>
       <div id="pnHost"></div>
-      <div id="outGrid"></div>`;
+      <div id="outGrid"></div></div>`;
     host.addEventListener('click', e => {
+      const ot = e.target.closest('[data-outt]'); if (ot) { if (ot.dataset.outt === 'board') return openBuilder(); S.outT = ot.dataset.outt; host.querySelectorAll('[data-outt]').forEach(b => b.setAttribute('aria-pressed', b === ot)); return renderOutfits(host); }
+      if (capsClick(e)) return;
       if (e.target.closest('[data-shuffle]')) return shuffleOutfit();
       if (e.target.closest('[data-newoutfit]')) return openBuilder();
       if (e.target.closest('[data-addlook]')) return openDay(today(), { addPhoto: true });
@@ -1608,6 +1652,7 @@ function renderOutfits(host) {
     });
   }
   $('#outSub', host).textContent = S.outfits.length ? `${S.outfits.length} saved` : '';
+  const capsOn = S.outT === 'caps'; $('#capsHost', host).hidden = !capsOn; host.querySelector('[data-lookspane]').hidden = capsOn; if (capsOn) { $('#capsHost', host).innerHTML = capsHTML(); return; }
   $('#wxHost', host).innerHTML = wxStrip();
   const looks = lookPhotos().slice(0, 24);
   $('#looksHost', host).innerHTML = `<div class="looks"><div class="viewhead" style="margin-bottom:8px"><h2 style="font-size:20px">Your looks</h2><span class="sub">${looks.length ? `${lookPhotos().length} photos of you wearing it` : 'a mirror selfie or any photo of you in an outfit'}</span></div>
