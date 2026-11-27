@@ -674,7 +674,7 @@ const VIEWS = [
   ['outfits', 'Outfits', '<path d="M8 3 4 6l2 4 2-1v12h8V9l2 1 2-4-4-3c-.5 1.5-2 2.5-4 2.5S8.5 4.5 8 3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'],
   ['calendar', 'Calendar', '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
   ['trips', 'Trips', '<rect x="4" y="7.5" width="16" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 7.5V5.8A1.5 1.5 0 0 1 10.5 4.3h3A1.5 1.5 0 0 1 15 5.8v1.7M4 13h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
-  ['stats', 'Stats', '<path d="M5 20V11M12 20V4M19 20v-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>'],
+  ['stats', 'Analyse', '<path d="M5 20V11M12 20V4M19 20v-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>'],
   ['todo', 'To do', '<path d="M9 6.5h11M9 12h11M9 17.5h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m3.5 6.5 1.4 1.4 2.4-2.6M3.5 12l1.4 1.4 2.4-2.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5.2" cy="17.5" r="1.4" fill="none" stroke="currentColor" stroke-width="1.6"/>']
 ];
 // Today (the overview of everything), the closet and the areas life.js adds (Kitchen, Life, Social, Money, Home, Fitness). The areas sit in the
@@ -2223,7 +2223,32 @@ function monthCols(list, dateOf, amount) {
   const max = Math.max(1, ...months.map(m => m.v));
   return { total: months.reduce((a, m) => a + m.v, 0), html: `<div class="months">${months.map(m => `<div class="col"><span class="amt">${m.v ? eur0(m.v) : ''}</span><div class="b ${m.v ? '' : 'zero'}" style="height:${Math.max(2, m.v / max * 120)}px"></div><span class="m">${m.label}</span></div>`).join('')}</div>` };
 }
-const STATS_TABS = [['overview', 'Overview'], ['breakdown', 'Breakdown'], ['money', 'Money'], ['sort', 'Opruimen']];
+const STATS_TABS = [['overview', 'Overzicht'], ['gaps', 'Gaten'], ['breakdown', 'Verdeling'], ['money', 'Geld'], ['sort', 'Opruimen']];
+// gaps in the closet, as a stylist sees them: what one new piece would unlock
+function closetGaps() {
+  const live = S.items.filter(it => inCloset(it) && atHand(it)), k = it => catKey(it.cat), n = c => live.filter(it => k(it) === c).length;
+  const neutral = it => (it.colors || []).some(c => ['Black', 'White', 'Grey', 'Beige', 'Brown', 'Navy', 'Denim'].includes(c));
+  const tops = n('tops') + n('knitwear'), bottoms = n('bottoms'), shoes = n('shoes'), out = [];
+  const nb = live.filter(it => k(it) === 'bottoms' && neutral(it)).length, ns = live.filter(it => k(it) === 'shoes' && neutral(it)).length;
+  if (tops && nb < 2) out.push(['👖', `Een <b>neutrale broek</b> (zwart, beige of denim)`, `combineert met je ${tops} tops: +${tops} outfits`]);
+  if (bottoms && tops < bottoms * 1.5) out.push(['👚', `Een <b>basic top</b> in een neutrale kleur`, `past bij je ${bottoms} broeken en rokken: +${bottoms} outfits`]);
+  if (tops > bottoms * 3 && bottoms) out.push(['⚖️', `Veel tops (${tops}) en weinig broeken (${bottoms})`, `een extra broek levert het meest op: +${tops} outfits`]);
+  if (ns < 1 && (tops || bottoms)) out.push(['👟', `<b>Neutrale schoenen</b> (wit, zwart of beige)`, 'passen bij bijna alles']);
+  const now = SEASONS[[3, 3, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3][new Date().getMonth()]], outerNow = live.filter(it => k(it) === 'outerwear' && (!(it.seasons || []).length || it.seasons.includes(now))).length;
+  if (!outerNow) out.push(['🧥', `Een <b>jas voor de ${({ Winter: 'winter', Spring: 'lente', Summer: 'zomer', Autumn: 'herfst' })[now]}</b>`, 'je hebt er nog geen voor dit seizoen']);
+  if (!n('bags')) out.push(['👜', 'Een <b>tas</b> die bij je neutrale kleuren past', 'maakt een outfit af']);
+  const idle = live.filter(it => !wearCount(it)).length; if (idle >= 3) out.push(['💡', `<b>${idle} stukken</b> droeg je nog nooit`, 'eerst die combineren voordat je iets nieuws koopt']);
+  return out;
+}
+function statsGaps(host) {
+  const g = closetGaps();
+  host.innerHTML = `<div class="panel wide"><h3>🧩 Gaten in je kast</h3><p class="hint">Wat één nieuw stuk zou opleveren, op basis van wat je hebt en draagt.</p>${g.length ? g.map(([e, t, w]) => `<div class="gaprow"><span>${e}</span><div><div>${t}</div><small>${esc(w)}</small></div></div>`).join('') : '<p class="muted">Je kast is mooi in balans 🎉</p>'}</div>`;
+}
+// panels on the Analyse pages fold; the first two start open
+function foldPanels(root, key) {
+  let i = 0; for (const p of root.querySelectorAll(':scope .panel')) { const h = p.querySelector(':scope > h3'); if (!h || p.closest('details')) continue; i++;
+    const d = document.createElement('details'); d.className = p.className + ' fpanel'; const k = 'fold:' + key + ':' + h.textContent.trim().slice(0, 40); let open = i <= 2; try { const v = localStorage.getItem(k); if (v != null) open = v === '1'; } catch {}
+    d.open = open; d.dataset.foldk = k; const sm = document.createElement('summary'); sm.className = 'lph3'; sm.appendChild(h); sm.insertAdjacentHTML('beforeend', '<span class="fchev" aria-hidden="true"></span>'); d.appendChild(sm); while (p.firstChild) d.appendChild(p.firstChild); p.replaceWith(d); } }
 /* ---------- overview ---------- */
 // One card per area with what matters today. The closet card lives here; every other area hands over its own
 // card through LIFE.tile(key), so a new area appears without touching this page.
@@ -2497,6 +2522,7 @@ function renderSettings(host) {
       <label class="setnsearch setname"><input class="setninp" type="search" data-nfind placeholder="Zoek een naam" aria-label="Zoek een naam"></label>
       ${SECTIONS.map(s => `<div class="setrow setname" data-nrow="${esc(norm(s.base + ' ' + s.label))}"><button type="button" class="seti iconbtnpick" data-ipickfor="${s.key}" aria-label="Kies icoon voor ${esc(s.label)}">${icon(s.icon)}</button><input class="setninp" data-nname="${s.key}" value="${esc((S.prefs.names || {})[s.key] || '')}" placeholder="${esc(s.base)}" aria-label="Naam voor ${esc(s.base)}" autocomplete="off">${(S.prefs.names || {})[s.key] ? `<button class="chip link" data-nnreset="${s.key}">Herstel</button>` : ''}</div>`).join('')}
     </section>
+    <section class="panel setpanel" id="set-account"><h3>Account en back-up</h3><p class="muted">Ingelogd als ${esc(EMAIL)}. Je foto's en gegevens staan in je eigen Supabase-project.</p><div class="lwrap"><button class="btn" data-setexport>Back-up downloaden (.json)</button><button class="btn" data-setimport>Importeren uit je oude app</button></div></section>
     <section class="panel setpanel" id="set-today"><h3>Vandaag</h3><p class="muted">Kies per apparaat wat Vandaag laat zien en in welke volgorde. Op deze ${esc(deviceName())} nu: ${esc(devOrder().filter(devVis).map(k => TODAY_BLOCKS.find(b => b[0] === k)[1].replace(/^\S+\s/, '')).join(', '))}.</p><div class="setbtns"><button class="btn small" data-devtoday2>Vandaag op deze ${esc(deviceName())} aanpassen</button></div></section>
     ${lookPanel()}
     ${notiPanel()}
@@ -2768,6 +2794,8 @@ function devTodaySheet() {
 }
 // the affirmation behind its chip: your Pinterest card or the text one, in a sheet
 document.addEventListener('click', e => { if (e.target.closest?.('[data-devtoday2]')) devTodaySheet(); });
+document.addEventListener('click', e => { if (e.target.closest?.('[data-setexport]')) exportBackup();
+  if (e.target.closest?.('[data-setimport]')) { S.statsTab = 'overview'; pref.set('statsTab', 'overview'); go('stats'); setTimeout(() => { const d = [...document.querySelectorAll('details.fpanel')].find(x => /Account/.test(x.textContent)); if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); } }, 500); } });
 function affirmSheet() {
   const pin = window.LIFE?.pinAffirm?.() || '', sh = sheet({ title: 'Affirmatie van vandaag', body: `<div data-affbody>${pin || affirmBlock(true)}</div>` });
   sh.addEventListener('click', e => {
@@ -3060,7 +3088,7 @@ function statsSort(host) {
 }
 function renderStats(host) {
   const tab = S.statsTab = S.statsTab || pref.get('statsTab', 'overview');
-  host.innerHTML = `<div class="viewhead"><h1>Stats</h1><span class="sub">What your wardrobe really costs, and what it's actually used for</span></div>
+  host.innerHTML = `<div class="viewhead"><h1>Analyse</h1><span class="sub">Wat je kast echt kost en hoe je hem gebruikt</span></div>
     <div class="seg statseg" role="group" aria-label="Stats section">${STATS_TABS.map(([k, l]) => `<button data-stab="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>
     <div id="statsBody"></div>`;
   host.onclick = e => {
@@ -3069,7 +3097,8 @@ function renderStats(host) {
     const it = e.target.closest('[data-item]'); if (it) openItem(it.dataset.item);
   };
   const body = $('#statsBody', host);
-  if (tab === 'breakdown') statsBreakdown(body); else if (tab === 'money') statsMoney(body); else if (tab === 'sort') statsSort(body); else statsOverview(body);
+  if (tab === 'gaps') statsGaps(body); else if (tab === 'breakdown') statsBreakdown(body); else if (tab === 'money') statsMoney(body); else if (tab === 'sort') statsSort(body); else statsOverview(body);
+  if (tab !== 'gaps') foldPanels(body, 'stats-' + tab);
 }
 function statsOverview(host) {
   const live = S.items.filter(inCloset);

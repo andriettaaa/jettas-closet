@@ -1805,3 +1805,5 @@ details.fpanel[open] > summary { margin-bottom: 10px; }
 .capstrip { display: flex; gap: 6px; overflow-x: auto; margin: 10px 0; scrollbar-width: none; } .capth { flex: 0 0 64px; height: 84px; border-radius: 10px; overflow: hidden; background: color-mix(in srgb, var(--ink) 5%, var(--surface)); display: grid; place-items: center; } .capth img { width: 100%; height: 100%; object-fit: contain; }
 .capb { display: flex; flex-wrap: wrap; gap: 6px; }
 .card.picked { outline: 3px solid var(--accent); }
+.gaprow { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); } .gaprow > span { font-size: 22px; } .gaprow small { color: var(--muted); }
+.seg.statseg { display: flex; overflow-x: auto; max-width: 100%; scrollbar-width: none; } .seg.statseg button { white-space: nowrap; }
