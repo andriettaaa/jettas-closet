@@ -1787,7 +1787,7 @@ details.fpanel[open] > summary { margin-bottom: 10px; }
 /* outfit calendar: week with big photos, and a list */
 .seg.calview { margin: 0 0 10px; }
 .calweekbar { display: flex; align-items: center; margin: 0 0 8px; } .calweekbar .spacer { flex: 1; }
-.calweek { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.ocweek { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .cwday { all: unset; box-sizing: border-box; cursor: pointer; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 8px; display: grid; gap: 6px; }
 .cwday.today { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
 .cwh { display: flex; justify-content: space-between; font-size: 12.5px; } .cwh i { font-style: normal; color: var(--muted); }
@@ -1831,3 +1831,22 @@ details.room { border-top: 1px solid var(--line); padding: 10px 0; } details.roo
 .pch { display: flex; justify-content: space-between; font-size: 13px; } .pch span { color: var(--muted); }
 .pcard { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px; display: grid; gap: 6px; } .pcard .lmain span { display: block; color: var(--muted); font-size: 12px; }
 .findrow.findquick { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.olog { width: 16px; height: 16px; border-radius: 4px; vertical-align: -3px; margin-right: 6px; background: #fff; }
+/* wiggle to arrange Today */
+@keyframes wig { 0%, 100% { transform: rotate(-.6deg); } 50% { transform: rotate(.6deg); } }
+.story.wiggle .sblk { position: relative; animation: wig .28s ease-in-out infinite; outline: 2px dashed color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 4px; border-radius: 18px; touch-action: none; user-select: none; }
+.story.wiggle .sblk > *:not(.wigx):not(.wigh) { pointer-events: none; }
+.story.wiggle .sblk.dragging { animation: none; opacity: .85; box-shadow: 0 10px 30px rgba(0,0,0,.2); z-index: 3; }
+.wigx { position: absolute; top: -10px; left: -10px; z-index: 4; width: 26px; height: 26px; border-radius: 50%; border: 0; background: #d9707c; color: #fff; font-weight: 900; font-size: 18px; line-height: 1; }
+.wigh { position: absolute; top: -10px; right: -4px; z-index: 4; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 0 6px; font-size: 12px; color: var(--muted); }
+.wigbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); z-index: 40; display: flex; gap: 12px; align-items: center; background: var(--ink); color: var(--bg); border-radius: 999px; padding: 8px 8px 8px 16px; font-size: 13px; box-shadow: 0 10px 30px rgba(0,0,0,.25); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .story.wiggle .sblk { animation: none; } }
+:root[data-motion="calm"] .story.wiggle .sblk { animation: none; }
+/* swipe a row */
+.lrow { transition: transform .2s ease; position: relative; }
+.lrow.swiped { overflow: visible; }
+.swacts { position: absolute; top: 0; bottom: 0; left: 100%; display: flex; gap: 4px; padding-left: 6px; width: 200px; }
+.swacts button { flex: 1; border: 0; border-radius: 12px; color: #fff; font-size: 18px; display: grid; place-items: center; align-content: center; gap: 2px; } .swacts small { font-size: 10.5px; font-weight: 700; }
+.swacts .ok { background: #5f9b6b; } .swacts .later { background: #d99a4e; } .swacts .del { background: #d9707c; }
+.calweek.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.story > * { min-width: 0; } .story { grid-template-columns: minmax(0, 1fr); }

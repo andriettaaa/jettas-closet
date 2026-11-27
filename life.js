@@ -1967,6 +1967,24 @@ async function putMany(rows, progress, label) {
   for (const r of rows) { const i = L.all.findIndex(x => x.id === r.id); const v = { ...r.data, ...(r.data?.kind && r.data.kind !== r.kind && r.data.what == null ? { what: r.data.kind } : {}), id: r.id, kind: r.kind }; i >= 0 ? (L.all[i] = v) : L.all.push(v); }
   index(); cacheSave(); C.render();
 }
+/* swipe a row in any list to the left: its own quick action (done, in stock, have it), later (one day on) and remove (with undo) */
+(() => {
+  let sw = null;
+  const close = () => document.querySelectorAll('.lrow.swiped').forEach(r => { r.classList.remove('swiped'); r.style.transform = ''; r.querySelector(':scope > .swacts')?.remove(); });
+  document.addEventListener('touchstart', e => { const row = e.target.closest?.('.lrow'); if (!row || e.target.closest('.swacts')) return; if (!row.classList.contains('swiped')) close(); const id = row.querySelector('[data-id]')?.dataset.id; if (!id || !L.byId[id]) return; sw = { row, id, x: e.touches[0].clientX, y: e.touches[0].clientY, dx: 0, lock: '' }; }, { passive: true });
+  document.addEventListener('touchmove', e => { if (!sw) return; const dx = e.touches[0].clientX - sw.x, dy = e.touches[0].clientY - sw.y; if (!sw.lock) sw.lock = Math.abs(dx) > Math.abs(dy) + 4 ? 'x' : Math.abs(dy) > 8 ? 'y' : ''; if (sw.lock !== 'x') return; sw.dx = Math.min(0, dx); sw.row.style.transform = `translateX(${Math.max(-210, sw.dx)}px)`; }, { passive: true });
+  document.addEventListener('touchend', () => { if (!sw) return; const { row, id, dx } = sw; sw = null; if (dx > -60) { row.style.transform = ''; return; }
+    const r = L.byId[id], K = KINDS[r?.kind]; if (!r || !K) return; const q = K.quick?.(r), hasDate = ['date', 'due', 'by', 'planBuy'].find(k => K.fields.some(f => f.k === k && f.type === 'date'));
+    row.classList.add('swiped'); row.style.transform = 'translateX(-200px)';
+    row.insertAdjacentHTML('beforeend', `<div class="swacts">${q ? `<button type="button" data-swq="${id}" class="ok">${q.on ? '↺' : '✓'}<small>${esc(q.label)}</small></button>` : ''}${hasDate ? `<button type="button" data-swl="${id}" data-k="${hasDate}" class="later">⏭<small>Later</small></button>` : ''}<button type="button" data-swd="${id}" class="del">🗑<small>Weg</small></button></div>`); });
+  document.addEventListener('click', async e => {
+    let b; if (!(b = e.target.closest('[data-swq], [data-swl], [data-swd]'))) { if (!e.target.closest('.lrow.swiped')) close(); return; }
+    e.stopPropagation(); const r = L.byId[b.dataset.swq || b.dataset.swl || b.dataset.swd]; close(); if (!r) return;
+    try { if (b.dataset.swq) { await KINDS[r.kind].quick(r).act(); C.toast('✓ ' + titleOf(r)); }
+      else if (b.dataset.swl) { const k = b.dataset.k; await save(r, { [k]: addDays(r[k] && r[k] > today() ? r[k] : today(), 1) }); C.toast(`⏭ ${titleOf(r)}: morgen`); }
+      else { const keep = { kind: r.kind, data: dataOf(r) }; await del(r.id); C.toast(`🗑 ${titleOf(r)} weg`, { label: 'Ongedaan', run: () => create(keep.kind, keep.data) }); }
+      C.render(); } catch (err) { failed(err); } }, true);
+})();
 function failed(e) {
   console.error(e);
   if (isMissing(e)) { L.missing = true; C.render(); }
@@ -5812,7 +5830,9 @@ function fieldInner(kind, f, D) {
       // many options: a dropdown, with what you picked shown as chips you can tap away
       if (opts.length > CHIP_MAX) return span + `<div class="lwrap">${f.type === 'multi' ? sel.map(o => `<button type="button" class="chip on" data-opt="${f.k}" data-v="${esc(o)}" aria-pressed="true">${esc(o)} ×</button>`).join('') : ''}</div>
         <div class="lpick"><select class="pill" data-optsel="${f.k}" aria-label="${esc(f.label)}"><option value="">${f.type === 'multi' ? 'Add…' : 'Choose…'}</option>${opts.map(o => `<option value="${esc(o)}" ${f.type !== 'multi' && sel.includes(o) ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>${add}</div>`;
-      return span + `<div class="lwrap">${opts.map(o => `<button type="button" class="chip" data-opt="${f.k}" data-v="${esc(o)}" aria-pressed="${sel.includes(o)}">${esc(o)}</button>`).join('')}${add}</div>`;
+      // shops and brands get their logo: your own shop's website first, else a known one
+      const lg = o => { if (!['store', 'shop', 'brand'].includes(f.k)) return ''; const sh = recs('shops').find(x => norm(x.name) === norm(o)); return sh?.website ? `<img class="olog" src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(siteOf(sh.website))}&sz=64" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : (C.logoOf?.(o) || ''); };
+      return span + `<div class="lwrap">${opts.map(o => `<button type="button" class="chip" data-opt="${f.k}" data-v="${esc(o)}" aria-pressed="${sel.includes(o)}">${lg(o)}${esc(o)}</button>`).join('')}${add}</div>`;
     }
     case 'pphoto': {
       const src = D._previews?.[f.k] || '';
@@ -7118,7 +7138,7 @@ document.addEventListener('click', async e => {
     case 'cycday': cycleDaySheet(d.v); break;
     case 'cycal': { const c = calLoad(); c.view = 'month'; c.date = d.v || today(); try { localStorage.setItem('calView', 'month'); } catch {} C.go('plan/week'); break; }
     case 'calview': { const c = calLoad(); c.view = d.v; try { localStorage.setItem('calView', d.v); } catch {} C.render(); break; }
-    case 'calstep': { const c = calLoad(), n = +d.v; c.date = c.view === 'month' ? (() => { const x = fromISO(c.date); return iso(new Date(x.getFullYear(), x.getMonth() + n, 1)); })() : addDays(c.date, n * (c.view === 'week' ? 7 : c.view === 'agenda' ? 30 : 1)); C.render(); break; }
+    case 'calstep': { const c = calLoad(), n = +d.v; c.date = c.view === 'month' ? (() => { const x = fromISO(c.date); return iso(new Date(x.getFullYear(), x.getMonth() + n, 1)); })() : addDays(c.date, n * (c.view === 'week' ? 7 : c.view === '3day' ? 3 : c.view === 'agenda' ? 30 : 1)); C.render(); break; }
     case 'calgo': { const c = calLoad(); c.date = d.v; if (!d.keep) c.view = 'day'; C.render(); break; }
     case 'calcat': { const c = calLoad(); c.off.has(d.v) ? c.off.delete(d.v) : c.off.add(d.v); try { localStorage.setItem('calOff', JSON.stringify([...c.off])); } catch {} C.render(); break; }
     case 'caladd': calAdd(d.v); break;
@@ -8924,6 +8944,7 @@ function calRange(c) {
   if (c.view === 'month') { const first = iso(new Date(d.getFullYear(), d.getMonth(), 1)), start = weekMon(first); return [start, addDays(start, 41)]; }
   if (c.view === 'week') { const s = weekMon(c.date); return [s, addDays(s, 6)]; }
   if (c.view === 'day') return [c.date, c.date];
+  if (c.view === '3day') return [c.date, addDays(c.date, 2)];
   return [c.date, addDays(c.date, 30)];
 }
 function calPageInner(host) {
@@ -8932,14 +8953,14 @@ function calPageInner(host) {
   const cyc = d => cm[d] ? 'cy-' + cm[d].type : '';
   L.calMap = Object.fromEntries(ev.map(e => [e.id, e]));
   const byDay = {}; for (const e of ev) (byDay[e.date] ||= []).push(e);
-  const dt = fromISO(c.date), title = c.view === 'month' ? dt.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' }) : c.view === 'week' ? `Week van ${calDayLabel(from)}` : c.view === 'day' ? dt.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Komende 30 dagen';
+  const dt = fromISO(c.date), title = c.view === 'month' ? dt.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' }) : c.view === 'week' ? `Week van ${calDayLabel(from)}` : c.view === '3day' ? `${calDayLabel(from)} tot ${calDayLabel(to)}` : c.view === 'day' ? dt.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Komende 30 dagen';
   const addBtn = d => `<button class="caladd" data-act="caladd" data-v="${d}" aria-label="Iets toevoegen op ${esc(calDayLabel(d))}">+</button>`;
   let body = '';
   if (c.view === 'month') {
     const mo = dt.getMonth();
     body = `<div class="calmonth"><div class="calwd">${NL_WD.map(w => `<span>${w}</span>`).join('')}</div><div class="calgrid">${Array.from({ length: 42 }, (_, i) => addDays(from, i)).map(d => { const l = byDay[d] || [], x = fromISO(d); return `<div class="calday ${x.getMonth() !== mo ? 'out' : ''} ${d === t ? 'now' : ''} ${cyc(d)}" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${x.getDate()}</button>${addBtn(d)}</div>${cm[d] ? `<div class="calcyl">${cyMark(d, cm[d])}</div>` : ''}${l.slice(0, 4).map(e => calItem(e)).join('')}${l.length > 4 ? `<button class="calmore" data-act="calgo" data-v="${d}">+${l.length - 4} meer</button>` : ''}</div>`; }).join('')}</div></div>`;
-  } else if (c.view === 'week') {
-    body = `<div class="calweek">${Array.from({ length: 7 }, (_, i) => addDays(from, i)).map(d => `<div class="calcol ${d === t ? 'now' : ''} ${cyc(d)}" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${esc(calDayLabel(d))}</button>${cyMark(d, cm[d])}${addBtn(d)}</div>${(byDay[d] || []).map(e => calItem(e)).join('') || '<p class="lnone">Niets gepland</p>'}</div>`).join('')}</div>`;
+  } else if (c.view === 'week' || c.view === '3day') {
+    body = `<div class="calweek ${c.view === '3day' ? 'three' : ''}">${Array.from({ length: c.view === '3day' ? 3 : 7 }, (_, i) => addDays(from, i)).map(d => `<div class="calcol ${d === t ? 'now' : ''} ${cyc(d)}" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${esc(calDayLabel(d))}</button>${cyMark(d, cm[d])}${addBtn(d)}</div>${(byDay[d] || []).map(e => calItem(e)).join('') || '<p class="lnone">Niets gepland</p>'}</div>`).join('')}</div>`;
   } else if (c.view === 'day') {
     const l = byDay[c.date] || [], allday = l.filter(e => hmToMin(e.time) == null), timed = l.filter(e => hmToMin(e.time) != null);
     let rhythm = []; try { rhythm = dayItems(c.date).map(x => ({ min: x.min, label: x.label, sub: x.sub })); } catch {}
@@ -8950,7 +8971,7 @@ function calPageInner(host) {
     body = `<div class="calagenda">${days.map(d => `<div class="calag ${cyc(d)}" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${esc(calDayLabel(d))}${d === t ? ' · vandaag' : ''}</button>${cyMark(d, cm[d])}${addBtn(d)}</div>${byDay[d].map(e => calItem(e, 'wide')).join('')}</div>`).join('') || quiet('Niets gepland in de komende 30 dagen.')}</div>`;
   }
   host.innerHTML = `<div class="viewhead"><h1>Calendar</h1><span class="sub">${esc(title)}</span></div>
-  <div class="caltools"><div class="seg" role="group" aria-label="Weergave">${[['month', 'Maand'], ['week', 'Week'], ['day', 'Dag'], ['agenda', 'Agenda']].map(([k, l]) => `<button data-act="calview" data-v="${k}" aria-pressed="${c.view === k}">${l}</button>`).join('')}</div>
+  <div class="caltools"><div class="seg" role="group" aria-label="Weergave">${[['month', 'Maand'], ['week', 'Week'], ['3day', '3 dagen'], ['day', 'Dag'], ['agenda', 'Agenda']].map(([k, l]) => `<button data-act="calview" data-v="${k}" aria-pressed="${c.view === k}">${l}</button>`).join('')}</div>
     <div class="calnav"><button class="iconbtn" data-act="calstep" data-v="-1" aria-label="Vorige">‹</button><button class="btn small" data-act="calgo" data-v="${t}" data-keep="1">Vandaag</button><button class="iconbtn" data-act="calstep" data-v="1" aria-label="Volgende">›</button></div></div>
   <div class="calcats" role="group" aria-label="Onderdelen">${CAL_CATS.map(([k, l]) => `<button class="chip calcat cal-${k}" data-act="calcat" data-v="${k}" aria-pressed="${!c.off.has(k)}"><span class="caldot"></span>${l}</button>`).join('')}</div>
   ${Object.keys(cm).length ? `<p class="lnone calcylegend"><span class="calcy cy-period">🩸</span> menstruatie <span class="calcy cy-predict">🩸</span> verwacht <span class="calcy cy-fertile">🌸</span> vruchtbaar <span class="calcy cy-ovul">🌼</span> eisprong <button class="chip link small" data-act="go" data-v="care/cycle">Cyclus ›</button></p>` : ''}
