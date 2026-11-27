@@ -1625,3 +1625,32 @@ h2 .tdside { font-size: .8em; color: var(--muted); }
 :root[data-density="compact"] .panel { padding: 12px; } :root[data-density="compact"] .story { gap: 9px; }
 :root[data-density="roomy"] .dptiles { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
 .devlookbox { border: 1px dashed var(--line); border-radius: 14px; padding: 10px; margin: 10px 0; }
+
+/* loyalty cards: a stack like Wallet, or logo tiles; the open card shows its code big on white */
+.lcards { display: grid; gap: 12px; margin: 12px 0 24px; }
+.lcards.tiles { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.lcards .lcard { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 16px; border-radius: 16px; color: #fff; background: linear-gradient(135deg, var(--cc), color-mix(in srgb, var(--cc) 70%, #000)); box-shadow: 0 6px 18px rgba(0,0,0,.14); min-height: 84px; transition: transform .2s; }
+.lcards .lcard:active { transform: scale(.98); }
+.lcards .lcard span b { display: block; font-size: 1.05rem; }
+.lcards .lcard small { opacity: .85; font-size: .8rem; }
+.lcards.stack { gap: 0; }
+.lcards.stack .lcard { min-height: 120px; align-items: flex-start; margin-top: -56px; }
+.lcards.stack .lcard:first-child { margin-top: 0; }
+.lcards.tiles .lcard { flex-direction: column; justify-content: center; text-align: center; min-height: 140px; }
+.clogo { width: 40px; height: 40px; border-radius: 10px; background: #fff; object-fit: contain; padding: 4px; box-sizing: border-box; flex: none; }
+.clogo.txt { display: grid; place-items: center; color: var(--cc, #6b4a3c); font-weight: 800; font-size: 1.1rem; padding: 0; }
+.clogo.sm { width: 22px; height: 22px; border-radius: 6px; padding: 2px; font-size: .75rem; }
+.stchip.card { background: color-mix(in srgb, var(--cc) 16%, var(--card, #fff)); }
+.cardbig { border-radius: 18px; overflow: hidden; background: linear-gradient(135deg, var(--cc), color-mix(in srgb, var(--cc) 70%, #000)); color: #fff; }
+.cardbig .cbtop { display: flex; align-items: center; gap: 12px; padding: 16px; font-size: 1.1rem; }
+.cardbig .cbcode { background: #fff; color: #111; margin: 0 12px 12px; border-radius: 12px; padding: 14px; text-align: center; }
+.cardbig .cbsvg svg { width: 100%; max-width: 360px; height: auto; display: block; margin: 0 auto; }
+.cardbig .cbnum { font: 600 1.15rem/1.3 ui-monospace, Menlo, monospace; letter-spacing: .06em; margin: 8px 0 0; }
+.cardbig .cbphotos { display: flex; gap: 8px; padding: 0 12px 12px; }
+.cardbig .cbphotos img { flex: 1; min-width: 0; border-radius: 10px; aspect-ratio: 1.586; object-fit: cover; }
+.cardscan { min-height: 220px; border-radius: 14px; overflow: hidden; background: #111; }
+.emptyx { text-align: center; padding: 24px 12px; }
+.emptyx .ebig { font-size: 2.6rem; margin: 0; }
+.cardtools { display: flex; align-items: center; gap: 10px; margin-top: 8px; } .cardtools .spacer { flex: 1; }
+.cbbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.lcards .lcard > span { min-width: 0; }
