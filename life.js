@@ -5812,7 +5812,9 @@ function fieldInner(kind, f, D) {
       // many options: a dropdown, with what you picked shown as chips you can tap away
       if (opts.length > CHIP_MAX) return span + `<div class="lwrap">${f.type === 'multi' ? sel.map(o => `<button type="button" class="chip on" data-opt="${f.k}" data-v="${esc(o)}" aria-pressed="true">${esc(o)} ×</button>`).join('') : ''}</div>
         <div class="lpick"><select class="pill" data-optsel="${f.k}" aria-label="${esc(f.label)}"><option value="">${f.type === 'multi' ? 'Add…' : 'Choose…'}</option>${opts.map(o => `<option value="${esc(o)}" ${f.type !== 'multi' && sel.includes(o) ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>${add}</div>`;
-      return span + `<div class="lwrap">${opts.map(o => `<button type="button" class="chip" data-opt="${f.k}" data-v="${esc(o)}" aria-pressed="${sel.includes(o)}">${esc(o)}</button>`).join('')}${add}</div>`;
+      // shops and brands get their logo: your own shop's website first, else a known one
+      const lg = o => { if (!['store', 'shop', 'brand'].includes(f.k)) return ''; const sh = recs('shops').find(x => norm(x.name) === norm(o)); return sh?.website ? `<img class="olog" src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(siteOf(sh.website))}&sz=64" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : (C.logoOf?.(o) || ''); };
+      return span + `<div class="lwrap">${opts.map(o => `<button type="button" class="chip" data-opt="${f.k}" data-v="${esc(o)}" aria-pressed="${sel.includes(o)}">${lg(o)}${esc(o)}</button>`).join('')}${add}</div>`;
     }
     case 'pphoto': {
       const src = D._previews?.[f.k] || '';
