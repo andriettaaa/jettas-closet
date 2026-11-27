@@ -1967,6 +1967,24 @@ async function putMany(rows, progress, label) {
   for (const r of rows) { const i = L.all.findIndex(x => x.id === r.id); const v = { ...r.data, ...(r.data?.kind && r.data.kind !== r.kind && r.data.what == null ? { what: r.data.kind } : {}), id: r.id, kind: r.kind }; i >= 0 ? (L.all[i] = v) : L.all.push(v); }
   index(); cacheSave(); C.render();
 }
+/* swipe a row in any list to the left: its own quick action (done, in stock, have it), later (one day on) and remove (with undo) */
+(() => {
+  let sw = null;
+  const close = () => document.querySelectorAll('.lrow.swiped').forEach(r => { r.classList.remove('swiped'); r.style.transform = ''; r.querySelector(':scope > .swacts')?.remove(); });
+  document.addEventListener('touchstart', e => { const row = e.target.closest?.('.lrow'); if (!row || e.target.closest('.swacts')) return; if (!row.classList.contains('swiped')) close(); const id = row.querySelector('[data-id]')?.dataset.id; if (!id || !L.byId[id]) return; sw = { row, id, x: e.touches[0].clientX, y: e.touches[0].clientY, dx: 0, lock: '' }; }, { passive: true });
+  document.addEventListener('touchmove', e => { if (!sw) return; const dx = e.touches[0].clientX - sw.x, dy = e.touches[0].clientY - sw.y; if (!sw.lock) sw.lock = Math.abs(dx) > Math.abs(dy) + 4 ? 'x' : Math.abs(dy) > 8 ? 'y' : ''; if (sw.lock !== 'x') return; sw.dx = Math.min(0, dx); sw.row.style.transform = `translateX(${Math.max(-210, sw.dx)}px)`; }, { passive: true });
+  document.addEventListener('touchend', () => { if (!sw) return; const { row, id, dx } = sw; sw = null; if (dx > -60) { row.style.transform = ''; return; }
+    const r = L.byId[id], K = KINDS[r?.kind]; if (!r || !K) return; const q = K.quick?.(r), hasDate = ['date', 'due', 'by', 'planBuy'].find(k => K.fields.some(f => f.k === k && f.type === 'date'));
+    row.classList.add('swiped'); row.style.transform = 'translateX(-200px)';
+    row.insertAdjacentHTML('beforeend', `<div class="swacts">${q ? `<button type="button" data-swq="${id}" class="ok">${q.on ? '↺' : '✓'}<small>${esc(q.label)}</small></button>` : ''}${hasDate ? `<button type="button" data-swl="${id}" data-k="${hasDate}" class="later">⏭<small>Later</small></button>` : ''}<button type="button" data-swd="${id}" class="del">🗑<small>Weg</small></button></div>`); });
+  document.addEventListener('click', async e => {
+    let b; if (!(b = e.target.closest('[data-swq], [data-swl], [data-swd]'))) { if (!e.target.closest('.lrow.swiped')) close(); return; }
+    e.stopPropagation(); const r = L.byId[b.dataset.swq || b.dataset.swl || b.dataset.swd]; close(); if (!r) return;
+    try { if (b.dataset.swq) { await KINDS[r.kind].quick(r).act(); C.toast('✓ ' + titleOf(r)); }
+      else if (b.dataset.swl) { const k = b.dataset.k; await save(r, { [k]: addDays(r[k] && r[k] > today() ? r[k] : today(), 1) }); C.toast(`⏭ ${titleOf(r)}: morgen`); }
+      else { const keep = { kind: r.kind, data: dataOf(r) }; await del(r.id); C.toast(`🗑 ${titleOf(r)} weg`, { label: 'Ongedaan', run: () => create(keep.kind, keep.data) }); }
+      C.render(); } catch (err) { failed(err); } }, true);
+})();
 function failed(e) {
   console.error(e);
   if (isMissing(e)) { L.missing = true; C.render(); }

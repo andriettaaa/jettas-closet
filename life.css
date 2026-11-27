@@ -1842,3 +1842,9 @@ details.room { border-top: 1px solid var(--line); padding: 10px 0; } details.roo
 .wigbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); z-index: 40; display: flex; gap: 12px; align-items: center; background: var(--ink); color: var(--bg); border-radius: 999px; padding: 8px 8px 8px 16px; font-size: 13px; box-shadow: 0 10px 30px rgba(0,0,0,.25); white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .story.wiggle .sblk { animation: none; } }
 :root[data-motion="calm"] .story.wiggle .sblk { animation: none; }
+/* swipe a row */
+.lrow { transition: transform .2s ease; position: relative; }
+.lrow.swiped { overflow: visible; }
+.swacts { position: absolute; top: 0; bottom: 0; left: 100%; display: flex; gap: 4px; padding-left: 6px; width: 200px; }
+.swacts button { flex: 1; border: 0; border-radius: 12px; color: #fff; font-size: 18px; display: grid; place-items: center; align-content: center; gap: 2px; } .swacts small { font-size: 10.5px; font-weight: 700; }
+.swacts .ok { background: #5f9b6b; } .swacts .later { background: #d99a4e; } .swacts .del { background: #d9707c; }
