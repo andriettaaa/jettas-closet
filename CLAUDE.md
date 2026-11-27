@@ -13,6 +13,9 @@ This repo is public. Never commit personal data, tokens or secrets, and never as
 ## Design
 Read `DESIGN.md` before changing how the app looks or works: it holds the owner's choices per page and per device.
 
+## Big redesigns
+For a redesign of several pages, first ask every question about the whole app (rounds of visual examples with clickable answers), write the answers in `DESIGN.md`, and only then build everything in one go. Do not ask her to approve parts in between.
+
 ## Making a change
 1. Work on a new branch and open a draft PR.
 2. Raise `VERSION` in `sw.js` and `APP_VERSION` in `index.html` (hangtag-vNNN) by one.
