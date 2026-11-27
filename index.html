@@ -706,7 +706,12 @@ const navSections = () => [...navAll().filter(s => !(NAV().hidden || []).include
 const secSettings = sec => [sec + '/settings', 'Settings', GEAR];
 const viewsAll = sec => byOrder(sec === 'closet' ? VIEWS : (SECTIONS.find(x => x.key === sec)?.views || []), NAV().views?.[sec]?.order, v => v[0]);
 const isSecSettings = v => /\/settings$/.test(String(v)) && SECTIONS.some(s => s.key === secOf(v) && !['overview', 'settings'].includes(s.key));
-const viewsShown = sec => { const h = NAV().views?.[sec]?.hidden || []; const vs = viewsAll(sec).filter(v => !h.includes(v[0])); return [...(vs.length ? vs : viewsAll(sec).slice(0, 1)), secSettings(sec)]; };
+// the tabs of a section: hidden ones out, and tabs that share a page (a "merge") as one tab with the merge's name; the page shows chips to switch
+const viewsShown = sec => { const h = NAV().views?.[sec]?.hidden || [], M = window.LIFE?.merges || {}, seen = new Set();
+  const vs = viewsAll(sec).filter(v => !h.includes(v[0]) && !v[6]).flatMap(v => { const m = v[5]; if (!m || !M[m]) return [v]; if (seen.has(m)) return []; seen.add(m);
+    const sibs = viewsAll(sec).filter(x => x[5] === m), last = (() => { try { return localStorage.getItem('merge:' + m); } catch { return ''; } })();
+    const pick = sibs.find(x => x[0] === S.view) || sibs.find(x => x[0] === last) || sibs[0]; return [[pick[0], M[m][0], M[m][1], pick[3], pick[4], m]]; });
+  return [...(vs.length ? vs : viewsAll(sec).slice(0, 1)), secSettings(sec)]; };
 // the area a page belongs to: the one whose tabs hold it (Plan and Body borrow pages from older areas), else its prefix
 const OLD_AREAS = { care: 'plan', fit: 'plan', body: 'plan', wish: 'plan' };
 const secOf = v => { if (v === 'overview' || v === 'settings') return v; v = String(v); if (!v.includes('/')) return 'closet'; const own = SECTIONS.find(s => s.views?.some(x => x[0] === v)); if (own) return own.key; const pre = v.split('/')[0]; return SECTIONS.some(s => s.key === pre) ? pre : OLD_AREAS[pre] || pre; };
@@ -1155,7 +1160,7 @@ function renderTabs() {
   if (curGrp) pref.set('grp:' + sec + '/' + curGrp, S.view);
   const grpTarget = t => { const last = pref.get('grp:' + sec + '/' + t.g, ''); return t.vs.some(v => v[0] === last) ? last : t.vs[0][0]; };
   bar.innerHTML = row.map(t => {
-    if (!t.g || t.vs.length === 1) { const [k, label, path] = t.v || t.vs[0]; return `<button data-view="${k}" aria-current="${S.view === k}">${icon(path)}<span>${label}</span>${k === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`; }
+    if (!t.g || t.vs.length === 1) { const [k, label, path] = t.v || t.vs[0]; if (/\/settings$/.test(k)) return `<button data-view="${k}" class="gearbtn" aria-current="${S.view === k}" aria-label="Instellingen" title="Instellingen">${icon(path)}</button>`; return `<button data-view="${k}" aria-current="${S.view === k}">${icon(path)}<span>${label}</span>${k === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`; }
     const [label, path] = groups[t.g]; return `<button data-view="${grpTarget(t)}" data-grp="${t.g}" aria-current="${curGrp === t.g}">${icon(path)}<span>${label}</span></button>`;
   }).join('');
   const open = row.find(t => t.g && t.g === curGrp && t.vs.length > 1), sub2 = $('#sub2Bar');

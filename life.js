@@ -1710,6 +1710,40 @@ const SECTIONS = [
     groups: { work: ['Work', P.check], create: ['Create', P.phone], grow: ['Grow', P.trend], library: ['Library', P.book] },
     views: [['today', 'Overview', P.grid], ['tasks', 'Tasks', P.check, 'work'], ['projects', 'Projects', P.list, 'work'], ['ideas', 'Ideas', P.star, 'create'], ['posts', 'Posts', P.phone, 'create'], ['plan', 'Planning', P.calendar, 'create'], ['feed', 'Feed', P.grid, 'create'], ['insights', 'Insights', P.trend, 'grow'], ['pinterest', 'Pinterest', P.heart, 'grow'], ['goals', 'Goals', P.target, 'grow'], ['collabs', 'Collabs', P.handshake, 'grow'], ['income', 'Income', P.coins, 'grow'], ['tips', 'Tips', P.star, 'library'], ['inspo', 'Inspiration', P.heart, 'library'], ['kit', 'Toolkit', P.list, 'library'], ['brand', 'Brand', P.user, 'library'], ['todo', 'To do', P.check]] },
 ];
+// a tab that holds more pages: chips on top of the page to switch between them
+function mergeChips(host, view) {
+  host.querySelector(':scope > .mergechips')?.remove();
+  const sec = sectionOf(view); if (!sec) return; const v = sec.views.find(x => vkey(sec, x) === view), m = v?.[5]; if (!m) return;
+  try { localStorage.setItem('merge:' + m, view); } catch {}
+  const sibs = sec.views.filter(x => x[5] === m);
+  host.insertAdjacentHTML('afterbegin', `<div class="mergechips" role="tablist">${sibs.map(x => `<button type="button" role="tab" data-mgo="${vkey(sec, x)}" aria-selected="${vkey(sec, x) === view}">${svg(x[2])}<span>${esc(x[1])}</span></button>`).join('')}</div>`);
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-mgo]'); if (b && C) C.go(b.dataset.mgo); });
+/* the tidy menu: fewer tabs, the rest one tap away. Per view: a new label, another group or sub-group, a "merge" (views that share
+   one tab, with chips on top of the page to switch) or hidden from the menu (the page itself still works). */
+const MERGES = { fnow: ['Vandaag', P.sun], fwo: ['Workouts', P.run], fprog: ['Voortgang', P.trend], huid: ['Huid', P.flask], kennis: ['Kennis', P.book], klog: ['Logboek', P.pen], kspul: ['Spullen', P.spoon],
+  uit: ['Uitgaven', P.coins], clean: ['Schoonmaak', P.broom], move: ['Verhuizen', P.box], collab: ['Samenwerkingen', P.handshake] };
+const NAV_FIX = {
+  plan: { groups: { wish: ['Verlanglijst', P.heart], stats: ['Analyse', P.trend] }, subs: { mind: { dagboek: ['Dagboek', P.pen], groei: ['Groei', P.target], visie: ['Visie', P.sparkle] }, body: { health: ['Gezondheid', P.heart] } },
+    hide: ['week', 'weekplan', 'todo', 'plan/mind', 'body/today', 'plan/plans', 'wish/today'],
+    set: { 'today': ['Mijn jaar', 'mind', 'visie'], 'care/vision': ['Visie', 'mind', 'visie'], 'care/checkin': ['Check-in', 'mind', 'dagboek'], 'care/journal': ['Journal', 'mind', 'dagboek'], 'care/habits': ['Routines', 'mind'], 'care/mindful': ['Rust', 'mind'],
+      'care/growth': ['Groei', 'mind', 'groei'], 'care/learn': ['Leren', 'mind', 'groei'], 'care/discover': ['Zelfkennis', 'mind', 'groei'],
+      'care/sleep': ['Slaap'], 'care/health': ['Klachten'], 'care/cycle': ['Cyclus'], 'care/supplements': ['Supplementen'],
+      'fit/routine': ['Routine', 0, 0, 'fnow'], 'fit/log': ['Logboek', 0, 0, 'fnow'], 'fit/workouts': ['Workouts', 0, 0, 'fwo'], 'fit/library': ["Video's", 0, 0, 'fwo'], 'fit/plans': ['Plannen', 0, 0, 'fwo'], 'fit/exercises': ['Oefeningen'], 'fit/fgoals': ['Doelen', 0, 0, 'fprog'], 'fit/body': ['Lichaam', 0, 0, 'fprog'],
+      'care/skin': ['Routine', 0, 0, 'huid'], 'care/skinmonth': ['Maand', 0, 0, 'huid'], 'care/diary': ['Dagboek', 0, 0, 'huid'], 'care/beauty': ['Producten'], 'care/hair': ['Haar'], 'care/perfume': ['Parfum'],
+      'fit/res': ['Training', 'body', '', 'kennis'], 'care/skinres': ['Huid', 'body', '', 'kennis'],
+      'reports': ['Overzicht', 'stats'], 'plan/mindstats': ['Mind', 'stats', ''], 'body/stats': ['Body', 'stats', ''], 'fit/stats': ['Train', 'stats', ''], 'care/skinstats': ['Huid', 'stats', ''], 'plan/planstats': ['Plans', 'stats', ''], 'wish/stats': ['Verlanglijst', 'stats', ''],
+      'wish/master': ['Verlanglijst'] } },
+  kitchen: { hide: ['todo'], set: { today: ['Overzicht'], recipes: ['Recepten'], meals: ['Menu'], foodlog: ['Eten', 0, 0, 'klog'], drinks: ['Drinken', 0, 0, 'klog'], cooked: ['Gekookt', 0, 0, 'klog'], pantry: ['Voorraad'], groceries: ['Boodschappen'], gear: ['Keukenspullen', 0, 0, 'kspul'], shops: ['Winkels', 0, 0, 'kspul'], stats: ['Analyse'] } },
+  money: { groups: { plan: ['Doelen en schulden', P.target], look: ['Terugblik', P.trend] }, hide: ['todo'], set: { today: ['Vandaag'], spending: ['Alles', 0, 0, 'uit'], impulse: ['Impulsen', 0, 0, 'uit'], repeats: ['Vaste lasten'], plan: ['Doelen'], debt: ['Schulden'], insurance: ['Verzekeringen'], forecast: ['Vooruitblik'], year: ['Jaar'], networth: ['Vermogen'] } },
+  home: { hide: ['todo'], set: { today: ['Overzicht'], chores: ['Schema', 0, 0, 'clean'], houselog: ['Logboek', 0, 0, 'clean'], inventory: ['Verhuislijst', 0, 0, 'move'], mood: ['Moodboard', 0, 0, 'move'], plants: ['Planten'], repairs: ['Reparaties'] } },
+  social: { groups: { work: ['Werk', P.check], create: ['Maken', P.phone], grow: ['Groei', P.trend], library: ['Bibliotheek', P.book] }, hide: ['todo'], set: { today: ['Overzicht'], ideas: ['Ideeën'], plan: ['Kalender'], collabs: ['Deals', 0, 0, 'collab'], income: ['Inkomsten', 0, 0, 'collab'] } }
+};
+for (const sec of SECTIONS) { const f = NAV_FIX[sec.key]; if (!f) continue;
+  Object.assign(sec.groups ||= {}, f.groups || {}); for (const [g, o] of Object.entries(f.subs || {})) Object.assign((sec.subs ||= {})[g] ||= {}, o);
+  for (const v of sec.views) { const fx = f.set?.[v[0]]; if (fx) { if (fx[0]) v[1] = fx[0]; if (fx[1]) v[3] = fx[1]; if (fx[2] != null && fx[2] !== 0) v[4] = fx[2]; if (fx[3]) v[5] = fx[3]; } if ((f.hide || []).includes(v[0])) v[6] = 1; }
+  // group the analyses into their own group, at the end of the menu row
+  if (sec.key === 'plan') { const order = v => v[3] === 'stats' ? 2 : 0; sec.views.sort((a, b) => order(a) - order(b)); } }
 // a view is "page" for this section, or a full key when it borrows a page from another area
 const vkey = (s, v) => v[0].includes('/') ? v[0] : s.key + '/' + v[0];
 const TODO_ADDS = { plan: ['ideas', 'gifts', 'documents', 'wishes', 'orders', 'vision', 'discover', 'beauty', 'supplements', 'exercises', 'vworkouts', 'fitgear', 'plans'], body: ['beauty', 'supplements', 'exercises', 'vworkouts', 'fitgear', 'plans'], kitchen: ['recipes', 'ingredients', 'gear'], care: ['beauty', 'supplements', 'ideas', 'gifts', 'courses', 'documents'], social: ['posts', 'cideas', 'stips', 'inspo', 'deals'], wish: ['wishes'], money: ['fbills', 'fdebts', 'fgoals', 'insurance'], home: ['plants', 'inventory', 'chores', 'moodboard'], fit: ['exercises', 'vworkouts', 'fitgear', 'plans'] };
@@ -10581,7 +10615,8 @@ async function fragSugClick(e) {
 
 return {
   icons: Object.fromEntries(Object.entries(P).filter(([k]) => !['plus', 'minus', 'left', 'right', 'x', 'check'].includes(k)).map(([k, v]) => [k, G(v)])),
-  sections: SECTIONS.map(s => ({ key: s.key, label: s.label, icon: G(s.icon), groups: Object.fromEntries(Object.entries(s.groups || {}).map(([g, [l, ic]]) => [g, [l, G(ic)]])), subs: Object.fromEntries(Object.entries(s.subs || {}).map(([g, o]) => [g, Object.fromEntries(Object.entries(o).map(([k, [l, ic]]) => [k, [l, G(ic)]]))])), views: s.views.map(v => [vkey(s, v), v[1], G(v[2]), v[3] || '', v[4] || '']) })),
+  sections: SECTIONS.map(s => ({ key: s.key, label: s.label, icon: G(s.icon), groups: Object.fromEntries(Object.entries(s.groups || {}).map(([g, [l, ic]]) => [g, [l, G(ic)]])), subs: Object.fromEntries(Object.entries(s.subs || {}).map(([g, o]) => [g, Object.fromEntries(Object.entries(o).map(([k, [l, ic]]) => [k, [l, G(ic)]]))])), views: s.views.map(v => [vkey(s, v), v[1], G(v[2]), v[3] || '', v[4] || '', v[5] || '', v[6] || 0]) })),
+  merges: Object.fromEntries(Object.entries(MERGES).map(([k, [l, ic]]) => [k, [l, G(ic)]])),
   has: view => !!PAGES[view],
   lists: optionLists, fullList: fullOptions, renameIn: renameOption, knownChips, openRecord,
   // a notification can ask for a new entry, like a skin diary page for today
@@ -10634,6 +10669,7 @@ return {
     if (L.missing) { setupCard(host); return; }
     if (L.status === 'loading' && !L.all.length) { host.dataset.sig = ''; host.innerHTML = `<div class="viewhead"><h1>${esc(cfg.title || sectionOf(view)?.label || '')}</h1><span class="sub">Loading…</span></div>`; return; }
     if (cfg.render) { host.dataset.sig = ''; cfg.render(host); if (view === overviewOf(sectionOf(view)?.key)) layoutOverview(host, view); } else listPage(host, view);
+    mergeChips(host, view);
     if (sectionOf(view)?.key === 'money') { const vh = host.querySelector('.viewhead'), old = vh?.querySelector('[data-moneyeye]'); if (old) old.outerHTML = eyeBtn(); else vh?.insertAdjacentHTML('beforeend', eyeBtn()); }
   },
   addLabel(view) {

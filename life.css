@@ -1752,3 +1752,10 @@ h2 .tdside { font-size: .8em; color: var(--muted); }
 .ndob { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 16px; } .ndob .btn { background: #4b3a2e; color: #f3eee8; border-color: transparent; } .ndob .btn.primary { background: #f3eee8; color: #2b1d10; }
 .ndowide { display: grid; grid-template-columns: 1.2fr 1fr; gap: 14px; align-items: start; } .ndoside { display: grid; gap: 8px; }
 .ndovid { aspect-ratio: 9 / 13; max-height: 360px; border-radius: 16px; background: linear-gradient(160deg, #f3b6c4, #c4646a) center / cover; display: grid; place-items: center; color: #fff; font-size: 40px; text-decoration: none; }
+/* a tab that holds more pages: chips on top of the page */
+.mergechips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 0 12px; padding: 4px; background: color-mix(in srgb, var(--ink) 6%, var(--surface)); border-radius: 999px; width: fit-content; max-width: 100%; }
+.mergechips button { border: 0; background: none; border-radius: 999px; padding: 7px 14px; font-weight: 600; font-size: 13.5px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.mergechips button svg { width: 15px; height: 15px; }
+.mergechips button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+.secbar button.gearbtn { padding: 6px 9px; margin-left: auto; }
+body.side header.top .secwrap .secbar button.gearbtn { margin-left: 0; width: auto; }

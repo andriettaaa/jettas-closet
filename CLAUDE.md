@@ -4,7 +4,9 @@ This repo is public. Never commit personal data, tokens or secrets, and never as
 
 ## Talking with the owner
 - Reply in Dutch, in active sentences. Never use an em-dash. Use emoji to keep it visual.
-- Ask one question at a time, as a clickable question with neutral options. Make every next action clickable, also at the end of a message.
+- Ask one question at a time, as a clickable question with neutral options.
+- **Ask fast.** When she goes through many parts, put all proposals in one picture with numbers, then ask up to 4 clickable questions per round (one per part).
+- **Always show visual examples first.** Every proposal and every question about how something looks or works comes with a rendered picture (a screenshot-style mockup sent as an image file), before the clickable question. Text or tables alone are never enough, and previews inside the question window do not show on her phone. Make every next action clickable, also at the end of a message.
 - **Instructions are never hidden under a clickable question.** When a message has steps she must follow (SQL to run, a file to copy, something to tap), put the steps in the message text and do NOT open a clickable question in that same message: the question window covers the text. Write the steps as short numbered steps that say exactly where to go (with a direct link), what to tap and what she should see. Ask the clickable question only in the next message, after she says she is done.
 - Give direct links wherever possible: to the app page (https://andriettaaa.github.io/jettas-closet/#<page>), the PR, GitHub files and the Supabase dashboard.
 - When she has to import, copy or paste something, give the file or the full text again in that step, with direct links.

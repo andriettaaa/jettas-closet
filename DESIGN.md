@@ -101,3 +101,12 @@ Design every part as an expert in that field would.
 - **Deals**: she plans the week ahead from Friday to Sunday, so next week's offers must be visible by Friday; the deal runs move from Wednesday to Friday, with a Sunday refresh.
 - **Search**: everywhere (clothes, recipes, cards, colours, notes, settings); quick add by typing ("melk op lijst", "tandarts vrijdag 10:00"); recent and often opened on top.
 - **Preview**: a live test version that works like the app, before anything goes live.
+
+## Menu and sections, per part (November 2026, with pictures)
+- **Closet** keeps every tab, including the outfit calendar. Calendar gets a switch: month, week with big photos, list. Outfits gets chips: Looks, Capsules (the app proposes capsules, she adjusts), Board (move pieces freely, save as look). Stats becomes Analyse with folding blocks plus Gaps in your closet (what unlocks the most outfits); account and backup move to Settings. To do becomes a red badge on the Closet tab. The closet itself: photo grid (times worn and price per wear on each photo), shelves per category (swipe, long unworn last) and a rail, switchable, with sort options (A to Z, newest, most worn, longest unworn, price per wear).
+- **Kitchen**: tabs from 13 to 8 (Overzicht, Recepten, Menu, Logboek with eten/drinken/gekookt, Voorraad, Boodschappen, Deals, Spullen with keukenspullen/winkels); cook mode; balance per day as dots (vegetables, protein, fibre, fruit); use-by first with recipes.
+- **Finance**: tabs from 13 to 6 (Vandaag, Uitgaven with in/out filter and impulses, Vaste lasten, Doelen en schulden, Kaarten, Terugblik); pots as a jar that empties; a month story; savings goals with a photo.
+- **Home**: tabs from 8 to 5 (Overzicht, Schoonmaak with schema/logboek, Verhuizen with lijst/moodboard, Planten, Reparaties); a quarter of an hour a day; room by room; household stock to the list.
+- **Life**: fewer tabs (Mind 5, Train 5, Beauty 6, one Analyse, one Kennis); cycle coach; Sunday week review; mood and energy.
+- **Social and Calendar**: groups Werk, Maken, Groei, Bibliotheek, collaborations as a pipeline; content calendar with drag; one calendar with filter chips; her own calendar items, also in the iPhone calendar.
+- **Everywhere**: To do as a red badge instead of a tab, Settings as a ⚙️ instead of a named tab, blocks folded by default.
