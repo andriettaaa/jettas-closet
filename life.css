@@ -1654,3 +1654,20 @@ h2 .tdside { font-size: .8em; color: var(--muted); }
 .cardtools { display: flex; align-items: center; gap: 10px; margin-top: 8px; } .cardtools .spacer { flex: 1; }
 .cbbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .lcards .lcard > span { min-width: 0; }
+
+/* the big card on top of a section overview */
+.mixhero { border-radius: 22px; padding: 20px 20px 18px; margin: 0 0 18px; color: #fff; background: linear-gradient(135deg, #6b4a3c, #a77b5f); box-shadow: 0 10px 30px rgba(60,35,20,.18); }
+.mixhero.breakfast { background: linear-gradient(135deg, #e0a04a, #f2c879); color: #2b1d10; }
+.mixhero.lunch { background: linear-gradient(135deg, #6f9a5b, #a9c48b); }
+.mixhero.snack { background: linear-gradient(135deg, #c4646a, #e6a2a0); }
+.mixhero.dinner { background: linear-gradient(135deg, #5a3a2c, #9b6b4d); }
+.mixhero.night { background: linear-gradient(135deg, #283450, #4b5d86); }
+.mixhero .mxk { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .85; }
+.mixhero h2 { margin: 6px 0 4px; font-size: clamp(22px, 5vw, 30px); line-height: 1.15; color: inherit; }
+.mixhero .mxs { margin: 0 0 4px; opacity: .9; }
+.mixhero .mxb { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.mixhero .mxb .btn { background: rgba(255,255,255,.2); color: inherit; border-color: transparent; }
+.mixhero .mxb .btn.primary { background: #fff; color: #2b1d10; }
+.mxbar { display: inline-block; vertical-align: middle; width: 120px; height: 8px; border-radius: 99px; background: rgba(255,255,255,.3); margin-right: 8px; overflow: hidden; }
+.mxbar i { display: block; height: 100%; background: #fff; border-radius: inherit; }
+.ofhost { margin: 0 0 16px; }

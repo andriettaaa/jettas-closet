@@ -3248,6 +3248,34 @@ async function dealsAct(act, k, i) {
   }
 }
 
+/* ---------- the big card on top of a section's overview (the "mix": one big card, then the panels) ----------
+   Kitchen changes with the time of day, Home shows the chore for now, Life your goal for this week. */
+function mixHero(key) {
+  const t = today(), h = new Date().getHours(), card = (emo, kick, title, sub, btns, cls = '') => `<section class="mixhero ${cls}"><p class="mxk">${emo} ${esc(kick)}</p><h2>${esc(title)}</h2>${sub ? `<p class="mxs">${sub}</p>` : ''}<div class="mxb">${btns}</div></section>`;
+  if (key === 'kitchen') {
+    const slot = h < 10 ? 'Breakfast' : h < 14 ? 'Lunch' : h < 17 ? 'Snack' : h < 21 ? 'Dinner' : '';
+    if (!slot) { const tm = recs('meals').filter(m => m.date === addDays(t, 1)); return card('🌙', 'Morgen', tm.length ? tm.map(m => titleOf(m)).join(', ') : 'Nog niets gepland voor morgen', tm.length ? '' : 'Plan alvast iets, dan hoef je morgen niet na te denken.', `<button class="btn" data-act="new" data-v="meals">+ Maaltijd voor morgen</button>`, 'night'); }
+    const nl = { Breakfast: ['☀️', 'Ontbijt'], Lunch: ['🥪', 'Lunch'], Snack: ['🍎', 'Tussendoortje'], Dinner: ['🍲', 'Avondeten'] }[slot];
+    const m = recs('meals').filter(x => x.date === t && x.slot === slot);
+    if (m.length) return card(nl[0], nl[1] + ' vandaag', m.map(x => titleOf(x)).join(', '), m[0].recipe && L.byId[m[0].recipe] ? 'Het recept staat klaar.' : '', `${m[0].recipe && L.byId[m[0].recipe] ? `<button class="btn primary" data-act="open" data-id="${m[0].recipe}">Recept openen</button>` : ''}<button class="btn" data-act="open" data-id="${m[0].id}">Bekijken</button>`, slot.toLowerCase());
+    return card(nl[0], nl[1], slot === 'Snack' ? 'Tijd voor iets kleins' : `Wat eet je als ${nl[1].toLowerCase()}?`, 'Drie ideeën uit je eigen recepten en je voorraad.', `<button class="btn primary" data-chooser>Kies voor mij</button><button class="btn" data-act="new" data-v="meals">Zelf invullen</button>`, slot.toLowerCase());
+  }
+  if (key === 'home') {
+    const due = recs('chores').filter(c => choreDue(c) <= t).sort((a, b) => choreDue(a).localeCompare(choreDue(b)));
+    if (!due.length) return card('✨', 'Klusjes', recs('chores').length ? 'Alles is bij' : 'Nog geen klusjes', recs('chores').length ? 'Geniet van je opgeruimde huis.' : 'Zet je klusjes erin met hoe vaak ze moeten, dan komen ze vanzelf terug.', recs('chores').length ? '' : `<button class="btn primary" data-act="new" data-v="chores">+ Klusje</button>`);
+    const c = due[0];
+    return card('🧽', due.length > 1 ? `Nu doen · nog ${due.length - 1} daarna` : 'Nu doen', c.name || 'Klusje', c.room ? esc(c.room) : '', `<button class="btn primary" data-mixchore="${c.id}">✓ Gedaan</button><button class="btn" data-act="open" data-id="${c.id}">Bekijken</button>`);
+  }
+  if (key === 'life') {
+    const g = recs('lgoals').filter(x => x.status !== 'Completed').sort((a, b) => (a.due || '9').localeCompare(b.due || '9'))[0];
+    if (!g) return card('🎯', 'Je doel', 'Kies een doel voor deze week', 'Eén ding waar je deze week aan werkt, met kleine stappen.', `<button class="btn primary" data-act="new" data-v="lgoals">+ Doel</button>`);
+    const ts = goalTasks(g), done = ts.filter(x => x.status === 'Completed').length, pct = ts.length ? Math.round(done / ts.length * 100) : (num(g.progress) || 0), next = ts.find(x => x.status !== 'Completed');
+    return card('🎯', g.due ? 'Doel · ' + relDay(g.due) : 'Je doel', g.name || 'Doel', `<span class="mxbar"><i style="width:${pct}%"></i></span>${pct}%${next ? ` · volgende stap: <b>${esc(titleOf(next))}</b>` : ''}`, `<button class="btn primary" data-act="open" data-id="${g.id}">Openen</button>`);
+  }
+  return '';
+}
+document.addEventListener('click', async e => { const b = e.target.closest('[data-mixchore]'); if (!b) return; const r = L.byId[b.dataset.mixchore]; if (!r) return; await save(r, { last: today() }); C.toast('✨ ' + (r.name || 'Klusje') + ' gedaan'); C.render(); });
+const withHero = (key, html) => html.replace(/(<div class="viewhead">[\s\S]*?<\/div>)/, `$1${mixHero(key)}`);
 function kitchenToday(host) {
   setTimeout(stapleRestock, 0);
   const t = today(), meals = recs('meals').filter(m => m.date === t);
@@ -3259,8 +3287,7 @@ function kitchenToday(host) {
   const pick = shuffle(ready.length >= 3 ? ready : rs).slice(0, 4);
   const dp = curPlan(), dn = liveOffers().length;
   const toReview = recs('meals').filter(m => m.recipe && L.byId[m.recipe] && m.date < t && m.date >= addDays(t, -7) && !recs('rreviews').some(v => v.recipe === m.recipe && v.date >= m.date)).sort((a, b) => b.date.localeCompare(a.date)).filter((m, i, a) => a.findIndex(x => x.recipe === m.recipe) === i).slice(0, 4);
-  host.innerHTML = `${head('Kitchen')}
-  <button class="btn primary bigact" data-chooser>${svg(P.pot)}<span><b>What shall I eat?</b><small>A few questions, then three ideas from your own recipes</small></span></button>
+  host.innerHTML = `${head('Kitchen')}${mixHero('kitchen')}
   <div class="panels">
     ${(() => { const soon = recs('ingredients').filter(useSoon).sort((a, b) => a.expires.localeCompare(b.expires)); if (!soon.length) return ''; const ids = new Set(soon.map(x => x.id)), use = rs.filter(r => (r.ingredients || []).some(id => ids.has(id))).sort((a, b) => (b.ingredients || []).filter(id => ids.has(id)).length - (a.ingredients || []).filter(id => ids.has(id)).length).slice(0, 4);
       return panel('Use soon', `<div class="lrows">${soon.slice(0, 6).map(x => `<div class="lrow"><button class="lmain" data-act="open" data-id="${x.id}"><b>${esc(x.name)}</b><span>${x.expires < t ? 'past its date' : x.expires === t ? 'best before today' : 'best before ' + esc(relDay(x.expires))}</span></button></div>`).join('')}</div>${use.length ? `<p class="dsub">Recipes that use them</p><div class="lwrap">${use.map(r => `<button class="chip" data-act="open" data-id="${r.id}">${esc(r.name)}</button>`).join('')}</div>` : ''}`, ['kitchen/pantry', 'Pantry']); })()}
@@ -5423,7 +5450,7 @@ function homeToday(host) {
   const must = sortList(wish.filter(i => ['Must-have', 'Eerste week'].includes(i.priority)), KINDS.inventory, 'room');
   const wishCost = wish.reduce((s, i) => s + (num(i.budget ?? i.price) || 0), 0);
   const wty = recs('inventory').filter(i => i.warranty && i.warranty >= t && i.warranty <= addDays(t, 90)).sort((a, b) => a.warranty.localeCompare(b.warranty));
-  host.innerHTML = `${head('Home')}
+  host.innerHTML = `${head('Home')}${mixHero('home')}
   <div class="panels">
     ${wty.length ? panel('Warranty ending', `<div class="lrows">${wty.map(i => `<div class="lrow"><button class="lmain" data-act="open" data-id="${i.id}"><b>${esc(i.name)}</b><span>warranty until ${esc(niceDate(i.warranty))} · ${esc(relDay(i.warranty))}${i.receipt ? ' · receipt saved' : ' · no receipt yet'}</span></button></div>`).join('')}</div><p class="lnone">Something broken? Claim it before the date.</p>`, ['home/inventory', 'Inventory']) : ''}
     ${panel('Chores due', chores.length ? `<div class="lrows">${chores.slice(0, 10).map(row).join('')}</div>` : quiet(recs('chores').length ? 'All caught up.' : 'Add your chores with how often they need doing; they come back here when they’re due.'), ['home/chores', 'All chores'])}
@@ -9024,7 +9051,7 @@ function planToday(host) {
   const mo = today().slice(0, 7), inc = recs('deals').filter(x => x.status === 'Paid' && String(x.payBy || x.postBy || '').startsWith(mo)).reduce((n, x) => n + (num(x.fee) || 0), 0) + recs('ltk').filter(x => x.month === mo).reduce((n, x) => n + (num(x.amount) || 0), 0);
   const fol = recs('accounts').filter(a => a.active !== false).reduce((n, a) => n + (num(a.followers) || 0), 0);
   const card = (title, icon, lines, links, bar) => `<section class="panel lpanel ygoal"><div class="lph3"><h3>${svg(icon)} ${esc(title)}</h3></div>${bar != null ? `<div class="dbar"><i style="width:${Math.max(0, Math.min(100, bar))}%"></i></div>` : ''}<div class="ylines">${lines.filter(Boolean).map(([k, v]) => `<p class="dline"><span>${esc(k)}</span><b>${esc(v)}</b></p>`).join('')}</div><div class="lwrap">${links.map(([l, v]) => `<button class="chip link" data-act="go" data-v="${v}">${esc(l)}</button>`).join('')}</div></section>`;
-  host.innerHTML = `${head('My year')}${intentNow()?.text ? `<p class="tintent"><span>Focus deze week</span><b>${esc(intentNow().text)}</b></p>` : ''}
+  host.innerHTML = `${head('My year')}${mixHero('life')}${intentNow()?.text ? `<p class="tintent"><span>Focus deze week</span><b>${esc(intentNow().text)}</b></p>` : ''}
   <div class="panels ygoals">
     ${card('Uit huis, zomer 2027', P.house, [['Nog nodig', fEur0(toGo)], ['Gespaard', fEur0(saved)], ['Per maand sparen', fEur0(Math.max(0, toGo - saved) / months)], ['Nog', plural(months, 'maand', 'maanden')]], [['Verhuislijst', 'home/inventory'], ['Analyse', 'home/inventory'], ['Spaardoelen', 'money/plan']], toGo + saved ? 100 * saved / (toGo + saved) : 0)}
     ${card('Gezonder leven', P.leaf, [['Dagcheck deze week', `${avg} van ${NL_MAX} per dag`], ['Ontbijt gegeten', `${bf} van ${days.length} dagen`], sodaAvg != null ? ['Frisdrank en sap', `${sodaAvg} glazen per dag`] : null, ['Clean', cs.start ? (cs.before ? `stopdatum ${shortDate(cs.start)}` : `${plural(cs.streak, 'dag', 'dagen')} · ${eur(cs.saved)} bespaard`) : 'nog geen stopdatum'], sleepAvg != null ? ['Slaap', `${sleepAvg} uur gemiddeld`] : null, ['Trainingen', `${wo} van 3 deze week`]], [['Eten', 'kitchen/today'], ['Clean', 'body/clean'], ['Body', 'body/today']], null)}

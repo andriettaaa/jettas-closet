@@ -1445,7 +1445,7 @@ function renderRail(host) {
     host.innerHTML = `
       ${view === 'closet' ? '<div id="trayHost"></div>' : ''}
       <div class="viewhead"><h1>${view === 'wishlist' ? 'Wishlist' : 'Closet'}</h1><span class="sub" id="railSub"></span></div>
-      ${view === 'closet' ? '<p class="wxline" id="wxLine" hidden></p>' : ''}
+      ${view === 'closet' ? '<div class="story ofhost" id="ofHost"></div><p class="wxline" id="wxLine" hidden></p>' : ''}
       <div class="tools">
         <div class="search">${I.search}<input id="q" type="search" placeholder="Search name, brand, size, article no., tag" aria-label="Search"></div>
         <select class="pill" id="sort" aria-label="Sort">${SORTS[view].map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
@@ -1522,6 +1522,7 @@ function fillRail(host) {
   $('#activeF', host).innerHTML = (f.cat !== 'All' ? `<button class="chip on" data-unf="cat">${esc(f.cat)} ×</button>` : '') + active.map(a => `<button class="chip on" data-unf="${a.fc.k}" data-fval="${esc(a.v)}">${a.fc.label}: ${esc(a.label)} ×</button>`).join('') + `<button class="chip ghost" data-clearall>Clear all</button>`;
   const live = view === 'wishlist' ? base : S.items.filter(inCloset);
   const total = live.reduce((a, i) => a + (Number(i.price) || 0), 0);
+  const ofh = $('#ofHost', host); if (ofh) { ofh.innerHTML = outfitBlock(); if (!ofh.dataset.wired) { ofh.dataset.wired = '1'; ofh.addEventListener('click', e => { if (ofClick(e)) return; const d = e.target.closest('[data-overday]'); if (d) openDay(d.dataset.overday); }); } }
   $('#railSub', host).textContent = view === 'wishlist' && f.showGone ? `${base.length} archived · no longer wanted` : live.length ? (view === 'wishlist' ? `${live.length} pieces · ${eur0(total)} in total` : `${live.length} pieces · ${eur0(total)} on the rail`) : '';
   const grid = $('#railGrid', host);
   if (S.status === 'connecting' && !S.items.length) { grid.className = ''; grid.innerHTML = `<p class="busy">Loading…</p>`; return; }
@@ -2153,6 +2154,17 @@ function wearPick(t, pick, msg) {
 }
 const pickThumb = pick => { const o = pick.outfit && S.outById[pick.outfit]; if (o) return boardHTML(o.pieces); const ph = pick.ids.map(id => S.byId[id]).filter(i => i?.photo).slice(0, 4); return ph.length ? `<div class="ofpcs n${ph.length}">${ph.map(i => pimg(i.photo, i.name || '', 'loading="lazy"')).join('')}</div>` : '<div class="ofempty">👗</div>'; };
 /* the outfit on Today: in the morning the Nu card with three suggestions, during the day a strip, in the evening tomorrow */
+// taps on the outfit card (Today and Closet share it)
+function ofClick(e) {
+      if (e.target.closest('[data-wxnext]')) { S.wxPickN = (S.wxPickN || 0) + 1; render(); return true; }
+      const ow = e.target.closest('[data-ofwear]'); if (ow) { const r = weatherPicks(today()); if (r) wearPick(today(), r.picks[Number(ow.dataset.ofwear)], '👗 Outfit voor vandaag gekozen'); return true; }
+      if (e.target.closest('[data-ofmore]')) { S.wxPickN = (S.wxPickN || 0) + 3; render(); return true; }
+      if (e.target.closest('[data-oftmnext]')) { S.wxTmN = (S.wxTmN || 0) + 1; render(); return true; }
+      if (e.target.closest('[data-oftm]')) { const tm = iso(new Date(Date.now() + 864e5)), p = weatherPick(tm, S.wxTmN || 0); if (p) wearPick(tm, p, '👗 Klaargelegd voor morgen'); return true; }
+      if (e.target.closest('[data-wxwear]')) { const wp = weatherPick(); if (!wp) return true; const t = today(), cur = S.days[t] || {};
+        DB.put('days', t, { outfit: wp.outfit || null, items: wp.outfit ? cur.items || [] : [...new Set([...(cur.items || []), ...wp.ids])], note: cur.note || '', photos: cur.photos || [], place: cur.place || '' }).then(() => toast('Logged for today')).catch(err => saveErr(err, 'Could not log that. Try again.')); return true; }
+  return false;
+}
 function outfitBlock() {
   const t = today(), hr = new Date().getHours(), rec = S.days[t], tm = iso(new Date(Date.now() + 864e5));
   let out = '';
@@ -2255,7 +2267,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v205';
+const APP_VERSION = 'hangtag-v206';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2698,13 +2710,7 @@ function renderOverview(host) {
       if (e.target.closest('[data-affsheet]')) return affirmSheet();
       const d = e.target.closest('[data-overday], .wxday[data-day]'); if (d) return openDay(d.dataset.overday || d.dataset.day);
       const g = e.target.closest('[data-overgo]'); if (g) go(g.dataset.overgo);
-      if (e.target.closest('[data-wxnext]')) { S.wxPickN = (S.wxPickN || 0) + 1; render(); }
-      const ow = e.target.closest('[data-ofwear]'); if (ow) { const r = weatherPicks(today()); if (r) wearPick(today(), r.picks[Number(ow.dataset.ofwear)], '👗 Outfit voor vandaag gekozen'); return; }
-      if (e.target.closest('[data-ofmore]')) { S.wxPickN = (S.wxPickN || 0) + 3; render(); return; }
-      if (e.target.closest('[data-oftmnext]')) { S.wxTmN = (S.wxTmN || 0) + 1; render(); return; }
-      if (e.target.closest('[data-oftm]')) { const tm = iso(new Date(Date.now() + 864e5)), p = weatherPick(tm, S.wxTmN || 0); if (p) wearPick(tm, p, '👗 Klaargelegd voor morgen'); return; }
-      if (e.target.closest('[data-wxwear]')) { const wp = weatherPick(); if (!wp) return; const t = today(), cur = S.days[t] || {};
-        DB.put('days', t, { outfit: wp.outfit || null, items: wp.outfit ? cur.items || [] : [...new Set([...(cur.items || []), ...wp.ids])], note: cur.note || '', photos: cur.photos || [], place: cur.place || '' }).then(() => toast('Logged for today')).catch(err => saveErr(err, 'Could not log that. Try again.')); }
+      if (ofClick(e)) return;
       const q = e.target.closest('[data-quick]'); if (q) quickAction(q.dataset.quick);
       if (e.target.closest('[data-affnext]')) { S.affShift = (S.affShift || 0) + 1; render(); }
       if (e.target.closest('[data-afffav]')) { const a = affirmToday(S.affShift || 0), l = new Set(S.prefs.affirm?.fav || []); l.has(a) ? l.delete(a) : l.add(a); affirmSave({ fav: [...l] }); }
