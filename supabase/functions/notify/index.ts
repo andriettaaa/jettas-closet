@@ -430,6 +430,15 @@ async function runUser(uid: string, prefs: any, force = false, only: string[] | 
       if (m && (force || await claim(uid, 'drink' + h, now.day))) await send(uid, m);
     }
   }
+  // cuticle oil twice a day: at 11:00 and 22:00 a nudge when the tick on Today is still open
+  if (!only && prefs?.nails?.oil !== false) {
+    const h = Math.floor(now.mins / 60), k = h === 11 ? 'oil:AM' : h === 22 ? 'oil:PM' : '';
+    if (k && now.mins % 60 < 30 && !((prefs?.dayplan || {})[now.day]?.done || []).includes(k)) {
+      const recs = await loadAll(uid);
+      if (recs.some(r => r.kind === 'naillog' || (r.kind === 'ingredients' && /cuticle/i.test(String(r.name || ''))) || (r.kind === 'nprods' && r.cat === 'Cuticle oil')) && (force || await claim(uid, k, now.day)))
+        await send(uid, { title: '💧 Cuticle oil', body: h === 11 ? 'Even je nagelriemen invetten. Vink hem af op Vandaag.' : 'Nog even cuticle oil voor het slapen. Vink hem af op Vandaag.', url: './#overview', tag: 'oil' });
+    }
+  }
   const msgOf = async (recs: Rec[], k: string) => k === 'morning' ? morning(recs, now.day, await outfitToday(uid, now.day), prefs) : k === 'evening' ? evening(recs, now.wd)
     : k === 'bills' ? bills(recs, now.day) : k === 'payday' ? payday(recs, now.day) : k === 'weekahead' ? weekahead(recs, prefs, now.day)
     : k === 'reminders' ? reminders(recs, prefs, now.day) : k === 'content' ? content(recs, now.day) : k === 'socialweek' ? socialweek(recs, now.day) : k === 'skindiary' ? skindiary(recs, now.day) : k === 'progress' ? progress(recs, prefs, now.day) : k === 'period' ? period(recs, now.day) : k === 'sleepask' ? sleepask(recs, now.day) : k === 'freezer' ? freezer(recs, now.day)

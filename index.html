@@ -674,7 +674,7 @@ const VIEWS = [
   ['outfits', 'Outfits', '<path d="M8 3 4 6l2 4 2-1v12h8V9l2 1 2-4-4-3c-.5 1.5-2 2.5-4 2.5S8.5 4.5 8 3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'],
   ['calendar', 'Calendar', '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
   ['trips', 'Trips', '<rect x="4" y="7.5" width="16" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 7.5V5.8A1.5 1.5 0 0 1 10.5 4.3h3A1.5 1.5 0 0 1 15 5.8v1.7M4 13h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
-  ['stats', 'Stats', '<path d="M5 20V11M12 20V4M19 20v-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>'],
+  ['stats', 'Analyse', '<path d="M5 20V11M12 20V4M19 20v-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>'],
   ['todo', 'To do', '<path d="M9 6.5h11M9 12h11M9 17.5h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m3.5 6.5 1.4 1.4 2.4-2.6M3.5 12l1.4 1.4 2.4-2.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5.2" cy="17.5" r="1.4" fill="none" stroke="currentColor" stroke-width="1.6"/>']
 ];
 // Today (the overview of everything), the closet and the areas life.js adds (Kitchen, Life, Social, Money, Home, Fitness). The areas sit in the
@@ -706,7 +706,12 @@ const navSections = () => [...navAll().filter(s => !(NAV().hidden || []).include
 const secSettings = sec => [sec + '/settings', 'Settings', GEAR];
 const viewsAll = sec => byOrder(sec === 'closet' ? VIEWS : (SECTIONS.find(x => x.key === sec)?.views || []), NAV().views?.[sec]?.order, v => v[0]);
 const isSecSettings = v => /\/settings$/.test(String(v)) && SECTIONS.some(s => s.key === secOf(v) && !['overview', 'settings'].includes(s.key));
-const viewsShown = sec => { const h = NAV().views?.[sec]?.hidden || []; const vs = viewsAll(sec).filter(v => !h.includes(v[0])); return [...(vs.length ? vs : viewsAll(sec).slice(0, 1)), secSettings(sec)]; };
+// the tabs of a section: hidden ones out, and tabs that share a page (a "merge") as one tab with the merge's name; the page shows chips to switch
+const viewsShown = sec => { const h = NAV().views?.[sec]?.hidden || [], M = window.LIFE?.merges || {}, seen = new Set();
+  const vs = viewsAll(sec).filter(v => !h.includes(v[0]) && !v[6] && !(sec === 'closet' && v[0] === 'todo')).flatMap(v => { const m = v[5]; if (!m || !M[m]) return [v]; if (seen.has(m)) return []; seen.add(m);
+    const sibs = viewsAll(sec).filter(x => x[5] === m), last = (() => { try { return localStorage.getItem('merge:' + m); } catch { return ''; } })();
+    const pick = sibs.find(x => x[0] === S.view) || sibs.find(x => x[0] === last) || sibs[0]; return [[pick[0], M[m][0], M[m][1], pick[3], pick[4], m]]; });
+  return [...(vs.length ? vs : viewsAll(sec).slice(0, 1)), secSettings(sec)]; };
 // the area a page belongs to: the one whose tabs hold it (Plan and Body borrow pages from older areas), else its prefix
 const OLD_AREAS = { care: 'plan', fit: 'plan', body: 'plan', wish: 'plan' };
 const secOf = v => { if (v === 'overview' || v === 'settings') return v; v = String(v); if (!v.includes('/')) return 'closet'; const own = SECTIONS.find(s => s.views?.some(x => x[0] === v)); if (own) return own.key; const pre = v.split('/')[0]; return SECTIONS.some(s => s.key === pre) ? pre : OLD_AREAS[pre] || pre; };
@@ -1155,9 +1160,12 @@ function renderTabs() {
   if (curGrp) pref.set('grp:' + sec + '/' + curGrp, S.view);
   const grpTarget = t => { const last = pref.get('grp:' + sec + '/' + t.g, ''); return t.vs.some(v => v[0] === last) ? last : t.vs[0][0]; };
   bar.innerHTML = row.map(t => {
-    if (!t.g || t.vs.length === 1) { const [k, label, path] = t.v || t.vs[0]; return `<button data-view="${k}" aria-current="${S.view === k}">${icon(path)}<span>${label}</span>${k === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`; }
+    if (!t.g || t.vs.length === 1) { const [k, label, path] = t.v || t.vs[0]; if (/\/settings$/.test(k)) return `<button data-view="${k}" class="gearbtn" aria-current="${S.view === k}" aria-label="Instellingen" title="Instellingen">${icon(path)}</button>`; return `<button data-view="${k}" aria-current="${S.view === k}">${icon(path)}<span>${label}</span>${k === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`; }
     const [label, path] = groups[t.g]; return `<button data-view="${grpTarget(t)}" data-grp="${t.g}" aria-current="${curGrp === t.g}">${icon(path)}<span>${label}</span></button>`;
   }).join('');
+  // what still misses info: a red number at the end of the row instead of a To do tab
+  try { const tdv = sec === 'closet' ? 'todo' : sec + '/todo', tdn = sec === 'closet' ? S.items.filter(inCloset).filter(it => todoMissing(it).length).length : window.LIFE?.todoCount?.(sec) || 0;
+    if (tdn && (sec === 'closet' || window.LIFE?.has?.(tdv))) (bar.querySelector('.gearbtn') || bar).insertAdjacentHTML(bar.querySelector('.gearbtn') ? 'beforebegin' : 'beforeend', `<button data-view="${tdv}" class="todobadge" aria-current="${S.view === tdv}" aria-label="${tdn} om aan te vullen" title="Nog aan te vullen">✓<i>${tdn > 99 ? '99+' : tdn}</i></button>`); } catch {}
   const open = row.find(t => t.g && t.g === curGrp && t.vs.length > 1), sub2 = $('#sub2Bar');
   // a group can hold sub-groups (Body › Health, Train, Beauty): they sit as one button in the second row, their pages in a third
   const subs = SECTIONS.find(x => x.key === sec)?.subs?.[curGrp] || {}, curSub = views.find(v => v[0] === S.view)?.[4] || '';
@@ -1379,7 +1387,7 @@ const azSort = (a, b) => String(a).localeCompare(String(b), undefined, { sensiti
 const daysOn = it => it.wishSince ? Math.max(0, Math.round((Date.now() - fromISO(it.wishSince)) / 864e5)) : it.created ? Math.max(0, Math.round((Date.now() - it.created) / 864e5)) : null;
 const saving = it => it.origPrice > 0 && it.price > 0 && it.origPrice > it.price ? it.origPrice - it.price : 0;
 const SORTS = {
-  closet: [['new', 'Newest first'], ['worn', 'Most worn'], ['least', 'Least worn'], ['cpw', 'Highest cost per wear'], ['price', 'Price'], ['name', 'Name A–Z']],
+  closet: [['new', 'Nieuwste eerst'], ['name', 'A tot Z'], ['worn', 'Vaakst gedragen'], ['least', 'Minst gedragen'], ['idle', 'Langst niet gedragen'], ['cpw', 'Hoogste prijs per keer'], ['price', 'Prijs']],
   wishlist: [['new', 'Newest first'], ['old', 'Longest on wishlist'], ['price', 'Price high–low'], ['cheap', 'Price low–high'], ['sale', 'Biggest discount'], ['name', 'Name A–Z']]
 };
 const SORTFN = {
@@ -1391,7 +1399,8 @@ const SORTFN = {
   price: (a, b) => (b.price || 0) - (a.price || 0),
   cheap: (a, b) => (a.price ?? 1e9) - (b.price ?? 1e9),
   sale: (a, b) => saving(b) - saving(a),
-  name: (a, b) => azSort(a.name, b.name)
+  name: (a, b) => azSort(a.name, b.name),
+  idle: (a, b) => (S.lastWorn[a.id] || '').localeCompare(S.lastWorn[b.id] || '')
 };
 function baseList(view, f) {
   return S.items.filter(it => view === 'wishlist' ? (f.showGone ? isPassed(it) : isWish(it)) : !isInbox(it) && !isWishAll(it) && (f.showGone || inCloset(it)));
@@ -1417,6 +1426,7 @@ function goFilter(view, k, value) {
   if (S.view === view) { $('#main').innerHTML = ''; render(); window.scrollTo(0, 0); } else go(view);
 }
 const fchip = (k, v, label = v) => `<button class="chip link" data-go="${k}" data-v="${esc(v)}">${k === 'colors' ? `<i class="dot" style="background:${swatchBg(v)}"></i>` : ''}${esc(label)}</button>`;
+const closetView = () => pref.get('closetView', 'grid');
 function itemCard(it, extraCls = '') {
   const w = wearCount(it), c = cpw(it), inbox = isInbox(it), wish = isWishAll(it);
   const sub = inbox ? [it.brand || it.shop, it.price ? eur(it.price) : ''].filter(Boolean).join(' · ')
@@ -1425,7 +1435,7 @@ function itemCard(it, extraCls = '') {
   // prices never sit on the hangtag; they live in the line under the name
   const tag = inbox ? `<div class="hangtag"><small>from</small>${esc((it.shop || 'link').slice(0, 14))}</div>` : '';
   return `<button class="card ${inCloset(it) || inbox || wish ? '' : 'gone'} ${wish ? 'wish' : ''} ${extraCls}" data-item="${esc(it.id)}">
-    <div class="stage">${it.photo ? pimg(it.photo, it.name, 'loading="lazy"') : PH}</div>${tag}
+    <div class="stage">${it.photo ? pimg(it.photo, it.name, 'loading="lazy"') : PH}</div>${tag}${!inbox && !wish ? `<span class="wearb">👗 ${w}×</span>${c != null ? `<span class="cpwb">${esc(eur(c))}</span>` : ''}` : ''}
     <div class="meta"><b>${esc(it.name || 'Untitled piece')}</b><span ${inbox ? '' : 'class="wrap"'}>${esc(sub)}</span></div>
   </button>`;
 }
@@ -1461,6 +1471,7 @@ function renderRail(host) {
         <select class="pill" id="sort" aria-label="Sort">${SORTS[view].map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
         <button class="btn" data-selmode>Select</button>
       </div>
+      ${view === 'closet' ? `<div class="seg cview" role="group" aria-label="Weergave">${[['grid', 'Fotogrid'], ['shelves', 'Planken'], ['rail', 'Rek']].map(([k, l]) => `<button type="button" data-cview="${k}" aria-pressed="${closetView() === k}">${l}</button>`).join('')}</div>` : ''}
       <div class="chips" id="catChips" role="group" aria-label="Category"></div>
       <div class="chips facets" id="facetTabs" role="group" aria-label="Filter by"></div>
       <div class="chips" id="facetVals" role="group"></div>
@@ -1473,6 +1484,7 @@ function renderRail(host) {
     host.addEventListener('click', e => {
       const t = e.target;
       if (t.closest('[data-selmode]') || t.closest('[data-rseldone]')) { S.rsel = S.rsel ? null : new Set(); return fillRail(host); }
+      const cvb = t.closest('[data-cview]'); if (cvb) { pref.set('closetView', cvb.dataset.cview); host.querySelectorAll('[data-cview]').forEach(b => b.setAttribute('aria-pressed', b === cvb)); return fillRail(host); }
       if (S.rsel) {
         const si = t.closest('[data-item]'); if (si) { toggleSet(S.rsel, si.dataset.item); return fillRail(host); }
         if (t.closest('[data-rselall]')) { const vis = [...host.querySelectorAll('#railGrid [data-item]')].map(b => b.dataset.item); const allOn = vis.every(id => S.rsel.has(id)); vis.forEach(id => allOn ? S.rsel.delete(id) : S.rsel.add(id)); return fillRail(host); }
@@ -1539,8 +1551,12 @@ function fillRail(host) {
   if (!base.length && view === 'wishlist' && f.showGone) { f.showGone = false; return fillRail(host); }
   if (!base.length) { grid.className = ''; grid.innerHTML = view === 'wishlist' ? emptyWishlist() : emptyCloset(); return; }
   const list = base.filter(it => matches(it, f)).sort(SORTFN[f.sort] || SORTFN.new);
-  grid.className = list.length ? 'grid' : '';
-  grid.innerHTML = list.length ? list.map(it => itemCard(it)).join('') : `<p class="muted">No pieces match these filters. <button class="chip ghost" data-clearall>Clear all</button></p>`;
+  // the closet three ways: a photo grid with times worn and price per wear, shelves per category, or a rail
+  const cv = view === 'closet' && !S.rsel ? closetView() : 'grid', none = `<p class="muted">No pieces match these filters. <button class="chip ghost" data-clearall>Clear all</button></p>`;
+  if (cv === 'grid' || !list.length) { grid.className = list.length ? 'grid' + (view === 'closet' ? ' wearbadges' : '') : ''; grid.innerHTML = list.length ? list.map(it => itemCard(it)).join('') : none; }
+  else { const byCat = [...new Set(list.map(it => it.cat || 'Overig'))].map(c => [c, list.filter(it => (it.cat || 'Overig') === c)]);
+    grid.className = cv === 'rail' ? 'rails' : 'shelves';
+    grid.innerHTML = byCat.map(([c, l]) => `<section class="shelf"><div class="shelfh"><b>${esc(c)}</b><span>${l.length}</span></div><div class="${cv === 'rail' ? 'rail' : 'shelfrow'}">${l.map(it => itemCard(it, cv === 'rail' ? 'onrail' : '')).join('')}</div></section>`).join(''); }
   // select mode: tap pieces to pick them, then act on all of them at once
   grid.classList.toggle('selecting', !!S.rsel);
   const sb = host.querySelector('[data-selmode]'); if (sb) { sb.textContent = S.rsel ? 'Done' : 'Select'; sb.classList.toggle('primary', !!S.rsel); }
@@ -1574,16 +1590,60 @@ function boardHTML(pieces, cls = 'board mini') {
   const ps = (pieces || []).filter(p => S.byId[p.id]?.photo);
   return `<div class="${cls}">${ps.map(p => pimg(S.byId[p.id].photo, '', `class="piece" loading="lazy" style="left:${p.x}%;top:${p.y}%;width:${p.w}%;z-index:${p.z || 1}"`)).join('')}</div>`;
 }
+/* capsules: small sets that all combine. The app proposes one from what you wear most this season; you keep it and change it.
+   Outfits = tops (or knitwear) × bottoms × shoes, plus dresses × shoes. Saved in your settings, so they sync to every device. */
+const capsAll = () => S.prefs.capsules || [];
+const capsSave = list => DB.savePrefs({ capsules: list }).then(() => { const h = $('#main'); if (h) render(); }).catch(err => saveErr(err, 'Could not save. Try again.'));
+const capsOutfits = ids => { const k = id => catKey(S.byId[id]?.cat), n = c => ids.filter(id => k(id) === c).length, top = n('tops') + n('knitwear'), sh = Math.max(1, n('shoes')); return top * n('bottoms') * sh + n('dresses') * sh; };
+function capsPropose() {
+  const now = SEASONS[[3, 3, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3][new Date().getMonth()]];
+  const pool = S.items.filter(it => inCloset(it) && atHand(it) && (!(it.seasons || []).length || it.seasons.includes(now)));
+  const best = (cat, n) => pool.filter(it => catKey(it.cat) === cat).sort((a, b) => wearCount(b) - wearCount(a)).slice(0, n).map(it => it.id);
+  const ids = [...best('tops', 3), ...best('knitwear', 1), ...best('bottoms', 2), ...best('outerwear', 1), ...best('shoes', 2)];
+  return { id: 'cap' + Date.now().toString(36), name: { Winter: 'Winter', Spring: 'Lente', Summer: 'Zomer', Autumn: 'Herfst' }[now] + ' basis', ids, proposed: true };
+}
+const capThumbs = ids => `<div class="capstrip">${ids.filter(id => S.byId[id]).map(id => `<span class="capth">${S.byId[id].photo ? pimg(S.byId[id].photo, '', 'loading="lazy"') : PH}</span>`).join('')}</div>`;
+function capsHTML() {
+  const list = capsAll(), prop = S.capProp ||= capsPropose();
+  const card = c => `<div class="capcard"><div class="caph"><b>${esc(c.name || 'Capsule')}</b><span>${c.ids.length} stukken · ${capsOutfits(c.ids)} outfits</span></div>${capThumbs(c.ids)}
+    <div class="capb">${c.proposed ? `<button class="btn small primary" data-capkeep>Bewaren</button><button class="btn small" data-capnew>Ander voorstel</button>` : `<button class="btn small" data-capedit="${c.id}">Aanpassen</button><button class="btn small" data-capshuffle="${c.id}">Outfit uit deze capsule</button><button class="btn small" data-capdel="${c.id}">Weg</button>`}</div></div>`;
+  return `<p class="muted">Een capsule is een kleine set kleding die allemaal met elkaar combineert. Hoe meer combinaties, hoe meer outfits uit weinig stukken.</p>
+    ${prop.ids.length ? `<p class="dsub">✨ Voorstel voor nu</p>${card(prop)}` : ''}
+    ${list.length ? `<p class="dsub">Jouw capsules</p>${list.map(card).join('')}` : ''}<button class="btn" data-capblank>+ Eigen capsule</button>`;
+}
+function capEdit(id) {
+  const c = capsAll().find(x => x.id === id); if (!c) return; const sel = new Set(c.ids);
+  const pool = S.items.filter(inCloset).sort((a, b) => azSort(a.cat || '', b.cat || '') || azSort(a.name, b.name));
+  const sh = sheet({ title: c.name || 'Capsule', body: `<input class="finp" data-capname value="${esc(c.name || '')}" placeholder="Naam"><p class="muted" data-capcount>${sel.size} stukken · ${capsOutfits([...sel])} outfits</p><div class="grid">${pool.map(it => `<button class="card ${sel.has(it.id) ? 'picked' : ''}" data-cappick="${it.id}"><div class="stage">${it.photo ? pimg(it.photo, it.name, 'loading="lazy"') : PH}</div><div class="meta"><b>${esc(it.name || '')}</b></div></button>`).join('')}</div>`,
+    foot: '<div class="spacer"></div><button class="btn primary" data-capsave>Opslaan</button>' });
+  sh.addEventListener('click', e => { const b = e.target.closest('[data-cappick]'); if (b) { const k = b.dataset.cappick; sel.has(k) ? sel.delete(k) : sel.add(k); b.classList.toggle('picked'); sh.querySelector('[data-capcount]').textContent = `${sel.size} stukken · ${capsOutfits([...sel])} outfits`; }
+    if (e.target.closest('[data-capsave]')) { closeSheet(); capsSave(capsAll().map(x => x.id === id ? { ...x, name: sh.querySelector('[data-capname]').value.trim() || x.name, ids: [...sel] } : x)); } });
+}
+function capsClick(e) {
+  const q = s => e.target.closest(s); let b;
+  if (q('[data-capkeep]')) { const p = { ...S.capProp, proposed: false }; S.capProp = null; capsSave([...capsAll(), p]); return true; }
+  if (q('[data-capnew]')) { const p = capsPropose(); p.ids = p.ids.sort(() => Math.random() - .5).slice(0, Math.max(4, p.ids.length - 2)); S.capProp = p; render(); return true; }
+  if (q('[data-capblank]')) { const c = { id: 'cap' + Date.now().toString(36), name: 'Nieuwe capsule', ids: [] }; capsSave([...capsAll(), c]).then(() => capEdit(c.id)); return true; }
+  if ((b = q('[data-capedit]'))) { capEdit(b.dataset.capedit); return true; }
+  if ((b = q('[data-capdel]'))) { if (confirm('Deze capsule weghalen? Je kleding blijft.')) capsSave(capsAll().filter(x => x.id !== b.dataset.capdel)); return true; }
+  if ((b = q('[data-capshuffle]'))) { const c = capsAll().find(x => x.id === b.dataset.capshuffle); if (!c) return true; const pick = cat => { const l = c.ids.filter(id => catKey(S.byId[id]?.cat) === cat); return l.length ? [l[Math.floor(Math.random() * l.length)]] : []; };
+    const ids = [...(pick('tops').length ? pick('tops') : pick('knitwear')), ...pick('bottoms'), ...pick('shoes'), ...pick('outerwear')]; openBuilder(null, autoLayout(ids), c.name + ' look'); return true; }
+  return false;
+}
 function renderOutfits(host) {
   if (!host.dataset.built) {
     host.dataset.built = '1';
     host.innerHTML = `<div class="viewhead"><h1>Outfits</h1><span class="sub" id="outSub"></span><div class="spacer"></div>
       <div class="tools" style="margin:0"><button class="btn" data-shuffle>${I.shuffle} Shuffle an outfit</button><button class="btn primary" data-newoutfit>${I.plus} New outfit</button></div></div>
-      <div id="wxHost"></div>
+      <div class="seg outseg" role="group" aria-label="Outfits">${[['looks', 'Looks'], ['caps', 'Capsules'], ['board', 'Bord']].map(([k, l]) => `<button type="button" data-outt="${k}" aria-pressed="${(S.outT || 'looks') === k}">${l}</button>`).join('')}</div>
+      <div id="capsHost" hidden></div>
+      <div data-lookspane><div id="wxHost"></div>
       <div id="looksHost"></div>
       <div id="pnHost"></div>
-      <div id="outGrid"></div>`;
+      <div id="outGrid"></div></div>`;
     host.addEventListener('click', e => {
+      const ot = e.target.closest('[data-outt]'); if (ot) { if (ot.dataset.outt === 'board') return openBuilder(); S.outT = ot.dataset.outt; host.querySelectorAll('[data-outt]').forEach(b => b.setAttribute('aria-pressed', b === ot)); return renderOutfits(host); }
+      if (capsClick(e)) return;
       if (e.target.closest('[data-shuffle]')) return shuffleOutfit();
       if (e.target.closest('[data-newoutfit]')) return openBuilder();
       if (e.target.closest('[data-addlook]')) return openDay(today(), { addPhoto: true });
@@ -1592,6 +1652,7 @@ function renderOutfits(host) {
     });
   }
   $('#outSub', host).textContent = S.outfits.length ? `${S.outfits.length} saved` : '';
+  const capsOn = S.outT === 'caps'; $('#capsHost', host).hidden = !capsOn; host.querySelector('[data-lookspane]').hidden = capsOn; if (capsOn) { $('#capsHost', host).innerHTML = capsHTML(); return; }
   $('#wxHost', host).innerHTML = wxStrip();
   const looks = lookPhotos().slice(0, 24);
   $('#looksHost', host).innerHTML = `<div class="looks"><div class="viewhead" style="margin-bottom:8px"><h2 style="font-size:20px">Your looks</h2><span class="sub">${looks.length ? `${lookPhotos().length} photos of you wearing it` : 'a mirror selfie or any photo of you in an outfit'}</span></div>
@@ -1675,16 +1736,46 @@ function renderCalendar(host) {
     host.dataset.built = '1';
     host.innerHTML = `<div class="viewhead"><h1>Calendar</h1><span class="sub">Log what you wore, plan what's next</span></div>
       <div class="calhead"><button class="iconbtn" data-cal="-1" aria-label="Previous month">${I.left}</button><h2 id="calTitle"></h2><button class="iconbtn" data-cal="1" aria-label="Next month">${I.right}</button><button class="btn small" data-cal="0">Today</button></div>
-      <div class="cal" id="calGrid"></div><p class="calnote" id="calNote"></p>`;
+      <div class="seg calview" role="group" aria-label="Weergave">${[['month', 'Maand'], ['week', 'Week'], ['list', 'Lijst']].map(([k, l]) => `<button type="button" data-calv="${k}" aria-pressed="${pref.get('calView', 'month') === k}">${l}</button>`).join('')}</div>
+      <div class="cal" id="calGrid"></div><div id="calAlt" hidden></div><p class="calnote" id="calNote"></p>`;
     host.addEventListener('click', e => {
       const c = e.target.closest('[data-cal]');
       if (c) { const n = +c.dataset.cal, m = S.calMonth; S.calMonth = n === 0 ? new Date(new Date().getFullYear(), new Date().getMonth(), 1) : new Date(m.getFullYear(), m.getMonth() + n, 1); fillCal(host); return; }
+      const cv = e.target.closest('[data-calv]'); if (cv) { pref.set('calView', cv.dataset.calv); host.querySelectorAll('[data-calv]').forEach(b => b.setAttribute('aria-pressed', b === cv)); S.calWeek = null; fillCal(host); return; }
+      const cw = e.target.closest('[data-calw]'); if (cw) { S.calWeek = addDaysIso(S.calWeek || weekStartIso(), 7 * Number(cw.dataset.calw)); fillCal(host); return; }
       const d = e.target.closest('[data-day]'); if (d) openDay(d.dataset.day);
     });
   }
   fillCal(host);
 }
+// the outfit calendar per week (big photos) or as a list of what you wore
+const addDaysIso = (k, n) => { const d = new Date(k + 'T12:00:00'); d.setDate(d.getDate() + n); return iso(d); };
+const weekStartIso = () => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return iso(d); };
+function dayThumb(k) {
+  const rec = S.days[k]; if (!rec) { const tr = tripOn(k); return tr ? thumbFor(tripDayPieces(tr, tripDates(tr).indexOf(k))) : ''; }
+  const o = rec.outfit && S.outById[rec.outfit];
+  if (rec.photos?.length) return pimg(rec.photos[0], '', 'class="look" loading="lazy"');
+  if (o) return boardHTML(o.pieces);
+  const ids = dayItems(rec).filter(id => S.byId[id]?.photo); return ids.length === 1 ? pimg(S.byId[ids[0]].photo, '', 'class="single" loading="lazy"') : ids.length ? boardHTML(autoLayout(ids)) : '';
+}
+const dayName = k => { const rec = S.days[k], o = rec?.outfit && S.outById[rec.outfit]; return o ? o.name || 'Outfit' : rec ? dayItems(rec).map(id => S.byId[id]?.name).filter(Boolean).slice(0, 2).join(' + ') : ''; };
+function fillCalAlt(host, v) {
+  const alt = $('#calAlt', host), t = today();
+  if (v === 'week') {
+    const ws = S.calWeek || weekStartIso(), days = Array.from({ length: 7 }, (_, i) => addDaysIso(ws, i));
+    $('#calTitle', host).textContent = 'Week van ' + new Date(ws + 'T12:00:00').toLocaleDateString('nl-NL', { day: 'numeric', month: 'long' });
+    alt.innerHTML = `<div class="calweekbar"><button class="iconbtn" data-calw="-1" aria-label="Vorige week">${I.left}</button><span class="spacer"></span><button class="iconbtn" data-calw="1" aria-label="Volgende week">${I.right}</button></div>
+      <div class="calweek">${days.map(k => { const w = wxDay(k), th = dayThumb(k); return `<button class="cwday ${k === t ? 'today' : ''}" data-day="${k}"><span class="cwh"><b>${new Date(k + 'T12:00:00').toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric' })}</b>${w ? `<i>${wmo(w.c)[1]} ${w.hi}°</i>` : ''}</span><div class="cwthumb">${th || '<span class="cwplus">+</span>'}</div><small>${esc(dayName(k) || (k > t ? 'Plannen' : 'Niets gelogd'))}</small></button>`; }).join('')}</div>`;
+  } else {
+    const ks = Object.keys(S.days).filter(k => k <= addDaysIso(t, 14) && dayThumb(k)).sort().reverse().slice(0, 90);
+    $('#calTitle', host).textContent = 'Wat je droeg';
+    alt.innerHTML = ks.length ? `<div class="callist">${ks.map(k => `<button class="clrow" data-day="${k}"><div class="clthumb">${dayThumb(k)}</div><span><b>${esc(dayName(k) || 'Outfit')}</b><small>${new Date(k + 'T12:00:00').toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })}${k > t ? ' · gepland' : ''}</small></span></button>`).join('')}</div>` : '<p class="muted">Nog niets gelogd.</p>';
+  }
+}
 function fillCal(host) {
+  const cv = pref.get('calView', 'month'), grid = $('#calGrid', host), alt = $('#calAlt', host);
+  host.querySelectorAll('.calhead [data-cal]').forEach(b => { b.hidden = cv !== 'month'; });
+  if (grid && alt) { grid.hidden = cv !== 'month'; alt.hidden = cv === 'month'; if (cv !== 'month') { fillCalAlt(host, cv); return; } }
   const m = S.calMonth, y = m.getFullYear(), mo = m.getMonth();
   $('#calTitle', host).textContent = m.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   const start = new Date(y, mo, 1 - ((m.getDay() + 6) % 7));
@@ -2132,7 +2223,32 @@ function monthCols(list, dateOf, amount) {
   const max = Math.max(1, ...months.map(m => m.v));
   return { total: months.reduce((a, m) => a + m.v, 0), html: `<div class="months">${months.map(m => `<div class="col"><span class="amt">${m.v ? eur0(m.v) : ''}</span><div class="b ${m.v ? '' : 'zero'}" style="height:${Math.max(2, m.v / max * 120)}px"></div><span class="m">${m.label}</span></div>`).join('')}</div>` };
 }
-const STATS_TABS = [['overview', 'Overview'], ['breakdown', 'Breakdown'], ['money', 'Money'], ['sort', 'Opruimen']];
+const STATS_TABS = [['overview', 'Overzicht'], ['gaps', 'Gaten'], ['breakdown', 'Verdeling'], ['money', 'Geld'], ['sort', 'Opruimen']];
+// gaps in the closet, as a stylist sees them: what one new piece would unlock
+function closetGaps() {
+  const live = S.items.filter(it => inCloset(it) && atHand(it)), k = it => catKey(it.cat), n = c => live.filter(it => k(it) === c).length;
+  const neutral = it => (it.colors || []).some(c => ['Black', 'White', 'Grey', 'Beige', 'Brown', 'Navy', 'Denim'].includes(c));
+  const tops = n('tops') + n('knitwear'), bottoms = n('bottoms'), shoes = n('shoes'), out = [];
+  const nb = live.filter(it => k(it) === 'bottoms' && neutral(it)).length, ns = live.filter(it => k(it) === 'shoes' && neutral(it)).length;
+  if (tops && nb < 2) out.push(['👖', `Een <b>neutrale broek</b> (zwart, beige of denim)`, `combineert met je ${tops} tops: +${tops} outfits`]);
+  if (bottoms && tops < bottoms * 1.5) out.push(['👚', `Een <b>basic top</b> in een neutrale kleur`, `past bij je ${bottoms} broeken en rokken: +${bottoms} outfits`]);
+  if (tops > bottoms * 3 && bottoms) out.push(['⚖️', `Veel tops (${tops}) en weinig broeken (${bottoms})`, `een extra broek levert het meest op: +${tops} outfits`]);
+  if (ns < 1 && (tops || bottoms)) out.push(['👟', `<b>Neutrale schoenen</b> (wit, zwart of beige)`, 'passen bij bijna alles']);
+  const now = SEASONS[[3, 3, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3][new Date().getMonth()]], outerNow = live.filter(it => k(it) === 'outerwear' && (!(it.seasons || []).length || it.seasons.includes(now))).length;
+  if (!outerNow) out.push(['🧥', `Een <b>jas voor de ${({ Winter: 'winter', Spring: 'lente', Summer: 'zomer', Autumn: 'herfst' })[now]}</b>`, 'je hebt er nog geen voor dit seizoen']);
+  if (!n('bags')) out.push(['👜', 'Een <b>tas</b> die bij je neutrale kleuren past', 'maakt een outfit af']);
+  const idle = live.filter(it => !wearCount(it)).length; if (idle >= 3) out.push(['💡', `<b>${idle} stukken</b> droeg je nog nooit`, 'eerst die combineren voordat je iets nieuws koopt']);
+  return out;
+}
+function statsGaps(host) {
+  const g = closetGaps();
+  host.innerHTML = `<div class="panel wide"><h3>🧩 Gaten in je kast</h3><p class="hint">Wat één nieuw stuk zou opleveren, op basis van wat je hebt en draagt.</p>${g.length ? g.map(([e, t, w]) => `<div class="gaprow"><span>${e}</span><div><div>${t}</div><small>${esc(w)}</small></div></div>`).join('') : '<p class="muted">Je kast is mooi in balans 🎉</p>'}</div>`;
+}
+// panels on the Analyse pages fold; the first two start open
+function foldPanels(root, key) {
+  let i = 0; for (const p of root.querySelectorAll(':scope .panel')) { const h = p.querySelector(':scope > h3'); if (!h || p.closest('details')) continue; i++;
+    const d = document.createElement('details'); d.className = p.className + ' fpanel'; const k = 'fold:' + key + ':' + h.textContent.trim().slice(0, 40); let open = i <= 2; try { const v = localStorage.getItem(k); if (v != null) open = v === '1'; } catch {}
+    d.open = open; d.dataset.foldk = k; const sm = document.createElement('summary'); sm.className = 'lph3'; sm.appendChild(h); sm.insertAdjacentHTML('beforeend', '<span class="fchev" aria-hidden="true"></span>'); d.appendChild(sm); while (p.firstChild) d.appendChild(p.firstChild); p.replaceWith(d); } }
 /* ---------- overview ---------- */
 // One card per area with what matters today. The closet card lives here; every other area hands over its own
 // card through LIFE.tile(key), so a new area appears without touching this page.
@@ -2175,10 +2291,12 @@ function ofClick(e) {
         DB.put('days', t, { outfit: wp.outfit || null, items: wp.outfit ? cur.items || [] : [...new Set([...(cur.items || []), ...wp.ids])], note: cur.note || '', photos: cur.photos || [], place: cur.place || '' }).then(() => toast('Logged for today')).catch(err => saveErr(err, 'Could not log that. Try again.')); return true; }
   return false;
 }
-function outfitBlock() {
+// the outfit in the day parts of Today: today's in Ochtend, tomorrow's in Avond
+const outfitPart = k => { try { return k === 'morning' ? outfitBlock('today') : k === 'evening' ? outfitBlock('tomorrow') : ''; } catch (e) { console.error(e); return ''; } };
+function outfitBlock(only = '') {
   const t = today(), hr = new Date().getHours(), rec = S.days[t], tm = iso(new Date(Date.now() + 864e5));
   let out = '';
-  if (!rec && hr < 12) {
+  if (only === 'tomorrow') {} else if (!rec && hr < 12) {
     const r = weatherPicks(t), n = S.wxPickN || 0, three = r ? [0, 1, 2].map(i => r.picks[(n + i) % r.picks.length]).filter((x, i, a) => a.indexOf(x) === i) : [];
     if (three.length) out += `<section class="ofhero"><div class="dphk">Ochtend${r ? ' · ' + esc(r.why) : ''}</div><div class="dpht"><span>👗</span>Kies je outfit</div>
       <div class="ofpicks">${three.map((p, i) => `<button type="button" class="ofpick" data-ofwear="${(n + i) % r.picks.length}" aria-label="${esc(p.name)}">${pickThumb(p)}<span>${esc(p.name)}</span></button>`).join('')}</div>
@@ -2193,7 +2311,7 @@ function outfitBlock() {
     if (wp) out += `<div class="ofstrip"><button type="button" class="ofth" data-overday="${t}">${pickThumb(wp)}</button><div><b>${esc(wp.name)}</b><small>Voorstel · ${esc(wp.why)}</small>
       <div class="ofbtns"><button type="button" class="chip small primary" data-wxwear>Draag ik</button>${wp.count > 1 ? '<button type="button" class="chip small" data-wxnext>Ander</button>' : ''}</div></div></div>`;
   }
-  if (hr >= 18) {
+  if (only === 'tomorrow' || (!only && hr >= 18)) {
     const tr = S.days[tm], tp = weatherPick(tm, S.wxTmN || 0);
     if (tr) out += `<div class="ofstrip tomorrow"><button type="button" class="ofth" data-overday="${tm}">${tr.outfit && S.outById[tr.outfit] ? boardHTML(S.outById[tr.outfit].pieces) : pickThumb({ ids: dayItems(tr).filter(id => S.byId[id]) })}</button><div><b>Morgen klaargelegd ✓</b><small>${esc(tr.outfit && S.outById[tr.outfit]?.name || 'Je outfit voor morgen')}</small><div class="ofbtns"><button type="button" class="chip small" data-overday="${tm}">Wissel</button></div></div></div>`;
     else if (tp) out += `<div class="ofstrip tomorrow"><button type="button" class="ofth" data-overday="${tm}">${pickThumb(tp)}</button><div><b>Morgen 👗 ${esc(tp.name)}</b><small>${esc(tp.why)} · klaarleggen voor het slapen</small>
@@ -2277,7 +2395,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v207';
+const APP_VERSION = 'hangtag-v209';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2404,6 +2522,7 @@ function renderSettings(host) {
       <label class="setnsearch setname"><input class="setninp" type="search" data-nfind placeholder="Zoek een naam" aria-label="Zoek een naam"></label>
       ${SECTIONS.map(s => `<div class="setrow setname" data-nrow="${esc(norm(s.base + ' ' + s.label))}"><button type="button" class="seti iconbtnpick" data-ipickfor="${s.key}" aria-label="Kies icoon voor ${esc(s.label)}">${icon(s.icon)}</button><input class="setninp" data-nname="${s.key}" value="${esc((S.prefs.names || {})[s.key] || '')}" placeholder="${esc(s.base)}" aria-label="Naam voor ${esc(s.base)}" autocomplete="off">${(S.prefs.names || {})[s.key] ? `<button class="chip link" data-nnreset="${s.key}">Herstel</button>` : ''}</div>`).join('')}
     </section>
+    <section class="panel setpanel" id="set-account"><h3>Account en back-up</h3><p class="muted">Ingelogd als ${esc(EMAIL)}. Je foto's en gegevens staan in je eigen Supabase-project.</p><div class="lwrap"><button class="btn" data-setexport>Back-up downloaden (.json)</button><button class="btn" data-setimport>Importeren uit je oude app</button></div></section>
     <section class="panel setpanel" id="set-today"><h3>Vandaag</h3><p class="muted">Kies per apparaat wat Vandaag laat zien en in welke volgorde. Op deze ${esc(deviceName())} nu: ${esc(devOrder().filter(devVis).map(k => TODAY_BLOCKS.find(b => b[0] === k)[1].replace(/^\S+\s/, '')).join(', '))}.</p><div class="setbtns"><button class="btn small" data-devtoday2>Vandaag op deze ${esc(deviceName())} aanpassen</button></div></section>
     ${lookPanel()}
     ${notiPanel()}
@@ -2650,8 +2769,8 @@ window.addEventListener('resize', () => { const el = document.querySelector('.da
 const devT = () => { try { return JSON.parse(localStorage.getItem('dev:today') || '{}') || {}; } catch { return {}; } };
 const devOff = k => [].concat(devT().hide || []).includes(k);
 // Today as one story; per device you choose the order and what shows (Settings › Vandaag, or the button under Today)
-const TODAY_BLOCKS = [['greet', '👋 Groet en voortgang'], ['chips', '🌦 Weer, affirmatie en focus'], ['outfit', '👗 Outfit'], ['day', '📅 Je dag'], ['affbig', '✨ Grote affirmatie'], ['wx', '🌤 Weer per dag'], ['find', '🔍 Zoekbalk'], ['quick', '⚡ Snelle knoppen']];
-const TODAY_DEF = { greet: true, chips: true, outfit: true, day: true, affbig: false, wx: false, find: false, quick: false };
+const TODAY_BLOCKS = [['greet', '👋 Groet en voortgang'], ['chips', '🌦 Weer, geld, affirmatie en focus'], ['day', '📅 Je dag (met je outfit in Ochtend en Avond)'], ['affbig', '✨ Grote affirmatie'], ['wx', '🌤 Weer per dag'], ['find', '🔍 Zoekbalk'], ['quick', '⚡ Snelle knoppen']];
+const TODAY_DEF = { greet: true, chips: true, day: true, affbig: false, wx: false, find: false, quick: false };
 const devVis = k => { const d = devT(); if ([].concat(d.hide || []).includes(k === 'affbig' ? 'aff' : k)) return false; if (d.vis && k in d.vis) return !!d.vis[k]; return TODAY_DEF[k] ?? true; };
 const devOrder = () => { const o = [].concat(devT().order || []).filter(k => TODAY_BLOCKS.some(b => b[0] === k)); return [...o, ...TODAY_BLOCKS.map(b => b[0]).filter(k => !o.includes(k))]; };
 function devTodaySheet() {
@@ -2675,6 +2794,8 @@ function devTodaySheet() {
 }
 // the affirmation behind its chip: your Pinterest card or the text one, in a sheet
 document.addEventListener('click', e => { if (e.target.closest?.('[data-devtoday2]')) devTodaySheet(); });
+document.addEventListener('click', e => { if (e.target.closest?.('[data-setexport]')) exportBackup();
+  if (e.target.closest?.('[data-setimport]')) { S.statsTab = 'overview'; pref.set('statsTab', 'overview'); go('stats'); setTimeout(() => { const d = [...document.querySelectorAll('details.fpanel')].find(x => /Account/.test(x.textContent)); if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); } }, 500); } });
 function affirmSheet() {
   const pin = window.LIFE?.pinAffirm?.() || '', sh = sheet({ title: 'Affirmatie van vandaag', body: `<div data-affbody>${pin || affirmBlock(true)}</div>` });
   sh.addEventListener('click', e => {
@@ -2692,26 +2813,15 @@ function renderOverview(host) {
   const aff = S.prefs.affirm?.off && !pin ? '' : pin ? (pin.text || 'Affirmatie') : affirmToday(S.affShift || 0);
   const BLK = {
     greet: () => `<div class="sthead ${G.part}"><div><h1>${esc(G.hello)}</h1><p class="greetline">${esc(G.line)}</p><span class="sub">${t.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })}</span>${st?.cheer ? `<p class="stcheer">✨ ${esc(st.cheer)}</p>` : ''}</div>${st ? `<span class="ring string ${st.cheer ? 'pop' : ''}" style="--p:${st.pct}%" title="${st.done} van ${st.total} klaar"><b>${st.pct}%</b></span>` : ''}</div>`,
-    chips: () => `<div class="stchips">${wx ? `<button type="button" class="stchip" data-overday="${today()}"><span>${wmo(wx.c)[1]}</span>${wx.hi}°${wx.p != null && wx.p >= 30 ? ` · ${wx.p}% regen` : ` · ${esc(wmo(wx.c)[2]).toLowerCase()}`}</button>` : ''}${aff ? `<button type="button" class="stchip aff" data-affsheet>${pin?.img ? `<img src="${esc(pin.img)}" referrerpolicy="no-referrer" alt="">` : '<span>✨</span>'}<em>${esc(aff)}</em></button>` : ''}${intent ? `<span class="stchip"><span>🎯</span><em>${esc(intent)}</em></span>` : ''}${window.LIFE?.cardChips?.() || ''}</div>`,
-    outfit: () => outfitBlock(),
+    chips: () => `<div class="stchips">${wx ? `<button type="button" class="stchip" data-overday="${today()}"><span>${wmo(wx.c)[1]}</span>${wx.hi}°${wx.p != null && wx.p >= 30 ? ` · ${wx.p}% regen` : ` · ${esc(wmo(wx.c)[2]).toLowerCase()}`}</button>` : ''}${aff ? `<button type="button" class="stchip aff" data-affsheet>${pin?.img ? `<img src="${esc(pin.img)}" referrerpolicy="no-referrer" alt="">` : '<span>✨</span>'}<em>${esc(aff)}</em></button>` : ''}${window.LIFE?.cycleChip?.() || ''}${window.LIFE?.moneyChip?.() || ''}${intent ? `<span class="stchip"><span>🎯</span><em>${esc(intent)}</em></span>` : ''}${window.LIFE?.cardChips?.() || ''}</div>`,
     day: () => window.LIFE?.dayStory?.() || window.LIFE?.todayTop?.() || '',
     affbig: () => affirmBlock() + (window.LIFE?.pinAffirm?.() || ''),
     wx: () => wxStrip(),
     find: () => `<button class="findbar" data-find>${I.search}<span>Search recipes, notes, pages, settings…</span></button>`,
     quick: () => `<div class="quickacts">${QUICK.filter(q => q[2]()).map(([k, l]) => `<button class="chip" data-quick="${k}">${esc(l)}</button>`).join('')}</div>`
   };
-  host.innerHTML = `<div class="story">${devOrder().filter(devVis).map(k => { try { return BLK[k]?.() || ''; } catch (err) { console.error(err); return ''; } }).join('')}</div>
-    ${cards.length || devOff('tiles') ? '' : '<p class="muted">Every card is hidden. Tap Arrange Today at the bottom to bring some back.</p>'}
-    <div class="dash">${cards.map(s => {
-      const body = s.key === 'closet' ? closetTile() : window.LIFE?.tile(s.key) || `<p class="muted">Open ${esc(s.label)} to see what's there.</p>`;
-      return `<section class="panel dtile"><div class="dhead"><button class="dtitle" data-gosec="${s.key}">${icon(s.icon)}<h2>${esc(s.label)}</h2></button><button class="chip link" data-gosec="${s.key}">Open</button></div>${body}</section>`;
-    }).join('')}</div>
-    <div class="ltools dashfoot"><button class="btn small" data-devtoday>📱 Vandaag op deze ${esc(deviceName())}</button><button class="btn small" data-dasharrange>Arrange Today</button>${window.LIFE ? '<button class="chip link" data-act="export">Back up all your lists</button>' : ''}</div>`;
-  // with the new Today the tiles per section live behind the Overzicht tab
-  const dashEl = host.querySelector('.dash'), ovPane = host.querySelector('[data-dppane="ov"]');
-  if (dashEl && ovPane) dashEl.hidden = ovPane.hidden;
-  packDash(dashEl);
-  if (!window.__dpTabWired) { window.__dpTabWired = true; document.addEventListener('dptab', e => { const el = document.querySelector('#viewHost .dash, .dash'); if (!el) return; el.hidden = e.detail !== 'ov'; if (!el.hidden) packDash(el); }); }
+  host.innerHTML = `<div class="story">${devVis('day') ? window.LIFE?.dayNow?.() || '' : ''}${devOrder().filter(devVis).map(k => { try { return BLK[k]?.() || ''; } catch (err) { console.error(err); return ''; } }).join('')}</div>
+    <div class="ltools dashfoot"><button class="btn small" data-devtoday>📱 Vandaag op deze ${esc(deviceName())}</button>${window.LIFE ? '<button class="chip link" data-act="export">Back up all your lists</button>' : ''}</div>`;
   if (!host.dataset.wired) {
     host.dataset.wired = '1';
     host.addEventListener('click', e => {
@@ -2978,7 +3088,7 @@ function statsSort(host) {
 }
 function renderStats(host) {
   const tab = S.statsTab = S.statsTab || pref.get('statsTab', 'overview');
-  host.innerHTML = `<div class="viewhead"><h1>Stats</h1><span class="sub">What your wardrobe really costs, and what it's actually used for</span></div>
+  host.innerHTML = `<div class="viewhead"><h1>Analyse</h1><span class="sub">Wat je kast echt kost en hoe je hem gebruikt</span></div>
     <div class="seg statseg" role="group" aria-label="Stats section">${STATS_TABS.map(([k, l]) => `<button data-stab="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>
     <div id="statsBody"></div>`;
   host.onclick = e => {
@@ -2987,7 +3097,8 @@ function renderStats(host) {
     const it = e.target.closest('[data-item]'); if (it) openItem(it.dataset.item);
   };
   const body = $('#statsBody', host);
-  if (tab === 'breakdown') statsBreakdown(body); else if (tab === 'money') statsMoney(body); else if (tab === 'sort') statsSort(body); else statsOverview(body);
+  if (tab === 'gaps') statsGaps(body); else if (tab === 'breakdown') statsBreakdown(body); else if (tab === 'money') statsMoney(body); else if (tab === 'sort') statsSort(body); else statsOverview(body);
+  if (tab !== 'gaps') foldPanels(body, 'stats-' + tab);
 }
 function statsOverview(host) {
   const live = S.items.filter(inCloset);
@@ -3283,18 +3394,23 @@ function openSearch(start = '') {
   let found = [];
   const draw = () => {
     const q = inp.value, words = norm(q).split(/\s+/).filter(Boolean);
-    if (!words.length) { found = []; res.innerHTML = '<p class="muted findhint">Type a word: a recipe, an ingredient, a note, a page or a setting. Every word has to match.</p>'; return; }
-    const pages = findPages(words), recs = window.LIFE?.search?.(q) || [];
-    found = [...pages, ...recs.map(r => ({ ...r, t: 'rec' }))];
+    const recent = (() => { try { return JSON.parse(localStorage.getItem('findRecent') || '[]'); } catch { return []; } })();
+    if (!words.length) { found = recent.slice(0, 8); res.innerHTML = (found.length ? `<h3 class="findh">Recent en vaak</h3><div class="findlist">${found.map((r, i) => `<button class="findrow" data-fi="${i}"><span class="findic">${icon(r.icon || SUN)}</span><span class="findtx"><b>${esc(r.title)}</b>${r.n > 1 ? `<span>${r.n}× geopend</span>` : ''}</span></button>`).join('')}</div>` : '') + '<p class="muted findhint">Zoek alles, of typ om snel iets toe te voegen: “melk op lijst” of “tandarts vrijdag 10:00”.</p>'; return; }
+    const qa = window.LIFE?.quickAdd?.(q), pages = findPages(words), recs = window.LIFE?.search?.(q) || [];
+    found = [...(qa ? [{ t: 'quick', title: qa.label, run: qa.run }] : []), ...pages, ...recs.map(r => ({ ...r, t: 'rec' }))];
+    const qaHTML = qa ? `<div class="findlist"><button class="findrow findquick" data-fi="0"><span class="findic">＋</span><span class="findtx"><b>${esc(qa.label)}</b><span>Enter of tik om toe te voegen</span></span></button></div>` : '', off = qa ? 1 : 0;
     const rowOf = (r, i) => `<button class="findrow" data-fi="${i}"><span class="findic">${icon(r.icon)}</span><span class="findtx"><b>${mark(r.title, words)}</b>${r.sub ? `<span>${r.label ? esc(r.label) + ': ' : ''}${mark(around(r.sub, words), words)}</span>` : ''}<small>${esc(r.where)}</small></span></button>`;
     const shown = 60, more = recs.length > shown ? `<p class="muted findhint">${recs.length - shown} more. Add a word to narrow it down.</p>` : '';
     res.innerHTML = !found.length ? `<p class="muted findhint">Nothing found for “${esc(q.trim())}”.</p>`
-      : (pages.length ? `<h3 class="findh">Pages and settings</h3><div class="findlist">${pages.map(rowOf).join('')}</div>` : '')
-      + (recs.length ? `<h3 class="findh">In your lists <span class="muted">${recs.length}</span></h3><div class="findlist">${recs.slice(0, shown).map((r, i) => rowOf(r, pages.length + i)).join('')}</div>${more}` : '');
+      : qaHTML + (pages.length ? `<h3 class="findh">Pages and settings</h3><div class="findlist">${pages.map((r, i) => rowOf(r, off + i)).join('')}</div>` : '')
+      + (recs.length ? `<h3 class="findh">In your lists <span class="muted">${recs.length}</span></h3><div class="findlist">${recs.slice(0, shown).map((r, i) => rowOf(r, off + pages.length + i)).join('')}</div>${more}` : '');
   };
   const pick = r => {
     if (!r) return;
     closeSheet();
+    if (r.t === 'quick') return r.run?.().then(() => render());
+    try { const l = JSON.parse(localStorage.getItem('findRecent') || '[]').filter(x => !(x.t === r.t && (x.id || x.v) === (r.id || r.v))), old = JSON.parse(localStorage.getItem('findRecent') || '[]').find(x => x.t === r.t && (x.id || x.v) === (r.id || r.v));
+      l.unshift({ t: r.t, v: r.v, id: r.id, sec: r.sec, title: r.title, icon: r.icon, n: (old?.n || 0) + 1 }); localStorage.setItem('findRecent', JSON.stringify(l.sort((a, b) => (b.n > 2) - (a.n > 2)).slice(0, 12))); } catch {}
     if (r.t === 'rec') return window.LIFE.openFound(r.id, go);
     if (r.t === 'page') return go(r.v);
     if (r.t === 'list') { SET.list = r.v; go(r.sec + '/settings'); requestAnimationFrame(() => requestAnimationFrame(() => openSpot('set-lists'))); return; }
@@ -4242,7 +4358,7 @@ async function start(session) {
   await obFlush(); // send changes made offline before loading fresh data over them
   subscribeLive(); wxRefresh();
   // what life.js needs from the closet: the signed-in Supabase client, photos, sheets and settings
-  const lifeLoad = window.LIFE?.start({ sb, uid: () => UID, view: () => S.view, outfits: () => S.outfits.map(o => ({ id: o.id, name: o.name || 'Outfit', board: boardHTML(o.pieces) })), go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url, shop: it.shop, planBuy: it.planBuy || '' })),
+  const lifeLoad = window.LIFE?.start({ sb, uid: () => UID, outfitPart, view: () => S.view, outfits: () => S.outfits.map(o => ({ id: o.id, name: o.name || 'Outfit', board: boardHTML(o.pieces) })), go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url, shop: it.shop, planBuy: it.planBuy || '' })),
     undoQuiet, sbWrite, sbWriteMany, obFlush, uploadFile,
     // what you typed before in the closet (shops, brands), offered as buttons in the rest of the app too
     closetVals: k => valuesOf(k),
