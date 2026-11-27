@@ -1762,3 +1762,11 @@ body.side header.top .secwrap .secbar button.gearbtn { margin-left: 0; width: au
 .secbar button.todobadge { padding: 5px 9px; gap: 4px; }
 .secbar button.todobadge i { font-style: normal; background: #d9707c; color: #fff; border-radius: 99px; padding: 0 6px; font-size: 11px; font-weight: 800; line-height: 17px; }
 body.side header.top .secwrap .secbar button.todobadge { width: auto; }
+/* blocks that fold */
+details.fpanel > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+details.fpanel > summary::-webkit-details-marker { display: none; }
+details.fpanel > summary h3 { flex: 1; min-width: 0; margin: 0; }
+details.fpanel > summary .fchev { width: 10px; height: 10px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); transition: transform .2s; margin: -4px 4px 0 0; flex: none; }
+details.fpanel[open] > summary .fchev { transform: rotate(-135deg); margin-top: 4px; }
+details.fpanel:not([open]) { padding-bottom: 12px; }
+details.fpanel[open] > summary { margin-bottom: 10px; }

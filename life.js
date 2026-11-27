@@ -2073,7 +2073,11 @@ function card(r) {
   return `<button class="lcard" data-act="open" data-id="${r.id}"><div class="lph"><span>${esc(titleOf(r).slice(0, 1))}</span>${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${r.fav ? '<i class="lfav" aria-label="Favourite">★</i>' : ''}${ringOf(r, 'sm onph')}</div><div class="meta"><b>${esc(titleOf(r))}</b><span>${esc(K.sub?.(r) || '')}</span></div></button>`;
 }
 const listHTML = (list, K) => !list.length ? '' : viewMode(K) === 'cards' ? `<div class="lgrid">${list.map(r => COUNTED.has(r.kind) ? `<div class="lcw">${card(r)}<div class="lcwc">${LEFT_KINDS.has(r.kind) ? leftChip(r) : ''}${stepper(r)}</div></div>` : card(r)).join('')}</div>` : `<div class="lrows">${list.map(row).join('')}</div>`;
-const panel = (title, body, more) => `<section class="panel lpanel"><div class="lph3"><h3>${esc(title)}</h3>${more ? `<button class="chip link" data-act="go" data-v="${more[0]}">${esc(more[1])}</button>` : ''}</div>${body}</section>`;
+/* every block folds: the first two on a page start open, the rest closed; what you open or close is remembered per page on this device */
+const foldKey = title => 'fold:' + (C?.view?.() || '') + ':' + norm(title).slice(0, 40);
+const foldOpen = title => { try { const v = localStorage.getItem(foldKey(title)); if (v != null) return v === '1'; } catch {} return (L.panelN = (L.panelN || 0) + 1) <= 2; };
+const panel = (title, body, more) => `<details class="panel lpanel fpanel" data-foldk="${esc(foldKey(title))}" ${foldOpen(title) ? 'open' : ''}><summary class="lph3"><h3>${esc(title)}</h3>${more ? `<button class="chip link" data-act="go" data-v="${more[0]}">${esc(more[1])}</button>` : ''}<span class="fchev" aria-hidden="true"></span></summary>${body}</details>`;
+document.addEventListener('click', e => { const sm = e.target.closest('details.fpanel > summary'); if (!sm) return; if (e.target.closest('button, a')) { e.preventDefault(); return; } const d = sm.parentElement; setTimeout(() => { try { localStorage.setItem(d.dataset.foldk, d.open ? '1' : '0'); } catch {} }, 0); });
 const quiet = t => `<p class="lnone">${esc(t)}</p>`;
 
 /* ---------- any list: group by a field, a table to fill in, and suggestions from similar records ---------- */
@@ -10671,6 +10675,7 @@ return {
     if (!C) { host.dataset.sig = ''; host.innerHTML = `<div class="viewhead"><h1>${esc(cfg.title || sectionOf(view)?.label || '')}</h1><span class="sub">Connecting…</span></div>`; return; }
     if (L.missing) { setupCard(host); return; }
     if (L.status === 'loading' && !L.all.length) { host.dataset.sig = ''; host.innerHTML = `<div class="viewhead"><h1>${esc(cfg.title || sectionOf(view)?.label || '')}</h1><span class="sub">Loading…</span></div>`; return; }
+    L.panelN = 0;
     if (cfg.render) { host.dataset.sig = ''; cfg.render(host); if (view === overviewOf(sectionOf(view)?.key)) layoutOverview(host, view); } else listPage(host, view);
     mergeChips(host, view);
     if (sectionOf(view)?.key === 'money') { const vh = host.querySelector('.viewhead'), old = vh?.querySelector('[data-moneyeye]'); if (old) old.outerHTML = eyeBtn(); else vh?.insertAdjacentHTML('beforeend', eyeBtn()); }
