@@ -1120,6 +1120,12 @@ const KINDS = {
     title: r => r.design || r.what || 'Nails', sorts: [['-date', 'Newest']],
     sub: r => [niceDate(r.date), r.technique, r.minutes ? r.minutes + ' min' : '', nailDays(r) != null ? `lasted ${nailDays(r)} days` : ''].filter(Boolean).join(' · ')
   },
+  calnote: {
+    one: 'agenda-item', many: 'Agenda',
+    fields: [F('name', 'Wat'), F('date', 'Datum', 'date', { half: 1 }), F('time', 'Tijd', 'time', { half: 1 }), F('end', 'Tot', 'time', { half: 1 }), F('allday', 'Hele dag', 'check', { half: 1 }),
+      F('where', 'Waar', 'text'), F('emoji', 'Emoji', 'text', { half: 1 }), F('notes', 'Notities', 'long')],
+    sorts: [['date', 'Eerst'], ['-date', 'Laatst']], sub: r => [niceDate(r.date), r.allday ? 'hele dag' : r.time, r.where].filter(Boolean).join(' · ')
+  },
   nbits: {
     one: 'bit', many: 'Drill bits', facet: 'shape', photo: 'photo', display: 'cards',
     fields: [F('name', 'Naam (optioneel)'), F('shape', 'Vorm', 'select', { options: BIT_GUIDE.map(b => b[0]), half: 1 }), F('grit', 'Grit', 'select', { options: GRITS.map(g => g[0]), half: 1 }),
@@ -1778,7 +1784,7 @@ const PAGES = {
   'wish/stats': { render: wishAnalysis, adds: ['wishes', 'orders'] },
   'plan/overview': { render: lifeOverview, adds: ['journal', 'sleep', 'workouts', 'wishes', 'gifts'] },
   'plan/today': { render: planToday, adds: ['habits', 'routines', 'journal', 'lgoals', 'fgoals'] },
-  'plan/week': { render: calPage, adds: ['appts', 'workouts', 'meals', 'posts', 'tasks', 'gifts', 'journal'] },
+  'plan/week': { render: calPage, adds: ['calnote', 'appts', 'workouts', 'meals', 'posts', 'tasks', 'gifts', 'journal'] },
   'plan/weekplan': { render: weekPlanPage },
   'plan/reports': { render: reportsPage },
   'body/today': { render: bodyToday, adds: ['sleep', 'workouts', 'cleanlog', 'symptoms', 'cycles'] },
@@ -8339,6 +8345,7 @@ function dayPlan(d = today()) {
     add({ key: 'routine:' + k, min, label, sub: `${n} van ${steps.length}`, prog: n / steps.length, done: n === steps.length, type: 'routine', steps, act: async () => { const open = steps.filter(r => !routineDone(r)); for (const r of open.length ? open : steps) await toggleDay(r); } });
   }
   // appointments and the planned workout have a time of their own
+  for (const n of recs('calnote').filter(n => n.date === d && !n.allday && n.time)) add({ key: 'rec:' + n.id, min: hmToMin(n.time), label: (n.emoji ? n.emoji + ' ' : '') + (n.name || 'Agenda'), sub: n.where || 'agenda', done: !!n.done, type: 'rec', rec: n, move: nd => save(n, { date: nd }) });
   for (const a of recs('appts').filter(a => a.date === d)) add({ key: 'rec:' + a.id, min: hmToMin(a.time), label: a.what || a.type || 'Afspraak', sub: a.where || a.location || 'afspraak', done: !!a.done, type: 'rec', rec: a, move: nd => save(a, { date: nd }) });
   for (const wo of recs('workouts').filter(x => x.date === d && !x.skipped)) add({ key: 'rec:' + wo.id, min: hmToMin(wo.time) ?? (t === 'weekend' ? 11 * 60 : toMin(DAYCFG().workEnd) + 45), label: wo.name || wo.type || 'Workout', sub: 'workout', done: !!wo.done, type: 'rec', rec: wo, move: nd => save(wo, { date: nd }) });
   // the rest has no set time: tasks, chores, plants, habits, posts, bills and water
@@ -8802,6 +8809,7 @@ function calEvents(from, to, all) {
   const sv = (r, patch) => save(r, patch);
   // Life
   safe('Life', () => {
+  for (const n of recs('calnote')) if (inR(n.date, from, to)) add({ id: 'note:' + n.id, cat: 'life', date: n.date, time: n.allday ? '' : n.time, title: (n.emoji ? n.emoji + ' ' : '') + (n.name || 'Agenda'), sub: [n.time && n.end && !n.allday ? `${n.time} tot ${n.end}` : '', n.where].filter(Boolean).join(' · '), move: d => sv(n, { date: d }), open: n.id });
   for (const a of recs('appts')) if (inR(a.date, from, to)) add({ id: 'appt:' + a.id, cat: 'life', date: a.date, time: a.time, title: a.what || a.type || 'Afspraak', sub: [a.type, a.where || a.location].filter(Boolean).join(' · '), imp: true, done: !!a.done, toggle: () => sv(a, { done: !a.done }), move: d => sv(a, { date: d }), open: a.id });
   });
   safe('Life', () => {
