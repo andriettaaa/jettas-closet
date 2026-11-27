@@ -1518,3 +1518,8 @@ h2 .tdside { font-size: .8em; color: var(--muted); }
 .dpsteps { margin: 8px 0; }
 .hub .hubrow { width: 100%; text-align: left; align-items: center; }
 .hubn { background: var(--accent, #c99a6b); color: var(--bg); border-radius: 99px; padding: 1px 9px; font-weight: 700; font-size: 13px; }
+
+/* affirmation cards in the size and number you picked on this device */
+.pnaffdev { display: flex; justify-content: center; gap: 10px; }
+.pnaffdev .pnaffimg { flex: 0 1 var(--affw, 180px); min-width: 0; }
+.pnaffdev.sz-s { --affw: 96px; } .pnaffdev.sz-m { --affw: 170px; } .pnaffdev.sz-l { --affw: 300px; }
