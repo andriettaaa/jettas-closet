@@ -1759,3 +1759,6 @@ h2 .tdside { font-size: .8em; color: var(--muted); }
 .mergechips button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.1); }
 .secbar button.gearbtn { padding: 6px 9px; margin-left: auto; }
 body.side header.top .secwrap .secbar button.gearbtn { margin-left: 0; width: auto; }
+.secbar button.todobadge { padding: 5px 9px; gap: 4px; }
+.secbar button.todobadge i { font-style: normal; background: #d9707c; color: #fff; border-radius: 99px; padding: 0 6px; font-size: 11px; font-weight: 800; line-height: 17px; }
+body.side header.top .secwrap .secbar button.todobadge { width: auto; }

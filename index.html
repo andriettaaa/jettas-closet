@@ -708,7 +708,7 @@ const viewsAll = sec => byOrder(sec === 'closet' ? VIEWS : (SECTIONS.find(x => x
 const isSecSettings = v => /\/settings$/.test(String(v)) && SECTIONS.some(s => s.key === secOf(v) && !['overview', 'settings'].includes(s.key));
 // the tabs of a section: hidden ones out, and tabs that share a page (a "merge") as one tab with the merge's name; the page shows chips to switch
 const viewsShown = sec => { const h = NAV().views?.[sec]?.hidden || [], M = window.LIFE?.merges || {}, seen = new Set();
-  const vs = viewsAll(sec).filter(v => !h.includes(v[0]) && !v[6]).flatMap(v => { const m = v[5]; if (!m || !M[m]) return [v]; if (seen.has(m)) return []; seen.add(m);
+  const vs = viewsAll(sec).filter(v => !h.includes(v[0]) && !v[6] && !(sec === 'closet' && v[0] === 'todo')).flatMap(v => { const m = v[5]; if (!m || !M[m]) return [v]; if (seen.has(m)) return []; seen.add(m);
     const sibs = viewsAll(sec).filter(x => x[5] === m), last = (() => { try { return localStorage.getItem('merge:' + m); } catch { return ''; } })();
     const pick = sibs.find(x => x[0] === S.view) || sibs.find(x => x[0] === last) || sibs[0]; return [[pick[0], M[m][0], M[m][1], pick[3], pick[4], m]]; });
   return [...(vs.length ? vs : viewsAll(sec).slice(0, 1)), secSettings(sec)]; };
@@ -1163,6 +1163,9 @@ function renderTabs() {
     if (!t.g || t.vs.length === 1) { const [k, label, path] = t.v || t.vs[0]; if (/\/settings$/.test(k)) return `<button data-view="${k}" class="gearbtn" aria-current="${S.view === k}" aria-label="Instellingen" title="Instellingen">${icon(path)}</button>`; return `<button data-view="${k}" aria-current="${S.view === k}">${icon(path)}<span>${label}</span>${k === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`; }
     const [label, path] = groups[t.g]; return `<button data-view="${grpTarget(t)}" data-grp="${t.g}" aria-current="${curGrp === t.g}">${icon(path)}<span>${label}</span></button>`;
   }).join('');
+  // what still misses info: a red number at the end of the row instead of a To do tab
+  try { const tdv = sec === 'closet' ? 'todo' : sec + '/todo', tdn = sec === 'closet' ? S.items.filter(inCloset).filter(it => todoMissing(it).length).length : window.LIFE?.todoCount?.(sec) || 0;
+    if (tdn && (sec === 'closet' || window.LIFE?.has?.(tdv))) (bar.querySelector('.gearbtn') || bar).insertAdjacentHTML(bar.querySelector('.gearbtn') ? 'beforebegin' : 'beforeend', `<button data-view="${tdv}" class="todobadge" aria-current="${S.view === tdv}" aria-label="${tdn} om aan te vullen" title="Nog aan te vullen">✓<i>${tdn > 99 ? '99+' : tdn}</i></button>`); } catch {}
   const open = row.find(t => t.g && t.g === curGrp && t.vs.length > 1), sub2 = $('#sub2Bar');
   // a group can hold sub-groups (Body › Health, Train, Beauty): they sit as one button in the second row, their pages in a third
   const subs = SECTIONS.find(x => x.key === sec)?.subs?.[curGrp] || {}, curSub = views.find(v => v[0] === S.view)?.[4] || '';
