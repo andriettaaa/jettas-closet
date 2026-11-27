@@ -289,6 +289,34 @@ dl.props dd .chip.link { margin-right: 6px; }
 .hscroll .card { flex: 0 0 132px; }
 
 nav.bottom { display: none; }
+.sidefold { display: none; }
+/* the side bar (MacBook, iPad on its side) */
+body.side { --sidew: 248px; padding-left: var(--sidew); }
+body.side.folded { --sidew: 76px; }
+body.side header.top { position: fixed; left: 0; top: 0; bottom: 0; width: var(--sidew); border-bottom: 0; border-right: 1px solid var(--line); overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); transition: width .2s ease; }
+body.side header.top > .wrap { flex-direction: column; align-items: stretch; gap: 8px; padding: 16px 12px; max-width: none; margin: 0; }
+body.side header.top .spacer { display: none; }
+body.side .brand { padding: 0 6px 8px; }
+body.side .sidefold { display: inline-grid; margin-left: auto; width: 34px; height: 34px; }
+body.side nav.tabs { flex-direction: column; margin: 0; overflow: visible; order: 3; gap: 2px; }
+body.side nav.tabs button { border-radius: 12px; padding: 10px 12px; width: 100%; }
+body.side .findbtn { order: 2; display: flex; width: 100%; border-radius: 12px; justify-content: flex-start; gap: 10px; padding: 10px 12px; height: auto; }
+body.side .findbtn::after { content: 'Zoeken'; font-weight: 600; color: var(--muted); }
+body.side #addBtn { order: 1; width: 100%; justify-content: center; }
+body.side header.top .secwrap { padding: 2px 0 8px 14px; margin: 0; max-width: none; }
+body.side header.top .secwrap .secbar, body.side .secwrap .subbar { flex-direction: column; overflow: visible; gap: 2px; padding: 0; border: 0; margin: 0; }
+body.side header.top .secwrap .secbar button { border: 0; background: none; border-radius: 10px; padding: 8px 10px; width: 100%; justify-content: flex-start; }
+body.side header.top .secwrap .secbar button[aria-current="true"] { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--ink); }
+body.side header.top .secwrap .subbar { padding-left: 26px; }
+body.side header.top .secwrap .subbar button { padding: 6px 0; text-align: left; border-bottom: 0; }
+body.side header.top .secwrap .subbar button[aria-current="true"] { color: var(--accent); }
+body.side main.wrap { padding-top: 20px; }
+body.side.folded .brandname, body.side.folded nav.tabs button span:not(.badge), body.side.folded .addlabel, body.side.folded .findbtn::after { display: none; }
+body.side.folded .brand { flex-direction: column; gap: 8px; padding: 0 0 8px; }
+body.side.folded .sidefold { margin: 0; }
+body.side.folded nav.tabs button, body.side.folded .findbtn { justify-content: center; padding: 10px 0; }
+body.side.folded header.top > .secwrap { display: none; }
+body.side.folded > .secwrap { position: sticky; top: 0; z-index: 15; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); padding-top: 12px; }
 @media (max-width: 720px) {
   nav.tabs { display: none; }
   nav.bottom { display: grid; grid-template-columns: repeat(6, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; background: var(--surface); border-top: 1px solid var(--line); padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); }
@@ -596,7 +624,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><img src="logo-mark.png" alt="" width="34" height="34">A’s Life</div>
+    <div class="brand"><img src="logo-mark.png" alt="" width="34" height="34"><span class="brandname">A’s Life</span><button class="iconbtn sidefold" id="sideFold" type="button" aria-label="Zijbalk in- of uitklappen" title="Zijbalk in- of uitklappen"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9.5 4.5v15" stroke="currentColor" stroke-width="1.8"/></svg></button></div>
     <nav class="tabs" id="tabsTop" aria-label="Sections"></nav>
     <div class="spacer"></div>
     <button class="iconbtn findbtn" id="findBtn" hidden aria-label="Search everything" title="Search everything (/)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
@@ -844,7 +872,11 @@ async function syncNow() {
 }
 // look and feel: stored in prefs so every device matches, cached here so it shows before you're signed in
 const LOOK_FONTS = { house: null, classic: 'Fraunces:opsz,wght@9..144,600;9..144,800', round: 'Nunito:wght@400;500;600;700;800', clean: 'Inter:wght@400;500;600;700;800', hand: 'Caveat:wght@600;700' };
+// this device can differ from the synced look: its own theme, motion and spacing (Settings › Look › Op deze …)
+const devLook = () => { try { return JSON.parse(localStorage.getItem('dev:look') || '{}') || {}; } catch { return {}; } };
 function applyLook(look = pref.get('look', {})) {
+  const dl = devLook(); look = { ...look, ...(dl.theme ? { theme: dl.theme } : {}) };
+  document.documentElement.setAttribute('data-motion', dl.motion || 'lively'); document.documentElement.setAttribute('data-density', dl.density || (innerWidth >= 900 ? 'compact' : 'roomy'));
   const r = document.documentElement, set = (k, v) => v ? r.setAttribute('data-' + k, v) : r.removeAttribute('data-' + k);
   set('theme', look.theme && look.theme !== 'auto' ? look.theme : ''); set('accent', look.accent && look.accent !== 'brown' ? look.accent : '');
   set('font', look.font && look.font !== 'house' ? look.font : ''); set('size', look.size && look.size !== 'm' ? look.size : ''); set('compact', look.compact ? '1' : '');
@@ -1089,7 +1121,18 @@ const outfitPhotos = id => lookPhotos().filter(l => l.outfit === id);
     t = setTimeout(() => bar.classList.remove('away'), 350);
   }, { passive: true });
 })();
+/* wide screens in landscape (MacBook, iPad on its side) get a side bar: sections under each other, the pages of the
+   section you're in right under it. It folds to icons with the button by the logo; that choice is kept per device. */
+const SIDE_MQ = matchMedia('(min-width: 1000px) and (min-aspect-ratio: 1/1)');
+const sideFolded = () => { try { return localStorage.getItem('dev:side') === 'fold'; } catch { return false; } };
+function applySide() {
+  const on = SIDE_MQ.matches; document.body.classList.toggle('side', on); document.body.classList.toggle('folded', on && sideFolded());
+}
+SIDE_MQ.addEventListener?.('change', () => { applySide(); renderTabs(); });
+document.addEventListener('click', e => { if (!e.target.closest('#sideFold')) return; try { localStorage.setItem('dev:side', sideFolded() ? 'open' : 'fold'); } catch {} renderTabs(); });
 function renderTabs() {
+  applySide();
+  const sw = document.querySelector('.secwrap'); if (sw && sw.parentElement !== document.querySelector('header.top')) document.querySelector('header.top').appendChild(sw);
   const n = inboxItems().length;
   const views = tabsFor(S.view), sec = secOf(S.view);
   const jumpOn = SECTIONS.find(s => s.to === S.view && navSections().includes(s))?.key;
@@ -1122,6 +1165,8 @@ function renderTabs() {
   const openSub = row2.find(t => t.sg && t.sg === curSub);
   sub2.hidden = !openSub;
   sub2.innerHTML = openSub ? openSub.vs.map(([k, label]) => `<button data-view="${k}" aria-current="${S.view === k}">${label}</button>`).join('') : '';
+  // open side bar: the pages sit right under the section; folded: they run along the top of the page
+  if (document.body.classList.contains('side') && sw) { if (document.body.classList.contains('folded')) { if (!bar.hidden) $('#main').before(sw); } else { const cur = $('#tabsTop [aria-current="page"]'); if (cur && !bar.hidden) cur.after(sw); } }
   for (const b of [bar, sub, sub2]) { const c = b.querySelector('[aria-current="true"]'); if (c && (c.offsetLeft < b.scrollLeft || c.offsetLeft + c.offsetWidth > b.scrollLeft + b.clientWidth)) b.scrollLeft = c.offsetLeft - 16; }
   $('#addBtn').hidden = sec === 'overview' || sec === 'settings' || isSecSettings(S.view);
   $('#addBtn .addlabel').textContent = sec === 'closet' ? 'Add piece' : sec === 'overview' ? 'Add' : window.LIFE.addLabel(S.view);
@@ -1400,7 +1445,7 @@ function renderRail(host) {
     host.innerHTML = `
       ${view === 'closet' ? '<div id="trayHost"></div>' : ''}
       <div class="viewhead"><h1>${view === 'wishlist' ? 'Wishlist' : 'Closet'}</h1><span class="sub" id="railSub"></span></div>
-      ${view === 'closet' ? '<p class="wxline" id="wxLine" hidden></p>' : ''}
+      ${view === 'closet' ? '<div class="story ofhost" id="ofHost"></div><p class="wxline" id="wxLine" hidden></p>' : ''}
       <div class="tools">
         <div class="search">${I.search}<input id="q" type="search" placeholder="Search name, brand, size, article no., tag" aria-label="Search"></div>
         <select class="pill" id="sort" aria-label="Sort">${SORTS[view].map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
@@ -1477,6 +1522,7 @@ function fillRail(host) {
   $('#activeF', host).innerHTML = (f.cat !== 'All' ? `<button class="chip on" data-unf="cat">${esc(f.cat)} ×</button>` : '') + active.map(a => `<button class="chip on" data-unf="${a.fc.k}" data-fval="${esc(a.v)}">${a.fc.label}: ${esc(a.label)} ×</button>`).join('') + `<button class="chip ghost" data-clearall>Clear all</button>`;
   const live = view === 'wishlist' ? base : S.items.filter(inCloset);
   const total = live.reduce((a, i) => a + (Number(i.price) || 0), 0);
+  const ofh = $('#ofHost', host); if (ofh) { ofh.innerHTML = outfitBlock(); if (!ofh.dataset.wired) { ofh.dataset.wired = '1'; ofh.addEventListener('click', e => { if (ofClick(e)) return; const d = e.target.closest('[data-overday]'); if (d) openDay(d.dataset.overday); }); } }
   $('#railSub', host).textContent = view === 'wishlist' && f.showGone ? `${base.length} archived · no longer wanted` : live.length ? (view === 'wishlist' ? `${live.length} pieces · ${eur0(total)} in total` : `${live.length} pieces · ${eur0(total)} on the rail`) : '';
   const grid = $('#railGrid', host);
   if (S.status === 'connecting' && !S.items.length) { grid.className = ''; grid.innerHTML = `<p class="busy">Loading…</p>`; return; }
@@ -2082,8 +2128,9 @@ const STATS_TABS = [['overview', 'Overview'], ['breakdown', 'Breakdown'], ['mone
 // card through LIFE.tile(key), so a new area appears without touching this page.
 // a look for today's weather: a saved outfit that fits, the one you wore longest ago; or pieces you haven't
 // worn in a while. It stays the same all day; "Another" steps to the next one.
-function weatherPick() {
-  const t = today(), w = wxDay(t) || wxDay(t, 'alm'); if (!w) return null;
+// every suggestion for a day's weather (today, or tomorrow for the evening card); weatherPick is the one now on show
+function weatherPicks(t = today()) {
+  const w = wxDay(t) || wxDay(t, 'alm'); if (!w) return null;
   const hi = w.hi, wet = (w.p ?? 0) >= 50, seasons = hi >= 22 ? ['Summer'] : hi >= 15 ? ['Spring', 'Summer', 'Autumn'] : hi >= 8 ? ['Autumn', 'Spring', 'Winter'] : ['Winter', 'Autumn'];
   const fits = it => it && inCloset(it) && atHand(it) && (!(it.seasons || []).length || it.seasons.some(x => seasons.includes(x)));
   const last = {}; for (const [d, v] of Object.entries(S.days)) if (v.outfit && d < t && (!last[v.outfit] || d > last[v.outfit])) last[v.outfit] = d;
@@ -2094,11 +2141,55 @@ function weatherPick() {
   const tops = [...by('tops'), ...by('knitwear')], bottoms = by('bottoms'), shoes = by('shoes'), outer = by('outerwear');
   for (let k = 0; k < 3 && tops.length && bottoms.length; k++) {
     const ids = [tops[k % tops.length], bottoms[k % bottoms.length], ...(shoes.length ? [shoes[k % shoes.length]] : []), ...((hi < 15 || wet) && outer.length ? [outer[k % outer.length]] : [])].map(i => i.id);
-    picks.push({ ids, name: 'Pieces you haven’t worn in a while' });
+    picks.push({ ids, name: ids.slice(0, 2).map(id => S.byId[id]?.name).filter(Boolean).join(' + ') || 'Stukken die je even niet droeg' });
   }
   if (!picks.length) return null;
-  const n = S.wxPickN || 0, pick = picks[n % picks.length];
-  return { ...pick, count: picks.length, why: `${wmo(w.c)[1]} ${hi}°${wet ? ', rain likely' : ''}` };
+  return { picks, w, why: `${wmo(w.c)[1]} ${hi}°${wet ? ' · regen' : ''}` };
+}
+function weatherPick(t = today(), shift = S.wxPickN || 0) { const r = weatherPicks(t); if (!r) return null; const pick = r.picks[shift % r.picks.length]; return { ...pick, count: r.picks.length, why: r.why }; }
+// lay a suggestion out for a day: a saved outfit, or the pieces
+function wearPick(t, pick, msg) {
+  const cur = S.days[t] || {};
+  return DB.put('days', t, { outfit: pick.outfit || null, items: pick.outfit ? cur.items || [] : [...new Set([...(cur.items || []), ...pick.ids])], note: cur.note || '', photos: cur.photos || [], place: cur.place || '' }).then(() => toast(msg)).catch(err => saveErr(err, 'Opslaan lukte niet. Probeer het opnieuw.'));
+}
+const pickThumb = pick => { const o = pick.outfit && S.outById[pick.outfit]; if (o) return boardHTML(o.pieces); const ph = pick.ids.map(id => S.byId[id]).filter(i => i?.photo).slice(0, 4); return ph.length ? `<div class="ofpcs n${ph.length}">${ph.map(i => pimg(i.photo, i.name || '', 'loading="lazy"')).join('')}</div>` : '<div class="ofempty">👗</div>'; };
+/* the outfit on Today: in the morning the Nu card with three suggestions, during the day a strip, in the evening tomorrow */
+// taps on the outfit card (Today and Closet share it)
+function ofClick(e) {
+      if (e.target.closest('[data-wxnext]')) { S.wxPickN = (S.wxPickN || 0) + 1; render(); return true; }
+      const ow = e.target.closest('[data-ofwear]'); if (ow) { const r = weatherPicks(today()); if (r) wearPick(today(), r.picks[Number(ow.dataset.ofwear)], '👗 Outfit voor vandaag gekozen'); return true; }
+      if (e.target.closest('[data-ofmore]')) { S.wxPickN = (S.wxPickN || 0) + 3; render(); return true; }
+      if (e.target.closest('[data-oftmnext]')) { S.wxTmN = (S.wxTmN || 0) + 1; render(); return true; }
+      if (e.target.closest('[data-oftm]')) { const tm = iso(new Date(Date.now() + 864e5)), p = weatherPick(tm, S.wxTmN || 0); if (p) wearPick(tm, p, '👗 Klaargelegd voor morgen'); return true; }
+      if (e.target.closest('[data-wxwear]')) { const wp = weatherPick(); if (!wp) return true; const t = today(), cur = S.days[t] || {};
+        DB.put('days', t, { outfit: wp.outfit || null, items: wp.outfit ? cur.items || [] : [...new Set([...(cur.items || []), ...wp.ids])], note: cur.note || '', photos: cur.photos || [], place: cur.place || '' }).then(() => toast('Logged for today')).catch(err => saveErr(err, 'Could not log that. Try again.')); return true; }
+  return false;
+}
+function outfitBlock() {
+  const t = today(), hr = new Date().getHours(), rec = S.days[t], tm = iso(new Date(Date.now() + 864e5));
+  let out = '';
+  if (!rec && hr < 12) {
+    const r = weatherPicks(t), n = S.wxPickN || 0, three = r ? [0, 1, 2].map(i => r.picks[(n + i) % r.picks.length]).filter((x, i, a) => a.indexOf(x) === i) : [];
+    if (three.length) out += `<section class="ofhero"><div class="dphk">Ochtend${r ? ' · ' + esc(r.why) : ''}</div><div class="dpht"><span>👗</span>Kies je outfit</div>
+      <div class="ofpicks">${three.map((p, i) => `<button type="button" class="ofpick" data-ofwear="${(n + i) % r.picks.length}" aria-label="${esc(p.name)}">${pickThumb(p)}<span>${esc(p.name)}</span></button>`).join('')}</div>
+      <div class="dphb"><button type="button" data-ofmore>Andere</button><button type="button" data-overday="${t}">Zelf kiezen</button></div></section>`;
+  } else if (rec) {
+    const o = rec.outfit && S.outById[rec.outfit], ids = dayItems(rec).filter(id => S.byId[id]), look = rec.photos?.[0];
+    const thumb = look ? pimg(look, 'Je look vandaag') : o ? boardHTML(o.pieces) : pickThumb({ ids });
+    out += `<div class="ofstrip"><button type="button" class="ofth" data-overday="${t}">${thumb}</button><div><b>${esc(o ? o.name || 'Outfit' : ids.length ? ids.slice(0, 2).map(id => S.byId[id].name).filter(Boolean).join(' + ') + (ids.length > 2 ? ` +${ids.length - 2}` : '') : 'Je outfit')}</b><small>Vandaag${look ? ' · met foto' : ''}</small>
+      <div class="ofbtns"><button type="button" class="chip small" data-overday="${t}">Wissel</button><button type="button" class="chip small" data-overday="${t}">${look ? 'Foto’s' : '📷 Foto'}</button><span class="chip small on">Gedragen ✓</span></div></div></div>`;
+  } else {
+    const wp = weatherPick(t);
+    if (wp) out += `<div class="ofstrip"><button type="button" class="ofth" data-overday="${t}">${pickThumb(wp)}</button><div><b>${esc(wp.name)}</b><small>Voorstel · ${esc(wp.why)}</small>
+      <div class="ofbtns"><button type="button" class="chip small primary" data-wxwear>Draag ik</button>${wp.count > 1 ? '<button type="button" class="chip small" data-wxnext>Ander</button>' : ''}</div></div></div>`;
+  }
+  if (hr >= 18) {
+    const tr = S.days[tm], tp = weatherPick(tm, S.wxTmN || 0);
+    if (tr) out += `<div class="ofstrip tomorrow"><button type="button" class="ofth" data-overday="${tm}">${tr.outfit && S.outById[tr.outfit] ? boardHTML(S.outById[tr.outfit].pieces) : pickThumb({ ids: dayItems(tr).filter(id => S.byId[id]) })}</button><div><b>Morgen klaargelegd ✓</b><small>${esc(tr.outfit && S.outById[tr.outfit]?.name || 'Je outfit voor morgen')}</small><div class="ofbtns"><button type="button" class="chip small" data-overday="${tm}">Wissel</button></div></div></div>`;
+    else if (tp) out += `<div class="ofstrip tomorrow"><button type="button" class="ofth" data-overday="${tm}">${pickThumb(tp)}</button><div><b>Morgen 👗 ${esc(tp.name)}</b><small>${esc(tp.why)} · klaarleggen voor het slapen</small>
+      <div class="ofbtns"><button type="button" class="chip small primary" data-oftm>Klaarleggen</button>${tp.count > 1 ? '<button type="button" class="chip small" data-oftmnext>Ander</button>' : ''}</div></div></div>`;
+  }
+  return out;
 }
 function closetTile() {
   const t = today(), rec = S.days[t], o = rec?.outfit && S.outById[rec.outfit];
@@ -2176,7 +2267,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v203';
+const APP_VERSION = 'hangtag-v206';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2192,6 +2283,10 @@ function lookPanel() {
     ${row('accent', 'Accent colour', o => `<span class="sw" style="background:${o[2]}"></span><small>${o[1]}</small>`)}
     ${row('font', 'Letters', o => `<span class="fs" style="font-family:${o[3]}">${o[1]}</span><small>${o[2]}</small>`)}
     ${row('size', 'Text size', o => `<b>${o[1]}</b><small>${o[2]}</small>`)}
+    ${(() => { const dl = devLook(), dn = deviceName(), g = (k, title, opts, cur) => `<div class="setgroup"><p class="dsub">${title}</p><div class="lookopts">${opts.map(([v, l, h]) => `<button data-devlook="${k}" data-v="${v}" aria-pressed="${cur === v}"><b>${l}</b><small>${h}</small></button>`).join('')}</div></div>`;
+      return `<div class="devlookbox"><p class="dsub">Alleen op deze ${esc(dn)}</p>${g('theme', 'Licht of donker', [['', 'Zoals hierboven', 'gelijk overal'], ['auto', 'Volgt dit apparaat', 'licht of donker'], ['light', 'Licht', 'altijd'], ['dark', 'Donker', 'altijd']], dl.theme || '')}
+        ${g('motion', 'Beweging', [['calm', 'Rustig', 'zachte overgangen'], ['lively', 'Levendig', 'ringen, veren, confetti'], ['buzz', 'Levendig + trilling', 'waar het kan']], dl.motion || 'lively')}
+        ${g('density', 'Ruimte', [['compact', 'Compact', 'meer op je scherm'], ['roomy', 'Ruim', 'grotere tegels']], dl.density || (innerWidth >= 900 ? 'compact' : 'roomy'))}</div>`; })()}
     <div class="setrow"><label class="settog"><input type="checkbox" data-lookcompact ${L.compact ? 'checked' : ''}> <b>Compact closet</b></label><span class="muted setsub">More pieces and products per row, with smaller text under each tile.</span></div></section>`;
 }
 async function saveLook(patch) {
@@ -2200,6 +2295,7 @@ async function saveLook(patch) {
   try { await DB.savePrefs({ look }); } catch (err) { saveErr(err, 'Saved on this device only. Try again to save it everywhere.'); }
 }
 document.addEventListener('click', e => { const b = e.target.closest?.('[data-look]'); if (b) saveLook({ [b.dataset.look]: b.dataset.v }); });
+document.addEventListener('click', e => { const b = e.target.closest?.('[data-devlook]'); if (!b) return; const d = { ...devLook(), [b.dataset.devlook]: b.dataset.v }; if (!b.dataset.v) delete d[b.dataset.devlook]; try { localStorage.setItem('dev:look', JSON.stringify(d)); } catch {} applyLook(S.prefs.look || pref.get('look', {})); render(); });
 document.addEventListener('change', e => { if (e.target.matches?.('[data-lookcompact]')) saveLook({ compact: e.target.checked }); });
 document.addEventListener('click', async e => { if (!e.target.closest?.('[data-savename]')) return; const v = $('#set-name')?.value.trim() || ''; try { await DB.savePrefs({ name: v }); toast(v ? `Hi ${v}!` : 'Name removed'); } catch (err) { saveErr(err, 'Could not save. Try again.'); } });
 const myName = () => String(S.prefs.name || window.LIFE?.userName?.() || '').trim();
@@ -2238,8 +2334,8 @@ function affirmToday(shift = 0) {
   const d = new Date(), n = Math.floor((d.getTime() - d.getTimezoneOffset() * 6e4) / 864e5);
   return l[(((n + shift) % l.length) + l.length) % l.length];
 }
-function affirmBlock() {
-  if (S.prefs.affirm?.off || window.LIFE?.hasPinAffirm?.()) return '';
+function affirmBlock(force) {
+  if (!force && (S.prefs.affirm?.off || window.LIFE?.hasPinAffirm?.())) return '';
   const a = affirmToday(S.affShift || 0), fav = (S.prefs.affirm?.fav || []).includes(a);
   return `<section class="affirm" aria-label="Affirmation"><p class="affk">Affirmation</p><blockquote>${esc(a)}</blockquote>
     <div class="affbtns"><button class="chip" data-affnext>Another one</button><button class="chip" data-afffav aria-pressed="${fav}">${fav ? 'Saved' : 'Save'}</button><button class="chip link" data-affown>Add your own</button><button class="chip link" data-affmanage>Manage</button></div>
@@ -2298,6 +2394,7 @@ function renderSettings(host) {
       <label class="setnsearch setname"><input class="setninp" type="search" data-nfind placeholder="Zoek een naam" aria-label="Zoek een naam"></label>
       ${SECTIONS.map(s => `<div class="setrow setname" data-nrow="${esc(norm(s.base + ' ' + s.label))}"><button type="button" class="seti iconbtnpick" data-ipickfor="${s.key}" aria-label="Kies icoon voor ${esc(s.label)}">${icon(s.icon)}</button><input class="setninp" data-nname="${s.key}" value="${esc((S.prefs.names || {})[s.key] || '')}" placeholder="${esc(s.base)}" aria-label="Naam voor ${esc(s.base)}" autocomplete="off">${(S.prefs.names || {})[s.key] ? `<button class="chip link" data-nnreset="${s.key}">Herstel</button>` : ''}</div>`).join('')}
     </section>
+    <section class="panel setpanel" id="set-today"><h3>Vandaag</h3><p class="muted">Kies per apparaat wat Vandaag laat zien en in welke volgorde. Op deze ${esc(deviceName())} nu: ${esc(devOrder().filter(devVis).map(k => TODAY_BLOCKS.find(b => b[0] === k)[1].replace(/^\S+\s/, '')).join(', '))}.</p><div class="setbtns"><button class="btn small" data-devtoday2>Vandaag op deze ${esc(deviceName())} aanpassen</button></div></section>
     ${lookPanel()}
     ${notiPanel()}
     <section class="panel setpanel" id="set-account"><h3>Account and app</h3><p class="muted">Signed in as ${esc(EMAIL || 'you')}. Your data lives in your own Supabase project.</p>
@@ -2542,51 +2639,78 @@ let dashW = 0;
 window.addEventListener('resize', () => { const el = document.querySelector('.dash'); if (!el || Math.abs(el.clientWidth - dashW) < 40) return; dashW = el.clientWidth; const n = Math.max(1, Math.floor((dashW + 16) / 316)); if (String(n) !== el.dataset.n) packDash(el); });
 const devT = () => { try { return JSON.parse(localStorage.getItem('dev:today') || '{}') || {}; } catch { return {}; } };
 const devOff = k => [].concat(devT().hide || []).includes(k);
-// the blocks of Today you can hide on one device only
-const DEV_BLOCKS = [['aff', 'Affirmaties'], ['intent', 'Focus deze week'], ['day', 'Je dag (Vandaag)'], ['hub', 'Nog na te lopen'], ['week', 'Komende week'], ['find', 'Zoekbalk'], ['quick', 'Snelle knoppen'], ['wx', 'Weer en outfit'], ['tiles', 'Tegels per onderdeel']];
+// Today as one story; per device you choose the order and what shows (Settings › Vandaag, or the button under Today)
+const TODAY_BLOCKS = [['greet', '👋 Groet en voortgang'], ['chips', '🌦 Weer, affirmatie en focus'], ['outfit', '👗 Outfit'], ['day', '📅 Je dag'], ['affbig', '✨ Grote affirmatie'], ['wx', '🌤 Weer per dag'], ['find', '🔍 Zoekbalk'], ['quick', '⚡ Snelle knoppen']];
+const TODAY_DEF = { greet: true, chips: true, outfit: true, day: true, affbig: false, wx: false, find: false, quick: false };
+const devVis = k => { const d = devT(); if ([].concat(d.hide || []).includes(k === 'affbig' ? 'aff' : k)) return false; if (d.vis && k in d.vis) return !!d.vis[k]; return TODAY_DEF[k] ?? true; };
+const devOrder = () => { const o = [].concat(devT().order || []).filter(k => TODAY_BLOCKS.some(b => b[0] === k)); return [...o, ...TODAY_BLOCKS.map(b => b[0]).filter(k => !o.includes(k))]; };
 function devTodaySheet() {
-  const name = deviceName(), body = () => { const d = devT(), hide = new Set(d.hide || []), on = (k, v, cur, label) => `<button type="button" class="chip" data-dev="${k}" data-v="${v}" aria-pressed="${String(cur) === String(v)}">${label}</button>`;
+  const name = deviceName(), body = () => { const d = devT(), ord = devOrder(), on = (k, v, cur, label) => `<button type="button" class="chip" data-dev="${k}" data-v="${v}" aria-pressed="${String(cur) === String(v)}">${label}</button>`;
     return `<p class="muted">Alleen voor deze ${esc(name)}. Je andere apparaten houden hun eigen keuze.</p>
-      <p class="dsub">Affirmaties</p><div class="lwrap">${on('aff', 'on', hide.has('aff') ? 'off' : 'on', 'Aan')}${on('aff', 'off', hide.has('aff') ? 'off' : 'on', 'Uit')}</div>
-      <p class="dsub">Grootte</p><div class="lwrap">${[['s', 'Klein'], ['m', 'Middel'], ['l', 'Groot']].map(([v, l]) => on('affSize', v, d.affSize || '', l)).join('')}</div>
+      <p class="dsub">Volgorde en aan of uit</p><div class="devlist">${ord.map((k, i) => `<div class="devrow ${devVis(k) ? '' : 'off'}"><span class="devgrip" aria-hidden="true">⠿</span><b>${esc(TODAY_BLOCKS.find(b => b[0] === k)[1])}</b><span class="spacer"></span><button type="button" class="iconbtn small" data-devmv="${k}" data-d="-1" aria-label="Omhoog" ${i ? '' : 'disabled'}>↑</button><button type="button" class="iconbtn small" data-devmv="${k}" data-d="1" aria-label="Omlaag" ${i < ord.length - 1 ? '' : 'disabled'}>↓</button><label class="settog"><input type="checkbox" data-devvis="${k}" ${devVis(k) ? 'checked' : ''}> Aan</label></div>`).join('')}</div>
+      <p class="dsub">Tegels per onderdeel (onder Overzicht)</p><div class="lwrap"><button type="button" class="chip" data-devblock="tiles" aria-pressed="${!devOff('tiles')}">🧩 Tegels</button></div>
+      <p class="dsub">Affirmatiekaarten: grootte</p><div class="lwrap">${[['s', 'Klein'], ['m', 'Middel'], ['l', 'Groot']].map(([v, l]) => on('affSize', v, d.affSize || '', l)).join('')}</div>
       <p class="dsub">Aantal kaarten</p><div class="lwrap">${[1, 2, 3].map(v => on('affCount', v, d.affCount || '', String(v))).join('')}</div>
-      <p class="dsub">Blokken op Vandaag</p><div class="lwrap">${DEV_BLOCKS.filter(([k]) => k !== 'aff').map(([k, l]) => `<button type="button" class="chip" data-devblock="${k}" aria-pressed="${!hide.has(k)}">${esc(l)}</button>`).join('')}</div>
       <button type="button" class="chip link" data-devreset>Terug naar standaard</button>`; };
   const sh = sheet({ title: 'Vandaag op deze ' + name, body: `<div data-devbody>${body()}</div>` });
   const put = d => { try { localStorage.setItem('dev:today', JSON.stringify(d)); } catch {} $('[data-devbody]', sh).innerHTML = body(); render(); };
   sh.addEventListener('click', e => {
-    const b = e.target.closest('[data-dev]'), k = e.target.closest('[data-devblock]'), d = devT(), hide = new Set(d.hide || []);
-    if (b) { const key = b.dataset.dev, v = b.dataset.v; if (key === 'aff') { v === 'off' ? hide.add('aff') : hide.delete('aff'); put({ ...d, hide: [...hide] }); } else put({ ...d, [key]: key === 'affCount' ? Number(v) : v, ...(key === 'affSize' || key === 'affCount' ? (() => { hide.delete('aff'); return { hide: [...hide] }; })() : {}) }); }
+    const b = e.target.closest('[data-dev]'), k = e.target.closest('[data-devblock]'), mv = e.target.closest('[data-devmv]'), d = devT(), hide = new Set(d.hide || []);
+    if (b) put({ ...d, [b.dataset.dev]: b.dataset.dev === 'affCount' ? Number(b.dataset.v) : b.dataset.v });
     if (k) { hide.has(k.dataset.devblock) ? hide.delete(k.dataset.devblock) : hide.add(k.dataset.devblock); put({ ...d, hide: [...hide] }); }
+    if (mv) { const o = devOrder(), i = o.indexOf(mv.dataset.devmv), j = i + Number(mv.dataset.d); if (j < 0 || j >= o.length) return; [o[i], o[j]] = [o[j], o[i]]; put({ ...d, order: o }); }
     if (e.target.closest('[data-devreset]')) { try { localStorage.removeItem('dev:today'); } catch {} $('[data-devbody]', sh).innerHTML = body(); render(); }
+  });
+  sh.addEventListener('change', e => { const c = e.target.closest('[data-devvis]'); if (!c) return; const d = devT(), hide = new Set(d.hide || []); hide.delete(c.dataset.devvis === 'affbig' ? 'aff' : c.dataset.devvis); put({ ...d, hide: [...hide], vis: { ...(d.vis || {}), [c.dataset.devvis]: c.checked } }); });
+}
+// the affirmation behind its chip: your Pinterest card or the text one, in a sheet
+document.addEventListener('click', e => { if (e.target.closest?.('[data-devtoday2]')) devTodaySheet(); });
+function affirmSheet() {
+  const pin = window.LIFE?.pinAffirm?.() || '', sh = sheet({ title: 'Affirmatie van vandaag', body: `<div data-affbody>${pin || affirmBlock(true)}</div>` });
+  sh.addEventListener('click', e => {
+    if (e.target.closest('[data-affnext]')) { S.affShift = (S.affShift || 0) + 1; $('[data-affbody]', sh).innerHTML = affirmBlock(true); render(); }
+    if (e.target.closest('[data-afffav]')) { const a = affirmToday(S.affShift || 0), l = new Set(S.prefs.affirm?.fav || []); l.has(a) ? l.delete(a) : l.add(a); affirmSave({ fav: [...l] }).then(() => { const x = $('[data-affbody]', sh); if (x) x.innerHTML = affirmBlock(true); }); }
+    if (e.target.closest('[data-affmanage]')) { closeSheet(); affirmManage(); }
+    if (e.target.closest('[data-act="pnnext"]')) setTimeout(() => { const x = $('[data-affbody]', sh); if (x) x.innerHTML = window.LIFE?.pinAffirm?.() || affirmBlock(true); }, 80);
   });
 }
 function renderOverview(host) {
   const t = new Date(), G = greeting(t);
   const hidden = dashHidden(), cards = devOff('tiles') ? [] : dashCards().filter(s => !hidden.has(s.key));
-  host.innerHTML = `<div class="viewhead dviewhead greet ${G.part}"><h1>${esc(G.hello)}</h1><p class="greetline">${esc(G.line)}</p><span class="sub">${t.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span></div>
-    ${devOff('aff') ? '' : affirmBlock()}
-    ${window.LIFE?.todayTop?.() || ''}
-    ${devOff('find') ? '' : `<button class="findbar" data-find>${I.search}<span>Search recipes, notes, pages, settings…</span></button>`}
-    ${devOff('quick') ? '' : `<div class="quickacts">${QUICK.filter(q => q[2]()).map(([k, l]) => `<button class="chip" data-quick="${k}">${esc(l)}</button>`).join('')}</div>`}
-    ${devOff('wx') ? '' : wxStrip()}
+  // Today as one story: each block in the order this device chose
+  const st = window.LIFE?.dayStats?.(), wx = wxDay(today()) || wxDay(today(), 'alm'), pin = window.LIFE?.pinAffirmToday?.(), intent = window.LIFE?.intentText?.() || '';
+  const aff = S.prefs.affirm?.off && !pin ? '' : pin ? (pin.text || 'Affirmatie') : affirmToday(S.affShift || 0);
+  const BLK = {
+    greet: () => `<div class="sthead ${G.part}"><div><h1>${esc(G.hello)}</h1><p class="greetline">${esc(G.line)}</p><span class="sub">${t.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })}</span>${st?.cheer ? `<p class="stcheer">✨ ${esc(st.cheer)}</p>` : ''}</div>${st ? `<span class="ring string ${st.cheer ? 'pop' : ''}" style="--p:${st.pct}%" title="${st.done} van ${st.total} klaar"><b>${st.pct}%</b></span>` : ''}</div>`,
+    chips: () => `<div class="stchips">${wx ? `<button type="button" class="stchip" data-overday="${today()}"><span>${wmo(wx.c)[1]}</span>${wx.hi}°${wx.p != null && wx.p >= 30 ? ` · ${wx.p}% regen` : ` · ${esc(wmo(wx.c)[2]).toLowerCase()}`}</button>` : ''}${aff ? `<button type="button" class="stchip aff" data-affsheet>${pin?.img ? `<img src="${esc(pin.img)}" referrerpolicy="no-referrer" alt="">` : '<span>✨</span>'}<em>${esc(aff)}</em></button>` : ''}${intent ? `<span class="stchip"><span>🎯</span><em>${esc(intent)}</em></span>` : ''}${window.LIFE?.cardChips?.() || ''}</div>`,
+    outfit: () => outfitBlock(),
+    day: () => window.LIFE?.dayStory?.() || window.LIFE?.todayTop?.() || '',
+    affbig: () => affirmBlock() + (window.LIFE?.pinAffirm?.() || ''),
+    wx: () => wxStrip(),
+    find: () => `<button class="findbar" data-find>${I.search}<span>Search recipes, notes, pages, settings…</span></button>`,
+    quick: () => `<div class="quickacts">${QUICK.filter(q => q[2]()).map(([k, l]) => `<button class="chip" data-quick="${k}">${esc(l)}</button>`).join('')}</div>`
+  };
+  host.innerHTML = `<div class="story">${devOrder().filter(devVis).map(k => { try { return BLK[k]?.() || ''; } catch (err) { console.error(err); return ''; } }).join('')}</div>
     ${cards.length || devOff('tiles') ? '' : '<p class="muted">Every card is hidden. Tap Arrange Today at the bottom to bring some back.</p>'}
     <div class="dash">${cards.map(s => {
       const body = s.key === 'closet' ? closetTile() : window.LIFE?.tile(s.key) || `<p class="muted">Open ${esc(s.label)} to see what's there.</p>`;
       return `<section class="panel dtile"><div class="dhead"><button class="dtitle" data-gosec="${s.key}">${icon(s.icon)}<h2>${esc(s.label)}</h2></button><button class="chip link" data-gosec="${s.key}">Open</button></div>${body}</section>`;
     }).join('')}</div>
     <div class="ltools dashfoot"><button class="btn small" data-devtoday>📱 Vandaag op deze ${esc(deviceName())}</button><button class="btn small" data-dasharrange>Arrange Today</button>${window.LIFE ? '<button class="chip link" data-act="export">Back up all your lists</button>' : ''}</div>`;
-  packDash(host.querySelector('.dash'));
+  // with the new Today the tiles per section live behind the Overzicht tab
+  const dashEl = host.querySelector('.dash'), ovPane = host.querySelector('[data-dppane="ov"]');
+  if (dashEl && ovPane) dashEl.hidden = ovPane.hidden;
+  packDash(dashEl);
+  if (!window.__dpTabWired) { window.__dpTabWired = true; document.addEventListener('dptab', e => { const el = document.querySelector('#viewHost .dash, .dash'); if (!el) return; el.hidden = e.detail !== 'ov'; if (!el.hidden) packDash(el); }); }
   if (!host.dataset.wired) {
     host.dataset.wired = '1';
     host.addEventListener('click', e => {
       if (e.target.closest('[data-dasharrange]')) return arrangeDash();
       if (e.target.closest('[data-devtoday]')) return devTodaySheet();
+      if (e.target.closest('[data-affsheet]')) return affirmSheet();
       const d = e.target.closest('[data-overday], .wxday[data-day]'); if (d) return openDay(d.dataset.overday || d.dataset.day);
       const g = e.target.closest('[data-overgo]'); if (g) go(g.dataset.overgo);
-      if (e.target.closest('[data-wxnext]')) { S.wxPickN = (S.wxPickN || 0) + 1; render(); }
-      if (e.target.closest('[data-wxwear]')) { const wp = weatherPick(); if (!wp) return; const t = today(), cur = S.days[t] || {};
-        DB.put('days', t, { outfit: wp.outfit || null, items: wp.outfit ? cur.items || [] : [...new Set([...(cur.items || []), ...wp.ids])], note: cur.note || '', photos: cur.photos || [], place: cur.place || '' }).then(() => toast('Logged for today')).catch(err => saveErr(err, 'Could not log that. Try again.')); }
+      if (ofClick(e)) return;
       const q = e.target.closest('[data-quick]'); if (q) quickAction(q.dataset.quick);
       if (e.target.closest('[data-affnext]')) { S.affShift = (S.affShift || 0) + 1; render(); }
       if (e.target.closest('[data-afffav]')) { const a = affirmToday(S.affShift || 0), l = new Set(S.prefs.affirm?.fav || []); l.has(a) ? l.delete(a) : l.add(a); affirmSave({ fav: [...l] }); }
