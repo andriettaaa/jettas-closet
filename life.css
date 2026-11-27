@@ -1830,3 +1830,4 @@ details.room { border-top: 1px solid var(--line); padding: 10px 0; } details.roo
 .pcol { background: color-mix(in srgb, var(--ink) 5%, var(--surface)); border-radius: 14px; padding: 8px; display: grid; gap: 6px; align-content: start; }
 .pch { display: flex; justify-content: space-between; font-size: 13px; } .pch span { color: var(--muted); }
 .pcard { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px; display: grid; gap: 6px; } .pcard .lmain span { display: block; color: var(--muted); font-size: 12px; }
+.findrow.findquick { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }

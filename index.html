@@ -3394,18 +3394,23 @@ function openSearch(start = '') {
   let found = [];
   const draw = () => {
     const q = inp.value, words = norm(q).split(/\s+/).filter(Boolean);
-    if (!words.length) { found = []; res.innerHTML = '<p class="muted findhint">Type a word: a recipe, an ingredient, a note, a page or a setting. Every word has to match.</p>'; return; }
-    const pages = findPages(words), recs = window.LIFE?.search?.(q) || [];
-    found = [...pages, ...recs.map(r => ({ ...r, t: 'rec' }))];
+    const recent = (() => { try { return JSON.parse(localStorage.getItem('findRecent') || '[]'); } catch { return []; } })();
+    if (!words.length) { found = recent.slice(0, 8); res.innerHTML = (found.length ? `<h3 class="findh">Recent en vaak</h3><div class="findlist">${found.map((r, i) => `<button class="findrow" data-fi="${i}"><span class="findic">${icon(r.icon || SUN)}</span><span class="findtx"><b>${esc(r.title)}</b>${r.n > 1 ? `<span>${r.n}× geopend</span>` : ''}</span></button>`).join('')}</div>` : '') + '<p class="muted findhint">Zoek alles, of typ om snel iets toe te voegen: “melk op lijst” of “tandarts vrijdag 10:00”.</p>'; return; }
+    const qa = window.LIFE?.quickAdd?.(q), pages = findPages(words), recs = window.LIFE?.search?.(q) || [];
+    found = [...(qa ? [{ t: 'quick', title: qa.label, run: qa.run }] : []), ...pages, ...recs.map(r => ({ ...r, t: 'rec' }))];
+    const qaHTML = qa ? `<div class="findlist"><button class="findrow findquick" data-fi="0"><span class="findic">＋</span><span class="findtx"><b>${esc(qa.label)}</b><span>Enter of tik om toe te voegen</span></span></button></div>` : '', off = qa ? 1 : 0;
     const rowOf = (r, i) => `<button class="findrow" data-fi="${i}"><span class="findic">${icon(r.icon)}</span><span class="findtx"><b>${mark(r.title, words)}</b>${r.sub ? `<span>${r.label ? esc(r.label) + ': ' : ''}${mark(around(r.sub, words), words)}</span>` : ''}<small>${esc(r.where)}</small></span></button>`;
     const shown = 60, more = recs.length > shown ? `<p class="muted findhint">${recs.length - shown} more. Add a word to narrow it down.</p>` : '';
     res.innerHTML = !found.length ? `<p class="muted findhint">Nothing found for “${esc(q.trim())}”.</p>`
-      : (pages.length ? `<h3 class="findh">Pages and settings</h3><div class="findlist">${pages.map(rowOf).join('')}</div>` : '')
-      + (recs.length ? `<h3 class="findh">In your lists <span class="muted">${recs.length}</span></h3><div class="findlist">${recs.slice(0, shown).map((r, i) => rowOf(r, pages.length + i)).join('')}</div>${more}` : '');
+      : qaHTML + (pages.length ? `<h3 class="findh">Pages and settings</h3><div class="findlist">${pages.map((r, i) => rowOf(r, off + i)).join('')}</div>` : '')
+      + (recs.length ? `<h3 class="findh">In your lists <span class="muted">${recs.length}</span></h3><div class="findlist">${recs.slice(0, shown).map((r, i) => rowOf(r, off + pages.length + i)).join('')}</div>${more}` : '');
   };
   const pick = r => {
     if (!r) return;
     closeSheet();
+    if (r.t === 'quick') return r.run?.().then(() => render());
+    try { const l = JSON.parse(localStorage.getItem('findRecent') || '[]').filter(x => !(x.t === r.t && (x.id || x.v) === (r.id || r.v))), old = JSON.parse(localStorage.getItem('findRecent') || '[]').find(x => x.t === r.t && (x.id || x.v) === (r.id || r.v));
+      l.unshift({ t: r.t, v: r.v, id: r.id, sec: r.sec, title: r.title, icon: r.icon, n: (old?.n || 0) + 1 }); localStorage.setItem('findRecent', JSON.stringify(l.sort((a, b) => (b.n > 2) - (a.n > 2)).slice(0, 12))); } catch {}
     if (r.t === 'rec') return window.LIFE.openFound(r.id, go);
     if (r.t === 'page') return go(r.v);
     if (r.t === 'list') { SET.list = r.v; go(r.sec + '/settings'); requestAnimationFrame(() => requestAnimationFrame(() => openSpot('set-lists'))); return; }

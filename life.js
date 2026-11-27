@@ -7812,6 +7812,24 @@ function search(q) {
   }
   return out.sort((a, b) => a.score - b.score || a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
 }
+/* quick add from the search bar: "melk op lijst" puts milk on the shopping list, "tandarts vrijdag 10:00" goes in your agenda */
+const QDAYS = { maandag: 1, ma: 1, dinsdag: 2, di: 2, woensdag: 3, wo: 3, donderdag: 4, do: 4, vrijdag: 5, vr: 5, zaterdag: 6, za: 6, zondag: 0, zo: 0 };
+function quickAdd(q) {
+  const t = String(q || '').trim(); if (t.length < 3) return null;
+  let m = t.match(/^(.+?)\s+op\s+(?:de\s+|mijn\s+)?(?:boodschappen)?lijst(?:je)?$/i);
+  if (m) { const name = m[1].trim().replace(/^./, c => c.toUpperCase()), hit = recs('ingredients').find(i => norm(i.name) === norm(name));
+    return { label: `🛒 ${name} op je boodschappenlijst`, run: async () => { if (hit) await save(hit, { list: true }); else await create('ingredients', { name, list: true }); C.toast(`🛒 ${name} staat op je lijst`); } }; }
+  const words = t.split(/\s+/); let date = '', time = '', rest = [];
+  for (const w of words) { const lw = w.toLowerCase().replace(/[.,]$/, '');
+    if (!date && lw === 'vandaag') date = today(); else if (!date && lw === 'morgen') date = addDays(today(), 1); else if (!date && lw === 'overmorgen') date = addDays(today(), 2);
+    else if (!date && lw in QDAYS) { const now = fromISO(today()).getDay(); let n = (QDAYS[lw] - now + 7) % 7; if (!n) n = 7; date = addDays(today(), n); }
+    else if (!date && /^\d{1,2}[-/]\d{1,2}$/.test(lw)) { const [dd, mm] = lw.split(/[-/]/).map(Number), y = Number(today().slice(0, 4)); let d = `${y}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`; if (d < today()) d = `${y + 1}${d.slice(4)}`; date = d; }
+    else if (!time && /^\d{1,2}([:.]\d{2})?(u|uur)?$/.test(lw) && (lw.includes(':') || lw.includes('.') || /u/.test(lw))) { const [h, mi] = lw.replace(/u(ur)?$/, '').split(/[:.]/); time = `${String(Number(h)).padStart(2, '0')}:${(mi || '00').padStart(2, '0')}`; }
+    else if (!['om', 'op', 'in', 'de', 'het'].includes(lw) || rest.length) rest.push(w); }
+  if (date && rest.length) { const name = rest.join(' ').replace(/\s+(om|op)$/i, '').replace(/^./, c => c.toUpperCase());
+    return { label: `📅 ${name} op ${niceDate(date)}${time ? ' om ' + time : ''} in je agenda`, run: async () => { await create('calnote', { name, date, time }); C.toast(`📅 ${name} staat in je agenda`); } }; }
+  return null;
+}
 // opens a search result where it lives: its page, on the right tab, with its editor on top
 function openFound(id, go) {
   const r = L.byId[id]; if (!r) return;
@@ -10749,6 +10767,7 @@ return {
   // Today as one story: the greeting gets the ring, the day comes without its own header
   dayStory: () => { try { return C ? dayPlanHTML(false, 'rest') : ''; } catch (e) { console.error(e); return ''; } },
   cycleChip: () => { try { if (!C || !recs('cycles').length) return ''; const cy = cycleStats(); if (!cy?.day) return ''; const ph = cyclePhase(cy.day), t = PHASE_TIPS[ph]; return t ? `<button type="button" class="stchip" data-overgo="care/cycle"><span>${t[0]}</span><em>Dag ${cy.day} · ${esc(PHASE_COACH[ph]?.nl || ph)}</em></button>` : ''; } catch { return ''; } },
+  quickAdd: q => { try { return C ? quickAdd(q) : null; } catch { return null; } },
   dayNow: () => { try { return C ? dayPlanHTML(false, 'now') : ''; } catch (e) { console.error(e); return ''; } },
   moneyChip: () => { try { if (!C || !recs('faccounts').length) return ''; const st = fState(); return `<button type="button" class="stchip money" data-overgo="money/today"><span>💶</span>${moneyHidden() ? '€•••' : (st.perDay < 0 ? '−' : '') + eur(Math.abs(st.perDay))} vandaag</button>`; } catch { return ''; } },
   dayStats: () => { try { return C ? dayStats() : null; } catch { return null; } },
