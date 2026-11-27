@@ -3391,6 +3391,14 @@ function mixHero(key) {
   return '';
 }
 document.addEventListener('click', async e => { const b = e.target.closest('[data-mixchore]'); if (!b) return; const r = L.byId[b.dataset.mixchore]; if (!r) return; await save(r, { last: today() }); C.toast('✨ ' + (r.name || 'Klusje') + ' gedaan'); C.render(); });
+// balance per day as four dots, no calories: vegetables, protein, fibre and fruit (roughly, from your food check and what you ate)
+function balanceHTML(d = today()) {
+  const nl = nlOn(d) || {}, veg = num(nl.veg) || 0, fruit = num(nl.fruit) || 0, meals = recs('meals').filter(m => m.date === d && !m.away), rs = meals.map(m => m.recipe && L.byId[m.recipe]).filter(Boolean);
+  const prot = rs.some(r => r.protein || /eiwit|protein/i.test([].concat(r.good || []).join(' '))) ? 1 : [].concat(nl.meals || []).length >= 2 ? .5 : 0;
+  const fib = Math.min(1, (veg >= 200 ? .5 : veg >= 100 ? .25 : 0) + (fruit >= 1 ? .25 : 0) + (rs.some(r => /vezel|fib/i.test([].concat(r.good || []).join(' '))) ? .5 : 0));
+  const dots = [['🥦', 'Groente', Math.min(1, veg / 250), `${veg} van 250 g`], ['🍗', 'Eiwit', prot, prot >= 1 ? 'in je maaltijd' : 'nog niet'], ['🌾', 'Vezels', fib, fib >= 1 ? 'goed' : 'kan meer'], ['🍎', 'Fruit', Math.min(1, fruit / 2), `${fruit} van 2 stuks`]];
+  return `<div class="balance" title="Ongeveer, zonder calorieën">${dots.map(([e, l, v, t]) => `<div class="bdot"><span class="ring" style="--p:${Math.round(v * 100)}%"><b>${e}</b></span><small><b>${l}</b>${esc(t)}</small></div>`).join('')}</div>`;
+}
 const withHero = (key, html) => html.replace(/(<div class="viewhead">[\s\S]*?<\/div>)/, `$1${mixHero(key)}`);
 function kitchenToday(host) {
   setTimeout(stapleRestock, 0);
@@ -3403,7 +3411,7 @@ function kitchenToday(host) {
   const pick = shuffle(ready.length >= 3 ? ready : rs).slice(0, 4);
   const dp = curPlan(), dn = liveOffers().length;
   const toReview = recs('meals').filter(m => m.recipe && L.byId[m.recipe] && m.date < t && m.date >= addDays(t, -7) && !recs('rreviews').some(v => v.recipe === m.recipe && v.date >= m.date)).sort((a, b) => b.date.localeCompare(a.date)).filter((m, i, a) => a.findIndex(x => x.recipe === m.recipe) === i).slice(0, 4);
-  host.innerHTML = `${head('Kitchen')}${mixHero('kitchen')}
+  host.innerHTML = `${head('Kitchen')}${mixHero('kitchen')}<p class="dsub">Balans vandaag</p>${balanceHTML()}
   <div class="panels">
     ${(() => { const soon = recs('ingredients').filter(useSoon).sort((a, b) => a.expires.localeCompare(b.expires)); if (!soon.length) return ''; const ids = new Set(soon.map(x => x.id)), use = rs.filter(r => (r.ingredients || []).some(id => ids.has(id))).sort((a, b) => (b.ingredients || []).filter(id => ids.has(id)).length - (a.ingredients || []).filter(id => ids.has(id)).length).slice(0, 4);
       return panel('Use soon', `<div class="lrows">${soon.slice(0, 6).map(x => `<div class="lrow"><button class="lmain" data-act="open" data-id="${x.id}"><b>${esc(x.name)}</b><span>${x.expires < t ? 'past its date' : x.expires === t ? 'best before today' : 'best before ' + esc(relDay(x.expires))}</span></button></div>`).join('')}</div>${use.length ? `<p class="dsub">Recipes that use them</p><div class="lwrap">${use.map(r => `<button class="chip" data-act="open" data-id="${r.id}">${esc(r.name)}</button>`).join('')}</div>` : ''}`, ['kitchen/pantry', 'Pantry']); })()}
