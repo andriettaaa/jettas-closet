@@ -7914,6 +7914,125 @@ function timelineHTML() {
   return `<details class="tline" ${L.tlOpen ? 'open' : ''} data-tlopen><summary><b>Je dag</b><span class="lnone">${esc(items[Math.max(0, nextIdx)]?.label ? 'Hierna: ' + hm(items[Math.max(0, nextIdx)].min) + ' ' + items[Math.max(0, nextIdx)].label : 'Bijna bedtijd')}</span></summary><ol>${items.map((x, i) => { const done = x.done ?? ticks.has(x.key); return `<li class="${done ? 'done' : ''} ${i === nextIdx ? 'next' : ''} ${x.min < now && !done ? 'past' : ''}"><time>${hm(x.min)}</time><button class="tlck" data-act="tl" data-v="${x.key}" ${x.nl ? `data-nl="${x.nl}"` : ''} ${x.nlk ? `data-nlk="${x.nlk}"` : ''} aria-pressed="${!!done}" aria-label="Klaar: ${esc(x.label)}">${done ? svg(P.check) : ''}</button><span><b>${esc(x.label)}</b>${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</span>${x.go ? `<button class="chip link" data-act="go" data-v="${x.go}">Open</button>` : ''}</li>`; }).join('')}</ol></details>`;
 }
 document.addEventListener('toggle', e => { if (e.target.matches?.('[data-tlopen]')) L.tlOpen = e.target.open; }, true);
+/* ---------- Today: your day per part of the day, everything to tick in one place ----------
+   Morning runs from your alarm to 12:00, midday to 18:00, evening to your bedtime (Life › Settings). A tap opens the
+   choices: done, something else, skipped or later (another time today, tomorrow or a day you pick). Skips and moved
+   times live in prefs.dayplan, per day; things with their own date (a task, a workout) move to that date. */
+const DP_PARTS = [['morning', '☀️', 'Ochtend'], ['midday', '🌤', 'Middag'], ['evening', '🌙', 'Avond']];
+const dpState = d => (C?.prefs?.().dayplan || {})[d] || {};
+async function dpSave(d, patch) {
+  const all = { ...(C.prefs().dayplan || {}) }, keep = addDays(today(), -3);
+  for (const k of Object.keys(all)) if (k < keep) delete all[k];
+  all[d] = { ...(all[d] || {}), ...patch };
+  try { await C.savePrefs({ dayplan: all }); } catch { C.toast('Opslaan lukte niet. Probeer het opnieuw.'); }
+}
+const dpPart = (min, d = today()) => min == null ? null : min < 12 * 60 ? 'morning' : min < 18 * 60 ? 'midday' : 'evening';
+const nowMin = () => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); };
+function dayPlan(d = today()) {
+  const t = dayType(d), w = wakeOn(d), bed = bedOn(d), st = dpState(d), skip = new Set(st.skip || []), at = st.at || {};
+  const nl = nlOn(d) || {}, eaten = new Set([].concat(nl.meals || [])), out = [];
+  const meals = recs('meals').filter(m => m.date === d), mealOf = sl => meals.find(m => m.slot === sl && !m.away), away = meals.some(m => m.slot === 'Dinner' && m.away);
+  const mealName = sl => { const m = mealOf(sl); return m ? relName(m.recipe) || m.what || '' : ''; };
+  const add = x => { const min = at[x.key] != null ? at[x.key] : x.min; out.push({ ...x, min, moved: at[x.key] != null, skipped: skip.has(x.key) }); };
+  // meals
+  const lunchAt = t === 'weekend' ? 13 * 60 : 12 * 60 + 30;
+  add({ key: 'meal:Breakfast', min: w + 30, label: 'Ontbijt', sub: mealName('Breakfast'), done: eaten.has('Breakfast'), type: 'meal', slot: 'Breakfast', act: () => nlToggle('Breakfast') });
+  add({ key: 'meal:Lunch', min: lunchAt, label: 'Lunch', sub: mealName('Lunch') || (t === 'office' ? 'Meegenomen lunch' : ''), done: eaten.has('Lunch'), type: 'meal', slot: 'Lunch', act: () => nlToggle('Lunch') });
+  add({ key: 'meal:snack', min: 15 * 60 + 30, label: 'Tussendoortje', sub: 'Iets hartigs en voedzaams', done: !!nl.snack, type: 'meal', slot: 'Snack', act: () => nlToggle('snack') });
+  if (!away) add({ key: 'meal:Dinner', min: 18 * 60 + 30, label: 'Avondeten', sub: mealName('Dinner'), done: eaten.has('Dinner'), type: 'meal', slot: 'Dinner', act: () => nlToggle('Dinner') });
+  // supplements, per time of day
+  const taken = recs('suplog').filter(l => l.date === d), supAt = { AM: w + 35, Midday: lunchAt, PM: bed - 45 }, supSub = { AM: 'ochtend', Midday: 'bij de lunch', PM: 'avond' };
+  for (const sp of recs('supplements').filter(x => !x.finished)) for (const tm of [].concat(sp.times?.length ? sp.times : ['AM'])) {
+    add({ key: `sup:${sp.id}:${tm}`, min: supAt[tm] ?? w + 35, label: sp.name || 'Supplement', sub: supSub[tm] || '', done: taken.some(l => l.supplement === sp.id && (l.time || 'AM') === tm), type: 'sup', rec: sp, act: () => toggleSupp(sp.id, tm) });
+  }
+  // routines: one line per routine, its steps in the sheet
+  for (const [k, min, label] of [['Morning', w + 15, 'Ochtendroutine'], ['Evening', bed - 40, 'Avondroutine']]) {
+    const steps = recs('routines').filter(r => r.routine === k && onDay(r, d)); if (!steps.length) continue;
+    const n = steps.filter(routineDone).length;
+    add({ key: 'routine:' + k, min, label, sub: `${n} van ${steps.length}`, done: n === steps.length, type: 'routine', steps, act: async () => { const open = steps.filter(r => !routineDone(r)); for (const r of open.length ? open : steps) await toggleDay(r); } });
+  }
+  // appointments and the planned workout have a time of their own
+  for (const a of recs('appts').filter(a => a.date === d)) add({ key: 'rec:' + a.id, min: hmToMin(a.time), label: a.what || a.type || 'Afspraak', sub: a.where || a.location || 'afspraak', done: !!a.done, type: 'rec', rec: a, move: nd => save(a, { date: nd }) });
+  for (const wo of recs('workouts').filter(x => x.date === d && !x.skipped)) add({ key: 'rec:' + wo.id, min: hmToMin(wo.time) ?? (t === 'weekend' ? 11 * 60 : toMin(DAYCFG().workEnd) + 45), label: wo.name || wo.type || 'Workout', sub: 'workout', done: !!wo.done, type: 'rec', rec: wo, move: nd => save(wo, { date: nd }) });
+  // the rest has no set time: tasks, chores, plants, habits, posts, bills and water
+  for (const k of recs('tasks').filter(k => k.date && (k.date < d ? !['Done', 'Dropped'].includes(k.status) : k.date === d) && k.status !== 'Dropped')) add({ key: 'rec:' + k.id, min: hmToMin(k.time), label: k.name || 'Taak', sub: k.date < d ? 'te laat' : 'taak', late: k.date < d, done: k.status === 'Done', type: 'rec', rec: k, move: nd => save(k, { date: nd }) });
+  for (const c of recs('chores').filter(c => c.last === d || choreDue(c) <= d)) add({ key: 'rec:' + c.id, min: null, label: c.name || 'Klusje', sub: choreLate(c) && c.last !== d ? 'ligt er al even' : 'klusje', late: choreLate(c) && c.last !== d, done: c.last === d, type: 'rec', rec: c, move: nd => save(c, { last: addDays(nd, -(FREQ[c.freq] || 7)) }) });
+  for (const pl of recs('plants').filter(p => p.last === d || (plantDue(p) && plantDue(p) <= d))) add({ key: 'rec:' + pl.id, min: null, label: 'Water geven: ' + (pl.name || 'plant'), sub: 'plant', done: pl.last === d, type: 'rec', rec: pl });
+  for (const h of recs('habits').filter(h => !h.paused && onDay(h, d))) add({ key: 'rec:' + h.id, min: null, label: h.name || 'Gewoonte', sub: 'gewoonte', done: daysSet(h).has(d), type: 'habit', rec: h, act: () => toggleDay(h, d) });
+  for (const p of recs('posts').filter(p => p.date === d && p.stage !== 'Posted')) add({ key: 'rec:' + p.id, min: hmToMin(p.time), label: 'Posten: ' + (p.name || p.brand || 'content'), sub: [].concat(p.platforms || []).join(' + ') || 'content', done: false, type: 'rec', rec: p, move: nd => save(p, { date: nd }) });
+  try { for (const o of fOccs(d, d)) add({ key: 'bill:' + o.key, min: null, label: 'Betalen: ' + (o.bill.name || 'rekening'), sub: eur(o.amount), done: !!o.paid, type: 'bill', go: 'money/repeats', act: () => o.paid ? null : fPayOcc(o) }); } catch {}
+  const wgoal = Number(C?.prefs?.().waterGoal) || 8, wn = waterOn(d)?.glasses || 0;
+  add({ key: 'water', min: null, label: 'Water', sub: `${wn} van ${wgoal} glazen`, done: wn >= wgoal, type: 'water' });
+  return out.sort((a, b) => (a.min ?? 1e4) - (b.min ?? 1e4) || norm(a.label).localeCompare(norm(b.label)));
+}
+const dpRow = (x, now) => `<button type="button" class="dpi ${x.done ? 'on' : ''} ${x.skipped ? 'skip' : ''} ${(x.late || (x.min != null && x.min < now - 30)) && !x.done && !x.skipped ? 'late' : ''}" data-dp="${esc(x.key)}"><span class="bx" aria-hidden="true"></span><b>${esc(x.label)}</b><small>${esc([x.min != null ? hm(x.min) : '', x.skipped ? 'overgeslagen' : x.sub].filter(Boolean).join(' · '))}</small></button>`;
+function dayPlanHTML() {
+  if (!C) return '';
+  const d = today(), now = nowMin(), items = dayPlan(d), cur = dpPart(now), open = items.filter(x => !x.done && !x.skipped), done = items.filter(x => x.done || x.skipped);
+  L.dpMap = Object.fromEntries(items.map(x => [x.key, x]));
+  const timed = open.filter(x => x.min != null), loose = open.filter(x => x.min == null), cs = cleanStats();
+  const part = ([k, ic, label]) => {
+    const l = timed.filter(x => dpPart(x.min) === k), isNow = k === cur, past = DP_PARTS.findIndex(p => p[0] === k) < DP_PARTS.findIndex(p => p[0] === cur);
+    let rows = ''; let marked = false;
+    for (const x of l) { if (isNow && !marked && x.min > now) { rows += `<div class="dpnow">Nu ${hm(now)}</div>`; marked = true; } rows += dpRow(x, now); }
+    if (isNow && !marked) rows += `<div class="dpnow">Nu ${hm(now)}</div>`;
+    return `<details class="dppart ${isNow ? 'now' : ''}" ${isNow || (past && l.length) ? 'open' : ''}><summary><span>${ic} ${label}</span><i>${l.length ? `${l.length} open` : isNow ? 'nu' : past ? 'klaar' : ''}</i></summary>${rows || '<p class="lnone">Niets meer.</p>'}</details>`;
+  };
+  return `<section class="panel dplan"><div class="lph3"><h3>Vandaag</h3><span class="muted">${open.length ? `${open.length} open` : 'Alles gedaan 🎉'}</span>${cs.start ? '<button class="btn small" data-act="crave">Ik heb trek</button>' : ''}</div>
+    ${DP_PARTS.map(part).join('')}
+    ${loose.length ? `<div class="dploose"><p class="dsub">Vandaag, geen vaste tijd</p>${loose.map(x => dpRow(x, now)).join('')}</div>` : ''}
+    ${done.length ? `<details class="dpdone"><summary><span>✓ Gedaan</span><i>${done.length}</i></summary>${done.map(x => dpRow(x, now)).join('')}</details>` : ''}
+  </section>`;
+}
+// the sheet behind a tap: done, something else, skipped, later
+function dpSheet(key) {
+  const x = L.dpMap?.[key]; if (!x) return;
+  const d = today(), now = nowMin(), doneLabel = { meal: 'Gegeten', sup: 'Ingenomen', routine: 'Alles gedaan', bill: 'Betaald' }[x.type] || 'Gedaan';
+  const hours = [...new Set([now + 60, ...[15, 17, 20, 21].map(h => h * 60)].map(m => Math.ceil(m / 30) * 30))].filter(m => m > now && m < 24 * 60).sort((a, b) => a - b).slice(0, 4);
+  const other = x.type === 'meal' ? '<button class="btn" data-dpother>Iets anders gegeten</button>' : x.rec ? '<button class="btn" data-dpopen>Openen</button>' : x.go ? '<button class="btn" data-dpgo>Openen</button>' : '';
+  const steps = x.type === 'routine' ? `<div class="lwrap dpsteps">${x.steps.map(r => tick(r.name, routineDone(r), `data-dpstep="${r.id}"`)).join('')}</div>` : '';
+  const water = x.type === 'water' ? `<div class="lwater small"><button class="iconbtn small" data-dpwater="-1" aria-label="Eén glas minder">${svg(P.minus)}</button><div class="lwv"><b>${waterOn(d)?.glasses || 0}</b><span>${esc(x.sub)}</span></div><button class="iconbtn small lplus" data-dpwater="1" aria-label="Nog een glas">${svg(P.plus)}</button></div>` : '';
+  const sh = C.sheet({ title: x.label, body: `<p class="lnone">${esc([x.min != null ? hm(x.min) : 'geen vaste tijd', x.skipped ? 'overgeslagen' : x.sub].filter(Boolean).join(' · '))}</p>${steps}${water}
+    <div class="dpbar">${x.type === 'water' ? '' : x.done ? '<button class="btn" data-dpundo>Toch niet gedaan</button>' : `<button class="btn primary" data-dpdone>✓ ${doneLabel}</button>`}${other}${x.skipped ? '<button class="btn" data-dpunskip>Toch niet overslaan</button>' : x.done ? '' : '<button class="btn" data-dpskip>Overgeslagen</button>'}${x.done ? '' : '<button class="btn" data-dplater>Later ▾</button>'}</div>
+    <div class="dplater" hidden><div class="lwrap">${hours.map(m => `<button class="chip" data-dpat="${m}">${hm(m)}</button>`).join('')}<button class="chip" data-dpday="${addDays(d, 1)}">Morgen</button></div><label class="lfield"><span>Kies een dag</span><input class="finp" type="date" data-dppick min="${addDays(d, 1)}"></label></div>` });
+  const close = msg => { C.closeSheet(); if (msg) C.toast(msg); C.render(); };
+  const toDay = async nd => {
+    if (x.move) { try { await x.move(nd); } catch (e) { failed(e); return; } close(`Verplaatst naar ${nd === addDays(d, 1) ? 'morgen' : fromISO(nd).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'short' })}`); }
+    else { await dpSave(d, { skip: [...new Set([...(dpState(d).skip || []), key])] }); close(nd === addDays(d, 1) ? 'Voor vandaag weg. Morgen staat hij er weer.' : 'Voor vandaag weg.'); }
+  };
+  sh.addEventListener('click', async e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.hasAttribute('data-dpdone') || b.hasAttribute('data-dpundo')) { try { if (x.act) await x.act(); else { const q = KINDS[x.rec?.kind]?.quick?.(x.rec); if (q) await q.act(); } } catch (err) { failed(err); } close(b.hasAttribute('data-dpdone') ? `✓ ${x.label}` : ''); }
+    else if (b.hasAttribute('data-dpskip')) { await dpSave(d, { skip: [...new Set([...(dpState(d).skip || []), key])] }); close('Overgeslagen'); }
+    else if (b.hasAttribute('data-dpunskip')) { await dpSave(d, { skip: (dpState(d).skip || []).filter(k => k !== key) }); close(''); }
+    else if (b.hasAttribute('data-dplater')) { sh.querySelector('.dplater').hidden = !sh.querySelector('.dplater').hidden; }
+    else if (b.dataset.dpat) { await dpSave(d, { at: { ...(dpState(d).at || {}), [key]: Number(b.dataset.dpat) } }); close(`Verzet naar ${hm(Number(b.dataset.dpat))}`); }
+    else if (b.dataset.dpday) await toDay(b.dataset.dpday);
+    else if (b.hasAttribute('data-dpopen')) { C.closeSheet(); openRecord(x.rec.id); }
+    else if (b.hasAttribute('data-dpgo')) { C.closeSheet(); C.go(x.go); }
+    else if (b.hasAttribute('data-dpother')) { C.closeSheet(); const m = recs('meals').find(m => m.date === d && m.slot === x.slot); m ? openEditor('meals', m.id) : openEditor('meals', null, { date: d, slot: x.slot }); if (!x.done) x.act?.(); }
+    else if (b.dataset.dpstep) { const r = L.byId[b.dataset.dpstep]; if (r) { await toggleDay(r); b.classList.toggle('on'); b.setAttribute('aria-pressed', b.classList.contains('on')); } }
+    else if (b.dataset.dpwater) { await water(Number(b.dataset.dpwater)); const v = sh.querySelector('.lwv b'); if (v) v.textContent = waterOn(d)?.glasses || 0; }
+  });
+  sh.addEventListener('change', e => { if (e.target.matches('[data-dppick]') && e.target.value) toDay(e.target.value); });
+}
+document.addEventListener('click', e => { const b = e.target.closest?.('[data-dp]'); if (!b || !C || b.closest('.sheet')) return; dpSheet(b.dataset.dp); });
+// what is still open on the To do pages of every tab, so nothing gets lost between the tabs
+const HUB_LABEL = { money: '💶 Finance', kitchen: '🍳 Kitchen', home: '🏠 Home', social: '📱 Social', wish: '💝 Wishlists', body: '💪 Body', care: '🧘 Mind', fit: '🏋️ Train', plan: '🎯 Life' };
+function todoHub() {
+  if (!C) return '';
+  const seen = new Set(), rows = [];
+  for (const [sec, cfg] of Object.entries(TODO)) {
+    let n = 0;
+    for (const [kind, c] of Object.entries(cfg)) for (const r of recs(kind)) { if (seen.has(r.id) || (c.when && !c.when(r)) || !c.checks.some(x => x[2](r))) continue; seen.add(r.id); n++; }
+    if (n) rows.push([sec, n]);
+  }
+  const ib = inboxOpen().length; if (ib) rows.unshift(['inbox', ib]);
+  const total = rows.reduce((a, [, n]) => a + n, 0);
+  if (!total) return '';
+  return `<section class="panel hub"><div class="lph3"><h3>Nog na te lopen</h3><span class="muted">${total}</span></div><div class="lrows">${rows.sort((a, b) => b[1] - a[1]).map(([sec, n]) => `<button class="lrow hubrow" data-act="go" data-v="${sec === 'inbox' ? 'wish/inbox' : sec + '/todo'}"><span class="lmain"><b>${esc(sec === 'inbox' ? '📥 Inbox' : HUB_LABEL[sec] || sec)}</b><span>${sec === 'inbox' ? 'gedeelde links om te checken' : 'dingen die nog iets missen'}</span></span><span class="hubn">${n}</span></button>`).join('')}</div></section>`;
+}
+
 // the In season panel on Recipes stays folded unless you open it; the choice is kept on this device
 document.addEventListener('toggle', e => { if (e.target.matches?.('[data-seasonbox]')) { try { localStorage.setItem('seasonOpen', e.target.open ? '1' : '0'); } catch {} } }, true);
 // three things that matter today: deadlines first, then your goals, then the house; your own pin always first
@@ -7935,15 +8054,12 @@ function top3() {
 }
 function todayTop() {
   if (!C) return '';
-  const it = intentNow(), cs = cleanStats(), list = top3();
-  let pin = ''; try { pin = localStorage.getItem('top3:' + today()) || ''; } catch {}
+  const it = intentNow();
   return `<div class="ttop">
     ${it?.text ? `<p class="tintent"><span>Focus deze week</span><b>${esc(it.text)}</b></p>` : ''}
     ${pnAffirmHTML()}
-    <section class="panel ttop3"><div class="lph3"><h3>Top 3 voor vandaag</h3>${cs.start ? `<button class="btn small" data-act="crave">Ik heb trek</button>` : ''}</div>
-      <ol class="t3">${list.map(x => `<li><span><b>${esc(x.label)}</b><small>${esc(x.sub || '')}</small></span>${x.go ? `<button class="chip link" data-act="go" data-v="${x.go}">Open</button>` : ''}</li>`).join('') || '<li><span><b>Niets dringends</b><small>Kies zelf iets hieronder</small></span></li>'}</ol>
-      <input class="finp" data-top3pin placeholder="Mijn eigen belangrijkste ding vandaag" value="${esc(pin)}" aria-label="Eigen top 1"></section>
-    ${timelineHTML()}
+    ${dayPlanHTML()}
+    ${todoHub()}
     ${calStrip()}
   </div>`;
 }
