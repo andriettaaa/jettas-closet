@@ -118,3 +118,7 @@ Forms fit on one screen, are visual (emoji, tiles, photos, swatches) and keep ex
 - **Kitchen (a meal)**: plate (tap what is on it, the plate colours in), from the pantry (photo tiles), photo first.
 - **Closet (a piece)**: big photo with colour swatches and chips, link first (shop link fills photo, brand, price), steps (one question per screen).
 - **Mind (a check-in)**: faces with an energy slider, three questions one per screen, a journal card in the mood colour; plus voice: speak and the app types what she says.
+- **Finance, more**: Apple Pay style card (swipe for the account), split and share (who owes her), "Can I afford it?" (the pot before buying). All six versions switchable.
+- **Home (a chore)**: room picture (room, then chore), timer that logs minutes, checklist of small steps.
+- **Train (a workout)**: workout card, live sets with a rest timer, from a saved video; the review must be richer than emoji alone.
+- **Social (a post)**: post card, quick idea (also by voice), planner (drop on a day); Social gets its own deeper round.
