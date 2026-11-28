@@ -166,3 +166,19 @@ Think as a personal finance coach and a home organiser: every purchase can becom
 - Bills have an emoji each. Bill groups are: Home, Health & insurance, Phone & internet, Transport, Debt, Music & streaming, Apps & cloud, Sport.
 - A gentle card when she pays for more than one music service, with what one less saves a year (she can hide it).
 - Today: routine steps in a logical order, no tile for something a routine already holds, no duplicate tiles; the coming-week strip is gone. Empty bill jars show "✓ Paid", red only when over budget.
+
+## Tab names (Nov 2026)
+- Every section starts with Today and ends with Stats. A tab and the page it opens have the same name.
+- Closet: Closet, Closet wishes, Outfits, Outfit diary, Travel outfits, Closet stats.
+- Life: Plans becomes Life admin. Wishlist › All wishes (was Master wishlist). Mind › Growth › Goals, Journal › Writing, Vision › Vision board. Body › Train › Plan (was Today). Health › Smoke-free (was Clean).
+- Finance: Loyalty cards (tab and title), Review › Months (was Reviews), Fixed costs (title too), Insurance moves under Spending.
+- Kitchen: Food log, Deals. Home: Cleaning, Moving.
+- Social: Tasks (was Work), Results (was Growth), Create › Planning (was Calendar).
+
+## Online orders (Nov 2026)
+- Add an order four ways: a screenshot of the order confirmation, from a purchase in the bank or a receipt ("Track it?"), by sharing the order mail with the "Naar A’s Life" shortcut, or by typing one line.
+- Reading: the phone reads the text right away (free, in the browser); the night round completes the rest (photos of items).
+- When an order looks like one she already has (shop, date within 2 days, amount or order number), the app asks: Add to that order or It's a new one.
+- Order card: shop, order number, a status line (Ordered, Shipped, Today, Delivered), items with price and size, expected day with track link, and the return-by date from the shop's own return period.
+- After delivery: Keep or Return per item. Keep goes into the closet (new, not worn yet); Return goes on the return list with a reminder and the refund is matched.
+- Notifications on the delivery day and 2 days before the return date.

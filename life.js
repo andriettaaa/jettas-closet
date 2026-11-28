@@ -1434,15 +1434,15 @@ const KINDS = {
   },
   orders: {
     one: 'order', many: 'Online orders', facet: 'status', photo: 'photo',
-    fields: [F('name', 'What'), F('shop', 'Shop', 'text', { half: 1 }), F('price', 'Price', 'money', { half: 1 }),
+    fields: [F('name', 'What'), F('shop', 'Shop', 'text', { half: 1 }), F('price', 'Price', 'money', { half: 1 }), F('orderNo', 'Order number', 'text', { half: 1 }),
       F('status', 'Status', 'select', { options: ORDER_STATUS, half: 1 }), F('ordered', 'Ordered on', 'date', { half: 1 }),
       F('expected', 'Expected', 'date', { half: 1 }), F('received', 'Received on', 'date', { half: 1 }), F('returnBy', 'Return by', 'date', { half: 1 }),
-      F('track', 'Track and trace', 'url'), F('url', 'Product link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
+      F('track', 'Track and trace', 'url'), F('url', 'Product link', 'url'), F('items', 'Items (one per line: name, price, size)', 'long', { rows: 4 }), F('photo', 'Photo', 'photo'), F('shot', 'Screenshot or receipt', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['expected', 'Arrives first'], ['-ordered', 'Newest'], ['returnBy', 'Return first']],
     hide: r => ['Kept', 'Returned'].includes(r.status), hideLabel: 'Show kept and returned',
     sub: r => [r.shop, r.status, eur(num(r.price)), !r.received && r.expected ? 'arrives ' + relDay(r.expected) : ''].filter(Boolean).join(' · '),
     side: r => r.status === 'Delivered' && r.returnBy ? (r.returnBy < today() ? 'return period over' : 'return by ' + shortDate(r.returnBy)) : r.status === 'Returning' && r.returnBy ? 'send by ' + shortDate(r.returnBy) : '',
-    quick: r => ['Kept', 'Returned'].includes(r.status) ? null : r.status === 'Delivered' ? ({ on: false, label: 'Keep', act: () => save(r, { status: 'Kept' }) }) : ({ on: false, label: 'Received', act: () => save(r, { status: 'Delivered', received: today(), returnBy: r.returnBy || addDays(today(), 14) }) })
+    quick: r => ['Kept', 'Returned'].includes(r.status) ? null : r.status === 'Delivered' ? ({ on: false, label: 'Keep', act: () => save(r, { status: 'Kept' }) }) : ({ on: false, label: 'Received', act: () => save(r, { ...(r.returnBy ? {} : { returnBy: addDays(today(), returnDays(r.shop)) }), status: 'Delivered', received: today(), returnBy: r.returnBy || addDays(today(), 14) }) })
   },
   vision: {
     one: 'dream', many: 'Vision board', facet: 'area', photo: 'photo', display: 'cards',
@@ -1717,7 +1717,7 @@ const SECTIONS = [
       ['body/today', 'Overview', P.grid, 'body'],
       ['care/sleep', 'Sleep', P.moon, 'body', 'health'], ['care/health', 'Health', P.pill, 'body', 'health'], ['care/cycle', 'Cycle', P.moon, 'body', 'health'], ['care/supplements', 'Supplements', P.pill, 'body', 'health'], ['body/clean', 'Clean', P.leaf, 'body', 'health'],
       ['fit/routine', 'Routine', P.list, 'body', 'train'], ['fit/log', 'Logbook', P.pen, 'body', 'train'], ['fit/workouts', 'Workouts', P.run, 'body', 'train'], ['fit/library', 'Videos', P.star, 'body', 'train'], ['fit/plans', 'Plans', P.list, 'body', 'train'], ['fit/exercises', 'Exercises', P.dumbbell, 'body', 'train'], ['fit/fgoals', 'Goals', P.target, 'body', 'train'], ['fit/body', 'Body', P.scale, 'body', 'train'], ['fit/stats', 'Analysis', P.trend, 'body', 'train'], ['fit/res', 'Resources', P.book, 'body', 'train'], ['fit/gear', 'Gear', P.box, 'body', 'train'],
-      ['care/beauty', 'Products', P.drop, 'body', 'beauty'], ['care/skin', 'Skincare', P.flask, 'body', 'beauty'], ['care/skinmonth', 'Month', P.calendar, 'body', 'beauty'], ['care/skinstats', 'Skin analysis', P.trend, 'body', 'beauty'], ['care/skinres', 'Resources', P.book, 'body', 'beauty'], ['care/hair', 'Hair', P.drop, 'body', 'beauty'], ['care/nails', 'Nails', P.sparkle, 'body', 'beauty'], ['care/perfume', 'Perfume', P.star, 'body', 'beauty'], ['care/diary', 'Skin diary', P.camera, 'body', 'beauty'], ['care/bdeals', 'Deals', P.tag, 'body', 'beauty'], ['body/stats', 'Analysis', P.trend, 'body'],
+      ['care/beauty', 'Products', P.drop, 'body', 'beauty'], ['care/skin', 'Skincare', P.flask, 'body', 'beauty'], ['care/skinmonth', 'Month', P.calendar, 'body', 'beauty'], ['care/skinstats', 'Skin stats', P.trend, 'body', 'beauty'], ['care/skinres', 'Resources', P.book, 'body', 'beauty'], ['care/hair', 'Hair', P.drop, 'body', 'beauty'], ['care/nails', 'Nails', P.sparkle, 'body', 'beauty'], ['care/perfume', 'Perfume', P.star, 'body', 'beauty'], ['care/diary', 'Skin diary', P.camera, 'body', 'beauty'], ['care/bdeals', 'Deals', P.tag, 'body', 'beauty'], ['body/stats', 'Analysis', P.trend, 'body'],
       ['plan/plans', 'Overview', P.grid, 'plans'], ['care/trips', 'Trips', P.plane, 'plans'], ['care/docs', 'Documents', P.doc, 'plans'], ['care/ideas', 'Ideas', P.star, 'plans'], ['care/saved', 'Saved links', P.link, 'plans'], ['care/gifts', 'Gifts', P.gift, 'plans'], ['plan/planstats', 'Analysis', P.trend, 'plans'],
       ['wish/today', 'Overview', P.grid, 'wish'], ['wish/inbox', 'Inbox', P.inbox, 'wish'], ['wish/master', 'Master', P.heart, 'wish'], ['wish/orders', 'Orders', P.box, 'wish'], ['wish/stats', 'Analysis', P.trend, 'wish'], ['weekplan', 'Plan my week', P.list], ['reports', 'Reports', P.trend], ['todo', 'To do', P.check]] },
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile,
@@ -1725,7 +1725,7 @@ const SECTIONS = [
     views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['foodlog', 'Food log', P.pen, 'food'], ['drinks', 'Drinks', P.drop, 'food'], ['cooked', 'Cooking log', P.camera, 'food'], ['pantry', 'Pantry', P.jar, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['shops', 'Shops', P.house, 'shop'], ['stats', 'Analysis', P.trend], ['todo', 'To do', P.check]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile,
     groups: { plan: ['Plan', P.target], look: ['Review', P.trend] },
-    views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['impulse', 'Impulses', P.heart], ['cards', 'Cards', P.card], ['plan', 'Goals', P.target, 'plan'], ['debt', 'Debt', P.card, 'plan'], ['insurance', 'Insurance', P.doc, 'plan'], ['forecast', 'Forecast', P.trend, 'plan'], ['year', 'Year', P.calendar, 'look'], ['networth', 'Net worth', P.wallet, 'look'], ['reviews', 'Reviews', P.doc, 'look'], ['todo', 'To do', P.check]] },
+    views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['impulse', 'Impulses', P.heart], ['cards', 'Cards', P.card], ['plan', 'Goals', P.target, 'plan'], ['debt', 'Debt', P.card, 'plan'], ['insurance', 'Insurance', P.doc], ['forecast', 'Forecast', P.trend, 'plan'], ['year', 'Year', P.calendar, 'look'], ['networth', 'Net worth', P.wallet, 'look'], ['reviews', 'Reviews', P.doc, 'look'], ['todo', 'To do', P.check]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['houselog', 'Cleaning log', P.pen], ['plants', 'Plants', P.leaf], ['inventory', 'Moving list', P.box], ['mood', 'Moodboard', P.heart], ['repairs', 'Repairs', P.wrench], ['todo', 'To do', P.check]] },
   { key: 'social', label: 'Social', icon: P.phone, tile: socialTile,
     groups: { work: ['Work', P.check], create: ['Create', P.phone], grow: ['Grow', P.trend], library: ['Library', P.book] },
@@ -1742,23 +1742,23 @@ function mergeChips(host, view) {
 document.addEventListener('click', e => { const b = e.target.closest('[data-mgo]'); if (b && C) C.go(b.dataset.mgo); });
 /* the tidy menu: fewer tabs, the rest one tap away. Per view: a new label, another group or sub-group, a "merge" (views that share
    one tab, with chips on top of the page to switch) or hidden from the menu (the page itself still works). */
-const MERGES = { kov: ['Overview', P.grid], fnow: ['Today', P.sun], fwo: ['Workouts', P.run], fprog: ['Progress', P.trend], huid: ['Skin', P.flask], kennis: ['Learn', P.book], klog: ['Log', P.pen], kspul: ['Gear', P.spoon],
+const MERGES = { kov: ['Today', P.grid], fnow: ['Plan', P.sun], fwo: ['Workouts', P.run], fprog: ['Progress', P.trend], huid: ['Skin', P.flask], kennis: ['Learn', P.book], klog: ['Food log', P.pen], kspul: ['Gear', P.spoon],
   uit: ['Spending', P.coins], clean: ['Cleaning', P.broom], move: ['Moving', P.box], collab: ['Collabs', P.handshake] };
 const NAV_FIX = {
-  plan: { groups: { wish: ['Wishlist', P.heart], stats: ['Analysis', P.trend] }, subs: { mind: { dagboek: ['Journal', P.pen], groei: ['Growth', P.target], visie: ['Vision', P.sparkle] }, body: { health: ['Health', P.heart] } },
+  plan: { groups: { wish: ['Wishlist', P.heart], stats: ['Stats', P.trend], plans: ['Life admin', P.star] }, subs: { mind: { dagboek: ['Journal', P.pen], groei: ['Growth', P.target], visie: ['Vision', P.sparkle] }, body: { health: ['Health', P.heart] } },
     hide: ['week', 'weekplan', 'todo', 'plan/mind', 'body/today', 'plan/plans', 'wish/today'], order: ['care/checkin', 'care/journal', 'care/habits', 'care/mindful', 'care/growth', 'care/learn', 'care/discover', 'today', 'care/vision', 'reports', 'plan/mindstats', 'body/stats', 'fit/stats', 'care/skinstats', 'plan/planstats', 'wish/stats'],
-    set: { 'today': ['My year', 'mind', 'visie'], 'care/vision': ['Vision', 'mind', 'visie'], 'care/checkin': ['Check-in', 'mind', 'dagboek'], 'care/journal': ['Journal', 'mind', 'dagboek'], 'care/habits': ['Routines', 'mind'], 'care/mindful': ['Mindfulness', 'mind'],
-      'care/growth': ['Growth', 'mind', 'groei'], 'care/learn': ['Learning', 'mind', 'groei'], 'care/discover': ['Self discovery', 'mind', 'groei'],
-      'care/sleep': ['Sleep'], 'care/health': ['Symptoms'], 'care/cycle': ['Cycle'], 'care/supplements': ['Supplements'],
+    set: { 'today': ['My year', 'mind', 'visie'], 'care/vision': ['Vision board', 'mind', 'visie'], 'care/checkin': ['Check-in', 'mind', 'dagboek'], 'care/journal': ['Writing', 'mind', 'dagboek'], 'care/habits': ['Routines', 'mind'], 'care/mindful': ['Mindfulness', 'mind'],
+      'care/growth': ['Goals', 'mind', 'groei'], 'care/learn': ['Learning', 'mind', 'groei'], 'care/discover': ['Self discovery', 'mind', 'groei'],
+      'care/sleep': ['Sleep'], 'body/clean': ['Smoke-free'], 'care/health': ['Symptoms'], 'care/cycle': ['Cycle'], 'care/supplements': ['Supplements'],
       'fit/routine': ['Routine', 0, 0, 'fnow'], 'fit/log': ['Log', 0, 0, 'fnow'], 'fit/workouts': ['Workouts', 0, 0, 'fwo'], 'fit/library': ['Videos', 0, 0, 'fwo'], 'fit/plans': ['Plans', 0, 0, 'fwo'], 'fit/exercises': ['Exercises'], 'fit/fgoals': ['Goals', 0, 0, 'fprog'], 'fit/body': ['Body', 0, 0, 'fprog'],
       'care/skin': ['Routine', 0, 0, 'huid'], 'care/skinmonth': ['Month', 0, 0, 'huid'], 'care/diary': ['Journal', 0, 0, 'huid'], 'care/beauty': ['Products'], 'care/hair': ['Hair'], 'care/perfume': ['Perfume'],
       'fit/res': ['Training', 'body', '', 'kennis'], 'care/skinres': ['Skin', 'body', '', 'kennis'],
       'reports': ['Overview', 'stats'], 'plan/mindstats': ['Mind', 'stats', ''], 'body/stats': ['Body', 'stats', ''], 'fit/stats': ['Train', 'stats', ''], 'care/skinstats': ['Skin', 'stats', ''], 'plan/planstats': ['Plans', 'stats', ''], 'wish/stats': ['Wishlist', 'stats', ''],
-      'wish/master': ['Wishlist'], overview: ['Overview'] } },
-  kitchen: { flat: 1, hide: ['todo'], set: { today: ['Overview', 0, 0, 'kov'], stats: ['Analysis', 0, 0, 'kov'], recipes: ['Recipes'], meals: ['Meal plan'], foodlog: ['Food', 0, 0, 'klog'], drinks: ['Drinks', 0, 0, 'klog'], cooked: ['Cooked', 0, 0, 'klog'], pantry: ['Pantry'], groceries: ['Groceries'], gear: ['Kitchen gear', 0, 0, 'kspul'], shops: ['Shops', 0, 0, 'kspul'] } },
-  money: { groups: { plan: ['Goals and debt', P.target], look: ['Review', P.trend] }, hide: ['todo'], set: { today: ['Today'], spending: ['All', 0, 0, 'uit'], impulse: ['Impulses', 0, 0, 'uit'], repeats: ['Fixed costs', 0, 0, 'uit'], plan: ['Goals'], debt: ['Debt'], insurance: ['Insurance'], forecast: ['Forecast'], year: ['Year'], networth: ['Net worth'] } },
-  home: { hide: ['todo'], set: { today: ['Overview'], chores: ['Schedule', 0, 0, 'clean'], houselog: ['Log', 0, 0, 'clean'], inventory: ['Moving list', 0, 0, 'move'], mood: ['Moodboard', 0, 0, 'move'], plants: ['Plants'], repairs: ['Repairs'] } },
-  social: { groups: { work: ['Work', P.check], create: ['Create', P.phone], grow: ['Growth', P.trend], library: ['Library', P.book] }, hide: ['todo'], set: { today: ['Overview'], ideas: ['Ideas'], plan: ['Calendar'], collabs: ['Deals', 0, 0, 'collab'], income: ['Income', 0, 0, 'collab'] } }
+      'wish/master': ['All wishes'], overview: ['Today'] } },
+  kitchen: { flat: 1, hide: ['todo'], set: { today: ['Today', 0, 0, 'kov'], stats: ['Stats', 0, 0, 'kov'], recipes: ['Recipes'], meals: ['Meal plan'], foodlog: ['Food', 0, 0, 'klog'], drinks: ['Drinks', 0, 0, 'klog'], cooked: ['Cooked', 0, 0, 'klog'], pantry: ['Pantry'], groceries: ['Groceries'], gear: ['Kitchen gear', 0, 0, 'kspul'], shops: ['Shops', 0, 0, 'kspul'] } },
+  money: { groups: { plan: ['Goals and debt', P.target], look: ['Review', P.trend] }, hide: ['todo'], set: { today: ['Today'], spending: ['All', 0, 0, 'uit'], impulse: ['Impulses', 0, 0, 'uit'], repeats: ['Fixed costs', 0, 0, 'uit'], insurance: ['Insurance', 0, 0, 'uit'], cards: ['Loyalty cards'], reviews: ['Months'], plan: ['Goals'], debt: ['Debt'], forecast: ['Forecast'], year: ['Year'], networth: ['Net worth'] } },
+  home: { hide: ['todo'], set: { today: ['Today'], chores: ['Schedule', 0, 0, 'clean'], houselog: ['Log', 0, 0, 'clean'], inventory: ['Moving list', 0, 0, 'move'], mood: ['Moodboard', 0, 0, 'move'], plants: ['Plants'], repairs: ['Repairs'] } },
+  social: { groups: { work: ['Tasks', P.check], create: ['Create', P.phone], grow: ['Results', P.trend], library: ['Library', P.book] }, hide: ['todo'], set: { today: ['Today'], ideas: ['Ideas'], plan: ['Planning'], collabs: ['Deals', 0, 0, 'collab'], income: ['Income', 0, 0, 'collab'] } }
 };
 for (const sec of SECTIONS) { const f = NAV_FIX[sec.key]; if (!f) continue;
   Object.assign(sec.groups ||= {}, f.groups || {}); for (const [g, o] of Object.entries(f.subs || {})) Object.assign((sec.subs ||= {})[g] ||= {}, o);
@@ -1818,14 +1818,14 @@ const PAGES = {
   'care/diary': { render: skinDiary, adds: ['skinlog'] },
   'care/supplements': { title: 'Supplements', segs: [{ kind: 'supplements' }, { kind: 'suplog' }] },
   'care/cycle': { title: 'Cycle', segs: [{ kind: 'cycles', label: 'Periods', listLabel: '🩸 Your periods', top: () => cycleTop() + cycleInsights() }, { kind: 'cyclelog', label: 'Daily diary' }] },
-  'care/journal': { title: 'Journal', segs: [{ kind: 'journal', top: journalTop }] },
+  'care/journal': { title: 'Writing', segs: [{ kind: 'journal', top: journalTop }] },
   'care/ideas': { title: 'Ideas', segs: [{ kind: 'ideas' }] },
   'care/habits': { title: 'Routines', segs: [{ kind: 'routines' }, { kind: 'habits', top: habitWeek }] },
   'care/gifts': { title: 'Gifts', segs: [{ kind: 'gifts' }] },
   'care/mindful': { title: 'Mindfulness', segs: [{ kind: 'mindful', top: mindTop }, { kind: 'meditation', label: 'Sessions' }] },
-  'care/growth': { title: 'Growth', segs: [{ kind: 'lgoals', top: growthTop }, { kind: 'courses' }, { kind: 'hobbies' }] },
+  'care/growth': { title: 'Goals', segs: [{ kind: 'lgoals', top: growthTop }, { kind: 'courses' }, { kind: 'hobbies' }] },
   'care/docs': { title: 'Documents', segs: [{ kind: 'documents' }] },
-  'care/vision': { title: 'Vision', segs: [{ kind: 'vision', top: visionTop }] },
+  'care/vision': { title: 'Vision board', segs: [{ kind: 'vision', top: visionTop }] },
   'care/discover': { title: 'Self discovery', segs: [{ kind: 'discover', top: discoverTop }] },
   'wish/orders': { title: 'Online orders', segs: [{ kind: 'orders', top: ordersTop }] },
   'money/insurance': { title: 'Insurance', segs: [{ kind: 'insurance', top: insuranceTop }] },
@@ -1835,7 +1835,7 @@ const PAGES = {
   'social/projects': { title: 'Projects', segs: [{ kind: 'projects' }] },
   'social/today': { render: socialToday, adds: ['tasks', 'projects', 'posts', 'cideas', 'stips', 'deals', 'sgoals'] },
   'wish/today': { render: wishToday, adds: ['wishes', 'winbox'] },
-  'wish/master': { title: 'Master wishlist', segs: [{ key: 'all', label: 'Everything', kind: 'wishes', fill: masterFill, tools: false }, { kind: 'wishes', label: 'Other wishes' }] },
+  'wish/master': { title: 'All wishes', segs: [{ key: 'all', label: 'Everything', kind: 'wishes', fill: masterFill, tools: false }, { kind: 'wishes', label: 'Other wishes' }] },
   'wish/inbox': { render: inboxPage, adds: ['winbox'] },
   'care/saved': { title: 'Saved links', segs: [{ kind: 'inbox', fill: savedFill, tools: false }, { kind: 'reslinks', label: 'Resources' }] },
   'wish/oldinbox': { title: 'Old wishlist inbox', segs: [{ kind: 'winbox' }] },
@@ -1855,7 +1855,7 @@ const PAGES = {
   'money/today': { render: moneyToday, adds: ['ftx', 'fincome', 'fbills', 'fchecks'] },
   'money/cards': { render: cardsPage, adds: ['lcards'] },
   'money/spending': { title: 'Spending', segs: [{ key: 'plan', label: 'Your plan', kind: 'ftx', fill: fEnvFill, tools: false }, { key: 'all', label: 'Everything in and out', kind: 'ftx', fill: fAllFill, tools: false }] },
-  'money/repeats': { title: 'Repeats', segs: [{ key: 'coming', label: 'Coming up', kind: 'fbills', fill: fComingFill, tools: false }, { kind: 'fbills', label: 'Repeats' }, { key: 'in', label: 'Money in', kind: 'fincome' }, { key: 'split', label: 'Split my pay', kind: 'fbills', fill: fSplitFill, tools: false }] },
+  'money/repeats': { title: 'Fixed costs', segs: [{ key: 'coming', label: 'Coming up', kind: 'fbills', fill: fComingFill, tools: false }, { kind: 'fbills', label: 'Repeats' }, { key: 'in', label: 'Money in', kind: 'fincome' }, { key: 'split', label: 'Split my pay', kind: 'fbills', fill: fSplitFill, tools: false }] },
   'money/plan': { title: 'Goals', segs: [{ kind: 'fgoals', top: fGoalsTop }, { key: 'safety', label: 'Safety net', kind: 'fgoals', fill: fSafetyFill, tools: false }, { key: 'chall', label: 'Challenges', kind: 'fgrid', fill: fChallFill, tools: false }, { key: 'wait', label: 'Wait list', kind: 'fwait', fill: fWaitFill, tools: false }] },
   'money/debt': { title: 'Debt', segs: [{ key: 'free', label: 'Debt-free date', kind: 'fdebts', fill: fDebtFreeFill, tools: false }, { key: 'method', label: 'Snowball or avalanche', kind: 'fdebts', fill: fMethodFill, tools: false }, { kind: 'fdebts', label: 'Your debts' }, { key: 'made', label: 'Payments made', kind: 'ftx', fill: fPaymentsFill, tools: false }] },
   'money/forecast': { render: moneyForecast, adds: ['ftx', 'fbills', 'fincome'] },
@@ -1863,9 +1863,9 @@ const PAGES = {
   'money/networth': { title: 'Net worth', segs: [{ key: 'nw', label: 'Net worth', kind: 'faccounts', fill: fNetFill, tools: false }, { kind: 'faccounts' }, { kind: 'fchecks' }, { kind: 'fset', label: 'Payday and buffer' }] },
   'money/reviews': { render: moneyReviews, adds: ['ftx', 'fincome'] },
   'home/today': { render: homeToday, adds: ['chores', 'plants', 'inventory', 'invopts', 'movecosts', 'repairs'] },
-  'home/chores': { title: 'Chores', segs: [{ key: 'plan', label: 'Schedule', kind: 'chores', fill: choreFill, tools: false }, { kind: 'chores', label: 'All chores' }] },
+  'home/chores': { title: 'Cleaning', segs: [{ key: 'plan', label: 'Schedule', kind: 'chores', fill: choreFill, tools: false }, { kind: 'chores', label: 'All chores' }] },
   'home/plants': { title: 'Plants', segs: [{ kind: 'plants' }] },
-  'home/inventory': { title: 'Moving list', segs: [{ key: 'rooms', label: 'By room', kind: 'inventory', fill: invRooms, tools: false }, { key: 'status', label: 'Per status', kind: 'inventory', fill: invByStatus, tools: false }, { key: 'prio', label: 'By priority', kind: 'inventory', fill: invByPrio, tools: false }, { key: 'board', label: 'Moodboard', kind: 'invopts', fill: invBoard, tools: false }, { key: 'analyse', label: 'Analysis', kind: 'inventory', fill: invAnalysis, tools: false }, { kind: 'inventory', label: 'All products' }, { kind: 'invopts', label: 'Options' }, { kind: 'movecosts', label: 'Moving costs' }] },
+  'home/inventory': { title: 'Moving', segs: [{ key: 'rooms', label: 'By room', kind: 'inventory', fill: invRooms, tools: false }, { key: 'status', label: 'Per status', kind: 'inventory', fill: invByStatus, tools: false }, { key: 'prio', label: 'By priority', kind: 'inventory', fill: invByPrio, tools: false }, { key: 'board', label: 'Moodboard', kind: 'invopts', fill: invBoard, tools: false }, { key: 'analyse', label: 'Analysis', kind: 'inventory', fill: invAnalysis, tools: false }, { kind: 'inventory', label: 'All products' }, { kind: 'invopts', label: 'Options' }, { kind: 'movecosts', label: 'Moving costs' }] },
   'home/repairs': { title: 'Repairs', segs: [{ kind: 'repairs' }] },
   'fit/today': { render: fitToday, adds: ['workouts', 'vworkouts', 'fitgoals', 'sets', 'body', 'exercises'] },
   'fit/routine': { render: fitRoutine, adds: ['plans', 'vworkouts', 'exercises'] },
@@ -2334,8 +2334,8 @@ function emptyList(K, any) {
    times a day, works out what it is (recipe, wish, closet piece, beauty, supplement, gear, home, idea, content,
    gift) and fills in a card. You accept it, send it somewhere else, keep it as a saved link, or skip it. */
 const INBOX_TO = { recipes: ['Recipe', 'kitchen/recipes'], wishes: ['Wish', 'wish/master'], closet: ['Closet wishlist', 'wishlist'], beauty: ['Beauty', 'care/beauty'], supplements: ['Supplement', 'care/supplements'],
-  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], stips: ['Social tip', 'social/tips'], vworkouts: ['Workout video', 'fit/library'], reslinks: ['Resource', 'care/saved'], inspo: ['Inspiration', 'social/inspo'], gifts: ['Gift idea', 'care/gifts'], trip: ['Trip idea', 'care/trips'], stays: ['Saved stay', 'care/trips'], keep: ['Saved link', 'care/saved'] };
-const INBOX_EXTRA = { stays: () => ({ status: 'Saved' }), wishes: () => ({ status: 'Wish', since: today() }), beauty: () => ({ wish: true }), supplements: () => ({ wish: true }), gear: () => ({ own: false }), fitgear: () => ({ own: false }), inventory: () => ({ status: 'Idee' }), cideas: () => ({ status: 'Idea', source: 'Inbox' }), gifts: () => ({ status: 'Idea' }) };
+  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], stips: ['Social tip', 'social/tips'], vworkouts: ['Workout video', 'fit/library'], reslinks: ['Resource', 'care/saved'], inspo: ['Inspiration', 'social/inspo'], orders: ['Online order', 'wish/orders'], gifts: ['Gift idea', 'care/gifts'], trip: ['Trip idea', 'care/trips'], stays: ['Saved stay', 'care/trips'], keep: ['Saved link', 'care/saved'] };
+const INBOX_EXTRA = { orders: () => ({ status: 'Ordered', ordered: today() }), stays: () => ({ status: 'Saved' }), wishes: () => ({ status: 'Wish', since: today() }), beauty: () => ({ wish: true }), supplements: () => ({ wish: true }), gear: () => ({ own: false }), fitgear: () => ({ own: false }), inventory: () => ({ status: 'Idee' }), cideas: () => ({ status: 'Idea', source: 'Inbox' }), gifts: () => ({ status: 'Idea' }) };
 const inboxOpen = () => recs('inbox').filter(r => ['New', 'Ready'].includes(r.status));
 const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
 // a short preview of inbox cards, with Accept where a card is ready
@@ -2492,6 +2492,8 @@ function inboxRows(r, target, now, made = new Map()) {
   }
   if (CAT_NL[target] && data.category) data.category = catNL(target, data.category);
   for (const k of Object.keys(data)) if (data[k] === '' || data[k] == null) delete data[k];
+  // an order mail for an order she already has (same order number) completes that order instead of making a second one
+  if (target === 'orders' && data.orderNo) { const dup = recs('orders').find(o => o.orderNo && norm(o.orderNo) === norm(data.orderNo)); if (dup) { rows.push({ id: dup.id, kind: 'orders', data: { ...data, ...dataOf(dup) } }, { id: r.id, kind: 'inbox', data: { ...dataOf(r), status: 'Done', target, made: dup.id, doneAt: now } }); return rows; } }
   rows.push({ id: rid, kind: target, data }, { id: r.id, kind: 'inbox', data: { ...dataOf(r), status: 'Done', target, made: rid, doneAt: now } });
   return rows;
 }
@@ -3329,7 +3331,7 @@ function dealsPage(host) {
     shopStores = [...new Set([...(mkt ? [mktName] : []), ...allStores, ...shopping.map(x => x.store).filter(Boolean)])], shopBy = [...shopStores, 'Other'].map(s => [s, shopping.filter(x => (shopStores.includes(storeOf(x)) ? storeOf(x) : 'Other') === s)]).filter(([, l]) => l.length);
   const cost = fSum(shopping.filter(x => !x.have), 'price'), bud = groceryBudget();
   const saved = fSum(offers.filter(o => num(o.was) > num(o.price)).map(o => ({ amount: num(o.was) - num(o.price) })));
-  host.innerHTML = `${head('Deals of the week')}<div class="ldeals">
+  host.innerHTML = `${head('Deals')}<div class="ldeals">
   ${offers.length ? myDealsPanel(offers) + allDealsPanel(offers, saved) : ''}
   <div class="tiles">${fTile('Deals', String(offers.length), byStore.map(([s, l]) => `${s} ${l.length}`).join(' · ') || 'none yet')}${fTile('Dinners', String((plan?.dinners || []).length), plan ? `each for 2 days · ${esc(shortDate(plan.start))} to ${esc(shortDate(plan.end))}` : 'no plan yet')}${fTile('Shared', String((plan?.shared || []).length), 'deal ingredients used in more than one recipe')}${bud ? fTile('Budget this week', fEur0(bud.week), `${eur(bud.spentWeek)} spent since Wednesday${cost ? ` · plan about ${eur(cost)}` : ''}`) : fTile('Plan costs', cost ? eur(cost) : '–', saved ? `${eur(saved)} saved with deals` : 'from the shopping list')}</div>
   ${shopPickAll()}<div class="dday"><span class="rowlbl">Usually I shop on</span><div class="seg fseg" role="group">${[['Wed', 'Wednesday'], ['Fri', 'Friday'], ['Sat', 'Saturday']].map(([k, l]) => `<button data-act="shopday" data-v="${k}" aria-pressed="${food().shopDay === k}">${l}</button>`).join('')}</div><span class="lnone">${mkt ? `Fruit and vegetables go on the ${esc(mktName)} list: buy small amounts.` : sday ? 'No market today: fruit and vegetables stay at the shop.' : 'On Wednesday and Saturday fruit and vegetables move to the market list.'}</span></div>
@@ -4047,7 +4049,7 @@ function moneyReviews(host) {
   const yr = m.slice(0, 4), yd = Array.from({ length: Number(m.slice(5)) }, (_, i) => `${yr}-${String(i + 1).padStart(2, '0')}`).map(fMonthData);
   const yIn = yd.reduce((n, x) => n + x.in, 0), yOut = yd.reduce((n, x) => n + x.out, 0);
   const jump = [['m-r-health', 'Money health'], ['m-r-went', 'Where the money went'], ['m-r-added', 'How the month added up'], ['m-r-against', 'Against last month'], ['m-r-12', '12 months'], ['m-r-year', 'This year'], ['m-r-wish', 'Wishlists']];
-  host.innerHTML = `<div class="viewhead dviewhead"><div><p class="mh mkick">${isCur ? 'This month so far' : 'Looking back'}</p><h1>Reviews</h1></div><div class="spacer"></div><button class="iconbtn" data-rmon="1" aria-label="Previous month">${svg(P.left)}</button><b class="mmon">${esc(fMonthName(m))}</b><button class="iconbtn" data-rmon="-1" aria-label="Next month" ${isCur ? 'disabled' : ''}>${svg(P.right)}</button><button class="btn small" onclick="print()">Print</button></div>
+  host.innerHTML = `<div class="viewhead dviewhead"><div><p class="mh mkick">${isCur ? 'This month so far' : 'Looking back'}</p><h1>Months</h1></div><div class="spacer"></div><button class="iconbtn" data-rmon="1" aria-label="Previous month">${svg(P.left)}</button><b class="mmon">${esc(fMonthName(m))}</b><button class="iconbtn" data-rmon="-1" aria-label="Next month" ${isCur ? 'disabled' : ''}>${svg(P.right)}</button><button class="btn small" onclick="print()">Print</button></div>
   ${(() => { const zeroDays = zero, top = most, went = d.out - prev.out, fmt = v => eur(Math.abs(v));
     const good = [zeroDays >= 8 ? `${zeroDays} days without spending` : '', d.in > d.out ? `you had ${eur(d.in - d.out)} left over` : '', prev.out && went < 0 ? `${fmt(went)} less spent than the month before` : ''].filter(Boolean);
     const tip = top && d.out && top[1] / d.out > .3 ? `${esc(top[0])} was ${Math.round(top[1] / d.out * 100)}% of everything: look there first.` : zeroDays < 5 ? 'Try one day a week without spending.' : 'Put what you have left straight into a pot.';
@@ -4158,7 +4160,7 @@ function winAct(act, k) {
   if (act === 'winswap') { const used = new Set([...cur, ...(r?.swapped || [])]), next = winOrder(t).find(x => !used.has(x)); if (!next) { C.toast('No other wins left for today.'); return; } winSave({ picks: cur.map(x => x === k ? next : x), swapped: [...(r?.swapped || []), k] }); }
 }
 function moneyToday(host) {
-  if (!recs('faccounts').length) { host.innerHTML = `${head('Money')}<div class="panels">${panel('Start here', `${quiet('Import your Budget Planner backup, or add your accounts and check your balances.')}<button class="btn small" data-act="new" data-v="faccounts">Add an account</button>`)}</div>`; return; }
+  if (!recs('faccounts').length) { host.innerHTML = `${head('Today')}<div class="panels">${panel('Start here', `${quiet('Import your Budget Planner backup, or add your accounts and check your balances.')}<button class="btn small" data-act="new" data-v="faccounts">Add an account</button>`)}</div>`; return; }
   const st = fState(), t = st.t, s = fset(), hr = new Date().getHours();
   const tx = recs('ftx'), every = tx.filter(fEveryday);
   const payTx = every.filter(x => x.date >= st.start && x.date <= t), spentPay = fSum(payTx), spendPay = spentPay;
@@ -4888,7 +4890,7 @@ function careToday(host) {
   const appts = recs('appts').filter(a => !a.done && a.date && a.date >= t).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''))).slice(0, 3);
   const rts = recs('routines').filter(r => onDay(r)), habits = recs('habits').filter(h => !h.paused && onDay(h));
   const rslot = (l, list) => list.length ? `<div class="lslot"><span class="rowlbl">${l}</span>${list.map(r => tick(r.name, routineDone(r), `data-act="quick" data-id="${r.id}"`)).join('')}</div>` : '';
-  host.innerHTML = `${head('Life')}
+  host.innerHTML = `${head('Today')}
   <div class="panels">
     ${panel('Routines', rts.length ? ROUTINES.map(k => rslot(k, rts.filter(r => r.routine === k))).join('') + rslot('Other', rts.filter(r => !ROUTINES.includes(r.routine))) : `${quiet('Add the steps of your morning and evening routine and tick them off here.')}<button class="btn small" data-act="new" data-v="routines">Add a step</button>`, ['care/habits', 'All routines'])}
     ${recs('lgoals').some(g => g.status !== 'Completed') ? panel('Goals', `<div class="lrows">${recs('lgoals').filter(g => g.status !== 'Completed').sort((a, b) => (a.due || '9').localeCompare(b.due || '9')).slice(0, 4).map(g => `<div class="lrow"><button class="lmain" data-act="open" data-id="${g.id}"><b>${esc(g.name || 'Goal')}</b><span>${esc(KINDS.lgoals.sub(g))}</span><span class="lprog"><i style="width:${goalPct(g)}%"></i></span></button><span class="lside">${goalPct(g)}%</span></div>`).join('')}</div>`, ['care/growth', 'All goals']) : ''}
@@ -5785,7 +5787,7 @@ function socialToday(host) {
   const due = tasksDue(), nextTasks = recs('tasks').filter(x => !taskDone(x) && x.date && x.date > t).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 4);
   const projs = recs('projects').filter(p => p.status !== 'Completed').sort((a, b) => (a.end || '9').localeCompare(b.end || '9'));
   const pbar = p => { const ts = projTasks(p), pct = ts.length ? Math.round(100 * ts.filter(taskDone).length / ts.length) : 0; return `<div class="lrow"><button class="lmain" data-act="open" data-id="${p.id}"><b>${esc(titleOf(p))}</b><span>${esc(KINDS.projects.sub(p))}</span><span class="lprog"><i style="width:${pct}%"></i></span></button><span class="lside">${pct}%</span></div>`; };
-  host.innerHTML = `${head('Social')}
+  host.innerHTML = `${head('Today')}
   <div class="tiles lt3"><div class="tile"><div class="k">This week</div><div class="v">${week.length}</div><div class="h">${posted} posted</div></div>
     ${accs.slice(0, 2).map(a => `<div class="tile"><div class="k">${esc(a.platform || 'Account')}</div><div class="v">${(num(a.followers) || 0).toLocaleString('en-GB')}</div><div class="h">followers${a.freq ? ' · ' + esc(a.freq) : ''}</div></div>`).join('') || '<div class="tile"><div class="k">Followers</div><div class="v">–</div><div class="h">add your accounts under Brand</div></div>'}</div>
   <div class="panels">
@@ -6304,7 +6306,7 @@ function openEditor(kind, id, preset = {}) {
 }
 /* opening an item: a full page first (photo or colour field, three tiles with the key facts, tags, the details),
    then one big action. Editing is one tap away. Kinds with a page of their own (recipes) keep it. */
-const VIEW_SKIP = new Set(['photo', 'name', 'notes', 'url', 'link', 'deliverables', 'verdict', 'needsFill', 'fillMiss', 'fillHow']);
+const VIEW_SKIP = new Set(['photo', 'name', 'notes', 'url', 'link', 'deliverables', 'verdict', 'items', 'shot', 'orderNo', 'track', 'needsFill', 'fillMiss', 'fillHow']);
 function factOf(f, v) {
   if (v == null || v === '' || (Array.isArray(v) && !v.length)) return null;
   if (f.type === 'money') return eur(num(v)); if (f.type === 'date') return niceDate(v); if (f.type === 'rating') return scFmt(sc10(v)) + '/10';
@@ -6334,7 +6336,7 @@ function viewRecord(r) {
   const tiles = filled.filter(([f]) => ['money', 'num', 'date', 'rating', 'pct', 'time'].includes(f.type)).slice(0, 3);
   const tags = filled.filter(([f]) => ['select', 'multi'].includes(f.type)).flatMap(([f]) => [].concat(r[f.k] || [])).slice(0, 8);
   const rest = filled.filter(x => !tiles.includes(x) && !['select', 'multi'].includes(x[0].type));
-  const ring = ringOf(r, 'lg'), story = r.kind === 'posts' ? postStory(r) : r.kind === 'deals' ? dealCard(r) : r.kind === 'ftx' ? payCard(r) : '';
+  const ring = ringOf(r, 'lg'), story = r.kind === 'posts' ? postStory(r) : r.kind === 'deals' ? dealCard(r) : r.kind === 'ftx' ? payCard(r) : r.kind === 'orders' ? orderCard(r) : '';
   const body = `<div class="rview"><div class="rvhero" ${ph ? '' : `style="background:linear-gradient(160deg,${toneOf(r)})"`}>${ph ? `<img src="${esc(C.photoURL(ph))}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : `<span>${itemEmo(r)}</span>`}${ring ? `<i class="rvring">${ring}</i>` : ''}</div>
     ${tiles.length ? `<div class="rvfacts">${tiles.map(([f, v]) => `<div><b>${esc(v)}</b><small>${esc(f.label)}</small></div>`).join('')}</div>` : ''}
     <h2 class="rvtitle">${esc(titleOf(r))}</h2>${K.sub?.(r) ? `<p class="rvsub">${esc(K.sub(r))}</p>` : ''}
@@ -6350,6 +6352,8 @@ function viewRecord(r) {
   sh.addEventListener('click', async e => {
     if (e.target.closest('[data-rvedit]')) { C.closeSheet(); openEditor(r.kind, r.id); }
     const dv = e.target.closest('[data-dlv]'); if (dv) { const i = +dv.dataset.dlv, done = new Set([].concat(r.delivDone || [])); done.has(i) ? done.delete(i) : done.add(i); try { await save(r, { delivDone: [...done] }); dv.setAttribute('aria-pressed', done.has(i)); dv.closest('.dlcard')?.querySelector('[data-dlcount]')?.replaceChildren(`${done.size}/${dv.closest('ul').children.length}`); } catch (err) { failed(err); } }
+    const ok = e.target.closest('[data-ordkeep], [data-ordret]'); if (ok) { const i = +(ok.dataset.ordkeep ?? ok.dataset.ordret); try { await orderDecide(L.byId[r.id], i, ok.dataset.ordkeep != null ? 'keep' : 'return'); const box = sh.querySelector('.ordcard'); if (box) box.outerHTML = orderCard(L.byId[r.id]); } catch (err) { failed(err); } return; }
+    if (e.target.closest('[data-orddeliv]')) { const x = L.byId[r.id]; try { await save(x, { status: 'Delivered', received: today(), ...(x.returnBy ? {} : { returnBy: addDays(today(), returnDays(x.shop)) }) }); const box = sh.querySelector('.ordcard'); if (box) box.outerHTML = orderCard(L.byId[r.id]); C.toast('📬 Arrived. Keep or Return per item.'); } catch (err) { failed(err); } return; }
     const pa = e.target.closest('[data-act="payacc"], [data-act="paycat"]'); if (pa && Date.now() - (sh._sw || 0) < 500) return; if (pa) { const d = pa.dataset, x = L.byId[d.id]; if (!x) return; try { await save(x, d.act === 'payacc' ? { account: d.v } : { category: x.category === d.v ? '' : d.v }); const box = pa.closest('.paycard'); if (box) box.outerHTML = payCard(L.byId[d.id]); } catch (err) { failed(err); } return; }
     const vd = e.target.closest('[data-verdict]'); if (vd) { const v = r.verdict === vd.dataset.verdict ? '' : vd.dataset.verdict; try { await save(r, { verdict: v }); sh.querySelectorAll('[data-verdict]').forEach(b => b.setAttribute('aria-pressed', b.dataset.verdict === v)); } catch (err) { failed(err); } }
     if (e.target.closest('[data-rvq]')) { try { await q.act(); C.toast('✓ ' + titleOf(r)); C.closeSheet(); C.render(); } catch (err) { failed(err); } }
@@ -7125,7 +7129,7 @@ function sortCardHTML(where) {
   if (!l.length && !rt.length) return '';
   const x = l[0], k = x ? guessKind(x) : '', shop = x ? (shopOfTx(x.name) || x.name || 'Purchase') : '';
   const card = x ? `<div class="sortcard"><small>🛍 ${plural(l.length, 'purchase')} to sort</small><b>${esc(shop)} · ${esc(eur(num(x.amount)))}</b><span>${esc(dayName(x.date))} ${esc(niceDate(x.date))}${(x.items || []).length ? ` · 🧾 receipt read: ${plural(x.items.length, 'product')}, check them` : k ? ` · probably ${esc(buyLabel(k).toLowerCase())}` : ''}</span>
-    <div class="sortbtns">${k ? `<button type="button" class="btn small sortgo" data-act="sortgo" data-id="${x.id}" data-v="${k}">${BUY_EMO[k] || '＋'} Add to ${esc(buyLabel(k).toLowerCase())}</button>` : ''}<button type="button" class="btn small sortgo" data-act="sortgo" data-id="${x.id}">${k ? 'Other list' : 'What did you buy?'}</button><button type="button" class="btn small sortskip" data-act="sortskip" data-id="${x.id}">Not a product</button></div></div>` : '';
+    <div class="sortbtns">${k ? `<button type="button" class="btn small sortgo" data-act="sortgo" data-id="${x.id}" data-v="${k}">${BUY_EMO[k] || '＋'} Add to ${esc(buyLabel(k).toLowerCase())}</button>` : ''}<button type="button" class="btn small sortgo" data-act="sortgo" data-id="${x.id}">${k ? 'Other list' : 'What did you buy?'}</button><button type="button" class="btn small sortskip" data-act="sortskip" data-id="${x.id}">Not a product</button>${ONLINE_SHOP.test(norm(shop)) && !recs('orders').some(o => o.tx === x.id) ? `<button type="button" class="btn small sortgo" data-act="ordtrack" data-id="${x.id}">📦 Track it</button>` : ''}</div></div>` : '';
   const rets = rt.slice(0, 3).map(r => { const ref = r.returned && refundOf(r); return `<div class="retrow"><span>↩️</span><span class="lmain"><b>${esc(relNames([].concat(r.items || []).map(e => e.id)).join(', ') || shopOfTx(r.name) || r.name)}</b><small>${r.returned ? (ref ? 'Refund received ✓' : `Refund of ${eur(num(r.retAmount) || num(r.amount))} expected`) : `Return by ${esc(niceDate(r.returnBy))} · ${relDay(r.returnBy)}`}</small></span>${r.returned ? '' : `<button class="btn small primary" data-act="retdone" data-id="${r.id}">Returned</button><button class="btn small" data-act="retkeep" data-id="${r.id}">Keep it</button>`}</div>`; }).join('');
   return `<div class="sortwrap ${where}">${card}${rets ? `<div class="retlist">${rets}</div>` : ''}</div>`;
 }
@@ -7491,6 +7495,9 @@ function setupCard(host) {
 }
 
 /* ---------- events ---------- */
+// online orders: a screenshot or a typed line on the orders page
+document.addEventListener('change', e => { const f = e.target.closest?.('[data-ordshot]'); if (!f || !C || !f.files?.[0]) return; const file = f.files[0]; f.value = ''; orderFromShot(file).catch(failed); });
+document.addEventListener('submit', e => { const f = e.target.closest?.('[data-ordline]'); if (!f || !C) return; e.preventDefault(); const inp = f.querySelector('input'); const v = inp.value; inp.value = ''; orderFromLine(v).catch(failed); });
 document.addEventListener('click', e => {
   if (!L.sel || !C) return;
   const b = e.target.closest('[data-lfill].selecting [data-act="open"][data-id]'); if (!b) return;
@@ -7680,6 +7687,7 @@ document.addEventListener('click', async e => {
     case 'fafford': fAfford(fState()); break;
     case 'fchip': case 'frepeat': { const x = L.byId[d.id]; if (x) fQuick(x); break; }
     case 'sortgo': sortGo(d.id, d.v); break;
+    case 'ordtrack': { const t = L.byId[d.id]; if (!t) break; const id = await orderFromDraft({ shop: shopOfTx(t.name) || t.name, name: `${shopOfTx(t.name) || t.name} order`, price: num(t.amount), ordered: t.date }, { tx: t.id }); C.render(); if (id) setTimeout(() => openRecord(id), 300); break; }
     case 'fixmode': L.fixMode = d.v; C.render(); break;
     case 'occpay': { const st = fState(), o = fOccs(addDays(st.start, -40), addDays(st.t, 60)).find(x => x.key === d.v); if (o && !o.paid) { await fPayOcc(o); C.render(); } break; }
     case 'musicok': await C.savePrefs({ musicNudgeOff: true }); C.render(); break;
@@ -8764,7 +8772,7 @@ function cleanPage(host) {
   const trig = {}; for (const l of st.logs.filter(l => l.trigger)) trig[l.trigger] = (trig[l.trigger] || 0) + 1;
   const helps = {}; for (const l of st.logs.filter(l => l.type === 'Trek')) for (const h of [].concat(l.helped || [])) helps[h] = (helps[h] || 0) + 1;
   const top = o => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, n]) => `${k} (${n}×)`).join(', ');
-  host.innerHTML = `${head('Clean')}
+  host.innerHTML = `${head('Smoke-free')}
   <div class="ltools"><button class="btn primary" data-act="crave">I have a craving</button><button class="btn small" data-act="cleanlog" data-v="Gekocht">Bought after all</button><button class="btn small" data-act="cleanlog" data-v="Gebruikt">Used after all</button></div>
   ${!st.start ? `<div class="banner"><p class="lnone">Pick a stop date 2 to 4 weeks from now. Until that day you prepare calmly.</p><label class="lnone">Stop date <input type="date" class="pill" data-cleandate value="${esc(addDays(t, 21))}"></label><button class="btn small primary" data-act="cleanstart">Set my stop date</button></div>` : ''}
   ${st.start ? `<div class="tiles">${st.before ? fTile('To go', plural(st.toGo, 'day', 'days'), 'until your stop date ' + shortDate(st.start)) : fTile('Clean', plural(st.streak, 'day', 'days'), `${st.clean} of ${st.days} days since ${shortDate(st.start)}`)}${fTile('Saved', eur(st.saved), st.spent ? `${eur(st.spent)} spent after all` : 'what you would have spent otherwise')}${fTile('This week', eur(st.weekSaved), 'goes to Verhuizen on Sunday')}${fTile('Cravings beaten', String(st.cravings.length), top(trig) ? 'most often: ' + top(trig).split(',')[0] : 'tap I have a craving')}</div>` : ''}
@@ -9182,10 +9190,81 @@ function insuranceTop() {
   return `${rep.length ? `<p class="lnone">In Repeats ${rep.length === 1 ? 'there is 1 insurance' : `there are ${rep.length} insurances`}, together ${eur(rm)} a month. ${mLink('To Repeats', 'money/repeats')}</p>` : ''}<div class="tiles lt3">${fTile('Per month', eur(m).replace(/\.00$/, ''), plural(l.length, 'insurance'))}${fTile('Per year', eur(Math.round(m * 12)).replace(/\.00$/, ''), 'all premiums')}${fTile('Next renewal', next ? esc(shortDate(next.renews)) : 'None', next ? esc(next.name) : 'add a renewal date')}</div>
   ${mo >= 11 ? `<p class="lnone">${zorg ? `You can cancel your health insurance with ${esc(zorg.company || 'your insurer')} until 31 December. Compare now, so you're sorted on 1 January.` : 'Until 31 December you can switch health insurance. Add yours to compare.'} <a href="https://www.independer.nl/zorgverzekering/intro.aspx" target="_blank" rel="noopener">Compare on Independer</a></p>` : ''}`;
 }
+/* online orders: read a screenshot or receipt on the phone (free, in the browser), check for an order she already has, and after delivery Keep or Return per item */
+const RETURN_DAYS = [[/zalando|about you/, 100], [/asos/, 28], [/amazon|bol\b|bol\.com|coolblue|wehkamp|zara|h ?& ?m|mango|arket|cos\b|uniqlo|nike|adidas|weekday|monki|other stories|massimo|sephora|douglas|notino|lookfantastic|ikea/, 30]];
+const returnDays = shop => (RETURN_DAYS.find(([re]) => re.test(norm(shop || ''))) || [0, 14])[1];
+const ONLINE_SHOP = /zalando|about you|asos|amazon|bol\b|bol\.com|coolblue|wehkamp|shein|vinted|nakd|na-kd|lookfantastic|notino|douglas\.nl|sephora|iherb|myprotein|temu|aliexpress|etsy|ebay|otto/;
+const orderItems = r => String(r.items || '').split('\n').map(l => l.trim()).filter(Boolean).map((l, i) => { const m = l.match(/^(.*?)(?:[,·\s]+€?\s?(\d+[.,]\d{2}))?(?:[,·\s]+(?:size\s*)?([A-Z]{1,3}|\d{2}(?:\/\d{2})?))?$/i) || [l, l]; return { i, n: (m[1] || l).replace(/[,·\s]+$/, ''), p: m[2] ? num(m[2].replace(',', '.')) : null, s: m[3] || '' }; });
+// the text of a screenshot, read in the browser with tesseract.js (loaded only when you use it)
+async function ocrImage(file) {
+  if (!window.Tesseract) await new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'; sc.onload = ok; sc.onerror = no; document.head.appendChild(sc); });
+  const { data } = await window.Tesseract.recognize(file, 'eng+nld');
+  return data.text || '';
+}
+function parseOrder(text) {
+  const t = String(text || ''), lines = t.split('\n').map(l => l.trim()).filter(Boolean), money = v => num(String(v).replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
+  const top = lines.slice(0, 3).join(' '), shop = shopOfTx(top) || (lines[0] && lines[0].length < 30 && !/€|\d{3}/.test(lines[0]) ? lines[0].replace(/^./, c => c.toUpperCase()) : '') || shopOfTx(t);
+  const orderNo = (t.match(/(?:order|bestel)[\s-]*(?:nummer|number|nr\.?|no\.?|#)?\s*[:#]?\s*([A-Z0-9][A-Z0-9-]{4,})/i) || [])[1] || '';
+  const total = money((t.match(/(?:total|totaal|te betalen|amount)[^\d€]*€?\s?(\d+[.,]\d{2})/i) || [])[1] || '');
+  const MON = { jan: 1, feb: 2, mar: 3, mrt: 3, apr: 4, may: 5, mei: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, okt: 10, nov: 11, dec: 12 };
+  const dateIn = s => { if (!s) return ''; let m = s.match(/(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/); if (m) return `${m[3].length === 2 ? '20' + m[3] : m[3]}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`; m = s.match(/(\d{1,2})\s+([a-z]{3})[a-z]*/i); if (m && MON[m[2].toLowerCase()]) { const y = new Date().getFullYear(); return `${y}-${String(MON[m[2].toLowerCase()]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`; } return ''; };
+  const exp = dateIn((t.match(/(?:arriv|deliver|bezorg|levering|verwacht|expected)[^\n]*/i) || [])[0] || '');
+  const ordered = lines.filter(l => /order|besteld|datum|date/i.test(l) && !/arriv|deliver|bezorg|levering|verwacht|expected/i.test(l)).map(dateIn).find(Boolean) || today();
+  const items = lines.filter(l => /€\s?\d+[.,]\d{2}|\d+[.,]\d{2}\s?€?$/.test(l) && !/total|totaal|subtotal|verzend|shipping|delivery|bezorg|korting|discount|btw|vat/i.test(l)).map(l => { const m = l.match(/^(.*?)[\s·:-]*€?\s?(\d+[.,]\d{2})\s*€?$/); return m && m[1].trim().length > 1 ? `${m[1].trim()}, ${m[2].replace('.', ',')}` : ''; }).filter(Boolean).slice(0, 12);
+  return { shop, orderNo, price: total || items.reduce((n, l) => n + (money(l.split(', ').pop()) || 0), 0) || null, ordered, expected: exp && exp >= ordered ? exp : '', items: items.join('\n'), name: items.length ? items.map(l => l.split(', ')[0]).slice(0, 2).join(' + ') + (items.length > 2 ? ` +${items.length - 2}` : '') : (shop ? `${shop} order` : 'Order') };
+}
+// an order she might already have: same order number, or the same shop with the same amount within two days
+const sameOrder = d => recs('orders').find(o => (d.orderNo && o.orderNo && norm(o.orderNo) === norm(d.orderNo)) || (d.shop && norm(o.shop || '') === norm(d.shop) && Math.abs(diffDays(o.ordered || '2000-01-01', d.ordered || today())) <= 2 && (!d.price || !num(o.price) || Math.abs(num(o.price) - d.price) < 1)));
+async function orderFromDraft(d, extra = {}) {
+  const dup = sameOrder(d);
+  if (dup) {
+    const sh = C.sheet({ title: '📦 Already have this order?', body: `<p class="lnone">This looks like an order you already have.</p><div class="lrows"><div class="lrow"><span class="lmain"><b>${esc(dup.shop || '')} · ${esc(dup.name || '')}</b><span>${esc([dup.ordered && niceDate(dup.ordered), eur(num(dup.price)), dup.orderNo && '#' + dup.orderNo].filter(Boolean).join(' · '))}</span></span></div></div>`,
+      foot: '<button class="btn" data-ordnew>It’s a new one</button><div class="spacer"></div><button class="btn primary" data-ordadd>Add to that order</button>' });
+    return new Promise(res => sh.addEventListener('click', async e => {
+      if (e.target.closest('[data-ordadd]')) { const keep = {}; for (const [k, v] of Object.entries({ ...d, ...extra })) if (v && !dup[k]) keep[k] = v; if (d.items && dup.items && !String(dup.items).includes(d.items)) keep.items = dup.items + '\n' + d.items; await save(dup, keep); C.closeSheet(); C.toast('✓ Added to your order'); res(dup.id); }
+      if (e.target.closest('[data-ordnew]')) { C.closeSheet(); const id = await create('orders', { status: 'Ordered', ...d, ...extra }); C.toast('📦 New order added'); res(id); }
+    }));
+  }
+  const id = await create('orders', { status: 'Ordered', ...d, ...extra }); C.toast('📦 Order added'); return id;
+}
+async function orderFromShot(file) {
+  C.toast('📷 Reading your screenshot…');
+  let text = ''; try { text = await ocrImage(file); } catch { C.toast('Could not read it here. The night round reads it tonight.'); }
+  const d = parseOrder(text); let shot = '';
+  try { shot = await C.uploadPhoto(await C.photoToJpeg(file)); } catch {}
+  const id = await orderFromDraft(d, { ...(shot ? { shot } : {}), needsFill: true, fillMiss: ['items', 'photo'], fillAsked: today(), fillHow: `Read the order screenshot at ${shot ? C.photoURL(shot) : '(no photo)'}: fill shop, orderNo, ordered, expected, price (total), items (one line per item: name, price with comma, size) and track (track and trace link) when they are missing, and photo (the main product photo from the shop site).` });
+  C.render(); if (id) setTimeout(() => openRecord(id), 300);
+}
+// one typed line: "Zalando coat 89,95"
+async function orderFromLine(line) {
+  const t = String(line || '').trim(); if (!t) return;
+  const m = t.match(/(\d+[.,]\d{2})/), price = m ? num(m[1].replace(',', '.')) : null, shop = shopOfTx(t) || t.split(/\s+/)[0];
+  const name = t.replace(m?.[0] || '', '').replace(new RegExp('^' + shop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*', 'i'), '').replace(/€/g, '').trim() || `${shop} order`;
+  await orderFromDraft({ shop, name, price, ordered: today() }); C.render();
+}
+// the order as a card: status line, items with Keep or Return once it's in, the return date from the shop
+function orderCard(r) {
+  const st = r.status || 'Ordered', steps = [['🛒', 'Ordered'], ['📦', 'Shipped'], ['🚚', r.expected === today() ? 'Today' : 'On the way'], ['🏠', 'Delivered']];
+  const at = { Ordered: 0, Shipped: 1, Delivered: 3, Returning: 3, Returned: 3, Kept: 3 }[st] ?? 0, cur = st === 'Shipped' && r.expected === today() ? 2 : at;
+  const its = orderItems(r), dec = r.keep || {}, arrived = at >= 3;
+  return `<div class="ordcard"><div class="ocsteps">${steps.map(([e, l], i) => `<div class="${i <= cur ? 'on' : ''}"><span>${e}</span><small>${l}</small></div>`).join('')}</div>
+    ${its.length ? `<div class="ocitems">${its.map(x => `<div class="ocit"><span class="ocph">${esc(itemEmo({ name: x.n, kind: 'closet' }))}</span><span class="lmain"><b>${esc(x.n)}</b><small>${[x.p != null ? eur(x.p) : '', x.s ? 'size ' + x.s : ''].filter(Boolean).join(' · ')}</small></span>${arrived ? `<button type="button" class="chip" data-ordkeep="${x.i}" aria-pressed="${dec[x.i] === 'keep'}">👗 Keep</button><button type="button" class="chip" data-ordret="${x.i}" aria-pressed="${dec[x.i] === 'return'}">↩️ Return</button>` : ''}</div>`).join('')}</div>` : ''}
+    <p class="lnone">${[r.orderNo ? '#' + esc(r.orderNo) : '', !arrived && r.expected ? `Arrives ${esc(dayName(r.expected))} ${esc(niceDate(r.expected))}` : '', r.track ? `<a href="${esc(r.track)}" target="_blank" rel="noopener">Track</a>` : ''].filter(Boolean).join(' · ')}</p>
+    ${r.returnBy ? `<span class="chip ocret">↩️ Return by ${esc(niceDate(r.returnBy))}${r.shop ? ` (${returnDays(r.shop)} days at ${esc(r.shop)})` : ''}</span>` : ''}
+    ${!arrived ? `<button type="button" class="btn small" data-orddeliv>📬 It arrived</button>` : ''}</div>`;
+}
+async function orderDecide(r, i, how) {
+  const keep = { ...(r.keep || {}) }; keep[i] = keep[i] === how ? '' : how; const its = orderItems(r), x = its.find(y => y.i === i);
+  if (how === 'keep' && keep[i] === 'keep' && x && !(r.keptIds || {})[i]) { const cid = C.uuid(); await C.closetNew?.(cid, { name: x.n, price: x.p, shop: r.shop || '', bought: r.received || today(), isNew: true, size: x.s || '', ...(r.returnBy ? { returnBy: r.returnBy } : {}), needsFill: true, fillHow: `Bought online at ${r.shop || 'a web shop'}: find the product photo, brand and colour by its name.` }); r = { ...r, keptIds: { ...(r.keptIds || {}), [i]: cid } }; }
+  const vals = its.map(y => keep[y.i]), all = vals.length && vals.every(Boolean);
+  await save(L.byId[r.id], { keep, ...(r.keptIds ? { keptIds: r.keptIds } : {}), ...(all ? { status: vals.includes('return') ? 'Returning' : 'Kept' } : {}) });
+  C.toast(how === 'keep' && keep[i] ? '👗 In your closet, new and not worn yet' : how === 'return' && keep[i] ? '↩️ On your return list' : 'Changed');
+}
 function ordersTop() {
   const l = recs('orders'), way = l.filter(r => ['Ordered', 'Shipped'].includes(r.status || 'Ordered')), back = l.filter(r => r.status === 'Delivered' && r.returnBy && r.returnBy >= today());
   const ret = l.filter(r => r.status === 'Returning'), money = ret.reduce((n, r) => n + num(r.price), 0);
-  return `<div class="tiles lt3">${fTile('On the way', String(way.length), way.length ? esc(way.map(r => r.name).slice(0, 2).join(', ')) : 'nothing ordered')}${fTile('Can still return', String(back.length), back.length ? 'first by ' + esc(shortDate(back.map(r => r.returnBy).sort()[0])) : 'nothing open')}${fTile('Money back', eur(money), plural(ret.length, 'return'))}</div>`;
+  const adds = `<div class="ordadd"><label class="btn small primary">📷 From a screenshot<input type="file" accept="image/*" data-ordshot hidden></label><form class="lqadd" data-ordline><input placeholder="Or type: Zalando coat 89,95" aria-label="Type an order"><button class="btn small" type="submit">Add</button></form></div>`;
+  return adds + `<div class="tiles lt3">${fTile('On the way', String(way.length), way.length ? esc(way.map(r => r.name).slice(0, 2).join(', ')) : 'nothing ordered')}${fTile('Can still return', String(back.length), back.length ? 'first by ' + esc(shortDate(back.map(r => r.returnBy).sort()[0])) : 'nothing open')}${fTile('Money back', eur(money), plural(ret.length, 'return'))}</div>`;
 }
 function visionTop() {
   const l = recs('vision'), done = l.filter(r => r.done).length, areas = new Set(l.map(r => r.area).filter(Boolean));
@@ -9638,7 +9717,7 @@ function mindAnalysis(host) {
   const topWords = [...words.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
   const goals = recs('lgoals').filter(g => g.status !== 'Completed'), behind = goals.filter(g => g.due && g.due <= addDays(today(), 30) && goalPct(g) < 70);
   const links = [link(days, d => sleepOn(d) == null ? null : sleepOn(d) >= 7, moodOn, 'Mood after 7+ hours of sleep', 'after less sleep'), link(days, d => workedOut(d), moodOn, 'Mood on training days', 'on other days'), link(days, d => recs('journal').some(j => j.date === d), moodOn, 'Mood on days you wrote', 'on other days'), link(days, d => med.some(m => m.date === d), energyOn, 'Energy on days with meditation', 'without')].join('');
-  host.innerHTML = `${anaHead('Mind · analysis', `${calDayLabel(days[0])} to today`)}
+  host.innerHTML = `${anaHead('Mind stats', `${calDayLabel(days[0])} to today`)}
   <div class="tiles">${aTile('Mood', avgOf(mood) != null ? r1(avgOf(mood)) + '/4' : '–', delta(avgOf(mood), pm))}${aTile('Energy', avgOf(energy) != null ? r1(avgOf(energy)) + '/4' : '–', delta(avgOf(energy), pe))}${aTile('Routines done', allPct != null ? Math.round(allPct) + '%' : '–', delta(allPct, prevPct))}${aTile('Journal', String(jr.length), delta(jr.length, jp.length) || 'entries')}</div>
   <div class="panels">
     ${panel('Mood per day', aLine(days, mood, { label: 'Mood', unit: '/4', max: 4.4 }) + `<p class="lnone">From your check-in on Body (How do you feel?) and your journal.</p>`)}
@@ -9662,7 +9741,7 @@ function bodyAnalysis(host) {
   const phases = ['Period', 'Follicular', 'Ovulation', 'Luteal'].map(p => { const ds = days.filter(d => phaseOf(d) === p); return [p, avgOf(ds.map(moodOn)), avgOf(ds.map(energyOn)), avgOf(ds.map(skinOn))]; });
   const veg = avgOf(days.map(d => num(nlOn(d)?.veg))), soda = avgOf(days.map(d => num(nlOn(d)?.soda))), water = avgOf(days.map(d => num(waterOn(d)?.glasses)));
   const links = [link(days, d => sleepOn(d) == null ? null : sleepOn(d) >= 7, energyOn, 'Energy after 7+ hours of sleep', 'after less sleep'), link(days, workedOut, d => sleepOn(addDays(d, 1)), 'Sleep after a training day', 'after other days', v => r1(v) + ' h'), link(days, d => stepsOn(d) == null ? null : stepsOn(d) >= 8000, moodOn, 'Mood on days with 8,000+ steps', 'on other days')].join('');
-  host.innerHTML = `${anaHead('Body · analysis', `${calDayLabel(days[0])} to today`)}
+  host.innerHTML = `${anaHead('Body stats', `${calDayLabel(days[0])} to today`)}
   <div class="tiles">${aTile('Sleep', avgOf(sl) != null ? r1(avgOf(sl)) + ' h' : '–', delta(avgOf(sl), avgOf(prev.map(sleepOn))))}${aTile('Steps', avgOf(st) != null ? Math.round(avgOf(st)).toLocaleString('en-GB') : '–', delta(avgOf(st), avgOf(prev.map(stepsOn))) || 'average per day')}${aTile('Workouts', String(wo), delta(wo, wop) || 'done')}${aTile('Clean', cleanDays != null ? `${cleanDays}/${n}` : '–', cs.start && !cs.before ? eur(cs.saved) + ' saved' : 'no stop date yet')}</div>
   <div class="panels">
     ${panel('Sleep per night', aLine(days, sl, { label: 'Sleep', unit: ' h', max: 11 }))}
@@ -9695,7 +9774,7 @@ function plansAnalysis(host) {
   const gifts = recs('gifts').filter(g => inP(g.given || g.date)), perP = new Map(), perO = new Map();
   for (const g of gifts) { const p = num(g.price) || 0; perP.set(g.for || 'Unknown', (perP.get(g.for || 'Unknown') || 0) + p); perO.set(g.occasion || 'Overig', (perO.get(g.occasion || 'Overig') || 0) + p); }
   const places = new Set(tripList().map(tr => tr.dest?.country || tr.dest?.name).filter(Boolean));
-  host.innerHTML = `${anaHead('Plans · analysis', `${calDayLabel(from)} to today`)}
+  host.innerHTML = `${anaHead('Plans stats', `${calDayLabel(from)} to today`)}
   <div class="tiles">${aTile('Trips', String(trips.length), eur(costs.reduce((a, c) => a + c[1], 0)) + ' spent')}${aTile('Places', String(places.size), 'countries and cities ever')}${aTile('Gifts', String(gifts.length), eur(gifts.reduce((a, g) => a + (num(g.price) || 0), 0)))}</div>
   <div class="panels">
     ${panel('Costs per trip', costs.length ? aBars(costs.map(([l, v]) => [l.slice(0, 14), v])) : quiet('No trips in this period.'), ['care/trips', 'Trips'])}
@@ -9712,7 +9791,7 @@ function wishAnalysis(host) {
   const orders = recs('orders').filter(o => inP(o.ordered || o.received || upd(o))), ret = orders.filter(o => o.status === 'Returned'), back = ret.reduce((a, o) => a + (num(o.price) || 0), 0);
   const perShop = new Map(); for (const o of orders) { const s = o.shop || 'Unknown', e = perShop.get(s) || { n: 0, r: 0 }; e.n++; if (o.status === 'Returned') e.r++; perShop.set(s, e); }
   const cats = new Map(); for (const w of bought) cats.set(w.category || 'Overig', (cats.get(w.category || 'Overig') || 0) + (num(w.boughtPrice ?? w.price) || 0));
-  host.innerHTML = `${anaHead('Wishlists · analysis', `${calDayLabel(from)} to today`)}
+  host.innerHTML = `${anaHead('Wishlists stats', `${calDayLabel(from)} to today`)}
   <div class="tiles">${aTile('Bought', String(bought.length), eur(spent))}${aTile('Let go', String(dropped.length), eur(saved) + ' saved')}${aTile('Waiting time', wait != null ? Math.round(wait) + ' days' : '–', 'average before you bought')}${aTile('Returns', `${ret.length}/${orders.length}`, eur(back) + ' back')}</div>
   <div class="panels">
     ${panel('Bought vs let go', aBars([['Bought', bought.length], ['Let go', dropped.length]]))}
@@ -9740,7 +9819,7 @@ function kitchenAnalysis(host) {
   const quick = rs.filter(r => totalTime(r) > 0 && totalTime(r) <= 30).length, tried = rs.filter(hasCooked).length, totry = rs.filter(r => r.totry).length;
   const protein = est.slice().sort((a, b) => b.n.per.p - a.n.per.p).slice(0, 6), light = est.filter(x => x.n.per.kcal >= 150).sort((a, b) => a.n.per.kcal - b.n.per.kcal).slice(0, 6);
   const rowR = (r, side) => `<div class="lrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(r.category || '')}</span></button><b class="lside">${side}</b></div>`;
-  host.innerHTML = `${anaHead('Kitchen · analysis', `${calDayLabel(from)} to today`)}
+  host.innerHTML = `${anaHead('Kitchen stats', `${calDayLabel(from)} to today`)}
   <div class="tiles">${aTile('Cooked', String(cookedN), delta(withR.length, pR.length))}${aTile('Eaten at home', String(home.length), `${plural(meals.length - home.length, 'time', 'times')} eating out`)}${aTile('Calories per day', kAvg != null ? Math.round(kAvg) + ' kcal' : '–', 'from your meal plan, estimated')}${aTile('Recipes', String(rs.length), `${newR} new · ${tried} cooked · ${totry} to try`)}</div>
   <div class="panels">
     ${panel('Calories per day', aLine(days, kcalDays, { label: 'Calories', unit: ' kcal' }) + '<p class="lnone">Per portion of the recipes in your meal plan. Meals without a recipe don\'t count.</p>', ['kitchen/meals', 'Meal plan'])}
@@ -9804,9 +9883,9 @@ function lifeOverview(host) {
   const go = (v, l) => `<button class="chip link" data-act="go" data-v="${v}">${esc(l)}</button>`;
   const d30 = dayList(30), mood = avgOf(d30.map(moodOn)), sleep = avgOf(d30.map(sleepOn)), wo = d30.filter(workedOut).length;
   const hs = recs('habits').filter(h => !h.paused), hp = avgOf(hs.map(h => { const due = d30.filter(d => !(h.onDays || []).length || h.onDays.includes(wdOf(d))); return due.length ? due.filter(d => daysSet(h).has(d)).length / due.length * 100 : null; }));
-  host.innerHTML = `${head('Life')}
+  host.innerHTML = `${head('Today')}
   <div class="tiles lifenums">${aTile('Mood', mood != null ? r1(mood) + '/4' : '–', '30 days')}${aTile('Sleep', sleep != null ? r1(sleep) + ' h' : '–', 'average')}${aTile('Workouts', String(wo), '30 days')}${aTile('Routines', hp != null ? Math.round(hp) + '%' : '–', 'done')}</div>
-  <div class="lanalinks">${[['plan/mindstats', 'Mind'], ['body/stats', 'Body'], ['plan/planstats', 'Plans'], ['wish/stats', 'Wishlists'], ['kitchen/stats', 'Kitchen']].map(([v, l]) => `<button class="chip link" data-act="go" data-v="${v}">Analysis ${l}</button>`).join('')}</div>
+  <div class="lanalinks">${[['plan/mindstats', 'Mind'], ['body/stats', 'Body'], ['plan/planstats', 'Life admin'], ['wish/stats', 'Wishlists'], ['kitchen/stats', 'Kitchen']].map(([v, l]) => `<button class="chip link" data-act="go" data-v="${v}">${l} stats</button>`).join('')}</div>
   <div class="quickacts lifeacts"><button class="chip" data-act="new" data-v="journal">+ Journal</button><button class="chip" data-act="new" data-v="sleep">+ Sleep</button><button class="chip" data-act="new" data-v="workouts">+ Workout</button><button class="chip" data-act="new" data-v="wishes">+ Wish</button></div>
   <div class="panels">
     ${panel('Mind', planTile(), ['plan/today', 'My year'])}
@@ -10082,7 +10161,7 @@ function skinAnalysis(host) {
   const links = [link(days, d => sleepOn(d) == null ? null : sleepOn(d) >= 7, scoreOn, 'Skin score after 7+ hours of sleep', 'after less sleep'), link(days, d => { const l = logs.find(x => x.date === d && x.stress); return l ? l.stress === 'High' : null; }, spotsOn, 'New spots on high-stress days', 'on calmer days')].join('');
   const vrow = b => { const x = v.get(b.id); return `<div class="lrow skv"><button class="lmain" data-act="open" data-id="${b.id}"><b>${esc(b.name)}</b><span>${esc(x.gs.map(g => g.label.replace(/ \(.*/, '')).join(', ') || (b.inci ? 'no active groups found' : 'no ingredient list yet'))}${x.hits[0] ? ` · best for ${esc(SKIN_CONCERNS.find(c => c[0] === x.hits[0].c)[1].toLowerCase())}` : ''}</span>${x.twin.length ? `<span class="skwarn">Same job as ${esc(x.twin[0].o.name)} (${esc(x.twin[0].g.label.replace(/ \(.*/, ''))})</span>` : ''}${x.watch.length ? `<span class="skwarn">Contains ${esc(x.watch.map(w => w.label.toLowerCase()).join(', '))}, which you avoid</span>` : ''}</button><span class="lside">${usesPerWeek(b)}×/wk</span></div>`; };
   const ev = e => ['', 'small studies', 'some trials', 'strong evidence'][e] || 'nothing yet';
-  host.innerHTML = `${anaHead('Skin · analysis', p ? [p.skinType, ...[].concat(p.concerns || []).slice(0, 3).map(k => SKIN_CONCERNS.find(c => c[0] === concernKey(k))?.[1].toLowerCase())].filter(Boolean).join(' · ') : 'Fill in your skin profile for a sharper picture')}
+  host.innerHTML = `${anaHead('Skin stats', p ? [p.skinType, ...[].concat(p.concerns || []).slice(0, 3).map(k => SKIN_CONCERNS.find(c => c[0] === concernKey(k))?.[1].toLowerCase())].filter(Boolean).join(' · ') : 'Fill in your skin profile for a sharper picture')}
   <div class="tiles">${aTile('In your routine', String(prods.length), plural(prods.reduce((a, b) => a + usesPerWeek(b), 0), 'application') + ' a week')}${aTile('Works for you', String(byTag[0][1].length), 'strong or good evidence for your goals')}${aTile('Does little', String(byTag[3][1].length), 'use up, don’t rebuy')}${aTile('Skin score', avgOf(days.map(scoreOn)) != null ? r1(avgOf(days.map(scoreOn))) + '/10' : '–', 'from your skin diary')}</div>
   <div class="panels">
     ${panel('Your skin profile', p ? `<p class="dline"><span>Skin type</span><b>${esc(p.skinType || '–')}</b></p><p class="dline"><span>Concerns</span><b>${esc([].concat(p.concerns || []).map(k => SKIN_CONCERNS.find(c => c[0] === concernKey(k))?.[1] || k).join(', ') || '–')}</b></p><p class="dline"><span>Avoid</span><b>${esc([].concat(p.avoid || []).join(', ') || '–')}</b></p>${p.notes ? `<p class="lnone">${esc(p.notes)}</p>` : ''}<button class="btn small" data-act="open" data-id="${p.id}">Edit profile</button>` : `${quiet('Tell the app your skin type and concerns; the analysis weighs everything by them.')}<button class="btn small primary" data-act="new" data-v="skinprofile">Fill in profile</button>`)}
@@ -10845,7 +10924,7 @@ function bodyExtra() {
   return panel('😴 Sleep', `${tilesOf([['⏰ Hours', fmt1(avgOf(sl.map(sleepHours).filter(v => v != null))), 'a night'], ['🌞 Rested', fmt1(avgKey(sl, 'rested')), 'out of 5'], ['📝 Logged', sl.length, 'nights']])}${aLine(days, days.map(d => { const r = recs('sleep').find(x => x.date === d); return r ? sleepHours(r) : null; }), { label: 'Hours', unit: ' h', max: 12 })}`, ['care/sleep', 'Sleep'])
     + panel('🌸 Cycle', `${tilesOf([['📝 Diary days', cy.length, ''], ['⚡ Energy', fmt1(avgKey(cy, 'energy')), 'out of 5'], ['🩸 Bleeding', cy.filter(x => x.flow && x.flow !== 'None').length, 'days']])}${sym.size ? `<div class="lwrap">${[...sym.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => `<span class="chip">${esc(k)} <span class="n">${n}</span></span>`).join('')}</div>` : ''}`, ['care/cycle', 'Cycle'])
     + panel('✨ Hair and nails', tilesOf([['🚿 Wash days', hr.filter(x => x.type === 'Wash day').length, ''], ['💧 Moisture', fmt1(avgKey(hr, 'moisture')), 'out of 5'], ['💅 Nail sets', nl.filter(x => ['Full set', 'Fill'].includes(x.kind)).length, `lasted ${fmt1(avgOf(nl.map(nailDays).filter(v => v != null)))} days`]]), ['care/hair', 'Hair'])
-    + panel('🧘🏾‍♀️ Back, neck and shoulders', tilesOf(PAIN_AREAS.map(([k, l]) => [l, fmt1(avgOf([...pc, ...recs('workouts').filter(w => w.done).filter(inP)].map(x => num(x['p' + k] ?? x['pb' + k])).filter(v => v != null))), 'pain out of 10'])), ['fit/stats', 'Training analysis']);
+    + panel('🧘🏾‍♀️ Back, neck and shoulders', tilesOf(PAIN_AREAS.map(([k, l]) => [l, fmt1(avgOf([...pc, ...recs('workouts').filter(w => w.done).filter(inP)].map(x => num(x['p' + k] ?? x['pb' + k])).filter(v => v != null))), 'pain out of 10'])), ['fit/stats', 'Training stats']);
 }
 function mindExtra() {
   const days = dayList(anaDays()), inP = inDays(days), ci = recs('checkin').filter(inP), med = recs('meditation').filter(inP), ll = recs('learnlog').filter(inP);
