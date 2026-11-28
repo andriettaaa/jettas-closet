@@ -1802,7 +1802,7 @@ const PAGES = {
   'care/perfume': { render: fragPage, adds: ['beauty'] },
   'care/diary': { render: skinDiary, adds: ['skinlog'] },
   'care/supplements': { title: 'Supplements', segs: [{ kind: 'supplements' }, { kind: 'suplog' }] },
-  'care/cycle': { title: 'Cycle', segs: [{ kind: 'cycles', label: 'Periods', top: () => cycleTop() + cycleInsights() }, { kind: 'cyclelog', label: 'Daily diary' }] },
+  'care/cycle': { title: 'Cycle', segs: [{ kind: 'cycles', label: 'Periods', listLabel: '🩸 Your periods', top: () => cycleTop() + cycleInsights() }, { kind: 'cyclelog', label: 'Daily diary' }] },
   'care/journal': { title: 'Journal', segs: [{ kind: 'journal', top: journalTop }] },
   'care/ideas': { title: 'Ideas', segs: [{ kind: 'ideas' }] },
   'care/habits': { title: 'Routines', segs: [{ kind: 'routines' }, { kind: 'habits', top: habitWeek }] },
@@ -2250,7 +2250,9 @@ function fillList(host, page) {
   if (seg.fill) { seg.fill(fill, page); return; }
   // Finance lists say so when something is in there twice, with the button to clean it up
   const top = (FIN_KINDS.includes(seg.kind) ? fDupNote() : seg.kind === 'recipes' ? recipeDupNote() + ingFilterHTML() : '') + (seg.top ? seg.top() : '') + (K.total && list.length ? K.total(list, u) : '');
-  fill.innerHTML = top + (list.length ? groupedHTML(list, K, l => viewMode(K) === 'table' ? tableHTML(l, K) : listHTML(l, K)) : emptyList(K, all.length));
+  // under a page's own blocks the list itself folds too, with a name of its own
+  const lh = list.length ? groupedHTML(list, K, l => viewMode(K) === 'table' ? tableHTML(l, K) : listHTML(l, K)) : emptyList(K, all.length), lt = (seg.listLabel || K.many) + ` · ${list.length}`;
+  fill.innerHTML = top + (seg.top && list.length ? `<details class="panel lpanel fpanel listfold" data-foldk="${esc(foldKey(seg.listLabel || K.many))}" ${foldOpen(seg.listLabel || K.many) ? 'open' : ''}><summary class="lph3"><h3>${esc(lt)}</h3><span class="fchev" aria-hidden="true"></span></summary>${lh}</details>` : lh);
   fitGroups(fill);
   drawSel(host, page, list);
 }
@@ -8359,7 +8361,11 @@ function dayPlan(d = today()) {
   const nl = nlOn(d) || {}, eaten = new Set([].concat(nl.meals || [])), out = [];
   const meals = recs('meals').filter(m => m.date === d), mealOf = sl => meals.find(m => m.slot === sl && !m.away), away = meals.some(m => m.slot === 'Dinner' && m.away);
   const mealName = sl => { const m = mealOf(sl); return m ? relName(m.recipe) || m.what || '' : ''; };
-  const add = x => { const min = at[x.key] != null ? at[x.key] : x.min; out.push({ ...x, min, moved: at[x.key] != null, skipped: skip.has(x.key) }); };
+  // things without a time still get a part of the day: morning or evening words in the name, chores and plants in the afternoon
+  const guess = x => { if (x.min != null || ['water', 'bill', 'shop'].includes(x.type)) return x.min; const n = norm(x.label);
+    if (/ochtend|morning|ontbijt|breakfast|wake|opstaan/.test(n)) return w + 60; if (/avond|evening|night|nacht|bed|slapen/.test(n)) return bed - 90;
+    const k = x.rec?.kind; if (k === 'chores' || k === 'plants') return 14 * 60 + 30; if (x.type === 'habit') return 13 * 60; return null; };
+  const add = x => { const min = at[x.key] != null ? at[x.key] : guess(x); out.push({ ...x, min, moved: at[x.key] != null, skipped: skip.has(x.key) }); };
   // meals
   const lunchAt = t === 'weekend' ? 13 * 60 : 12 * 60 + 30;
   add({ key: 'meal:Breakfast', min: w + 30, label: 'Ontbijt', sub: mealName('Breakfast'), done: eaten.has('Breakfast'), type: 'meal', slot: 'Breakfast', act: () => nlToggle('Breakfast') });
@@ -8439,9 +8445,9 @@ function dayPlanHTML(head = true, mode = '') {
   const loose = open.filter(x => x.min == null), name = { morning: 'ochtend', midday: 'middag', evening: 'avond' }[cur];
   const cheer = L.dpCheer && Date.now() - (L.dpCheerAt || 0) < 15000 ? L.dpCheer : '';
   const tot = drinkTotals(d), g = drinkGoal(), cs = cleanStats();
-  const doneLabel = x => ({ meal: 'Gegeten', sup: 'Ingenomen', routine: 'Alles gedaan', bill: 'Betaald' })[x.type] || 'Gedaan';
-  const hero = x => `<div class="dphero"><div class="dphk">${x.min != null && x.min > now + 20 ? 'Straks · ' + hm(x.min) : 'Nu' + (x.min != null ? ' · ' + hm(x.min) : '')}</div><div class="dpht"><span>${dpIcon(x)}</span>${esc(x.label)}</div>${x.sub && x.sub !== hm(x.min) ? `<div class="dphs">${esc(x.sub)}</div>` : ''}
-    <div class="dphb"><button type="button" class="p" data-dphero="done" data-v="${esc(x.key)}">✓ ${doneLabel(x)}</button><button type="button" data-dphero="other" data-v="${esc(x.key)}">Iets anders</button><button type="button" data-dphero="later" data-v="${esc(x.key)}">Later</button></div></div>`;
+  const doneLabel = x => ({ meal: 'Eaten', sup: 'Taken', routine: 'All done', bill: 'Paid' })[x.type] || 'Done';
+  const hero = x => `<div class="dphero"><div class="dphk">${x.min != null && x.min > now + 20 ? 'Next · ' + hm(x.min) : 'Now' + (x.min != null ? ' · ' + hm(x.min) : '')}</div><div class="dpht"><span>${dpIcon(x)}</span>${esc(x.label)}</div>${x.sub && x.sub !== hm(x.min) ? `<div class="dphs">${esc(x.sub)}</div>` : ''}
+    <div class="dphb"><button type="button" class="p" data-dphero="done" data-v="${esc(x.key)}">✓ ${doneLabel(x)}</button><button type="button" data-dphero="other" data-v="${esc(x.key)}">Something else</button><button type="button" data-dphero="later" data-v="${esc(x.key)}">Later</button></div></div>`;
   const bar = `<div class="dpbar2"><button type="button" class="dpq" data-act="drinkadd"><span class="ring" style="--p:${Math.min(100, Math.round(100 * tot.all / g))}%"><b>🥤</b></span><span><b>${liters(tot.all)} / ${liters(g)} L</b><small>💧 ${liters(tot.water)} L water</small></span></button>${supNow ? `<button type="button" class="dpq" data-dpt="${esc(supNow.key)}"><span class="ring" style="--p:${Math.round(100 * dpProg(supNow))}%"><b>💊</b></span><span><b>${esc(supNow.sub)}</b><small>${esc(supNow.label.replace('Supplementen ', ''))}</small></span></button>` : ''}</div>`;
   const pane = ([k, ic, label]) => {
     const isNow = k === cur, inPart = x => x.min != null && dpPart(x.min) === k;
@@ -8711,6 +8717,14 @@ function pnAffirmToday(shift = 0) {
   const l = (pnAcc()?.pnAffirm || []).filter(p => p.img); if (!l.length) return null;
   const n = Math.floor(Date.parse(today()) / 864e5) + shift; return l[((n % l.length) + l.length) % l.length];
 }
+// the vision board as a photo strip on top of Today: a new pin every 10 minutes, tap for the next one
+function visionStrip() {
+  const l = (pnAcc()?.pnAffirm || []).filter(p => p.img); if (!l.length) return '';
+  const slot = Math.floor(Date.now() / 6e5) + (L.vsShift || 0), i = ((slot % l.length) + l.length) % l.length, p = l[i];
+  return `<button type="button" class="vstrip" data-vsnext aria-label="Next vision board picture"><img src="${esc(p.img)}" alt="" referrerpolicy="no-referrer" loading="lazy"></button>`;
+}
+document.addEventListener('click', e => { if (e.target.closest('[data-vsnext]')) { L.vsShift = (L.vsShift || 0) + 1; C?.render(); } });
+setInterval(() => { if (C && String(C.view?.()) === 'overview' && document.querySelector('.vstrip') && !document.querySelector('.scrim')) C.render(); }, 6e4);
 // three looks for the pin of the day, switched on the card itself: big with a blurred fill, a cropped strip, or a row of pins
 const AFF_LOOKS = [['big', 'Groot'], ['strip', 'Strook'], ['row', 'Rij']];
 const affLook = () => { const v = C.prefs?.().affLook; return AFF_LOOKS.some(x => x[0] === v) ? v : 'big'; };
@@ -10195,12 +10209,12 @@ const PHASE_TIPS = {
 };
 // the cycle coach: per phase what helps for food, sport, energy and skin (general guidance, not medical advice)
 const PHASE_COACH = {
-  Period: { nl: 'Menstruatie', food: 'Warme maaltijden en ijzer: rundvlees, spinazie, een ei. Genoeg drinken.', sport: 'Wandelen, stretchen, rustige pilates. Zwaar mag als je je goed voelt.', energy: 'Plan minder en gun jezelf rust; vroeg naar bed helpt.', skin: 'Huid kan droger zijn: extra hydratatie, geen nieuwe actieve producten.' },
-  Follicular: { nl: 'Folliculair', food: 'Vers en kleurrijk: veel groente, vis en volkoren.', sport: 'Je sterkste weken om op te bouwen: zwaarder trainen en nieuwe dingen.', energy: 'Energie stijgt: goed voor plannen, leren en nieuwe projecten.', skin: 'Huid is vaak op z\'n best: goed moment voor een nieuw product of exfoliant.' },
-  Ovulation: { nl: 'Ovulatie', food: 'Licht en voedzaam, met genoeg eiwit rond je training.', sport: 'Piekkracht: intervals en zware sets, warm goed op.', energy: 'Sociaal en zichtbaar: goed voor filmen, afspraken en presenteren.', skin: 'Meer talg mogelijk: lichte texturen en dubbel reinigen.' },
-  Luteal: { nl: 'Luteaal', food: 'Eiwit en een stevige snack; bloedsuiker stabiel houden. Trek in zoet is normaal.', sport: 'Blijf trainen, langere rust tussen sets; in de laatste dagen meer pilates en wandelen.', energy: 'Je kunt sneller moe zijn: plan buffer en zeg vaker nee.', skin: 'Puistjes rond je kin: BHA, niet aankomen, genoeg slaap.' }
+  Period: { nl: 'Period', food: 'Warm meals and iron: beef, spinach, an egg. Drink enough.', sport: 'Walks, stretching, gentle pilates. Heavier is fine if you feel good.', energy: 'Plan less and allow rest; an early night helps.', skin: 'Skin can be drier: extra hydration, no new actives.' },
+  Follicular: { nl: 'Follicular', food: 'Fresh and colourful: lots of vegetables, fish and whole grains.', sport: 'Your strongest weeks to build: train heavier and try new things.', energy: 'Energy rises: good for planning, learning and new projects.', skin: 'Skin is often at its best: a good moment for a new product or exfoliant.' },
+  Ovulation: { nl: 'Ovulation', food: 'Light and nourishing, with enough protein around training.', sport: 'Peak strength: intervals and heavy sets, warm up well.', energy: 'Social and visible: good for filming, meetings and presenting.', skin: 'More oil possible: light textures and a double cleanse.' },
+  Luteal: { nl: 'Luteal', food: 'Protein and a hearty snack; keep blood sugar steady. Craving sweets is normal.', sport: 'Keep training, rest longer between sets; more pilates and walks in the last days.', energy: 'You may tire sooner: plan buffer time and say no more often.', skin: 'Breakouts around the chin: BHA, hands off, enough sleep.' }
 };
-const cycleCoachHTML = ph => { const c = PHASE_COACH[ph]; if (!c) return ''; return `<div class="ccoach">${[['🍽', 'Eten', c.food], ['🏃🏾‍♀️', 'Sport', c.sport], ['⚡', 'Energie', c.energy], ['✨', 'Huid', c.skin]].map(([e, l, t]) => `<div><b>${e} ${l}</b><p>${esc(t)}</p></div>`).join('')}</div>`; };
+const cycleCoachHTML = ph => { const c = PHASE_COACH[ph]; if (!c) return ''; return `<div class="ccoach">${[['🍽', 'Food', c.food], ['🏃🏾‍♀️', 'Sport', c.sport], ['⚡', 'Energy', c.energy], ['✨', 'Skin', c.skin]].map(([e, l, t]) => `<div><b>${e} ${l}</b><p>${esc(t)}</p></div>`).join('')}</div>`; };
 function cycleInsights() {
   const cy = cycleStats(); if (!cy.last) return '';
   const t = today(), next = cy.next, ov = addDays(next, -14), fert = [addDays(ov, -5), addDays(ov, 1)], ph = cyclePhase(cy.day), tip = PHASE_TIPS[ph];
@@ -10787,8 +10801,9 @@ return {
   todayTop: () => { try { return todayTop(); } catch (e) { console.error(e); return ''; } },
   // Today as one story: the greeting gets the ring, the day comes without its own header
   dayStory: () => { try { return C ? dayPlanHTML(false, 'rest') : ''; } catch (e) { console.error(e); return ''; } },
-  cycleChip: () => { try { if (!C || !recs('cycles').length) return ''; const cy = cycleStats(); if (!cy?.day) return ''; const ph = cyclePhase(cy.day), t = PHASE_TIPS[ph]; return t ? `<button type="button" class="stchip" data-overgo="care/cycle"><span>${t[0]}</span><em>Dag ${cy.day} · ${esc(PHASE_COACH[ph]?.nl || ph)}</em></button>` : ''; } catch { return ''; } },
+  cycleChip: () => { try { if (!C || !recs('cycles').length) return ''; const cy = cycleStats(); if (!cy?.day) return ''; const ph = cyclePhase(cy.day), t = PHASE_TIPS[ph]; return t ? `<button type="button" class="stchip" data-overgo="care/cycle"><span>${t[0]}</span><em>Day ${cy.day} · ${esc(PHASE_COACH[ph]?.nl || ph)}</em></button>` : ''; } catch { return ''; } },
   quickAdd: q => { try { return C ? quickAdd(q) : null; } catch { return null; } },
+  visionStrip: () => { try { return C ? visionStrip() : ''; } catch { return ''; } },
   dayNow: () => { try { return C ? dayPlanHTML(false, 'now') : ''; } catch (e) { console.error(e); return ''; } },
   moneyChip: () => { try { if (!C || !recs('faccounts').length) return ''; const st = fState(); return `<button type="button" class="stchip money" data-overgo="money/today"><span>💶</span>${moneyHidden() ? '€•••' : (st.perDay < 0 ? '−' : '') + eur(Math.abs(st.perDay))} vandaag</button>`; } catch { return ''; } },
   dayStats: () => { try { return C ? dayStats() : null; } catch { return null; } },
