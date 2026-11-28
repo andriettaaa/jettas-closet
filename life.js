@@ -2063,7 +2063,7 @@ async function countStep(id, dir) {
 function row(r) {
   const K = KINDS[r.kind], q = K.quick?.(r), side = K.side?.(r);
   const ph = photoOf(r);
-  return `<div class="lrow ${K.hide?.(r) ? 'gone' : ''}">${ph ? `<button class="lthumb" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : ''}<button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b>${(() => { const t = [K.sub?.(r), WISHY[r.kind] ? wishLine(r.kind, r.id) : '', savedText(r)].filter(Boolean).join(' · '); return t ? `<span>${esc(t)}</span>` : ''; })()}</button>${ringOf(r)}${side ? `<span class="lside ${/overdue|expired|today/.test(side) ? 'hot' : ''}">${esc(side)}</span>` : ''}${LEFT_KINDS.has(r.kind) ? leftChip(r) : ''}${COUNTED.has(r.kind) ? stepper(r) : q ? tick(q.label, q.on, `data-act="quick" data-id="${r.id}"`) : ''}</div>`;
+  return `<div class="lrow ${K.hide?.(r) ? 'gone' : ''}">${ph ? `<button class="lthumb" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : `<button class="lthumb lticon" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true" style="background:linear-gradient(160deg,${toneOf(r)})">${itemEmo(r)}</button>`}<button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b>${(() => { const t = [K.sub?.(r), WISHY[r.kind] ? wishLine(r.kind, r.id) : '', savedText(r)].filter(Boolean).join(' · '); return t ? `<span>${esc(t)}</span>` : ''; })()}</button>${ringOf(r)}${side ? `<span class="lside ${/overdue|expired|today/.test(side) ? 'hot' : ''}">${esc(side)}</span>` : ''}${LEFT_KINDS.has(r.kind) ? leftChip(r) : ''}${COUNTED.has(r.kind) ? stepper(r) : q ? tick(q.label, q.on, `data-act="quick" data-id="${r.id}"`) : ''}</div>`;
 }
 function leftChip(r) {
   const p = leftOf(r);
@@ -2089,12 +2089,21 @@ function leftSheet(id) {
 function prodCard(r, act = 'open') {
   const K = KINDS[r.kind] || {}, ph = r.closet ? r.photo : photoOf(r), price = num(r.price);
   const sub = [...(r.closet ? [r.brand, price ? eur(price) : ''] : [K.sub?.(r), price && !String(K.sub?.(r) || '').includes(eur(price)) ? eur(price) : '']), WISHY[r.kind] || r.closet ? wishLine(r.closet ? 'closet' : r.kind, r.id, price, r.closet ? r.plan : undefined) : ''].filter(Boolean).join(' · ');
-  return `<button class="lcard prod" data-act="${act}" data-id="${r.id}"><div class="stage"><span class="pini">${esc(String(r.name || titleOf(r)).slice(0, 1))}</span>${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${r.fav ? '<i class="lfav" aria-label="Favourite">★</i>' : ''}${r.closet ? '' : ringOf(r, 'sm onph')}</div><div class="meta"><b>${esc(r.closet ? r.name || 'Piece' : titleOf(r))}</b><span>${esc(sub)}</span></div></button>`;
+  return `<button class="lcard prod" data-act="${act}" data-id="${r.id}"><div class="stage">${phFill(r)}${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${r.fav ? '<i class="lfav" aria-label="Favourite">★</i>' : ''}${r.closet ? '' : ringOf(r, 'sm onph')}</div><div class="meta"><b>${esc(r.closet ? r.name || 'Piece' : titleOf(r))}</b><span>${esc(sub)}</span></div></button>`;
 }
+/* an item without a photo gets a soft colour field and a fitting emoji instead of a big letter */
+const KIND_EMO = { recipes: '🍲', meals: '🍽', ingredients: '🥫', beauty: '🧴', supplements: '💊', workouts: '🏋🏾‍♀️', vworkouts: '🎬', exercises: '💪🏾', fitgear: '🧘🏾‍♀️', gear: '🍳', inventory: '🛋', wishes: '💝', gifts: '🎁', books: '📚', trips: '✈️', stays: '🏨', posts: '📱', stips: '💡', cideas: '💡', inspo: '✨', ideas: '✨', tasks: '📝', chores: '🧽', plants: '🪴', fgoals: '🎯', lgoals: '🎯', habits: '✨', journal: '📓', sleep: '🌙', cycles: '🩸', deals: '🤝', shops: '🏪', docs: '📄', documents: '📄', orders: '📦', courses: '🎓', hairlog: '💇🏾‍♀️', naillog: '💅', fragrances: '🌸', ftx: '💶', fbills: '🧾', lcards: '💳', calnote: '📅', moodboard: '🖼', repairs: '🔧' };
+const WORD_EMO = [[/chicken|kip/, '🍗'], [/pasta|spaghetti|pesto|lasagne/, '🍝'], [/rice|rijst|nasi|risotto/, '🍛'], [/egg|ei\b|shakshuka|omelet/, '🍳'], [/soup|soep|saoto/, '🍜'], [/salad|salade|bowl|poke/, '🥗'], [/fish|vis|salmon|zalm|tuna|tonijn/, '🐟'], [/noodle|bami|ramen/, '🍜'], [/curry|roti/, '🫓'], [/cake|taart|cookie|koek/, '🍰'], [/pizza/, '🍕'], [/burger/, '🍔'], [/taco|wrap|burrito/, '🌮'],
+  [/cleans|wash|zeep/, '🧼'], [/serum|niacin|acid|retin/, '💧'], [/spf|sun|zon/, '☀️'], [/snail|essence/, '🐌'], [/cream|creme|moist/, '🫧'], [/hair|haar|olaplex|shampoo|conditioner/, '💇🏾‍♀️'], [/lip|lipstick/, '💄'], [/mascara|brow|liner/, '👁'], [/perfume|parfum|eau de/, '🌸'], [/nail|nagel/, '💅'],
+  [/pilates|core|abs/, '🧘🏾‍♀️'], [/yoga|stretch/, '🧘'], [/leg|glute|squat/, '🦵🏾'], [/upper|arm|back|chest/, '💪🏾'], [/run|cardio|walk/, '🏃🏾‍♀️'], [/bath|badkamer|toilet/, '🛁'], [/kitchen|keuken/, '🍳'], [/vacuum|stofzuig/, '🧹'], [/bed|laken/, '🛏'], [/laundry|was\b/, '🧺']];
+const TONES = ['#f6d7b0,#e0a04a', '#f3c7a8,#d9707c', '#d6ecd0,#6fae8c', '#cfe0f0,#7fa6c9', '#e7dcf3,#a58bd0', '#f4e3c4,#c9a97a', '#f6d0dc,#d98aa6', '#d9efe9,#5fa39a'];
+const itemEmo = r => { const t = norm(titleOf(r) + ' ' + [r.type, r.category, r.cat, r.step].filter(Boolean).join(' ')); return (WORD_EMO.find(([re]) => re.test(t)) || [0, KIND_EMO[r.kind] || '✨'])[1]; };
+const toneOf = r => { const t = String(r.id || titleOf(r)); let h = 0; for (const c of t) h = (h * 31 + c.charCodeAt(0)) >>> 0; return TONES[h % TONES.length]; };
+const phFill = r => `<span class="lemo" style="background:linear-gradient(160deg,${toneOf(r)})">${itemEmo(r)}</span>`;
 function card(r) {
   if (PRODUCTS.has(r.kind)) return prodCard(r);
   const K = KINDS[r.kind], ph = photoOf(r);
-  return `<button class="lcard" data-act="open" data-id="${r.id}"><div class="lph"><span>${esc(titleOf(r).slice(0, 1))}</span>${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${r.fav ? '<i class="lfav" aria-label="Favourite">★</i>' : ''}${ringOf(r, 'sm onph')}</div><div class="meta"><b>${esc(titleOf(r))}</b><span>${esc(K.sub?.(r) || '')}</span></div></button>`;
+  return `<button class="lcard" data-act="open" data-id="${r.id}"><div class="lph">${phFill(r)}${ph ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${r.fav ? '<i class="lfav" aria-label="Favourite">★</i>' : ''}${ringOf(r, 'sm onph')}</div><div class="meta"><b>${esc(titleOf(r))}</b><span>${esc(K.sub?.(r) || '')}</span></div></button>`;
 }
 const listHTML = (list, K) => !list.length ? '' : viewMode(K) === 'cards' ? `<div class="lgrid">${list.map(r => COUNTED.has(r.kind) ? `<div class="lcw">${card(r)}<div class="lcwc">${LEFT_KINDS.has(r.kind) ? leftChip(r) : ''}${stepper(r)}</div></div>` : card(r)).join('')}</div>` : `<div class="lrows">${list.map(row).join('')}</div>`;
 /* every block folds: the first two on a page start open, the rest closed; what you open or close is remembered per page on this device */
@@ -2210,6 +2219,8 @@ function filtered(page, seg) {
   if (seg.kind === 'recipes') list = list.filter(ingMatch);
   return sortList(list, K, u.sort[seg.key] || defSort(K));
 }
+// the list tools (sort, group, view, select) open from one button next to the search
+document.addEventListener('click', e => { const b = e.target.closest('[data-ltoolsopen]'); if (!b) return; const m = b.parentElement.querySelector('.lmoretools'); if (!m) return; m.hidden = !m.hidden; b.setAttribute('aria-pressed', !m.hidden); try { localStorage.setItem('ltools:open', m.hidden ? '' : '1'); } catch {} });
 function listPage(host, page) {
   const cfg = PAGES[page], u = uiOf(page), seg = curSeg(page), K = KINDS[seg.kind], ss = segsOf(page);
   const sig = page + '|' + seg.key;
@@ -2218,8 +2229,8 @@ function listPage(host, page) {
     const sorts = sortsOf(K);
     host.innerHTML = `<div class="viewhead"><h1>${esc(cfg.title)}</h1><span class="sub" data-count></span></div>
       ${ss.length > 1 ? `<div class="seg lseg">${ss.map(s => `<button data-act="seg" data-v="${s.key}" aria-pressed="${s.key === seg.key}">${esc(s.label)}</button>`).join('')}</div>` : ''}
-      ${seg.tools ? `<div class="tools"><label class="search">${svg(P.search)}<input type="search" data-lq placeholder="Search ${esc(K.many.toLowerCase())}" value="${esc(u.q)}" aria-label="Search"></label>
-        ${sorts.length > 1 ? `<select class="pill" data-lsort aria-label="Sort">${sorts.map(([k, l]) => `<option value="${k}" ${(u.sort[seg.key] || defSort(K)) === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}${groupSel(K)}${viewSwitch(K)}<button class="btn small" data-act="selmode" data-selbtn>Select</button></div>
+      ${seg.tools ? `<div class="tools ltools2"><label class="search">${svg(P.search)}<input type="search" data-lq placeholder="Search ${esc(K.many.toLowerCase())}" value="${esc(u.q)}" aria-label="Search"></label><button type="button" class="iconbtn lgear" data-ltoolsopen aria-label="Sort, group and view" title="Sort, group and view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="16" cy="7" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="10" cy="17" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button><div class="lmoretools" hidden>
+        ${sorts.length > 1 ? `<select class="pill" data-lsort aria-label="Sort">${sorts.map(([k, l]) => `<option value="${k}" ${(u.sort[seg.key] || defSort(K)) === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}${groupSel(K)}${viewSwitch(K)}<button class="btn small" data-act="selmode" data-selbtn>Select</button></div></div>
         <div class="chips facets" data-facets></div>` : ''}
       <div data-lfill></div>`;
   }
@@ -5525,7 +5536,7 @@ function invOptionsPanel(r) {
 // one product line in the move views: photo of the chosen or first option, money, and how many options
 function invLine(r) {
   const o = (r.chosen && L.byId[r.chosen]) || invOpts(r.id)[0], ph = r.photo || o?.photo, n = invOpts(r.id).length;
-  return `<div class="lrow">${ph ? `<button class="lthumb" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : ''}<button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(r.name || 'Product')}</b><span>${esc([r.room, invStatus(r), r.priority, n ? plural(n, 'optie', 'opties') : ''].filter(Boolean).join(' · '))}</span></button><span class="lside">${esc(invMoney(r))}</span>${INV_WANT.includes(invStatus(r)) ? `<button class="lquick" data-act="invbuy" data-id="${r.id}">Gekocht</button>` : ''}</div>`;
+  return `<div class="lrow">${ph ? `<button class="lthumb" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true"><img referrerpolicy="no-referrer" src="${esc(C.photoURL(ph))}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>` : `<button class="lthumb lticon" data-act="open" data-id="${r.id}" tabindex="-1" aria-hidden="true" style="background:linear-gradient(160deg,${toneOf(r)})">${itemEmo(r)}</button>`}<button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(r.name || 'Product')}</b><span>${esc([r.room, invStatus(r), r.priority, n ? plural(n, 'optie', 'opties') : ''].filter(Boolean).join(' · '))}</span></button><span class="lside">${esc(invMoney(r))}</span>${INV_WANT.includes(invStatus(r)) ? `<button class="lquick" data-act="invbuy" data-id="${r.id}">Gekocht</button>` : ''}</div>`;
 }
 const invSum = (l, k) => l.reduce((n, r) => n + (num(r[k]) || 0), 0);
 function invGroups(fill, keyOf, order, pins) {
@@ -6112,9 +6123,43 @@ function openEditor(kind, id, preset = {}) {
     }
   });
 }
+/* opening an item: a full page first (photo or colour field, three tiles with the key facts, tags, the details),
+   then one big action. Editing is one tap away. Kinds with a page of their own (recipes) keep it. */
+const VIEW_SKIP = new Set(['photo', 'name', 'notes', 'url', 'link', 'needsFill', 'fillMiss', 'fillHow']);
+function factOf(f, v) {
+  if (v == null || v === '' || (Array.isArray(v) && !v.length)) return null;
+  if (f.type === 'money') return eur(num(v)); if (f.type === 'date') return niceDate(v); if (f.type === 'rating') return scFmt(sc10(v)) + '/10';
+  if (f.type === 'num' || f.type === 'pct') return String(v).replace('.', ',') + (f.unit ? ' ' + f.unit : f.type === 'pct' ? '%' : '');
+  if (f.type === 'check') return v ? '✓' : null; if (f.type === 'rel') return relNames(v).join(', ') || null; if (f.type === 'time') return v;
+  return Array.isArray(v) ? v.join(', ') : String(v);
+}
+function viewRecord(r) {
+  const K = KINDS[r.kind]; if (!K) return openEditor(r.kind, r.id);
+  const ph = photoOf(r), q = K.quick?.(r), link = r.url || r.link;
+  const filled = K.fields.filter(f => !VIEW_SKIP.has(f.k) && !['photo', 'pphoto', 'video', 'doc', 'ilines', 'buys', 'steplist'].includes(f.type)).map(f => [f, factOf(f, r[f.k])]).filter(([, v]) => v);
+  const tiles = filled.filter(([f]) => ['money', 'num', 'date', 'rating', 'pct', 'time'].includes(f.type)).slice(0, 3);
+  const tags = filled.filter(([f]) => ['select', 'multi'].includes(f.type)).flatMap(([f]) => [].concat(r[f.k] || [])).slice(0, 8);
+  const rest = filled.filter(x => !tiles.includes(x) && !['select', 'multi'].includes(x[0].type));
+  const ring = ringOf(r, 'lg');
+  const body = `<div class="rview"><div class="rvhero" ${ph ? '' : `style="background:linear-gradient(160deg,${toneOf(r)})"`}>${ph ? `<img src="${esc(C.photoURL(ph))}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : `<span>${itemEmo(r)}</span>`}${ring ? `<i class="rvring">${ring}</i>` : ''}</div>
+    ${tiles.length ? `<div class="rvfacts">${tiles.map(([f, v]) => `<div><b>${esc(v)}</b><small>${esc(f.label)}</small></div>`).join('')}</div>` : ''}
+    <h2 class="rvtitle">${esc(titleOf(r))}</h2>${K.sub?.(r) ? `<p class="rvsub">${esc(K.sub(r))}</p>` : ''}
+    ${tags.length ? `<div class="lwrap rvtags">${tags.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>` : ''}
+    ${rest.length ? `<dl class="rvlist">${rest.map(([f, v]) => `<div><dt>${esc(f.label)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
+    ${r.notes ? `<p class="rvnotes">${esc(r.notes)}</p>` : ''}
+    ${link ? `<a class="btn small" href="${esc(link)}" target="_blank" rel="noopener">${svg(P.link)} Open link</a>` : ''}</div>`;
+  const sh = C.sheet({ title: K.one[0].toUpperCase() + K.one.slice(1), body,
+    foot: `<button class="btn" data-rvedit>✏️ Edit</button><div class="spacer"></div>${q ? `<button class="btn primary" data-rvq>${q.on ? '↺ ' : '✓ '}${esc(q.label)}</button>` : `<button class="btn primary" data-rvedit>Edit</button>`}` });
+  sh.addEventListener('click', async e => {
+    if (e.target.closest('[data-rvedit]')) { C.closeSheet(); openEditor(r.kind, r.id); }
+    if (e.target.closest('[data-rvq]')) { try { await q.act(); C.toast('✓ ' + titleOf(r)); C.closeSheet(); C.render(); } catch (err) { failed(err); } }
+  });
+}
+// kinds that open straight in the editor (forms more than things to look at)
+const EDIT_FIRST = new Set(['ftx', 'fincome', 'nlog', 'checkin', 'journal', 'suplog', 'drinklog', 'cyclelog', 'skinlog', 'nsteps', 'fset', 'calnote', 'sleep', 'meals']);
 function openRecord(id) {
   const r = L.byId[id]; if (!r) return false;
-  if (r.kind === 'recipes') openRecipe(r); else openEditor(r.kind, id);
+  if (r.kind === 'recipes') openRecipe(r); else if (EDIT_FIRST.has(r.kind)) openEditor(r.kind, id); else viewRecord(r);
   return true;
 }
 

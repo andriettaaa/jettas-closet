@@ -1876,3 +1876,39 @@ details.room { border-top: 1px solid var(--line); padding: 10px 0; } details.roo
 .cfolded > .cfx { display: none !important; }
 .cftyping > .cfx { display: inline-flex !important; } .cftyping > .cfmore { display: none; }
 .chip.cfmore { background: none; border-style: dashed; color: var(--accent); font-weight: 700; }
+/* lists: one search and one tools button; emoji colour fields instead of letters */
+.tools.ltools2 { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tools.ltools2 > .search { flex: 1 1 200px; min-width: 0; }
+.tools.ltools2 .lgear { flex: none; } .tools.ltools2 .lgear[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.lmoretools { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 10px; }
+.lmoretools[hidden] { display: none; }
+.lemo { position: absolute; inset: 0; display: grid; place-items: center; font-size: 40px; }
+.lph, .stage { position: relative; }
+.lph img, .stage img { position: relative; z-index: 1; }
+.lthumb.lticon { display: grid; place-items: center; font-size: 22px; border: 0; }
+.lcard .lph span.lemo, .lcard.prod .stage .lemo { font-family: inherit; font-size: 40px; color: inherit; opacity: 1; }
+.lcard .lph > span.lemo, .lcard.prod .stage > span.lemo { position: absolute; inset: 0; width: auto; height: auto; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1; font-size: 44px; }
+/* an item as a full page */
+.rview { display: grid; gap: 10px; margin: -18px -18px 0; }
+.rvhero { height: 210px; position: relative; display: grid; place-items: center; overflow: hidden; background: var(--stage); }
+.rvhero img { width: 100%; height: 100%; object-fit: cover; } .rvhero > span { font-size: 80px; }
+.rvring { position: absolute; right: 14px; top: 14px; background: var(--surface); border-radius: 50%; padding: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+.rvfacts { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; margin: -34px 18px 0; position: relative; }
+.rvfacts > div { background: var(--surface); border-radius: 14px; padding: 10px 6px; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,.08); }
+.rvfacts b { display: block; font-size: 16px; } .rvfacts small { color: var(--muted); font-size: 11px; }
+.rvtitle, .rvsub, .rvtags, .rvlist, .rvnotes, .rview > .btn { margin-left: 18px; margin-right: 18px; }
+.rvtitle { font-size: 22px; margin-top: 6px; margin-bottom: 0; } .rvsub { color: var(--muted); margin-top: 0; margin-bottom: 0; }
+.rvlist { display: grid; gap: 0; margin-top: 4px; margin-bottom: 0; } .rvlist > div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); }
+.rvlist dt { color: var(--muted); font-size: 13.5px; } .rvlist dd { margin: 0; text-align: right; font-weight: 600; font-size: 13.5px; }
+.rvnotes { white-space: pre-wrap; background: var(--surface); border-radius: 14px; padding: 12px; }
+.rview > .btn { justify-self: start; margin-bottom: 8px; }
+/* settings, visual */
+.seticon { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; margin-right: 10px; font-size: 16px; vertical-align: middle; flex: none; }
+:root[data-theme="dark"] .seticon { filter: saturate(.8) brightness(.85); }
+.settog input[type="checkbox"], .fset input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 42px; height: 26px; border-radius: 99px; background: color-mix(in srgb, var(--ink) 18%, transparent); position: relative; cursor: pointer; transition: background .2s; flex: none; margin: 0; }
+.settog input[type="checkbox"]::after, .fset input[type="checkbox"]::after { content: ''; position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .2s; }
+.settog input[type="checkbox"]:checked, .fset input[type="checkbox"]:checked { background: #5f9b6b; }
+.settog input[type="checkbox"]:checked::after, .fset input[type="checkbox"]:checked::after { transform: translateX(16px); }
+.seticon { display: inline-grid !important; place-items: center !important; width: 34px !important; height: 34px !important; min-width: 34px; border-radius: 10px !important; margin: 0 12px 0 0 !important; font-size: 17px !important; vertical-align: middle; } h3:has(> .seticon) { display: flex !important; align-items: center; }
+
+.seticon { font-style: normal; flex: 0 0 34px !important; } .setfold > summary { align-items: center; }
