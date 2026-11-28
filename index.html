@@ -1490,7 +1490,7 @@ function renderRail(host) {
     host.dataset.built = '1';
     host.innerHTML = `
       ${view === 'closet' ? '<div id="trayHost"></div>' : ''}
-      <div class="viewhead"><h1>${view === 'wishlist' ? 'Wishlist' : 'Closet'}</h1><span class="sub" id="railSub"></span></div>
+      <div class="viewhead"><h1>${view === 'wishlist' ? 'Wishlist' : 'Closet'}</h1><span class="sub" id="railSub"></span></div>${view === 'wishlist' ? '' : window.LIFE?.listSpent?.('closet') || ''}
       ${view === 'closet' ? '<div class="story ofhost" id="ofHost"></div><p class="wxline" id="wxLine" hidden></p>' : ''}
       <div class="tools">
         <div class="search">${I.search}<input id="q" type="search" placeholder="Search name, brand, size, article no., tag" aria-label="Search"></div>
@@ -2897,7 +2897,7 @@ function renderOverview(host) {
   const aff = S.prefs.affirm?.off && !pin ? '' : pin ? (pin.text || 'Affirmatie') : affirmToday(S.affShift || 0);
   const BLK = {
     greet: () => `<div class="sthead ${G.part}"><div><h1>${esc(G.hello)}<span class="gicon" aria-hidden="true">${GREET_ICON[G.part] || GREET_ICON.morning}</span></h1><p class="greetline">${esc(G.line)}</p><span class="sub">${t.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}${wx ? ` · <button type="button" class="gwx" data-overday="${today()}">${wmo(wx.c)[1]} ${wx.hi}°${wx.p != null && wx.p >= 30 ? ` · ${wx.p}% rain` : ` · ${esc(wmo(wx.c)[2]).toLowerCase()}`}</button>` : ''}</span>${st?.cheer ? `<p class="stcheer">✨ ${esc(st.cheer)}</p>` : ''}</div>${st ? `<span class="ring string ${st.cheer ? 'pop' : ''}" style="--p:${st.pct}%" title="${st.done} van ${st.total} klaar"><b>${st.pct}%</b></span>` : ''}</div>`,
-    chips: () => `${(() => { const c = (window.LIFE?.cycleChip?.() || '') + (window.LIFE?.moneyChip?.() || ''); return c ? `<div class="stcards">${c}</div>` : ''; })()}<div class="stchips">${false ? `<button type="button" class="stchip" data-overday="${today()}"><span>${wmo(wx.c)[1]}</span>${wx.hi}°${wx.p != null && wx.p >= 30 ? ` · ${wx.p}% regen` : ` · ${esc(wmo(wx.c)[2]).toLowerCase()}`}</button>` : ''}${aff && !(pin?.img && window.LIFE?.visionStrip?.()) ? `<button type="button" class="stchip aff" data-affsheet>${pin?.img ? `<img src="${esc(pin.img)}" referrerpolicy="no-referrer" alt="">` : '<span>✨</span>'}<em>${esc(aff)}</em></button>` : ''}${intent ? `<span class="stchip"><span>🎯</span><em>${esc(intent)}</em></span>` : ''}${window.LIFE?.cardChips?.() || ''}</div>`,
+    chips: () => `${(() => { const c = (window.LIFE?.cycleChip?.() || '') + (window.LIFE?.moneyChip?.() || ''); return c ? `<div class="stcards">${c}</div>` : ''; })()}${window.LIFE?.sortCard?.('today') || ''}<div class="stchips">${false ? `<button type="button" class="stchip" data-overday="${today()}"><span>${wmo(wx.c)[1]}</span>${wx.hi}°${wx.p != null && wx.p >= 30 ? ` · ${wx.p}% regen` : ` · ${esc(wmo(wx.c)[2]).toLowerCase()}`}</button>` : ''}${aff && !(pin?.img && window.LIFE?.visionStrip?.()) ? `<button type="button" class="stchip aff" data-affsheet>${pin?.img ? `<img src="${esc(pin.img)}" referrerpolicy="no-referrer" alt="">` : '<span>✨</span>'}<em>${esc(aff)}</em></button>` : ''}${intent ? `<span class="stchip"><span>🎯</span><em>${esc(intent)}</em></span>` : ''}${window.LIFE?.cardChips?.() || ''}</div>`,
     day: () => window.LIFE?.dayStory?.() || window.LIFE?.todayTop?.() || '',
     affbig: () => affirmBlock() + (window.LIFE?.pinAffirm?.() || ''),
     wx: () => wxStrip(),
@@ -4466,6 +4466,7 @@ async function start(session) {
     closetRestore: (id, data) => data ? DB.put('items', id, data) : DB.del('items', id),
     // a closet wish from the inbox; hands back null, so undo removes it again
     // linking a purchase in Finance to pieces: the pieces to pick from, a change to one, and a new one
+    closetCats: () => cats(),
     closetItems: () => S.items.map(i => ({ id: i.id, name: i.name, brand: i.brand, status: i.status, where: i.where || '', loanTo: i.loanTo || '' })),
     // Plan my week: the weather of a day, and the outfit planned on a day
     wxDay: d => { const w = wxDay(d); return w ? { ...w, icon: wmo(w.c)[1], word: wmo(w.c)[2] } : null; },

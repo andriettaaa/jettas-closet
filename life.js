@@ -1009,7 +1009,7 @@ const KINDS = {
   ftx: {
     one: 'purchase', many: 'Purchases',
     fields: [F('name', 'What'), F('amount', 'Amount', 'money', { half: 1 }), F('date', 'Date', 'date', { half: 1 }),
-      F('category', 'Category', 'rel', { to: 'fcats', half: 1 }), F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 }), F('tags', 'Tags', 'multi', { options: ['wishlist', 'verhuizen'] }), F('items', 'What you bought', 'buys'), F('receipt', 'Receipt photo', 'photo'), F('notes', 'Notes', 'long')],
+      F('category', 'Category', 'rel', { to: 'fcats', half: 1 }), F('account', 'Paid from', 'rel', { to: 'faccounts', half: 1 }), F('tags', 'Tags', 'multi', { options: ['wishlist', 'verhuizen'] }), F('items', 'What you bought', 'buys'), F('returnBy', 'Return by (if you might send it back)', 'date', { half: 1 }), F('receipt', 'Receipt photo', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['-date', 'Newest'], ['-amount', 'Biggest'], ['name', 'A to Z']],
     sub: r => [niceDate(r.date), relName(r.category), relName(r.account), r.bill ? 'bill' : r.debt ? 'debt payment' : '', isWishTx(r) ? 'wishlist' : ''].filter(Boolean).join(' · '),
     side: r => eur(num(r.amount)),
@@ -2244,6 +2244,7 @@ function listPage(host, page) {
     const sorts = sortsOf(K);
     host.innerHTML = `<div class="viewhead"><h1>${esc(cfg.title)}</h1><span class="sub" data-count></span></div>
       ${ss.length > 1 ? `<div class="seg lseg">${ss.map(s => `<button data-act="seg" data-v="${s.key}" aria-pressed="${s.key === seg.key}">${esc(s.label)}</button>`).join('')}</div>` : ''}
+      ${BUY_EMO[seg.kind] && seg.kind !== 'wishes' ? listSpentLine(seg.kind) : ''}
       ${seg.tools ? `<div class="tools ltools2"><label class="search">${svg(P.search)}<input type="search" data-lq placeholder="Search ${esc(K.many.toLowerCase())}" value="${esc(u.q)}" aria-label="Search"></label><button type="button" class="iconbtn lgear" data-ltoolsopen aria-label="Sort, group and view" title="Sort, group and view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="16" cy="7" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="10" cy="17" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button><div class="lmoretools" hidden>
         ${sorts.length > 1 ? `<select class="pill" data-lsort aria-label="Sort">${sorts.map(([k, l]) => `<option value="${k}" ${(u.sort[seg.key] || defSort(K)) === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}${groupSel(K)}${viewSwitch(K)}<button class="btn small" data-act="selmode" data-selbtn>Select</button></div></div>
         <div class="chips facets" data-facets></div>` : ''}
@@ -2721,7 +2722,7 @@ const TODO = {
     fdebts: { when: r => (num(r.balance) || 0) > 0 || empty(r.balance), checks: [need('balance', 'Balance'), need('payment', 'Monthly payment'), need('apr', 'Interest')] },
     fgoals: { when: r => !r.done, checks: [need('target', 'Target'), need('by', 'Date')] },
     // purchases and money in that still miss something: a category for everyday spending, and the account
-    ftx: { when: r => !r.transfer, checks: [['category', 'Category', r => fEveryday(r) && (!r.category || !L.byId[r.category])], ['account', 'Account', r => !r.account || !L.byId[r.account]]] },
+    ftx: { when: r => !r.transfer, checks: [['items', 'What you bought', r => toSort(r)], ['category', 'Category', r => fEveryday(r) && (!r.category || !L.byId[r.category])], ['account', 'Account', r => !r.account || !L.byId[r.account]]] },
     fincome: { when: r => !r.transfer && r.confirmed !== false, checks: [['account', 'Account', r => !r.account || !L.byId[r.account]]] }
   },
   home: {
@@ -4183,7 +4184,7 @@ function moneyToday(host) {
   const pts = fProject(st, 30).pts, low = pts.reduce((m, p) => p.v < m.v ? p : m, pts[0]);
   const jump = [['m-safe', 'Safe to spend'], ['m-look', 'Worth a look'], ['m-wins', 'Small wins'], ['m-next', 'Next 30 days'], ['m-pay', 'Payments coming'], ['m-days', fMode() === 'pay' && st.pay ? 'Every day this pay' : 'Every day this month'], ['m-went', 'Where the money went'], ['m-net', 'Goals, debt, net worth'], ['m-cats', 'Per category'], ['m-months', 'Month by month'], ['m-big', 'Biggest spending'], ...(allWishes().length || wishBudget() ? [['m-wish', 'Wishlists']] : []), ...(recs('faccounts').some(x => x.type === 'Pot') ? [['m-pots', 'Pots']] : []), ...(recs('fbills').some(b => b.type === 'Subscription' && b.active !== false) ? [['m-subs', 'Subscriptions']] : [])];
   host.innerHTML = `<div class="viewhead dviewhead"><h1>${esc(window.APP_GREETING?.().hello || (hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'))}</h1><span class="sub">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span><div class="spacer"></div><button class="btn small" data-act="fcheck">Check my money</button><button class="btn small primary" data-act="new" data-v="ftx">+ Add spending</button></div>
-  ${fDupNote()}<nav class="mjump" aria-label="On this page">${jump.map(([id, l]) => `<button class="chip" data-jump="${id}">${l}</button>`).join('')}</nav>
+  ${fDupNote()}${sortCardHTML('money')}<nav class="mjump" aria-label="On this page">${jump.map(([id, l]) => `<button class="chip" data-jump="${id}">${l}</button>`).join('')}</nav>
   <div class="mtop">${safe}${MP('Small wins', `${wins.join('')}<p class="lnone">${nWin ? `${nWin} down. That counts.` : 'Start with one.'}${streak > 1 ? ` 🔥 ${streak} days in a row.` : ''}</p>`, `<span class="lnone">${nWin} of ${W.picks.length}</span>`, 'wins')}</div>
   ${MP('Worth a look', st.overdue.length ? `<div class="lrows">${st.overdue.map(o => `<div class="lrow mlook"><span class="lmain"><b>${esc(o.bill.name)} was due ${esc(shortDate(o.date))}</b><span>${esc(o.type)} · ${eur(o.amount)}</span></span><button class="btn small" data-act="fpay" data-v="${o.key}">Mark paid</button><button class="chip link" data-act="fskip" data-v="${o.key}">Skip</button></div>`).join('')}</div>` : quiet('Nothing needs a look.'), `<span class="lnone">${plural(st.overdue.length, 'thing')}</span>`, 'look')}
   <div class="mrow2">${MP('Next 30 days', `${fChart(pts, st.buf, st.pay)}<p class="mmuted">Lowest point about <b>${fEur0(Math.round(low.v))}</b> on ${esc(shortDate(low.d))}${low.v < st.buf ? ` · ${eur(st.buf - low.v)} below your protected ${fEur0(st.buf)}` : ''}${st.pay ? ` · Payday <b>${esc(shortDate(st.pay))}</b>` : ''}</p>`, '', 'next')}
@@ -5999,7 +6000,7 @@ function openEditor(kind, id, preset = {}) {
     body: `${kind === 'calnote' && !r ? calQuick(D) : ''}${r && WISHY[kind] && kind !== 'inventory' ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${r && kind === 'beauty' ? beautyReviews(r) : ''}${r && kind === 'inventory' ? invOptionsPanel(r) : ''}${r && kind === 'fbills' ? billPayPanel(r) : ''}${r && savedOf(r) ? `<p class="lsaved">🏷️ You ${esc(savedText(r))} on this</p>` : ''}${r && kind === 'recipes' ? cookedPanel(r) : ''}${kind === 'stips' ? '<div data-tipsteps></div>' : ''}${kind === 'posts' ? '<div data-postkit></div><div data-posttips></div>' : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}${(() => { const fh = f => `<div class="field ${f.half && f.type !== 'rating' ? '' : 'full'}" data-f="${f.k}" ${f.when && !f.when(D) ? 'hidden' : ''}>${fieldInner(kind, f, D)}</div>`;
       // the form fits on one screen: the first fields and everything you filled in, the rest folded under More
       const has = f => { const v = D[f.k]; return v != null && v !== '' && !(Array.isArray(v) && !v.length) && v !== false; };
-      const main = [], more = []; K.fields.forEach((f, i) => (i < 6 || has(f) || ['photo', 'sleepclock', 'plate', 'ilines', 'steplist'].includes(f.type) ? main : more).push(f));
+      const main = [], more = []; K.fields.forEach((f, i) => (i < 6 || has(f) || ['photo', 'sleepclock', 'plate', 'ilines', 'steplist', 'buys'].includes(f.type) ? main : more).push(f));
       if (more.length < 3) { main.push(...more); more.length = 0; }
       return `<div class="form">${main.map(fh).join('')}</div>${more.length ? `<details class="lmore"><summary><b>➕ More</b><span>${more.map(f => f.label.split(' (')[0]).slice(0, 4).join(', ')}${more.length > 4 ? '…' : ''}</span></summary><div class="form">${more.map(fh).join('')}</div></details>` : ''}`; })()}`,
     foot: `${r ? '<button class="btn danger" data-del>Delete</button>' : ''}<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save</button>`,
@@ -6046,6 +6047,7 @@ function openEditor(kind, id, preset = {}) {
     // sleep: the hours follow from the time you went to bed and woke up
     if (kind === 'sleep' && ['bed', 'up'].includes(t.dataset.k) && D.bed && D.up) { const h = sleepHours({ bed: D.bed, up: D.up }); if (h != null) { D.hours = h; const hi = sh.querySelector('[data-k="hours"]'); if (hi) hi.value = String(h).replace('.', ','); } }
     if (t.dataset.relq) relOpts(t.dataset.relq, t.value);
+    if (t.dataset.buyurl !== undefined) { const e3 = D.items?.[+t.dataset.buyurl]; if (e3) e3.url = t.value.trim(); }
     if (t.dataset.buyq !== undefined) { D._buyq = t.value; const box = sh.querySelector('[data-buyres]'); if (box) box.innerHTML = buysResults(D); }
     if (t.dataset.buyp !== undefined) { const e2 = D.items?.[+t.dataset.buyp]; if (e2) { const n = num(String(t.value).replace(/\s|€/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.')); n == null ? delete e2.p : (e2.p = n); } }
     if (t.dataset.pctr) { D[t.dataset.pctr] = Number(t.value); D.fill = ''; const o = sh.querySelector(`[data-pctv="${t.dataset.pctr}"]`); if (o) o.textContent = t.value + '%'; sh.querySelectorAll(`[data-pct="${t.dataset.pctr}"]`).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === t.value)); }
@@ -6056,6 +6058,7 @@ function openEditor(kind, id, preset = {}) {
       if (box && !exact) box.insertAdjacentHTML('beforeend', knownChips(t.dataset.sugk, t.value, bs.map(b => b.dataset.v), 'data-tsug')); bs.forEach(b => { b.hidden = !!q && !exact && !norm(b.dataset.v).includes(q); b.setAttribute('aria-pressed', norm(b.dataset.v) === q); }); }
   });
   sh.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.dataset?.buyq !== undefined) { e.preventDefault(); buysLine(D); redraw('items'); return; }
     const t = e.target;
     if (e.key !== 'Enter') return;
     if (t.dataset.addopt) {
@@ -6180,6 +6183,10 @@ function openEditor(kind, id, preset = {}) {
     if (d.act === 'blowsheet') { const b = L.byId[d.id]; if (!b) return; sh.querySelector('[data-chk="low"]')?.click(); const on = !!D.low; const btn = sh.querySelector('[data-act="blowsheet"]'); if (btn) { btn.classList.toggle('on', on); btn.setAttribute('aria-pressed', on); btn.innerHTML = on ? svg(P.check) + ' Running low' : 'Running low?'; } return save(b, { low: on }).then(() => C.toast(on ? 'On the running low list' : 'Taken off the running low list')); }
     if (d.act === 'mkidea') return postToIdea(d.id);
     if (d.buyadd || d.buyx || d.buystep || d.buynew) { buysClick(D, d); redraw('items'); sh.querySelector('[data-buyq]')?.focus(); return; }
+    if (d.buyk) { D._buyk = d.buyk; redraw('items'); return; }
+    if (d.buyline !== undefined) { buysLine(D); redraw('items'); return; }
+    if (d.buysplit !== undefined) { const it = D.items || [], tot = num(D.amount) || 0, per = Math.floor(tot / it.length * 100) / 100; it.forEach((e, i) => { e.p = i === it.length - 1 ? Math.round((tot - per * (it.length - 1)) * 100) / 100 : per; }); redraw('items'); return; }
+    if (d.buyt) { const e = (D.items || [])[+d.buyt]; if (e) { e.t = e.t === d.v ? '' : d.v; redraw('items'); } return; }
     if (d.opt) { const f = fdef(d.opt); if (f.type === 'multi') { const a = [].concat(D[d.opt] || []); const i = a.indexOf(d.v); i >= 0 ? a.splice(i, 1) : a.push(d.v); D[d.opt] = a; } else D[d.opt] = D[d.opt] === d.v ? '' : d.v; redraw(d.opt); }
     else if (d.chk) { D[d.chk] = !D[d.chk]; redraw(d.chk); }
     else if (d.rate) { const n = Number(d.v); D[d.rate] = D[d.rate] === n ? 0 : n; redraw(d.rate); }
@@ -6214,6 +6221,8 @@ function openEditor(kind, id, preset = {}) {
         if (kind === 'ingredients') { if (!out.form && ingForm(out)) out.form = ingForm(out); if (!out.variety && ingVariant(out)) out.variety = ingVariant(out); }
         if (kind === 'recipes') recipeBeforeSave(out);
         if (kind === 'ftx') await buysBeforeSave(out);
+        // a receipt photo with no products yet: the night round reads it into products and prices
+        if (kind === 'ftx' && out.receipt && !(out.items || []).length && !out.receiptRead) Object.assign(out, { needsFill: true, fillMiss: ['items'], fillAsked: today(), fillHow: `Read the receipt photo at ${C.photoURL(out.receipt)}. Turn each line into items: [{k, n, q, p}] where k is one of ${BUY_KINDS.map(x => x[0]).join(', ')} (link an existing record by id when the name matches one in that list, else leave id out so the app creates it), n a clear English product name, q the count and p the price in euros. Then set receiptRead: true.` });
         const sid = r ? r.id : C.uuid();
         await put(kind, sid, out);
         if (kind === 'ftx') await buysApply(r ? [].concat(r.items || []) : [], out);
@@ -6309,7 +6318,7 @@ function calQuick(D) {
 const EDIT_FIRST = new Set(['ftx', 'fincome', 'nlog', 'checkin', 'journal', 'suplog', 'drinklog', 'cyclelog', 'skinlog', 'nsteps', 'fset', 'calnote', 'sleep', 'meals']);
 function openRecord(id) {
   const r = L.byId[id]; if (!r) return false;
-  if (r.kind === 'recipes') openRecipe(r); else if (EDIT_FIRST.has(r.kind)) openEditor(r.kind, id); else viewRecord(r);
+  if (r.kind === 'recipes') openRecipe(r); else if (r.kind === 'ftx' && toSort(r)) sortGo(r.id, (r.items || []).length ? '' : guessKind(r)); else if (EDIT_FIRST.has(r.kind)) openEditor(r.kind, id); else viewRecord(r);
   return true;
 }
 
@@ -6994,13 +7003,74 @@ document.addEventListener('submit', e => {
    Each line is { k: list, id, n: name, q: how many, p: price (optional) }; a new thing gets made in its list when you save.
    Saving the purchase adds what you bought to your pantry, closet, beauty and the rest: stock up, off the shopping list,
    with the price, shop and day. Lines that came from ticking off the shopping list (pre) already raised the stock. */
-const BUY_KINDS = [['ingredients', 'Pantry'], ['closet', 'Closet'], ['beauty', 'Beauty'], ['supplements', 'Supplements'], ['inventory', 'Home'], ['gear', 'Kitchen gear'], ['wishes', 'Wishlist']];
+const BUY_KINDS = [['ingredients', 'Pantry'], ['closet', 'Closet'], ['beauty', 'Beauty'], ['supplements', 'Supplements'], ['inventory', 'Home & moving'], ['gear', 'Kitchen gear'], ['nbits', 'Nails'], ['fitgear', 'Train gear'], ['gifts', 'Gifts'], ['wishes', 'Wishlist']];
+const BUY_EMO = { ingredients: '🛒', closet: '👗', beauty: '💄', supplements: '💊', inventory: '🏠', gear: '🍳', nbits: '💅', fitgear: '🏋️', gifts: '🎁', wishes: '⭐' };
 const buyLabel = k => (BUY_KINDS.find(x => x[0] === k) || [k, k])[1];
 const buyPool = () => [
-  ...['ingredients', 'beauty', 'supplements', 'inventory', 'gear'].flatMap(k => recs(k).filter(r => !r.archived).map(r => ({ k, id: r.id, n: titleOf(r), sub: [r.brand, r.variant].filter(Boolean).join(' ') }))),
+  ...['ingredients', 'beauty', 'supplements', 'inventory', 'gear', 'nbits', 'fitgear', 'gifts'].flatMap(k => recs(k).filter(r => !r.archived).map(r => ({ k, id: r.id, n: titleOf(r), sub: [r.brand, r.variant].filter(Boolean).join(' ') }))),
   ...recs('wishes').filter(r => !['Bought', 'Dropped'].includes(r.status)).map(r => ({ k: 'wishes', id: r.id, n: titleOf(r), sub: r.brand || '' })),
   ...(C.closetItems?.() || []).map(i => ({ k: 'closet', id: i.id, n: i.name || 'Piece', sub: i.brand || '' }))];
 const buyKey = e => e.k + ':' + (e.id || 'new:' + norm(e.n));
+/* the shop guesses the list: her own choices first (what she linked at that shop before), then well-known shops */
+const SHOP_GUESS = [[/albert heijn|\bah\b|jumbo|lidl|aldi|plus\b|dirk|coop|spar|picnic|ekoplaza|crisp|marqt|vomar|hoogvliet/, 'ingredients'], [/zara|h ?& ?m|\bhm\b|arket|cos\b|mango|primark|uniqlo|zalando|about you|weekday|monki|other stories|massimo|bershka|pull ?& ?bear|stradivarius|na-kd|nakd|shein|vinted|asos|wehkamp|nike|adidas/, 'closet'],
+  [/kruidvat|etos|douglas|sephora|ici paris|rituals|lush|the body shop|lookfantastic|notino|skins|rossmann/, 'beauty'], [/holland ?& ?barrett|vitaminstore|de tuinen|iherb|myprotein|bodylab/, 'supplements'],
+  [/ikea|action|hema|xenos|blokker|gamma|praxis|karwei|leen bakker|kwantum|jysk|flying tiger|search4|bol\b|coolblue|mediamarkt/, 'inventory'], [/nailmore|nails|gellak|kiki|nailshop/, 'nbits'], [/decathlon|gymshark|alo\b|lululemon|sportsdirect|intersport/, 'fitgear']];
+function guessKind(tx) {
+  const shop = shopOfTx(tx?.name) || tx?.name || '', n = norm(shop);
+  if (!n) return '';
+  const cnt = {}; for (const x of recs('ftx')) { if (x.id === tx.id || !x.items?.length) continue; if (norm(shopOfTx(x.name) || x.name || '') !== n) continue; for (const e of x.items) cnt[e.k] = (cnt[e.k] || 0) + 1; }
+  const learned = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0]?.[0];
+  return learned || SHOP_GUESS.find(([re]) => re.test(n))?.[1] || '';
+}
+// a purchase still to sort: an everyday purchase of the last three weeks with no products linked, not skipped
+const toSort = r => r.kind === 'ftx' && fEveryday(r) && !r.sorted && (!(r.items || []).length || r.items.some(e => !e.id)) && (num(r.amount) || 0) > 0 && r.date >= addDays(today(), -21) && r.date <= today() && !(r.category && L.byId[r.category]?.nospend);
+const buySortList = () => recs('ftx').filter(toSort).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+// returns: every purchase with a return-by date, until she says returned or keep; a returned one waits for its refund
+const refundOf = r => recs('fincome').concat(recs('ftx').filter(x => (num(x.amount) || 0) < 0)).find(x => x.date >= (r.retOn || r.date) && Math.abs(Math.abs(num(x.amount) || 0) - (num(r.retAmount) || num(r.amount) || 0)) < 0.02 && norm(shopOfTx(x.name) || x.name || '').includes(norm(shopOfTx(r.name) || r.name || '').split(' ')[0]));
+const returnList = () => recs('ftx').filter(r => r.returnBy && !r.kept && !(r.returned && (r.refunded || refundOf(r)))).sort((a, b) => a.returnBy.localeCompare(b.returnBy));
+function sortCardHTML(where) {
+  const l = buySortList(), rt = returnList().filter(r => r.returned || r.returnBy <= addDays(today(), 3));
+  if (!l.length && !rt.length) return '';
+  const x = l[0], k = x ? guessKind(x) : '', shop = x ? (shopOfTx(x.name) || x.name || 'Purchase') : '';
+  const card = x ? `<div class="sortcard"><small>🛍 ${plural(l.length, 'purchase')} to sort</small><b>${esc(shop)} · ${esc(eur(num(x.amount)))}</b><span>${esc(dayName(x.date))} ${esc(niceDate(x.date))}${(x.items || []).length ? ` · 🧾 receipt read: ${plural(x.items.length, 'product')}, check them` : k ? ` · probably ${esc(buyLabel(k).toLowerCase())}` : ''}</span>
+    <div class="sortbtns">${k ? `<button type="button" class="btn small sortgo" data-act="sortgo" data-id="${x.id}" data-v="${k}">${BUY_EMO[k] || '＋'} Add to ${esc(buyLabel(k).toLowerCase())}</button>` : ''}<button type="button" class="btn small sortgo" data-act="sortgo" data-id="${x.id}">${k ? 'Other list' : 'What did you buy?'}</button><button type="button" class="btn small sortskip" data-act="sortskip" data-id="${x.id}">Not a product</button></div></div>` : '';
+  const rets = rt.slice(0, 3).map(r => { const ref = r.returned && refundOf(r); return `<div class="retrow"><span>↩️</span><span class="lmain"><b>${esc(relNames([].concat(r.items || []).map(e => e.id)).join(', ') || shopOfTx(r.name) || r.name)}</b><small>${r.returned ? (ref ? 'Refund received ✓' : `Refund of ${eur(num(r.retAmount) || num(r.amount))} expected`) : `Return by ${esc(niceDate(r.returnBy))} · ${relDay(r.returnBy)}`}</small></span>${r.returned ? '' : `<button class="btn small primary" data-act="retdone" data-id="${r.id}">Returned</button><button class="btn small" data-act="retkeep" data-id="${r.id}">Keep it</button>`}</div>`; }).join('');
+  return `<div class="sortwrap ${where}">${card}${rets ? `<div class="retlist">${rets}</div>` : ''}</div>`;
+}
+async function sortGo(id, k) {
+  const r = L.byId[id]; if (!r) return;
+  openEditor('ftx', id); setTimeout(() => { const sh = document.querySelector('.sheet'); const box = sh?.querySelector('[data-f="items"]'); if (!box) return; box.scrollIntoView({ block: 'start' }); if (k) sh.querySelector(`[data-buyk="${k}"]`)?.click(); }, 80);
+}
+async function retDone(id) {
+  const r = L.byId[id]; if (!r) return;
+  const amt = prompt('How much do you get back? (€)', String(num(r.amount) || '').replace('.', ','));
+  if (amt === null) return;
+  const items = [].concat(r.items || []);
+  for (const e of items) { if (e.k === 'closet') await C.closetPatch?.(e.id, { status: 'returned' }); }
+  await buysApply(items.filter(e => e.k !== 'closet'), { ...dataOf(r), items: [] });
+  await save(r, { returned: true, retOn: today(), retAmount: num(amt) || num(r.amount) });
+  C.toast('↩️ Marked as returned. The refund gets matched when it lands.'); C.render();
+}
+/* where the money goes, by list: product prices first, a purchase with one list counts whole */
+function spendByList(from, to) {
+  const by = {}, most = {};
+  for (const x of recs('ftx').filter(x => x.date >= from && x.date <= to && (x.items || []).length && !x.returned)) {
+    const it = x.items, priced = it.reduce((n, e) => n + (num(e.p) || 0), 0), kinds = [...new Set(it.map(e => e.k))];
+    for (const e of it) { most[e.n] = (most[e.n] || 0) + (num(e.q) || 1); if (num(e.p)) by[e.k] = (by[e.k] || 0) + num(e.p); }
+    const rest = (num(x.amount) || 0) - priced; if (rest > 0.01) { const per = rest / kinds.length; for (const k of kinds) by[k] = (by[k] || 0) + per; }
+  }
+  return { by, most: Object.entries(most).sort((a, b) => b[1] - a[1]).slice(0, 3) };
+}
+const LIST_COL = { ingredients: '#7fae7a', closet: '#6b3f22', beauty: '#c97a86', supplements: '#a07ab8', inventory: '#d6a35c', gear: '#8a9aa8', nbits: '#e08aa8', fitgear: '#4e8a6a', gifts: '#c9503c', wishes: '#e0a948' };
+function byListPanel() {
+  const t = today(), from = t.slice(0, 8) + '01', { by, most } = spendByList(from, t), rows = Object.entries(by).filter(x => x[1] > 0.5).sort((a, b) => b[1] - a[1]);
+  if (!rows.length) return '';
+  const tot = rows.reduce((n, x) => n + x[1], 0);
+  return MP('🧺 This month, by list', `<div class="bcstack">${rows.map(([k, v]) => `<i style="width:${100 * v / tot}%;background:${LIST_COL[k] || '#999'}" title="${esc(buyLabel(k))}">${v / tot > .14 ? BUY_EMO[k] || '' : ''}</i>`).join('')}</div>
+    <div class="bclegend">${rows.map(([k, v]) => `<span><i style="background:${LIST_COL[k] || '#999'}"></i>${BUY_EMO[k] || ''} ${esc(buyLabel(k))} <b>${fEur0(Math.round(v))}</b></span>`).join('')}</div>
+    ${most.length ? `<p class="lnone">Most bought: ${most.map(([n, q]) => `${esc(n)} ×${q}`).join(' · ')}</p>` : ''}`, '', 'bylist');
+}
+const listSpentLine = k => { const t = today(), v = spendByList(t.slice(0, 8) + '01', t).by[k]; return v > 0.5 ? `<p class="lspent">${BUY_EMO[k] || '🧾'} ${fEur0(Math.round(v))} spent on ${esc(buyLabel(k).toLowerCase())} this month</p>` : ''; };
 // the shop a bank line belongs to: one of your shops, else a known shop name in the description
 function shopOfTx(name) {
   const t = ' ' + norm(name || '').replace(/[^a-z0-9& ]+/g, ' ') + ' ';
@@ -7008,16 +7078,42 @@ function shopOfTx(name) {
   return all.find(sn => { const w = norm(sn).split(/\s+/)[0]; return w.length > 2 && t.includes(' ' + w + ' '); }) || '';
 }
 function buysEditor(D) {
-  const items = [].concat(D.items || []);
-  const rows = items.map((e, i) => `<div class="lrow buyrow"><span class="lmain"><b>${esc(e.n)}</b><span>${esc(buyLabel(e.k))}${e.id ? '' : ' · new'}${e.pre ? ' · from your shopping list' : ''}</span></span>
+  const items = [].concat(D.items || []), k = D._buyk || (D._buyk = guessKind(D) || 'ingredients'), have = new Set(items.map(buyKey));
+  const ccats = C.closetCats?.() || [];
+  const rows = items.map((e, i) => `<div class="lrow buyrow"><span class="lmain"><b>${BUY_EMO[e.k] || ''} ${esc(e.n)}</b><span>${esc(buyLabel(e.k))}${e.id ? '' : ' · new'}${e.pre ? ' · from your shopping list' : ''}</span></span>
     <span class="lcount"><button type="button" class="iconbtn small" data-buystep="-1" data-i="${i}" aria-label="One less">${svg(P.minus)}</button><b>${num(e.q) || 1}×</b><button type="button" class="iconbtn small" data-buystep="1" data-i="${i}" aria-label="One more">${svg(P.plus)}</button></span>
     <input class="finp buyp" data-buyp="${i}" inputmode="decimal" placeholder="€ optional" value="${e.p != null ? esc(String(e.p).replace('.', ',')) : ''}" aria-label="Price of ${esc(e.n)}">
-    <button type="button" class="iconbtn small" data-buyx="${i}" aria-label="Remove ${esc(e.n)}">${svg(P.x)}</button></div>`).join('');
+    <button type="button" class="iconbtn small" data-buyx="${i}" aria-label="Remove ${esc(e.n)}">${svg(P.x)}</button>
+    ${e.k === 'closet' && !e.id ? `<div class="buycl"><div class="lwrap">${ccats.slice(0, 10).map(c => `<button type="button" class="chip" data-buyt="${i}" data-v="${esc(c)}" aria-pressed="${e.t === c}">${esc(c)}</button>`).join('')}</div><input class="finp" data-buyurl="${i}" type="url" inputmode="url" placeholder="🔗 Product link (fills photo, brand, colour)" value="${esc(e.url || '')}"><small class="muted">✨ No link? The night round finds the photo and details.</small></div>` : ''}</div>`).join('');
   const sum = items.reduce((n, e) => n + (num(e.p) || 0), 0), tot = num(D.amount);
-  return `<div class="buys">${rows ? `<div class="lrows">${rows}</div>` : '<p class="lnone">Link what this paid for: it goes into your pantry, closet or other list with the price, shop and date.</p>'}
-    ${sum && tot ? `<p class="lnone">${eur(sum)} of ${eur(tot)} has a product${tot - sum > 0.005 ? `, ${eur(tot - sum)} not split` : ''}.</p>` : ''}
-    <input class="finp" type="search" data-buyq placeholder="Search, or type something new" value="${esc(D._buyq || '')}" autocomplete="off" aria-label="Search what you bought">
+  // her usual products at this shop, and what is on her shopping list
+  const shop = norm(shopOfTx(D.name) || D.name || ''), usual = {};
+  if (shop) for (const x of recs('ftx')) if (x.id !== D.id && norm(shopOfTx(x.name) || x.name || '') === shop) for (const e of x.items || []) if (e.id && !have.has(buyKey(e))) { const u = usual[buyKey(e)] || (usual[buyKey(e)] = { ...e, n: e.n, c: 0 }); u.c++; }
+  const us = Object.values(usual).sort((a, b) => b.c - a.c).slice(0, 12);
+  const list = k === 'ingredients' ? recs('ingredients').filter(r => r.list && !have.has('ingredients:' + r.id)).slice(0, 14) : [];
+  const pct = tot ? Math.min(100, 100 * sum / tot) : 0;
+  return `<div class="buys">
+    <div class="buykinds" role="group" aria-label="Which list">${BUY_KINDS.filter(([x]) => x !== 'wishes').map(([x, l]) => `<button type="button" class="chip" data-buyk="${x}" aria-pressed="${k === x}">${BUY_EMO[x]} ${esc(l)}</button>`).join('')}</div>
+    ${us.length ? `<p class="dsub">Your usual here</p><div class="lwrap">${us.map(e => `<button type="button" class="chip" data-buyadd="${e.k}" data-id="${e.id}" data-v="${esc(e.n)}">${esc(foodEmoOr(e))} ${esc(e.n)}</button>`).join('')}</div>` : ''}
+    ${list.length ? `<p class="dsub">On your shopping list</p><div class="lwrap">${list.map(r => `<button type="button" class="chip" data-buyadd="ingredients" data-id="${r.id}" data-v="${esc(titleOf(r))}">☐ ${esc(titleOf(r))}</button>`).join('')}</div>` : ''}
+    ${rows ? `<div class="lrows">${rows}</div>` : '<p class="lnone">Tap what you bought, type it in one line, or add a receipt photo and the night round reads it.</p>'}
+    ${tot && items.length ? `<div class="buybar"><i style="width:${pct}%"></i></div><p class="lnone">${eur(sum)} of ${eur(tot)} has a product${tot - sum > 0.005 ? `, ${eur(tot - sum)} not split` : ''}. ${items.length > 1 ? '<button type="button" class="chip" data-buysplit>⚖️ Split evenly</button>' : ''}</p>` : ''}
+    <div class="buyline"><input class="finp" type="search" data-buyq placeholder="${esc(`Type: 2 oat milk, spinach…`)}" value="${esc(D._buyq || '')}" autocomplete="off" aria-label="What you bought"><button type="button" class="btn small" data-buyline>Add</button></div>
     <div class="lwrap" data-buyres>${buysResults(D)}</div></div>`;
+}
+const foodEmoOr = e => e.k === 'ingredients' ? foodEmo(e.n) : BUY_EMO[e.k] || '•';
+// one typed line becomes products: "2 oat milk, spinach, chicken 500g" (a known product is linked, a new one goes into the chosen list)
+function buysLine(D) {
+  const k = D._buyk || 'ingredients', pool = buyPool(), items = D.items = [].concat(D.items || []);
+  for (let part of String(D._buyq || '').split(/,|\n|;| \+ /)) {
+    part = part.trim(); if (!part) continue;
+    let q = 1; const m = part.match(/^(\d+)\s*[x×]?\s+(.+)$/) || part.match(/^(.+?)\s+[x×]\s*(\d+)$/);
+    if (m) { if (/^\d+$/.test(m[1])) { q = +m[1]; part = m[2]; } else { part = m[1]; q = +m[2]; } }
+    const n = norm(part), hit = pool.find(x => x.k === k && norm(x.n) === n) || pool.find(x => norm(x.n) === n);
+    const e = hit ? { k: hit.k, id: hit.id, n: hit.n, q } : { k, n: part[0].toUpperCase() + part.slice(1), q };
+    if (!items.some(x => buyKey(x) === buyKey(e))) items.push(e);
+  }
+  D._buyq = '';
 }
 function buysResults(D) {
   const q = norm(D._buyq || ''); if (q.length < 2) return '';
@@ -7040,8 +7136,8 @@ async function buysBeforeSave(out) {
   for (const e of [].concat(out.items || [])) {
     if (e.id) continue;
     const base = { name: e.n, ...(e.p != null ? { price: e.p } : {}), bought: date };
-    if (e.k === 'closet') { e.id = C.uuid(); await C.closetNew?.(e.id, { name: e.n, price: e.p ?? null, shop, bought: date }); continue; }
-    const extra = { ingredients: { stock: true, ...(shop ? { shop } : {}) }, beauty: { qty: 0 }, supplements: {}, inventory: { status: 'Idee', ...(shop ? { shop } : {}) }, gear: { own: false } }[e.k] || {};
+    if (e.k === 'closet') { e.id = C.uuid(); await C.closetNew?.(e.id, { name: e.n, price: e.p ?? null, shop, bought: date, isNew: true, ...(e.t ? { cat: e.t } : {}), ...(e.url ? { url: e.url } : {}), ...(out.returnBy ? { returnBy: out.returnBy } : {}), needsFill: true, fillHow: e.url ? 'Open the product link and fill in the photo, brand, colour and details.' : `Bought at ${shop || out.name}: find the product photo, brand and colour online by its name.` }); continue; }
+    const extra = { ingredients: { stock: true, ...(shop ? { shop } : {}) }, beauty: { qty: 0 }, supplements: {}, inventory: { status: 'Idee', ...(shop ? { shop } : {}) }, gear: { own: false }, fitgear: { own: true }, gifts: { status: 'Received' } }[e.k] || {};
     e.id = await create(e.k, { ...base, ...extra });
   }
 }
@@ -7059,6 +7155,9 @@ async function buysApply(before, out) {
     else if (e.k === 'inventory') { if (sign > 0) await put('inventory', r.id, { ...d, status: 'Gekocht', ...(shop ? { shop } : {}), ...price, ...when }); }
     else if (e.k === 'gear') { if (sign > 0) await put('gear', r.id, { ...d, own: true, ...price, ...when }); }
     else if (e.k === 'wishes') { if (sign > 0) await put('wishes', r.id, { ...d, status: 'Bought', ...price }); }
+    else if (e.k === 'fitgear') { if (sign > 0) await put('fitgear', r.id, { ...d, own: true, ...price, ...when }); }
+    else if (e.k === 'gifts') { if (sign > 0) await put('gifts', r.id, { ...d, status: ['Idea', 'To buy', 'Ordered'].includes(d.status) ? 'Received' : d.status, ...price }); }
+    else if (e.k === 'nbits') { if (sign > 0) await put('nbits', r.id, { ...d, ...price, ...when }); }
   };
   L.batch = true;
   try {
@@ -7483,6 +7582,10 @@ document.addEventListener('click', async e => {
     case 'fall': L.fall = (L.fall || 50) + 50; C.render(); break;
     case 'fafford': fAfford(fState()); break;
     case 'fchip': case 'frepeat': { const x = L.byId[d.id]; if (x) fQuick(x); break; }
+    case 'sortgo': sortGo(d.id, d.v); break;
+    case 'sortskip': { const r = L.byId[d.id]; if (r) { await save(r, { sorted: true }); C.toast('Okay, not a product'); C.render(); } break; }
+    case 'retdone': await retDone(d.id); break;
+    case 'retkeep': { const r = L.byId[d.id]; if (r) { await save(r, { kept: true }); C.toast('💛 Kept'); C.render(); } break; }
     case 'budsug': { const c = L.byId[d.id]; if (!c) break; await save(c, { budget: Number(d.v), ...(d.roll ? { rollover: true } : {}) }); C.toast(`${titleOf(c)}: budget ${fEur0(Number(d.v))}`); C.render(); break; }
     case 'budall': { const box = b.closest('#m-coach'); for (const b of box?.querySelectorAll('[data-act="budsug"]') || []) { const c = L.byId[b.dataset.id]; if (c) await save(c, { budget: Number(b.dataset.v), ...(b.dataset.roll ? { rollover: true } : {}) }); } C.toast('✓ Your plan is set'); C.render(); break; }
     case 'fnothing': { const r = recs('fset')[0]; (r ? save(r, { nothingOn: today() }) : create('fset', { nothingOn: today() }).catch(() => {})); C.toast('Nothing spent today. Noted.'); break; }
@@ -7610,6 +7713,7 @@ function fEnvFill(fill) {
   ${(() => { const pots = cats.filter(c => !c.nospend && num(c.budget)); if (!pots.length) return ''; return `<div class="fjars">${pots.map(c => { const b = num(c.budget) || 0, sp = fSum(recs('ftx').filter(x => x.category === c.id && x.date >= w.start && x.date <= w.end && x.date <= today())), left = Math.max(0, b - sp), pct = b ? Math.round(left / b * 100) : 0, fast = b && sp / b > 1 - days / Math.max(1, diffDays(w.start, w.end) + 1) + .15;
       return `<div class="fjar ${fast ? 'fast' : ''}" title="${esc(c.name)}"><div class="jar"><i style="height:${pct}%"></i><span>${c.emoji || '🫙'}</span></div><b>${esc(c.name || '')}</b><small>${moneyHidden() ? '€•••' : eur(left)} over${fast ? ' · te snel' : ''}</small></div>`; }).join('')}</div>`; })()}
   ${budgetCoach()}
+  ${byListPanel()}
   <div class="fenvgrid">
     ${MP('Your envelopes', `<div class="seg fseg" role="group"><button data-act="envmode" data-v="month" aria-pressed="${mode === 'month'}">Per month</button><button data-act="envmode" data-v="pay" aria-pressed="${mode === 'pay'}">Per paycheck</button></div><p class="lnone">${esc(shortDate(w.start))} – ${esc(shortDate(w.end))}</p>${cats.map(c => fEnvRow(c, w)).join('') || quiet('Add a category for each kind of everyday spending.')}`, '<button class="chip link" data-act="new" data-v="fcats">+ Category</button>')}
     ${MP('Every purchase', `<div class="seg fseg" role="group">${[['out', 'Purchases'], ['in', 'Money in'], ['both', 'Both']].map(([k, l]) => `<button data-act="everymode" data-v="${k}" aria-pressed="${(L.everyMode || 'out') === k}">${l}</button>`).join('')}</div>
@@ -8766,7 +8870,7 @@ const FOOD_EMO = [[/appel/, '🍎'], [/banaan/, '🍌'], [/mandarijn|sinaas|clem
   [/kaas/, '🧀'], [/ei(eren)?\b|eitje/, '🥚'], [/yoghurt|kwark|skyr/, '🥣'], [/brood|bol|pistolet|croissant/, '🍞'], [/cracker|beschuit|rijstwafel/, '🍘'], [/komkommer/, '🥒'], [/tomaat/, '🍅'], [/wortel/, '🥕'], [/paprika/, '🫑'],
   [/noot|noten|amandel|cashew|pinda/, '🥜'], [/popcorn/, '🍿'], [/chips/, '🥔'], [/chocola/, '🍫'], [/koek|cookie/, '🍪'], [/avocado/, '🥑'], [/rookvlees|kip|ham|vlees/, '🥩'], [/zalm|vis|tonijn|makreel/, '🐟'], [/hummus|dip/, '🫙']];
 // the app speaks English now, so English food words get their emoji too (and a few more dishes)
-const FOOD_EN = [[/\bapples?\b/, '🍎'], [/banana/, '🍌'], [/orange|clementine|tangerine/, '🍊'], [/\bpears?\b/, '🍐'], [/grape/, '🍇'], [/strawberr/, '🍓'], [/blueberr|berries|raspberr/, '🫐'], [/lemon|lime/, '🍋'], [/peach/, '🍑'], [/cherr/, '🍒'], [/coconut/, '🥥'],
+const FOOD_EN = [[/milk|latte|cappuccino/, '🥛'], [/\bapples?\b/, '🍎'], [/banana/, '🍌'], [/orange|clementine|tangerine/, '🍊'], [/\bpears?\b/, '🍐'], [/grape/, '🍇'], [/strawberr/, '🍓'], [/blueberr|berries|raspberr/, '🫐'], [/lemon|lime/, '🍋'], [/peach/, '🍑'], [/cherr/, '🍒'], [/coconut/, '🥥'],
   [/\beggs?\b|omelet/, '🥚'], [/bread|toast|sourdough|bagel|bun\b|roll\b|baguette/, '🍞'], [/croissant/, '🥐'], [/pancake|waffle/, '🥞'], [/cheese/, '🧀'], [/yogh?urt|granola|oat|porridge|cereal|muesli/, '🥣'],
   [/coffee|latte|cappuccino|espresso/, '☕'], [/\btea\b|matcha/, '🍵'], [/milk/, '🥛'], [/juice|smoothie/, '🧃'], [/wine/, '🍷'], [/water/, '💧'],
   [/salad|lettuce|spinach|kale/, '🥗'], [/cucumber/, '🥒'], [/tomato/, '🍅'], [/carrot/, '🥕'], [/pepper/, '🫑'], [/broccoli/, '🥦'], [/potato|fries/, '🥔'], [/sweet potato/, '🍠'], [/corn\b/, '🌽'], [/mushroom/, '🍄'], [/onion/, '🧅'], [/garlic/, '🧄'],
@@ -11007,6 +11111,8 @@ return {
   icons: Object.fromEntries(Object.entries(P).filter(([k]) => !['plus', 'minus', 'left', 'right', 'x', 'check'].includes(k)).map(([k, v]) => [k, G(v)])),
   sections: SECTIONS.map(s => ({ key: s.key, label: s.label, icon: G(s.icon), groups: Object.fromEntries(Object.entries(s.groups || {}).map(([g, [l, ic]]) => [g, [l, G(ic)]])), subs: Object.fromEntries(Object.entries(s.subs || {}).map(([g, o]) => [g, Object.fromEntries(Object.entries(o).map(([k, [l, ic]]) => [k, [l, G(ic)]]))])), views: s.views.map(v => [vkey(s, v), v[1], G(v[2]), v[3] || '', v[4] || '', v[5] || '', v[6] || 0]) })),
   todoCount: sec => C ? todoCount(sec) : 0,
+  listSpent: k => { try { return C && L.status === 'ok' ? listSpentLine(k) : ''; } catch { return ''; } },
+  sortCard: where => { try { return C && L.status === 'ok' ? sortCardHTML(where) : ''; } catch (e) { console.error(e); return ''; } },
   merges: Object.fromEntries(Object.entries(MERGES).map(([k, [l, ic]]) => [k, [l, G(ic)]])),
   has: view => !!PAGES[view],
   lists: optionLists, fullList: fullOptions, renameIn: renameOption, knownChips, openRecord,
