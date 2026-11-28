@@ -9485,7 +9485,7 @@ function socialPinterest(host) {
 const CAL_CATS = [['life', 'Life'], ['body', 'Body'], ['kitchen', 'Kitchen'], ['money', 'Finance'], ['social', 'Social'], ['home', 'Home'], ['closet', 'Closet'], ['orders', 'Orders']];
 const CAL_MS = [1, 3, 7, 14, 30, 60, 90, 182, 365];
 const NL_WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const calLoad = () => { const c = L.cal ||= { view: 'month', date: today() }; if (!c.off) { try { c.off = new Set(JSON.parse(localStorage.getItem('calOff') || '[]')); } catch { c.off = new Set(); } try { c.view = localStorage.getItem('calView') || c.view; } catch {} } return c; };
+const calLoad = () => { const c = L.cal ||= { view: innerWidth < 700 ? 'agenda' : 'month', date: today() }; if (!c.off) { try { c.off = new Set(JSON.parse(localStorage.getItem('calOff') || '[]')); } catch { c.off = new Set(); } try { c.view = localStorage.getItem('calView') || c.view; } catch {} } return c; };
 const inR = (d, a, b) => d && d >= a && d <= b;
 const hmToMin = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
 /* your cycle in the calendar: every day of a period (logged, from Apple Health or still going), the expected periods
@@ -9671,12 +9671,22 @@ function calPageInner(host) {
     <div class="calnav"><button class="iconbtn" data-act="calstep" data-v="-1" aria-label="Previous">‹</button><button class="btn small" data-act="calgo" data-v="${t}" data-keep="1">Today</button><button class="iconbtn" data-act="calstep" data-v="1" aria-label="Next">›</button></div></div>
   <div class="calcats" role="group" aria-label="Sections">${CAL_CATS.map(([k, l]) => `<button class="chip calcat cal-${k}" data-act="calcat" data-v="${k}" aria-pressed="${!c.off.has(k)}"><span class="caldot"></span>${l}</button>`).join('')}</div>
   ${Object.keys(cm).length ? `<p class="lnone calcylegend"><span class="calcy cy-period">🩸</span> period <span class="calcy cy-predict">🩸</span> expected <span class="calcy cy-fertile">🌸</span> fertile <span class="calcy cy-ovul">🌼</span> ovulation <button class="chip link small" data-act="go" data-v="care/cycle">Cycle ›</button></p>` : ''}
-  ${body}
+  <div class="calsplit ${['month', 'week'].includes(c.view) ? 'hasside' : ''}"><div class="calbody">${body}</div>${['month', 'week'].includes(c.view) ? calSideHTML(c, byDay) : ''}</div>
   <p class="lnone calhint">Tap something to open it, tick it off or move it. On a computer you can also drag it to another day. ★ means important.</p>
   <div data-calweek></div>`;
   // the week review (terugblik, focus, zondag reset) lives under the calendar
   const wk = host.querySelector('[data-calweek]');
   if (wk) { try { planWeek(wk); wk.querySelector('.viewhead')?.remove(); const h = document.createElement('h2'); h.className = 'calwh'; h.textContent = 'This week'; wk.prepend(h); } catch {} }
+}
+// beside the month and the week (below them on a phone): the chosen day, what's coming up and the bills of the week
+function calSideHTML(c, byDay) {
+  const t = today(), d = c.date || t, l = (byDay[d] || []).slice().sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
+  const item = e => `<button type="button" class="calsrow cal-${e.cat}" data-cal="${esc(e.id)}"><span class="caldot"></span><span>${esc(e.title)}</span><small class="muted">${esc(e.time ? e.time.slice(0, 5) : e.sub || '')}</small></button>`;
+  let up = []; try { up = calEvents(t, addDays(t, 13)).filter(e => e.cat !== 'money' && e.date > t && (e.imp || e.time)).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''))).slice(0, 6); } catch {}
+  let bills = []; try { bills = fOccs(t, addDays(t, 6)).filter(o => !o.paid && !o.skipped).slice(0, 4); } catch {}
+  return `<aside class="calside"><section class="panel"><h3 class="mh">${esc(d === t ? 'Today' : calDayLabel(d))}</h3>${l.length ? l.map(item).join('') : '<p class="lnone">Nothing on this day.</p>'}</section>
+    ${up.length ? `<section class="panel"><h3 class="mh">Coming up</h3>${up.map(e => `<button type="button" class="calsrow cal-${e.cat}" data-cal="${esc(e.id)}"><span class="caldot"></span><span>${esc(e.title)}</span><small class="muted">${esc(dayName(e.date))}${e.time ? ' ' + esc(e.time.slice(0, 5)) : ''}</small></button>`).join('')}</section>` : ''}
+    ${bills.length ? `<section class="panel"><h3 class="mh">Bills this week</h3>${bills.map(o => `<div class="calsrow"><span>${esc(o.bill.emoji || '🧾')}</span><span>${esc(o.bill.name || 'Bill')}</span><small class="muted">${moneyHidden() ? '€•••' : esc(eur(o.amount))}</small></div>`).join('')}</section>` : ''}</aside>`;
 }
 function calPage(host) {
   try { calPageInner(host); }
