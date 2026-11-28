@@ -159,3 +159,10 @@ Think as a personal finance coach and a home organiser: every purchase can becom
 - Wishlist: a moodboard of big photos with a rank number (drag to reorder), a "this or that" game (two wishes side by side, tap the one you want more, a few rounds give your top 5), and a 30-day wait per wish (a bar, then "still want it?" Yes or Not anymore).
 - Apple Pay purchase: both looks. Her cards as a stack to swipe for the account, the amount big with category chips; and a receipt-style view (shop, card, time, category).
 - Closet piece: link first (paste a link, photo, brand, colour and price fill in), step by step (one question per screen: kind, colour, season, occasions, photo) and a big photo on top with colour dots and chips.
+
+## Spending with fixed costs (Nov 2026)
+- Spending is one page: the pay as a bar on top (Fixed, Everyday, Pots, Save), then 1 · Fixed first (a tick per bill, with a segmented bar Next 7 days | Date | Group), 2 · Pots to keep apart (yearly and every-few-months bills per month), 3 · Everyday (jars without the bill categories).
+- Fixed costs is no longer its own tab: it sits under Spending (All, Fixed costs, Impulses) and Fixed first links to it.
+- Bills have an emoji each. Bill groups are: Home, Health & insurance, Phone & internet, Transport, Debt, Music & streaming, Apps & cloud, Sport.
+- A gentle card when she pays for more than one music service, with what one less saves a year (she can hide it).
+- Today: routine steps in a logical order, no tile for something a routine already holds, no duplicate tiles; the coming-week strip is gone. Empty bill jars show "✓ Paid", red only when over budget.

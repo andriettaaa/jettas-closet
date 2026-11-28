@@ -1025,7 +1025,7 @@ const KINDS = {
   },
   fbills: {
     one: 'repeat', many: 'Repeats', facet: 'type',
-    fields: [F('name', 'Name'), F('amount', 'Amount', 'money', { half: 1 }), F('type', 'Type', 'select', { options: ['Bill', 'Subscription', 'Insurance', 'Debt'], half: 1 }),
+    fields: [F('name', 'Name'), F('emoji', 'Emoji', 'text', { half: 1 }), F('amount', 'Amount', 'money', { half: 1 }), F('type', 'Type', 'select', { options: ['Bill', 'Subscription', 'Insurance', 'Debt'], half: 1 }),
       F('cadence', 'How often', 'select', { options: ['Monthly', 'Every N months', 'Yearly', 'Weekly'], half: 1 }), F('every', 'Every how many', 'num', { half: 1 }),
       F('anchor', 'First due', 'date', { half: 1 }), F('ends', 'Ends', 'date', { half: 1 }),
       F('auto', 'Paid automatically (direct debit)', 'check', { half: 1 }), F('varies', 'Amount changes each time', 'check', { half: 1 }),
@@ -1756,7 +1756,7 @@ const NAV_FIX = {
       'reports': ['Overview', 'stats'], 'plan/mindstats': ['Mind', 'stats', ''], 'body/stats': ['Body', 'stats', ''], 'fit/stats': ['Train', 'stats', ''], 'care/skinstats': ['Skin', 'stats', ''], 'plan/planstats': ['Plans', 'stats', ''], 'wish/stats': ['Wishlist', 'stats', ''],
       'wish/master': ['Wishlist'], overview: ['Overview'] } },
   kitchen: { flat: 1, hide: ['todo'], set: { today: ['Overview', 0, 0, 'kov'], stats: ['Analysis', 0, 0, 'kov'], recipes: ['Recipes'], meals: ['Meal plan'], foodlog: ['Food', 0, 0, 'klog'], drinks: ['Drinks', 0, 0, 'klog'], cooked: ['Cooked', 0, 0, 'klog'], pantry: ['Pantry'], groceries: ['Groceries'], gear: ['Kitchen gear', 0, 0, 'kspul'], shops: ['Shops', 0, 0, 'kspul'] } },
-  money: { groups: { plan: ['Goals and debt', P.target], look: ['Review', P.trend] }, hide: ['todo'], set: { today: ['Today'], spending: ['All', 0, 0, 'uit'], impulse: ['Impulses', 0, 0, 'uit'], repeats: ['Fixed costs'], plan: ['Goals'], debt: ['Debt'], insurance: ['Insurance'], forecast: ['Forecast'], year: ['Year'], networth: ['Net worth'] } },
+  money: { groups: { plan: ['Goals and debt', P.target], look: ['Review', P.trend] }, hide: ['todo'], set: { today: ['Today'], spending: ['All', 0, 0, 'uit'], impulse: ['Impulses', 0, 0, 'uit'], repeats: ['Fixed costs', 0, 0, 'uit'], plan: ['Goals'], debt: ['Debt'], insurance: ['Insurance'], forecast: ['Forecast'], year: ['Year'], networth: ['Net worth'] } },
   home: { hide: ['todo'], set: { today: ['Overview'], chores: ['Schedule', 0, 0, 'clean'], houselog: ['Log', 0, 0, 'clean'], inventory: ['Moving list', 0, 0, 'move'], mood: ['Moodboard', 0, 0, 'move'], plants: ['Plants'], repairs: ['Repairs'] } },
   social: { groups: { work: ['Work', P.check], create: ['Create', P.phone], grow: ['Growth', P.trend], library: ['Library', P.book] }, hide: ['todo'], set: { today: ['Overview'], ideas: ['Ideas'], plan: ['Calendar'], collabs: ['Deals', 0, 0, 'collab'], income: ['Income', 0, 0, 'collab'] } }
 };
@@ -2112,7 +2112,7 @@ const WORD_EMO = [[/chicken|kip/, '🍗'], [/pasta|spaghetti|pesto|lasagne/, '�
   [/cleans|wash|zeep/, '🧼'], [/serum|niacin|acid|retin/, '💧'], [/spf|sun|zon/, '☀️'], [/snail|essence/, '🐌'], [/cream|creme|moist/, '🫧'], [/hair|haar|olaplex|shampoo|conditioner/, '💇🏾‍♀️'], [/lip|lipstick/, '💄'], [/mascara|brow|liner/, '👁'], [/perfume|parfum|eau de/, '🌸'], [/nail|nagel/, '💅'],
   [/pilates|core|abs/, '🧘🏾‍♀️'], [/yoga|stretch/, '🧘'], [/leg|glute|squat/, '🦵🏾'], [/upper|arm|back|chest/, '💪🏾'], [/run|cardio|walk/, '🏃🏾‍♀️'], [/bath|badkamer|toilet/, '🛁'], [/kitchen|keuken/, '🍳'], [/vacuum|stofzuig/, '🧹'], [/bed|laken/, '🛏'], [/laundry|was\b/, '🧺']];
 const TONES = ['#f6d7b0,#e0a04a', '#f3c7a8,#d9707c', '#d6ecd0,#6fae8c', '#cfe0f0,#7fa6c9', '#e7dcf3,#a58bd0', '#f4e3c4,#c9a97a', '#f6d0dc,#d98aa6', '#d9efe9,#5fa39a'];
-const itemEmo = r => { const t = norm(titleOf(r) + ' ' + [r.type, r.category, r.cat, r.step].filter(Boolean).join(' ')); return (WORD_EMO.find(([re]) => re.test(t)) || [0, KIND_EMO[r.kind] || '✨'])[1]; };
+const itemEmo = r => { if (r.emoji) return r.emoji; const t = norm(titleOf(r) + ' ' + [r.type, r.category, r.cat, r.step].filter(Boolean).join(' ')); return (WORD_EMO.find(([re]) => re.test(t)) || [0, KIND_EMO[r.kind] || '✨'])[1]; };
 const toneOf = r => { const t = String(r.id || titleOf(r)); let h = 0; for (const c of t) h = (h * 31 + c.charCodeAt(0)) >>> 0; return TONES[h % TONES.length]; };
 const phFill = r => `<span class="lemofill" style="background:linear-gradient(160deg,${toneOf(r)})">${itemEmo(r)}</span>`;
 function card(r) {
@@ -7680,6 +7680,9 @@ document.addEventListener('click', async e => {
     case 'fafford': fAfford(fState()); break;
     case 'fchip': case 'frepeat': { const x = L.byId[d.id]; if (x) fQuick(x); break; }
     case 'sortgo': sortGo(d.id, d.v); break;
+    case 'fixmode': L.fixMode = d.v; C.render(); break;
+    case 'occpay': { const st = fState(), o = fOccs(addDays(st.start, -40), addDays(st.t, 60)).find(x => x.key === d.v); if (o && !o.paid) { await fPayOcc(o); C.render(); } break; }
+    case 'musicok': await C.savePrefs({ musicNudgeOff: true }); C.render(); break;
     case 'sortskip': { const r = L.byId[d.id]; if (r) { await save(r, { sorted: true }); C.toast('Okay, not a product'); C.render(); } break; }
     case 'retdone': await retDone(d.id); break;
     case 'retkeep': { const r = L.byId[d.id]; if (r) { await save(r, { kept: true }); C.toast('💛 Kept'); C.render(); } break; }
@@ -7801,13 +7804,57 @@ function budgetCoach() {
   if (!cards && !plan) return '';
   return MP('💡 Budget coach', `${cards ? `<div class="bcsugs">${cards}</div>` : ''}${plan}<p class="lnone">From your purchases of the last 3 months (12 for pots). Repeats count exactly, the rest with a 10% buffer.</p>`, '', 'coach');
 }
+/* Spending as one page: where the pay goes (a bar), the fixed costs first with a tick each, the pots to keep apart, then everyday.
+   The fixed costs switch between the next 7 days, by date and by group. */
+const BILL_GROUP_COL = ['#6b3f22', '#c97a86', '#5b8fc9', '#8a9aa8', '#e0a948', '#a07ab8', '#4e8a6a', '#d6a35c', '#7fae7a'];
+const MUSIC_RE = /spotify|apple music|youtube premium|youtube music|deezer|tidal|amazon music/;
+function payFlowHTML() {
+  const st = fState(), bills = recs('fbills').filter(b => !b.paused && !(b.ends && b.ends < today()));
+  const fixed = Math.round(bills.filter(fMonthly).reduce((n, b) => n + fPerMonth(b), 0)), pots = Math.round(bills.filter(b => !fMonthly(b)).reduce((n, b) => n + fPerMonth(b), 0));
+  const savy = c => /sav|spaar|buffer/i.test(c.name || ''), ecats = recs('fcats').filter(c => !c.nospend && !bills.some(b => b.category === c.id));
+  const every = Math.round(ecats.filter(c => !savy(c)).reduce((n, c) => n + (num(c.budget) || 0), 0)), saveBud = Math.round(ecats.filter(savy).reduce((n, c) => n + (num(c.budget) || 0), 0));
+  const inc = recs('fincome').filter(x => x.date && x.type !== 'Other').sort((a, b) => b.date.localeCompare(a.date)), last = inc[0], pay = num(last?.amount) || 0;
+  const save = Math.max(saveBud, pay - fixed - pots - every), parts = [['Fixed', fixed, '#6b3f22'], ['Everyday', every, '#a8673d'], ['Pots', pots, '#7fae7a'], ['Save', save, '#4e8a6a']].filter(x => x[1] > 0), tot = parts.reduce((n, x) => n + x[1], 0) || 1;
+  const hid = moneyHidden(), m = v => hid ? '€•••' : fEur0(v);
+  return `<section class="panel payflow"><p class="lnone">${pay ? `Your pay · ${m(pay)} on ${esc(niceDate(last.date))}` : 'Your pay'}${st.pay ? ` · ${plural(st.days, 'day')} to go` : ''}</p><b class="pfbig">${m(Math.max(0, st.until))} to spend</b>
+    <div class="bcstack">${parts.map(([l, v, c]) => `<i style="width:${100 * v / tot}%;background:${c}">${v / tot > .14 ? `${l} ${hid ? '' : fEur0(v)}` : v / tot > .07 ? l : ''}</i>`).join('')}</div></section>`;
+}
+function fixedFirstHTML() {
+  const st = fState(), t = today(), mode = L.fixMode || 'next', end = [st.pay ? addDays(st.pay, -1) : addDays(t, 30), addDays(st.start, 31)].sort()[0];
+  const occ = fOccs(st.start, end).filter(o => !o.skipped && fMonthly(o.bill)), paidSum = occ.filter(o => o.paid).reduce((n, o) => n + o.amount, 0), all = occ.reduce((n, o) => n + o.amount, 0);
+  const hid = moneyHidden(), m = v => hid ? '€•••' : eur(v), emo = b => b.emoji || itemEmo({ ...b, kind: 'fbills' });
+  const row = o => `<div class="ffrow ${o.paid ? 'on' : ''}"><button type="button" class="ffck" data-act="occpay" data-v="${esc(o.key)}" aria-label="${o.paid ? 'Paid' : 'Mark as paid'}: ${esc(o.bill.name || 'bill')}" ${o.paid ? 'disabled' : ''}>${o.paid ? '✓' : ''}</button><button type="button" class="ffname" data-act="open" data-id="${o.bill.id}"><b>${esc(emo(o.bill))} ${esc(o.bill.name || 'Bill')}</b><small>${o.paid ? 'paid' : o.date < t ? 'late · ' + niceDate(o.date) : o.date === t ? 'today' : relDay(o.date) === 'tomorrow' ? 'tomorrow' : niceDate(o.date)}</small></button><span class="ffamt">${m(o.amount)}</span></div>`;
+  const head = (l, extra = '') => `<p class="dsub">${l}${extra}</p>`;
+  let body = '';
+  if (mode === 'next') { const l = occ.filter(o => !o.paid && o.date <= addDays(t, 7)); body = l.length ? l.map(row).join('') : '<p class="lnone">✓ Nothing to pay in the next 7 days.</p>'; }
+  else if (mode === 'date') {
+    const wkEnd = addDays(t, 7), groups = [['Late', o => !o.paid && o.date < t], ['This week', o => !o.paid && o.date >= t && o.date <= wkEnd], ['Later this pay', o => !o.paid && o.date > wkEnd], ['Paid ✓', o => o.paid]];
+    body = groups.map(([l, f]) => { const g = occ.filter(f); return g.length ? head(l) + g.map(row).join('') : ''; }).join('');
+    const yr = recs('fbills').filter(b => !fMonthly(b) && !b.paused); if (yr.length) body += head('Yearly and every few months') + yr.map(b => `<div class="ffrow"><span class="ffck ghost"></span><button type="button" class="ffname" data-act="open" data-id="${b.id}"><b>${esc(emo(b))} ${esc(b.name)}</b><small>${esc((b.cadence || '').toLowerCase())}</small></button><span class="ffamt">${m(billAmount(b))}</span></div>`).join('');
+  } else {
+    const by = new Map(); for (const o of occ) { const k = o.bill.category || ''; (by.get(k) || by.set(k, []).get(k)).push(o); }
+    body = [...by].sort((a, b) => b[1].reduce((n, o) => n + o.amount, 0) - a[1].reduce((n, o) => n + o.amount, 0)).map(([k, l]) => { const c = L.byId[k]; return head(`${c ? esc(titleOf(c)) : 'Other'}`, ` <span class="muted">${m(l.reduce((n, o) => n + o.amount, 0))}${l.every(o => o.paid) ? ' · ✓ paid' : ''}</span>`) + l.map(row).join(''); }).join('');
+  }
+  // three music services is two too many: a gentle nudge with what one less saves
+  const mus = recs('fbills').filter(b => !b.paused && MUSIC_RE.test(norm(b.name || '')) && !b.musicOk);
+  const musCard = mus.length > 1 && !C.prefs?.().musicNudgeOff ? `<div class="ffnudge"><b>🎧 You pay for ${mus.length} music services</b><span>${mus.map(b => esc(b.name)).join(', ')}. Keep one and save ${hid ? '€•••' : fEur0(Math.round((mus.reduce((n, b) => n + fPerMonth(b), 0) - Math.max(...mus.map(fPerMonth))) * 12))} a year.</span><button type="button" class="chip" data-act="musicok">Hide this</button></div>` : '';
+  return `<section class="panel fixedfirst"><div class="lph3"><h3 class="mh">1 · Fixed first</h3><span class="lnone">${hid ? '€•••' : fEur0(Math.round(paidSum))} of ${hid ? '€•••' : fEur0(Math.round(all))} paid</span></div>
+    <div class="bar ffbar"><i style="width:${all ? 100 * paidSum / all : 0}%"></i></div>
+    <div class="seg fseg ffseg" role="group">${[['next', 'Next 7 days'], ['date', 'Date'], ['group', 'Group']].map(([k, l]) => `<button data-act="fixmode" data-v="${k}" aria-pressed="${mode === k}">${l}</button>`).join('')}</div>
+    <div class="fflist">${body}</div>${musCard}<button class="chip link" data-act="go" data-v="money/repeats">All fixed costs ›</button></section>`;
+}
+function potsApartHTML() {
+  const t = today(), bills = recs('fbills').filter(b => !b.paused && !fMonthly(b) && !(b.ends && b.ends < t)), hid = moneyHidden();
+  if (!bills.length) return '';
+  return `<section class="panel"><div class="lph3"><h3 class="mh">2 · Pots to keep apart</h3><span class="lnone">per month</span></div>${bills.map(b => `<div class="ffrow"><span class="ffck ghost">${esc(b.emoji || '🫙')}</span><button type="button" class="ffname" data-act="open" data-id="${b.id}"><b>${esc(b.name)}</b><small>${esc(eur(billAmount(b)))} ${esc((b.cadence || '').toLowerCase())}</small></button><span class="ffamt">${hid ? '€•••' : eur(Math.round(fPerMonth(b) * 100) / 100)}</span></div>`).join('')}</section>`;
+}
 function fEnvFill(fill) {
   const mode = fMode(), w = fWindow(mode), cats = recs('fcats').sort((a, b) => (a.nospend ? 1 : 0) - (b.nospend ? 1 : 0) || (num(b.budget) || 0) - (num(a.budget) || 0) || norm(a.name).localeCompare(norm(b.name)));
   const planned = fSum(cats.filter(c => !c.nospend), 'budget'), spent = fSum(recs('ftx').filter(x => fEveryday(x) && x.date >= w.start && x.date <= w.end && x.date <= today()));
   const tags = {}; for (const x of recs('ftx')) for (const t of fTags(x)) tags[t.toLowerCase()] = (tags[t.toLowerCase()] || 0) + 1;
   const days = Math.max(0, diffDays(today(), w.end) + 1);
-  fill.innerHTML = `${fDupNote()}<div class="tiles lt3">${fTile('Spent', eur(spent), `everyday spending this ${mode === 'month' ? 'month' : 'pay'}`)}${fTile('Planned', fEur0(planned), `in ${plural(cats.filter(c => !c.nospend).length, 'envelope')}, per ${mode === 'month' ? 'month' : 'paycheck'}`)}${spent > planned ? fTile('Over plan', eur(spent - planned), `${plural(days, 'day')} to ${mode === 'month' ? 'month end' : 'payday'}`, 'mneg') : fTile('Left in the plan', eur(planned - spent), `${plural(days, 'day')} to ${mode === 'month' ? 'month end' : 'payday'}`)}</div>
-  ${(() => { const pots = cats.filter(c => !c.nospend && num(c.budget)); if (!pots.length) return ''; return `<div class="fjars">${pots.map(c => { const b = num(c.budget) || 0, sp = fSum(recs('ftx').filter(x => x.category === c.id && x.date >= w.start && x.date <= w.end && x.date <= today())), left = Math.max(0, b - sp), pct = b ? Math.round(left / b * 100) : 0;
+  fill.innerHTML = `${fDupNote()}${payFlowHTML()}${fixedFirstHTML()}${potsApartHTML()}<h3 class="mh ffevery">3 · Everyday</h3><div class="tiles lt3">${fTile('Spent', eur(spent), `everyday spending this ${mode === 'month' ? 'month' : 'pay'}`)}${fTile('Planned', fEur0(planned), `in ${plural(cats.filter(c => !c.nospend).length, 'envelope')}, per ${mode === 'month' ? 'month' : 'paycheck'}`)}${spent > planned ? fTile('Over plan', eur(spent - planned), `${plural(days, 'day')} to ${mode === 'month' ? 'month end' : 'payday'}`, 'mneg') : fTile('Left in the plan', eur(planned - spent), `${plural(days, 'day')} to ${mode === 'month' ? 'month end' : 'payday'}`)}</div>
+  ${(() => { const billCats = new Set(recs('fbills').map(b => b.category).filter(Boolean)), pots = cats.filter(c => !c.nospend && num(c.budget) && !billCats.has(c.id)); if (!pots.length) return ''; return `<div class="fjars">${pots.map(c => { const b = num(c.budget) || 0, sp = fSum(recs('ftx').filter(x => x.category === c.id && x.date >= w.start && x.date <= w.end && x.date <= today())), left = Math.max(0, b - sp), pct = b ? Math.round(left / b * 100) : 0;
       // an empty jar for a bill is good news: the bill is paid. Red only when you spent more than planned, "too fast" only for everyday spending
       const txs = recs('ftx').filter(x => x.category === c.id && x.date >= w.start && x.date <= w.end), billy = recs('fbills').some(bl => bl.category === c.id) || txs.some(x => x.bill) || txs.some(x => (num(x.amount) || 0) >= b * .8);
       const paid = b && sp >= b * .98 && sp <= b * 1.02, over = b && sp > b * 1.02, fast = !billy && !paid && !over && b && sp / b > 1 - days / Math.max(1, diffDays(w.start, w.end) + 1) + .15;
