@@ -898,7 +898,7 @@ const KINDS = {
   chores: {
     one: 'chore', many: 'Chores', facet: 'space',
     fields: [F('name', 'Chore'), F('space', 'Rooms', 'multi', { options: [...ROOMS.filter(x => !['Schoonmaak', 'Overig'].includes(x)), 'Hele huis'] }),
-      F('freq', 'How often', 'select', { options: Object.keys(FREQ) }), F('mins', 'Minutes it takes', 'num', { half: 1 }), F('last', 'Last done', 'date', { half: 1 }), F('notes', 'Notes', 'long')],
+      F('freq', 'How often', 'select', { options: Object.keys(FREQ) }), F('mins', 'Minutes it takes', 'num', { half: 1 }), F('last', 'Last done', 'date', { half: 1 }), F('steps', 'Small steps (one per line)', 'long', { rows: 3 }), F('notes', 'Notes', 'long')],
     sorts: [['due', 'Due first'], ['name', 'A to Z']],
     sub: r => [[].concat(r.space || []).join(', '), r.freq].filter(Boolean).join(' · '),
     side: r => { const d = choreDue(r); return d <= today() ? (choreLate(r) ? 'carried over' : 'due today') : 'due ' + relDay(d); },
@@ -1378,6 +1378,7 @@ const KINDS = {
       F('brand', 'Brand', 'text', { half: 1 }), F('shop', 'Shop', 'text', { half: 1 }), F('price', 'Price', 'money', { half: 1 }), F('color', 'Colour', 'text', { half: 1 }),
       F('priority', 'Priority', 'select', { options: WISH_PRIO, half: 1 }), F('status', 'Status', 'select', { options: ['Wish', 'Ordered', 'Bought', 'Dropped'], half: 1 }),
       F('since', 'On the list since', 'date', { half: 1 }), F('by', 'Want it by', 'date', { half: 1 }), F('wait', 'Wait this many hours first', 'num', { half: 1 }), F('planBuy', 'Plan to buy on', 'date', { half: 1 }), F('url', 'Link', 'url'),
+      F('watch', '🔔 Watch the price', 'check', { half: 1 }), F('target', 'Tell me below', 'money', { half: 1 }),
       F('why', 'Why do I want this?', 'long'), F('specs', 'Specifications', 'long'), F('fav', 'Favourite', 'check', { half: 1 }), F('archived', 'Archived', 'check', { half: 1 }), F('photo', 'Photo', 'photo')],
     sorts: [['-created', 'Newest'], ['since', 'Longest on the list'], ['-price', 'Priciest'], ['price', 'Cheapest'], ['name', 'A to Z']],
     hide: r => r.archived || ['Bought', 'Dropped'].includes(r.status), hideLabel: 'Show bought and archived',
@@ -1547,6 +1548,13 @@ const inSeason = (m = monthNow()) => SEASONAL.filter(x => x[3].includes(m));
 // the words of a recipe that say what is in it: its name, ingredient lines and linked pantry items
 const recipeWords = r => [r.name, ...[].concat(r.ilines || []).map(x => typeof x === 'string' ? x : x?.n || ''), ...[].concat(r.ingredients || []).map(id => L.byId[id]?.name || ''), String(r.instructions || '').split(/bereiding|method|steps/i)[0]].join(' \n ');
 const seasonHits = (r, m = monthNow()) => { const t = recipeWords(r); return inSeason(m).filter(x => x[2].test(t)); };
+// a recipe from a photo of a cookbook page: the photo goes up now, tonight's run reads it and fills in the recipe
+async function recipeFromPage(file) {
+  try { C.toast('📷 Uploading the page…'); const path = await C.uploadPhoto(file); await create('recipes', { name: 'Recipe from a photo', pagePhoto: path, photo: path, needsFill: true, fillMiss: ['name', 'ilines', 'steps', 'servings', 'prep', 'category'],
+    fillHow: 'This recipe is a photo of a cookbook page (field pagePhoto, a path in her photo storage; get a link with the photourl action). Read the page and fill name, ilines, steps, servings, prep, cook and category from it. Keep the language of the page.' });
+    C.toast('📖 Saved. The recipe is typed out tonight.'); C.render(); } catch (err) { failed(err); }
+}
+document.addEventListener('change', e => { const t = e.target; if (t.matches?.('[data-recpage]') && t.files?.[0]) { recipeFromPage(t.files[0]); t.value = ''; } });
 function seasonTop() {
   const m = monthNow(), now = inSeason(m), month = new Date(today() + 'T12:00:00').toLocaleDateString('en-GB', { month: 'long' });
   const picks = recs('recipes').map(r => ({ r, h: seasonHits(r, m) })).filter(x => x.h.length).sort((a, b) => b.h.length - a.h.length || (b.r.fav ? 1 : 0) - (a.r.fav ? 1 : 0) || (num(b.r.rating) || 0) - (num(a.r.rating) || 0) || Math.random() - .5);
@@ -1766,7 +1774,7 @@ const PAGES = {
   'kitchen/today': { render: kitchenToday, adds: ['meals', 'recipes', 'ingredients', 'mealprep'] },
   'kitchen/deals': { render: dealsPage, adds: ['recipes'] },
   'kitchen/quit': { render: quitPage, adds: ['recipes', 'ingredients'] },
-  'kitchen/recipes': { title: 'Recipes', segs: [{ kind: 'recipes', top: seasonTop }] },
+  'kitchen/recipes': { title: 'Recipes', segs: [{ kind: 'recipes', top: () => `<div class="recadd"><label class="btn small">📷 Photo of a cookbook page<input type="file" accept="image/*" capture="environment" class="vh" data-recpage></label><span class="lnone">or paste a link (also TikTok or a reel) in a new recipe</span></div>` + seasonTop() }] },
   'kitchen/foodlog': { render: foodLog, adds: ['meals', 'nlog', 'rreviews'] },
   'kitchen/drinks': { render: drinksPage, adds: ['drinklog'] },
   'kitchen/cooked': { title: 'Cooking log', segs: [{ kind: 'rreviews' }] },
@@ -5940,12 +5948,13 @@ function textSugs(kind, f) {
 const allShops = () => { const out = []; for (const r of L.all || []) for (const k of SUG_SHOP) if (r[k] && String(r[k]).trim().length <= 40) out.push(String(r[k]).trim()); return out; };
 /* a new purchase as a keypad: the amount big, a number pad, category tiles, the account; the full form is one tap away */
 function keypadSheet(preset = {}) {
-  let amt = '', cat = preset.category || '', acc = preset.account || fAccs().find(a => !isOwe(a))?.id || fAccs()[0]?.id || '', name = preset.name || '';
+  let ppl = 1, amt = '', cat = preset.category || '', acc = preset.account || fAccs().find(a => !isOwe(a))?.id || fAccs()[0]?.id || '', name = preset.name || '';
   const cats = recs('fcats').filter(c => !c.nospend).sort((a, b) => recs('ftx').filter(x => x.category === b.id).length - recs('ftx').filter(x => x.category === a.id).length).slice(0, 8);
   const draw = () => `<div class="kpamt">€ ${amt ? amt.replace('.', ',') : '0'}</div>
     <input class="finp kpname" data-kpname placeholder="What? (optional)" value="${esc(name)}">
     ${cats.length ? `<div class="kpcats">${cats.map(c => `<button type="button" class="kpcat ${c.id === cat ? 'on' : ''}" data-kpcat="${c.id}"><span>${esc(c.emoji || '🏷️')}</span><small>${esc(c.name || '')}</small></button>`).join('')}</div>` : ''}
     ${fAccs().length > 1 ? `<div class="lwrap">${fAccs().slice(0, 5).map(a => `<button type="button" class="chip ${a.id === acc ? 'on' : ''}" data-kpacc="${a.id}">${esc(a.name || 'Account')}</button>`).join('')}</div>` : ''}
+    <div class="lwrap kpsplit"><span class="lnone">Split</span>${[1, 2, 3, 4].map(n => `<button type="button" class="chip ${n === ppl ? 'on' : ''}" data-kpppl="${n}">${n === 1 ? 'Just me' : n + ' people'}</button>`).join('')}${ppl > 1 && num(amt) ? `<span class="lnone">you ${eur(num(amt) / ppl)} · ${ppl - 1} owe ${eur(num(amt) / ppl)}</span>` : ''}</div>
     <div class="kppad">${['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', '⌫'].map(k => `<button type="button" data-kp="${k}">${k}</button>`).join('')}</div>`;
   const sh = C.sheet({ title: 'New purchase', body: `<div data-kpbody>${draw()}</div>`, foot: '<button class="btn" data-kpfull>Full form</button><div class="spacer"></div><button class="btn primary" data-kpsave>Save</button>' });
   const redo = () => { sh.querySelector('[data-kpbody]').innerHTML = draw(); };
@@ -5954,8 +5963,9 @@ function keypadSheet(preset = {}) {
     if ((b = e.target.closest('[data-kp]'))) { const k = b.dataset.kp; if (k === '⌫') amt = amt.slice(0, -1); else if (k === ',') { if (!amt.includes('.')) amt = (amt || '0') + '.'; } else if (!/\.\d\d$/.test(amt) && amt.length < 8) amt += k; redo(); }
     if ((b = e.target.closest('[data-kpcat]'))) { cat = cat === b.dataset.kpcat ? '' : b.dataset.kpcat; redo(); }
     if ((b = e.target.closest('[data-kpacc]'))) { acc = b.dataset.kpacc; redo(); }
+    if ((b = e.target.closest('[data-kpppl]'))) { ppl = +b.dataset.kpppl; redo(); }
     if (e.target.closest('[data-kpfull]')) { C.closeSheet(); openEditor('ftx', null, { ...preset, amount: num(amt) || undefined, category: cat || undefined, account: acc || undefined, name: name || undefined, _full: 1 }); }
-    if (e.target.closest('[data-kpsave]')) { const a = num(amt); if (!a) return C.toast('Type an amount first'); await create('ftx', { date: today(), amount: a, category: cat || null, account: acc || null, name: name || L.byId[cat]?.name || 'Purchase' }); C.closeSheet(); C.toast(`💶 ${eur(a)} saved`); C.render(); }
+    if (e.target.closest('[data-kpsave]')) { const a = num(amt); if (!a) return C.toast('Type an amount first'); await create('ftx', { date: today(), amount: a, category: cat || null, account: acc || null, name: name || L.byId[cat]?.name || 'Purchase', ...(ppl > 1 ? { split: ppl, owedBack: Math.round(a / ppl * (ppl - 1) * 100) / 100, notes: `Split with ${ppl - 1}: ${eur(a / ppl)} each to get back` } : {}) }); C.closeSheet(); C.toast(`💶 ${eur(a)} saved`); C.render(); }
   });
 }
 function openEditor(kind, id, preset = {}) {
@@ -6202,6 +6212,21 @@ function factOf(f, v) {
   if (f.type === 'check') return v ? '✓' : null; if (f.type === 'rel') return relNames(v).join(', ') || null; if (f.type === 'time') return v;
   return Array.isArray(v) ? v.join(', ') : String(v);
 }
+/* a chore with a timer and its small steps to tick; done saves the day and the minutes it took */
+function choreRun(id) {
+  const r = L.byId[id]; if (!r) return; const steps = String(r.steps || '').split('\n').map(x => x.trim()).filter(Boolean), got = new Set(); let t0 = Date.now(), tick = null, paused = 0, pauseAt = 0;
+  const mm = () => { const s2 = Math.floor((Date.now() - t0 - paused - (pauseAt ? Date.now() - pauseAt : 0)) / 1000); return `${String(Math.floor(s2 / 60)).padStart(2, '0')}:${String(s2 % 60).padStart(2, '0')}`; };
+  const sh = C.sheet({ title: '🧽 ' + titleOf(r), body: `<div class="chrun"><div class="chtime" data-cht>00:00</div><p class="lnone">${num(r.mins) ? `Usually about ${num(r.mins)} min` : 'The timer runs while you clean.'}</p>
+    ${steps.length ? `<div class="chsteps">${steps.map((x, i) => `<button type="button" class="chstep" data-chs="${i}"><span class="bx"></span>${esc(x)}</button>`).join('')}</div><p class="lnone" data-chn>0 of ${steps.length}</p>` : '<p class="lnone">Add small steps to this chore (Edit), then you tick them off here.</p>'}</div>`,
+    foot: '<button class="btn" data-chpause>⏸ Pause</button><div class="spacer"></div><button class="btn primary" data-chdone>✓ Done</button>' });
+  tick = setInterval(() => { const el = sh.querySelector('[data-cht]'); if (!el) return clearInterval(tick); el.textContent = mm(); }, 1000);
+  sh.addEventListener('click', async e => { let b;
+    if ((b = e.target.closest('[data-chs]'))) { const i = +b.dataset.chs; got.has(i) ? got.delete(i) : got.add(i); b.classList.toggle('on'); sh.querySelector('[data-chn]').textContent = `${got.size} of ${steps.length}`; }
+    if ((b = e.target.closest('[data-chpause]'))) { if (pauseAt) { paused += Date.now() - pauseAt; pauseAt = 0; b.textContent = '⏸ Pause'; } else { pauseAt = Date.now(); b.textContent = '▶ Go on'; } }
+    if (e.target.closest('[data-chdone]')) { clearInterval(tick); const m = Math.max(1, Math.round((Date.now() - t0 - paused) / 60000)); await save(r, { last: today(), lastMins: m }); C.closeSheet(); C.toast(`✨ ${titleOf(r)} done in ${m} min`); C.render(); }
+  });
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-chrun]'); if (b) { C?.closeSheet(); choreRun(b.dataset.chrun); } });
 function viewRecord(r) {
   const K = KINDS[r.kind]; if (!K) return openEditor(r.kind, r.id);
   const ph = photoOf(r), q = K.quick?.(r), link = r.url || r.link;
@@ -6218,7 +6243,7 @@ function viewRecord(r) {
     ${r.notes ? `<p class="rvnotes">${esc(r.notes)}</p>` : ''}
     ${link ? `<a class="btn small" href="${esc(link)}" target="_blank" rel="noopener">${svg(P.link)} Open link</a>` : ''}</div>`;
   const sh = C.sheet({ title: K.one[0].toUpperCase() + K.one.slice(1), body,
-    foot: `<button class="btn" data-rvedit>✏️ Edit</button><div class="spacer"></div>${q ? `<button class="btn primary" data-rvq>${q.on ? '↺ ' : '✓ '}${esc(q.label)}</button>` : `<button class="btn primary" data-rvedit>Edit</button>`}` });
+    foot: `<button class="btn" data-rvedit>✏️ Edit</button><div class="spacer"></div>${r.kind === 'chores' ? `<button class="btn" data-chrun="${r.id}">⏱ Start</button>` : ''}${q ? `<button class="btn primary" data-rvq>${q.on ? '↺ ' : '✓ '}${esc(q.label)}</button>` : `<button class="btn primary" data-rvedit>Edit</button>`}` });
   sh.addEventListener('click', async e => {
     if (e.target.closest('[data-rvedit]')) { C.closeSheet(); openEditor(r.kind, r.id); }
     if (e.target.closest('[data-rvq]')) { try { await q.act(); C.toast('✓ ' + titleOf(r)); C.closeSheet(); C.render(); } catch (err) { failed(err); } }
