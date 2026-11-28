@@ -2251,3 +2251,11 @@ details.lmore > .form, .sheet .form { box-sizing: border-box; max-width: 100%; }
 .scal { margin: 0; min-width: 0; }
 @media (max-width: 699px) { .hrgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (min-width: 1000px) { .panels.kpanels { columns: 3; } }
+/* Calendar (A2/M2/M3): month or week with the chosen day, coming up and bills beside it (below on a phone) */
+.calsplit { display: grid; gap: 12px; align-items: start; } .calbody { min-width: 0; }
+.calside { display: grid; gap: 10px; min-width: 0; } .calside .panel { margin: 0; }
+.calsrow { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 0; border: 0; border-top: 1px solid var(--line); background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; font-size: 13.5px; }
+.calsrow:first-of-type { border-top: 0; } .calsrow > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .calsrow small { flex: none; }
+@media (min-width: 1000px) { .calsplit.hasside { grid-template-columns: minmax(0, 1fr) 270px; } }
+@media (min-width: 700px) and (max-width: 999px) { .calsplit.hasside .calside { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 699px) { .calagenda .calag .calev, .calagenda .calag button[data-cal] { border-left: 3px solid currentColor; } }
