@@ -1947,3 +1947,9 @@ details.lmore > summary > b { white-space: nowrap; flex: none; } details.lmore >
 .lscoretaps button[aria-pressed="true"] { background: var(--sc) !important; color: #fff !important; transform: scale(1.08); }
 .lscore { gap: 8px; } .scbig b { font-size: 28px; }
 details.lmore > .form, .sheet .form { box-sizing: border-box; max-width: 100%; } details.lmore { max-width: 100%; box-sizing: border-box; overflow: hidden; }
+/* a chore with a timer and steps */
+.chrun { display: grid; gap: 10px; text-align: center; } .chtime { font: 800 54px/1 var(--display, inherit); margin-top: 6px; }
+.chsteps { display: grid; gap: 6px; text-align: left; } .chstep { display: flex; gap: 10px; align-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 12px; font-weight: 600; color: var(--ink); }
+.chstep .bx { width: 20px; height: 20px; border-radius: 6px; border: 2px solid var(--line); flex: none; } .chstep.on { opacity: .6; text-decoration: line-through; } .chstep.on .bx { background: #5f9b6b; border-color: #5f9b6b; }
+.kpsplit { align-items: center; margin-top: 8px; }
+.recadd { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
