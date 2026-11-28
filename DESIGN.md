@@ -182,3 +182,33 @@ Think as a personal finance coach and a home organiser: every purchase can becom
 - Order card: shop, order number, a status line (Ordered, Shipped, Today, Delivered), items with price and size, expected day with track link, and the return-by date from the shop's own return period.
 - After delivery: Keep or Return per item. Keep goes into the closet (new, not worn yet); Return goes on the return list with a reminder and the refund is matched.
 - Notifications on the delivery day and 2 days before the return date.
+
+## Today per device, round 1 (Nov 2026)
+- Laptop: layout B (her day wide on the left, a side column on the right), aligned as neatly as possible: same column edges and equal heights where blocks sit side by side.
+- iPad: layout E (one column, small blocks in pairs) that also aligns well when the iPad turns to landscape.
+- iPhone: a mix of compact and swipe (examples in round 2).
+- New blocks she can switch on: Agenda and bills (next 7 days), Numbers (sleep, steps, mood, workouts), Orders and goal, Outfit, weather per hour and meals.
+- Purchases to sort get "Sort all at once" and "Skip older than 7 days".
+- iPhone Today: mix H (phase and money as a pair, a strip of numbers to swipe, agenda and bills as a pair).
+- iPad Today: portrait E1 (pairs in one column), landscape E2 (the same pairs in two columns).
+- Blocks: smart and her own choice. Blocks appear when there is something (orders, bills, purchases to sort) and she can switch any off per device.
+- Next: views per device for Finance, Closet, Kitchen and Life.
+- Finance laptop: F2 (four numbers on top: safe today, left until payday, bills paid, saved this month; fixed costs and pots left, everyday jars and recent purchases right). iPad F3, iPhone F4.
+- Life laptop: L2 (year goal and your week as a timeline on the left; Mind, Body, Life admin and Wishlist as tiles on the right). iPad L3, iPhone L4.
+- Closet laptop: C1 (filters left, closet grid middle, outfit and stats right), made prettier (round 3).
+- Kitchen laptop: week plan on top, tonight's cooking on the left below it (round 3).
+- Closet laptop: C1b, a calm moodboard: photos only with a heart and NEW label; name, brand, last worn and cost per wear on hover; filters left (category with counts, colour dots, season, sort); outfit today with Wear this and closet stats right.
+- Kitchen laptop: K3b (week plan on top with today dark, tonight's cooking large on the left with steps and timers, today and steps beside it, ideas for open nights, groceries and pantry right). The screen is always filled: no empty space. Gaps fill with blocks from how she uses the app: drinks today, use it up (expiring soon), most cooked, nutrition today, shopping day, deals at her shop, a saved recipe to try.
+- Everywhere: no empty space on wide screens; columns end at the same height, and gaps fill with useful blocks.
+- iPad and iPhone for Finance, Closet, Kitchen and Life as shown (iPad pairs, landscape two columns; iPhone swipe strips). On iPad and iPhone Finance shows Next 7 days instead of the full Fixed first list.
+- Next: views per device for Calendar, Home and Social.
+- Calendar laptop: A2 (the month large with coloured markers; coming up, bills this week and cycle on the right).
+- Home laptop: H1 (the chore of now and the rooms with "% fresh" on the left; plants, household stock, moving and repairs on the right).
+- Social laptop: S2 (post today, the content calendar and the pipeline on the left; numbers, collabs and saved tips on the right).
+- Calendar, Home and Social on iPad and iPhone: new examples (round 4), plus the Kitchen and Closet tabs on iPhone and iPad.
+- Tabs on iPhone: T2, everywhere: four icon tabs that always fit, sub tabs as an underlined row below.
+- Tabs on iPad: one row with icons (T5/T7) in portrait; the side column with groups and sub tabs (T6) in landscape.
+- Calendar iPhone: M2 (agenda per day with colour bars); in week and month view a list of the chosen day below. iPad: M3 (month and list side by side).
+- Home iPhone: N1 (rooms as rings). iPad: N3. Social iPhone: O2 (pipeline as cards to swipe). iPad: O3.
+- The four tab groups per section (iPhone T2, iPad): Kitchen Today (Today, Stats), Cook (Recipes, Meal plan), Food (Food log, Drinks, Cooked), Shop (Pantry, Groceries, Deals, Gear). Closet: Closet (Closet, Closet stats), Wishes, Outfits (Outfits, Outfit diary), Travel. Finance: Today, Spending (All, Fixed costs, Insurance, Impulses), Goals (Goals, Debt, Forecast), Review (Year, Net worth, Months, Loyalty cards). Life: Today (Today, Stats), Mind, Body, Admin (Life admin, Wishlist). Home: Today, Cleaning, Care (Plants, Repairs), Moving (Moving, Moodboard). Social: Today (Today, Tasks), Create, Results, Library.
+- She asked to put live whatever is ready, in steps: 1 Today, 2 tabs, 3 section pages.

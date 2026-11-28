@@ -6410,6 +6410,27 @@ function payCard(r) {
       <div class="pcdash"></div><div><span>💳 ${esc(cur?.name || r.card || 'Card')}</span><span>${esc(niceDate(r.date))}${time ? ' ' + time : ''}</span></div>
       <div><span>Category</span><span>${esc(L.byId[r.category] ? titleOf(L.byId[r.category]) : 'none yet')}</span></div>${r.source ? `<div><span>Via</span><span>${esc(r.source)}</span></div>` : ''}</div></div>`;
 }
+/* Today's extra blocks: agenda and bills for the next 7 days, numbers, orders and a goal, meals. Smart: a block only shows when it has something. */
+function todayExtras() {
+  const t = today(), wk = addDays(t, 6), hid = moneyHidden(), out = {};
+  const card = (k, title, rows, more = '') => rows.length ? `<section class="panel tblk" data-tblk="${k}"><div class="lph3"><h3 class="mh">${title}</h3>${more}</div>${rows.join('')}</section>` : '';
+  const row = (a, b, attrs = '') => `<button type="button" class="trow" ${attrs}><span>${a}</span><span class="muted">${b}</span></button>`;
+  try { const ev = calEvents(t, wk).filter(e => e.cat !== 'money' && e.cat !== 'orders' && !(e.date === t && !e.time)).sort((a, b) => (a.date + (a.time || '99')).localeCompare(b.date + (b.time || '99'))).slice(0, 5);
+    out.agenda = card('agenda', 'Agenda', ev.map(e => row(esc(e.title), esc(e.date === t ? e.time || 'today' : `${dayName(e.date)}${e.time ? ' ' + e.time : ''}`), 'data-act="go" data-v="plan/week"')), '<button class="chip link" data-act="go" data-v="plan/week">Calendar</button>'); } catch { out.agenda = ''; }
+  try { const occ = fOccs(t, wk).filter(o => !o.paid && !o.skipped).slice(0, 5); const sum = occ.reduce((n, o) => n + o.amount, 0);
+    out.bills = card('bills', 'Bills · 7 days', occ.map(o => row(`${esc(o.bill.emoji || itemEmo({ ...o.bill, kind: 'fbills' }))} ${esc(o.bill.name || 'Bill')}`, hid ? '€•••' : `${o.date === t ? 'today' : dayName(o.date)} · ${eur(o.amount)}`, 'data-act="go" data-v="money/spending"')), `<span class="muted">${hid ? '' : eur(sum)}</span>`); } catch { out.bills = ''; }
+  try { const y = addDays(t, -1), sl = sleepOn(t) ?? sleepOn(y), st = stepsOn(t) ?? stepsOn(y), md = nlOn(t)?.mood, mon = weekMon(t), wo = recs('workouts').filter(w => w.date >= mon && w.date <= addDays(mon, 6)), wd = wo.filter(w => w.done).length, wg = Math.max(wo.length, num(C?.prefs?.().fitweek?.goal) || 3);
+    const wn = waterOn(t)?.glasses || 0, wgoal = Number(C?.prefs?.().waterGoal) || 8;
+    const tiles = [['😴', sl != null ? `${Math.floor(sl)}h${String(Math.round((sl % 1) * 60)).padStart(2, '0')}` : '–', 'sleep', 'care/sleep'], ['👣', st != null ? kfmt(st) : '–', 'steps', 'body/today'], ['🙂', md || '–', 'mood', 'plan/mind'], ['🏋️', `${wd}/${wg}`, 'workouts', 'fit/workouts']];
+    out.nums = `<div class="tnums" data-tblk="nums">${tiles.map(([e, v, l, go]) => `<button type="button" class="tnum" data-act="go" data-v="${go}"><span class="ring">${e}</span><b>${esc(String(v))}</b><small>${l}</small></button>`).join('')}</div>`; } catch { out.nums = ''; }
+  try { const ord = recs('orders'), way = ord.filter(o => ['Ordered', 'Shipped'].includes(o.status || 'Ordered')), back = ord.filter(o => o.status === 'Delivered' && o.returnBy && o.returnBy >= t).sort((a, b) => a.returnBy.localeCompare(b.returnBy));
+    out.orders = card('orders', 'On the way', [...way.slice(0, 3).map(o => row(`📦 ${esc(o.shop || '')} · ${esc(o.name || '')}`, o.expected ? (o.expected === t ? 'today' : dayName(o.expected)) : '', `data-act="open" data-id="${o.id}"`)), ...back.slice(0, 2).map(o => row(`↩️ ${esc(o.name || '')}`, 'return by ' + shortDate(o.returnBy), `data-act="open" data-id="${o.id}"`))]); } catch { out.orders = ''; }
+  try { const g = recs('fgoals').filter(x => !x.done && num(x.target)).sort((a, b) => (a.by || '9').localeCompare(b.by || '9'))[0];
+    out.goal = g ? `<section class="panel tblk" data-tblk="goal"><div class="lph3"><h3 class="mh">Goal</h3></div><button type="button" class="tgoal" data-act="go" data-v="money/plan"><b>${esc(g.emoji || '🎯')} ${esc(g.name || 'Goal')}</b><span class="tbar"><i style="width:${Math.min(100, Math.round(100 * (num(g.saved) || 0) / num(g.target)))}%"></i></span><small class="muted">${hid ? '' : `${fEur0(num(g.saved) || 0)} of ${fEur0(num(g.target))}`}${g.by ? ` · by ${niceDate(g.by)}` : ''}</small></button></section>` : ''; } catch { out.goal = ''; }
+  try { const ml = recs('meals').filter(m => m.date === t && !m.away), eaten = new Set([].concat(nlOn(t)?.meals || [])), order = ['Breakfast', 'Lunch', 'Snack', 'Dinner'];
+    out.meals = card('meals', 'Meals today', ml.sort((a, b) => order.indexOf(a.slot) - order.indexOf(b.slot)).map(m => { const n = relName(m.recipe) || m.what || relNames(m.ing).join(', ') || m.slot; return row(`${esc(foodEmo(n))} ${esc(n)}`, eaten.has(m.slot) ? '✓' : esc(m.slot || ''), 'data-act="go" data-v="kitchen/meals"'); })); } catch { out.meals = ''; }
+  return out;
+}
 // kinds that open straight in the editor (forms more than things to look at)
 const EDIT_FIRST = new Set(['ftx', 'fincome', 'nlog', 'checkin', 'journal', 'suplog', 'drinklog', 'cyclelog', 'skinlog', 'nsteps', 'fset', 'calnote', 'sleep', 'meals']);
 function openRecord(id) {
@@ -7129,9 +7150,19 @@ function sortCardHTML(where) {
   if (!l.length && !rt.length) return '';
   const x = l[0], k = x ? guessKind(x) : '', shop = x ? (shopOfTx(x.name) || x.name || 'Purchase') : '';
   const card = x ? `<div class="sortcard"><small>🛍 ${plural(l.length, 'purchase')} to sort</small><b>${esc(shop)} · ${esc(eur(num(x.amount)))}</b><span>${esc(dayName(x.date))} ${esc(niceDate(x.date))}${(x.items || []).length ? ` · 🧾 receipt read: ${plural(x.items.length, 'product')}, check them` : k ? ` · probably ${esc(buyLabel(k).toLowerCase())}` : ''}</span>
-    <div class="sortbtns">${k ? `<button type="button" class="btn small sortgo" data-act="sortgo" data-id="${x.id}" data-v="${k}">${BUY_EMO[k] || '＋'} Add to ${esc(buyLabel(k).toLowerCase())}</button>` : ''}<button type="button" class="btn small sortgo" data-act="sortgo" data-id="${x.id}">${k ? 'Other list' : 'What did you buy?'}</button><button type="button" class="btn small sortskip" data-act="sortskip" data-id="${x.id}">Not a product</button>${ONLINE_SHOP.test(norm(shop)) && !recs('orders').some(o => o.tx === x.id) ? `<button type="button" class="btn small sortgo" data-act="ordtrack" data-id="${x.id}">📦 Track it</button>` : ''}</div></div>` : '';
+    <div class="sortbtns">${k ? `<button type="button" class="btn small sortgo" data-act="sortgo" data-id="${x.id}" data-v="${k}">${BUY_EMO[k] || '＋'} Add to ${esc(buyLabel(k).toLowerCase())}</button>` : ''}<button type="button" class="btn small sortgo" data-act="sortgo" data-id="${x.id}">${k ? 'Other list' : 'What did you buy?'}</button><button type="button" class="btn small sortskip" data-act="sortskip" data-id="${x.id}">Not a product</button>${l.length > 1 ? '<button type="button" class="btn small sortskip" data-act="sortall">⚡ Sort all at once</button>' : ''}${l.some(y => y.date < addDays(today(), -7)) ? `<button type="button" class="btn small sortskip" data-act="sortold">Skip ${plural(l.filter(y => y.date < addDays(today(), -7)).length, 'older one')}</button>` : ''}${ONLINE_SHOP.test(norm(shop)) && !recs('orders').some(o => o.tx === x.id) ? `<button type="button" class="btn small sortgo" data-act="ordtrack" data-id="${x.id}">📦 Track it</button>` : ''}</div></div>` : '';
   const rets = rt.slice(0, 3).map(r => { const ref = r.returned && refundOf(r); return `<div class="retrow"><span>↩️</span><span class="lmain"><b>${esc(relNames([].concat(r.items || []).map(e => e.id)).join(', ') || shopOfTx(r.name) || r.name)}</b><small>${r.returned ? (ref ? 'Refund received ✓' : `Refund of ${eur(num(r.retAmount) || num(r.amount))} expected`) : `Return by ${esc(niceDate(r.returnBy))} · ${relDay(r.returnBy)}`}</small></span>${r.returned ? '' : `<button class="btn small primary" data-act="retdone" data-id="${r.id}">Returned</button><button class="btn small" data-act="retkeep" data-id="${r.id}">Keep it</button>`}</div>`; }).join('');
   return `<div class="sortwrap ${where}">${card}${rets ? `<div class="retlist">${rets}</div>` : ''}</div>`;
+}
+// all purchases to sort on one sheet: tap the list it belongs to (that opens it with the list chosen), or Not a product
+function sortAllSheet() {
+  const draw = () => { const l = buySortList(); return l.length ? `<div class="lrows">${l.map(x => { const k = guessKind(x), shop = shopOfTx(x.name) || x.name || 'Purchase'; return `<div class="lrow sortrow"><span class="lmain"><b>${esc(shop)} · ${esc(eur(num(x.amount)))}</b><span>${esc(niceDate(x.date))}${k ? ' · probably ' + esc(buyLabel(k).toLowerCase()) : ''}</span></span>${k ? `<button type="button" class="chip" data-sallgo="${x.id}" data-v="${k}">${BUY_EMO[k]} ${esc(buyLabel(k))}</button>` : `<button type="button" class="chip" data-sallgo="${x.id}">What?</button>`}<button type="button" class="chip" data-sallskip="${x.id}" aria-label="Not a product">✕</button></div>`; }).join('')}</div>` : '<p class="lnone">✓ All sorted.</p>'; };
+  const sh = C.sheet({ title: `🛍 ${plural(buySortList().length, 'purchase')} to sort`, body: `<div data-sall>${draw()}</div>`, foot: '<button class="btn" data-sallold>Skip older than 7 days</button><div class="spacer"></div><button class="btn primary" data-close>Done</button>' });
+  sh.addEventListener('click', async e => {
+    const g = e.target.closest('[data-sallgo]'); if (g) { C.closeSheet(); sortGo(g.dataset.sallgo, g.dataset.v || ''); return; }
+    const k = e.target.closest('[data-sallskip]'); if (k) { const r = L.byId[k.dataset.sallskip]; if (r) { await save(r, { sorted: true }); sh.querySelector('[data-sall]').innerHTML = draw(); } return; }
+    if (e.target.closest('[data-sallold]')) { const old = buySortList().filter(y => y.date < addDays(today(), -7)); L.batch = true; try { for (const y of old) await save(y, { sorted: true }); } finally { L.batch = false; } sh.querySelector('[data-sall]').innerHTML = draw(); C.toast(`Skipped ${plural(old.length, 'purchase')}`); }
+  });
 }
 async function sortGo(id, k) {
   const r = L.byId[id]; if (!r) return;
@@ -7691,6 +7722,8 @@ document.addEventListener('click', async e => {
     case 'fixmode': L.fixMode = d.v; C.render(); break;
     case 'occpay': { const st = fState(), o = fOccs(addDays(st.start, -40), addDays(st.t, 60)).find(x => x.key === d.v); if (o && !o.paid) { await fPayOcc(o); C.render(); } break; }
     case 'musicok': await C.savePrefs({ musicNudgeOff: true }); C.render(); break;
+    case 'sortold': { const old = buySortList().filter(y => y.date < addDays(today(), -7)); if (!old.length) break; L.batch = true; try { for (const y of old) await save(y, { sorted: true }); } finally { L.batch = false; } C.toast(`Skipped ${plural(old.length, 'purchase')} older than 7 days`); C.render(); break; }
+    case 'sortall': sortAllSheet(); break;
     case 'sortskip': { const r = L.byId[d.id]; if (r) { await save(r, { sorted: true }); C.toast('Okay, not a product'); C.render(); } break; }
     case 'retdone': await retDone(d.id); break;
     case 'retkeep': { const r = L.byId[d.id]; if (r) { await save(r, { kept: true }); C.toast('💛 Kept'); C.render(); } break; }
@@ -11363,6 +11396,7 @@ return {
   sections: SECTIONS.map(s => ({ key: s.key, label: s.label, icon: G(s.icon), groups: Object.fromEntries(Object.entries(s.groups || {}).map(([g, [l, ic]]) => [g, [l, G(ic)]])), subs: Object.fromEntries(Object.entries(s.subs || {}).map(([g, o]) => [g, Object.fromEntries(Object.entries(o).map(([k, [l, ic]]) => [k, [l, G(ic)]]))])), views: s.views.map(v => [vkey(s, v), v[1], G(v[2]), v[3] || '', v[4] || '', v[5] || '', v[6] || 0]) })),
   todoCount: sec => C ? todoCount(sec) : 0,
   listSpent: k => { try { return C && L.status === 'ok' ? listSpentLine(k) : ''; } catch { return ''; } },
+  todayExtras: () => { try { return C && L.status === 'ok' ? todayExtras() : {}; } catch (e) { console.error(e); return {}; } },
   sortCard: where => { try { return C && L.status === 'ok' ? sortCardHTML(where) : ''; } catch (e) { console.error(e); return ''; } },
   merges: Object.fromEntries(Object.entries(MERGES).map(([k, [l, ic]]) => [k, [l, G(ic)]])),
   has: view => !!PAGES[view],
