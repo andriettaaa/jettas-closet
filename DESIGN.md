@@ -166,3 +166,11 @@ Think as a personal finance coach and a home organiser: every purchase can becom
 - Bills have an emoji each. Bill groups are: Home, Health & insurance, Phone & internet, Transport, Debt, Music & streaming, Apps & cloud, Sport.
 - A gentle card when she pays for more than one music service, with what one less saves a year (she can hide it).
 - Today: routine steps in a logical order, no tile for something a routine already holds, no duplicate tiles; the coming-week strip is gone. Empty bill jars show "✓ Paid", red only when over budget.
+
+## Tab names (Nov 2026)
+- Every section starts with Today and ends with Stats. A tab and the page it opens have the same name.
+- Closet: Closet, Closet wishes, Outfits, Outfit diary, Travel outfits, Closet stats.
+- Life: Plans becomes Life admin. Wishlist › All wishes (was Master wishlist). Mind › Growth › Goals, Journal › Writing, Vision › Vision board. Body › Train › Plan (was Today). Health › Smoke-free (was Clean).
+- Finance: Loyalty cards (tab and title), Review › Months (was Reviews), Fixed costs (title too), Insurance moves under Spending.
+- Kitchen: Food log, Deals. Home: Cleaning, Moving.
+- Social: Tasks (was Work), Results (was Growth), Create › Planning (was Calendar).

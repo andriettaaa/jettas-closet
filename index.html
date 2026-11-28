@@ -673,11 +673,11 @@ const SLOT = {
 };
 const VIEWS = [
   ['closet', 'Closet', '<path d="M12 5.5a2 2 0 1 1 2.6 1.9c-.6.2-1 .7-1 1.3v.6L3.4 16.6c-1 .7-.5 2.4.8 2.4h15.6c1.3 0 1.8-1.7.8-2.4L13.6 9.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'],
-  ['wishlist', 'Wishlist', '<path d="M12 19.5s-7.5-4.6-7.5-10.2A4.1 4.1 0 0 1 12 7a4.1 4.1 0 0 1 7.5 2.3c0 5.6-7.5 10.2-7.5 10.2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'],
+  ['wishlist', 'Closet wishes', '<path d="M12 19.5s-7.5-4.6-7.5-10.2A4.1 4.1 0 0 1 12 7a4.1 4.1 0 0 1 7.5 2.3c0 5.6-7.5 10.2-7.5 10.2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'],
   ['outfits', 'Outfits', '<path d="M8 3 4 6l2 4 2-1v12h8V9l2 1 2-4-4-3c-.5 1.5-2 2.5-4 2.5S8.5 4.5 8 3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'],
-  ['calendar', 'Calendar', '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
-  ['trips', 'Trips', '<rect x="4" y="7.5" width="16" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 7.5V5.8A1.5 1.5 0 0 1 10.5 4.3h3A1.5 1.5 0 0 1 15 5.8v1.7M4 13h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
-  ['stats', 'Analysis', '<path d="M5 20V11M12 20V4M19 20v-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>'],
+  ['calendar', 'Outfit diary', '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
+  ['trips', 'Travel outfits', '<rect x="4" y="7.5" width="16" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 7.5V5.8A1.5 1.5 0 0 1 10.5 4.3h3A1.5 1.5 0 0 1 15 5.8v1.7M4 13h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
+  ['stats', 'Closet stats', '<path d="M5 20V11M12 20V4M19 20v-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>'],
   ['todo', 'To do', '<path d="M9 6.5h11M9 12h11M9 17.5h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m3.5 6.5 1.4 1.4 2.4-2.6M3.5 12l1.4 1.4 2.4-2.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5.2" cy="17.5" r="1.4" fill="none" stroke="currentColor" stroke-width="1.6"/>']
 ];
 // Today (the overview of everything), the closet and the areas life.js adds (Kitchen, Life, Social, Money, Home, Fitness). The areas sit in the
@@ -1490,7 +1490,7 @@ function renderRail(host) {
     host.dataset.built = '1';
     host.innerHTML = `
       ${view === 'closet' ? '<div id="trayHost"></div>' : ''}
-      <div class="viewhead"><h1>${view === 'wishlist' ? 'Wishlist' : 'Closet'}</h1><span class="sub" id="railSub"></span></div>${view === 'wishlist' ? '' : window.LIFE?.listSpent?.('closet') || ''}
+      <div class="viewhead"><h1>${view === 'wishlist' ? 'Closet wishes' : 'Closet'}</h1><span class="sub" id="railSub"></span></div>${view === 'wishlist' ? '' : window.LIFE?.listSpent?.('closet') || ''}
       ${view === 'closet' ? '<div class="story ofhost" id="ofHost"></div><p class="wxline" id="wxLine" hidden></p>' : ''}
       <div class="tools">
         <div class="search">${I.search}<input id="q" type="search" placeholder="Search name, brand, size, article no., tag" aria-label="Search"></div>
@@ -1760,7 +1760,7 @@ function renderCalendar(host) {
   if (!S.calMonth) { const d = new Date(); S.calMonth = new Date(d.getFullYear(), d.getMonth(), 1); }
   if (!host.dataset.built) {
     host.dataset.built = '1';
-    host.innerHTML = `<div class="viewhead"><h1>Calendar</h1><span class="sub">Log what you wore, plan what's next</span></div>
+    host.innerHTML = `<div class="viewhead"><h1>Outfit diary</h1><span class="sub">Log what you wore, plan what's next</span></div>
       <div class="calhead"><button class="iconbtn" data-cal="-1" aria-label="Previous month">${I.left}</button><h2 id="calTitle"></h2><button class="iconbtn" data-cal="1" aria-label="Next month">${I.right}</button><button class="btn small" data-cal="0">Today</button></div>
       <div class="seg calview" role="group" aria-label="View">${[['month', 'Month'], ['week', 'Week'], ['list', 'List']].map(([k, l]) => `<button type="button" data-calv="${k}" aria-pressed="${pref.get('calView', 'month') === k}">${l}</button>`).join('')}</div>
       <div class="cal" id="calGrid"></div><div id="calAlt" hidden></div><p class="calnote" id="calNote"></p>`;
@@ -1947,7 +1947,7 @@ function tripCard(t) {
 function tripListHTML() {
   const all = [...trips()].sort((a, b) => String(a.start).localeCompare(String(b.start)));
   const up = all.filter(t => tripDates(t).slice(-1)[0] >= today()), past = all.filter(t => !up.includes(t)).reverse();
-  return `<div class="viewhead"><h1>Trips</h1><span class="sub">Plan outfits per day and pack without forgetting anything</span><div class="spacer"></div><button class="btn primary" data-tnew>${I.plus} New trip</button></div>
+  return `<div class="viewhead"><h1>Travel outfits</h1><span class="sub">Plan outfits per day and pack without forgetting anything</span><div class="spacer"></div><button class="btn primary" data-tnew>${I.plus} New trip</button></div>
     ${all.length ? `${up.length ? `<div class="tripgrid">${up.map(tripCard).join('')}</div>` : '<p class="muted">No upcoming trips.</p>'}
       ${past.length ? `<h2 class="triph2">Past trips</h2><div class="tripgrid">${past.map(tripCard).join('')}</div>` : ''}`
     : `<div class="empty">${HANGER}<h2>No trips yet</h2><p>Add where you're going and for how many days. Then plan an outfit or two per day, pack from your closet and tick things off as they go in your suitcase.</p><button class="btn primary" data-tnew>${I.plus} Plan a trip</button></div>`}`;
@@ -2421,7 +2421,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v226';
+const APP_VERSION = 'hangtag-v227';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -3173,7 +3173,7 @@ function statsSort(host) {
 }
 function renderStats(host) {
   const tab = S.statsTab = S.statsTab || pref.get('statsTab', 'overview');
-  host.innerHTML = `<div class="viewhead"><h1>Analysis</h1><span class="sub">What your wardrobe really costs, and how you use it</span></div>
+  host.innerHTML = `<div class="viewhead"><h1>Closet stats</h1><span class="sub">What your wardrobe really costs, and how you use it</span></div>
     <div class="seg statseg" role="group" aria-label="Stats section">${STATS_TABS.map(([k, l]) => `<button data-stab="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>
     <div id="statsBody"></div>`;
   host.onclick = e => {

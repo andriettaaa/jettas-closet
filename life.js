@@ -1717,7 +1717,7 @@ const SECTIONS = [
       ['body/today', 'Overview', P.grid, 'body'],
       ['care/sleep', 'Sleep', P.moon, 'body', 'health'], ['care/health', 'Health', P.pill, 'body', 'health'], ['care/cycle', 'Cycle', P.moon, 'body', 'health'], ['care/supplements', 'Supplements', P.pill, 'body', 'health'], ['body/clean', 'Clean', P.leaf, 'body', 'health'],
       ['fit/routine', 'Routine', P.list, 'body', 'train'], ['fit/log', 'Logbook', P.pen, 'body', 'train'], ['fit/workouts', 'Workouts', P.run, 'body', 'train'], ['fit/library', 'Videos', P.star, 'body', 'train'], ['fit/plans', 'Plans', P.list, 'body', 'train'], ['fit/exercises', 'Exercises', P.dumbbell, 'body', 'train'], ['fit/fgoals', 'Goals', P.target, 'body', 'train'], ['fit/body', 'Body', P.scale, 'body', 'train'], ['fit/stats', 'Analysis', P.trend, 'body', 'train'], ['fit/res', 'Resources', P.book, 'body', 'train'], ['fit/gear', 'Gear', P.box, 'body', 'train'],
-      ['care/beauty', 'Products', P.drop, 'body', 'beauty'], ['care/skin', 'Skincare', P.flask, 'body', 'beauty'], ['care/skinmonth', 'Month', P.calendar, 'body', 'beauty'], ['care/skinstats', 'Skin analysis', P.trend, 'body', 'beauty'], ['care/skinres', 'Resources', P.book, 'body', 'beauty'], ['care/hair', 'Hair', P.drop, 'body', 'beauty'], ['care/nails', 'Nails', P.sparkle, 'body', 'beauty'], ['care/perfume', 'Perfume', P.star, 'body', 'beauty'], ['care/diary', 'Skin diary', P.camera, 'body', 'beauty'], ['care/bdeals', 'Deals', P.tag, 'body', 'beauty'], ['body/stats', 'Analysis', P.trend, 'body'],
+      ['care/beauty', 'Products', P.drop, 'body', 'beauty'], ['care/skin', 'Skincare', P.flask, 'body', 'beauty'], ['care/skinmonth', 'Month', P.calendar, 'body', 'beauty'], ['care/skinstats', 'Skin stats', P.trend, 'body', 'beauty'], ['care/skinres', 'Resources', P.book, 'body', 'beauty'], ['care/hair', 'Hair', P.drop, 'body', 'beauty'], ['care/nails', 'Nails', P.sparkle, 'body', 'beauty'], ['care/perfume', 'Perfume', P.star, 'body', 'beauty'], ['care/diary', 'Skin diary', P.camera, 'body', 'beauty'], ['care/bdeals', 'Deals', P.tag, 'body', 'beauty'], ['body/stats', 'Analysis', P.trend, 'body'],
       ['plan/plans', 'Overview', P.grid, 'plans'], ['care/trips', 'Trips', P.plane, 'plans'], ['care/docs', 'Documents', P.doc, 'plans'], ['care/ideas', 'Ideas', P.star, 'plans'], ['care/saved', 'Saved links', P.link, 'plans'], ['care/gifts', 'Gifts', P.gift, 'plans'], ['plan/planstats', 'Analysis', P.trend, 'plans'],
       ['wish/today', 'Overview', P.grid, 'wish'], ['wish/inbox', 'Inbox', P.inbox, 'wish'], ['wish/master', 'Master', P.heart, 'wish'], ['wish/orders', 'Orders', P.box, 'wish'], ['wish/stats', 'Analysis', P.trend, 'wish'], ['weekplan', 'Plan my week', P.list], ['reports', 'Reports', P.trend], ['todo', 'To do', P.check]] },
   { key: 'kitchen', label: 'Kitchen', icon: P.pot, tile: kitchenTile,
@@ -1725,7 +1725,7 @@ const SECTIONS = [
     views: [['today', 'Overview', P.grid], ['recipes', 'Recipes', P.book, 'food'], ['meals', 'Meal plan', P.calendar, 'food'], ['foodlog', 'Food log', P.pen, 'food'], ['drinks', 'Drinks', P.drop, 'food'], ['cooked', 'Cooking log', P.camera, 'food'], ['pantry', 'Pantry', P.jar, 'food'], ['groceries', 'Groceries', P.cart, 'shop'], ['deals', 'Deals', P.tag, 'shop'], ['gear', 'Gear', P.spoon, 'shop'], ['shops', 'Shops', P.house, 'shop'], ['stats', 'Analysis', P.trend], ['todo', 'To do', P.check]] },
   { key: 'money', label: 'Finance', icon: P.wallet, tile: moneyTile,
     groups: { plan: ['Plan', P.target], look: ['Review', P.trend] },
-    views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['impulse', 'Impulses', P.heart], ['cards', 'Cards', P.card], ['plan', 'Goals', P.target, 'plan'], ['debt', 'Debt', P.card, 'plan'], ['insurance', 'Insurance', P.doc, 'plan'], ['forecast', 'Forecast', P.trend, 'plan'], ['year', 'Year', P.calendar, 'look'], ['networth', 'Net worth', P.wallet, 'look'], ['reviews', 'Reviews', P.doc, 'look'], ['todo', 'To do', P.check]] },
+    views: [['today', 'Today', P.sun], ['spending', 'Spending', P.coins], ['repeats', 'Repeats', P.repeat], ['impulse', 'Impulses', P.heart], ['cards', 'Cards', P.card], ['plan', 'Goals', P.target, 'plan'], ['debt', 'Debt', P.card, 'plan'], ['insurance', 'Insurance', P.doc], ['forecast', 'Forecast', P.trend, 'plan'], ['year', 'Year', P.calendar, 'look'], ['networth', 'Net worth', P.wallet, 'look'], ['reviews', 'Reviews', P.doc, 'look'], ['todo', 'To do', P.check]] },
   { key: 'home', label: 'Home', icon: P.house, tile: homeTile, views: [['today', 'Overview', P.grid], ['chores', 'Chores', P.broom], ['houselog', 'Cleaning log', P.pen], ['plants', 'Plants', P.leaf], ['inventory', 'Moving list', P.box], ['mood', 'Moodboard', P.heart], ['repairs', 'Repairs', P.wrench], ['todo', 'To do', P.check]] },
   { key: 'social', label: 'Social', icon: P.phone, tile: socialTile,
     groups: { work: ['Work', P.check], create: ['Create', P.phone], grow: ['Grow', P.trend], library: ['Library', P.book] },
@@ -1742,23 +1742,23 @@ function mergeChips(host, view) {
 document.addEventListener('click', e => { const b = e.target.closest('[data-mgo]'); if (b && C) C.go(b.dataset.mgo); });
 /* the tidy menu: fewer tabs, the rest one tap away. Per view: a new label, another group or sub-group, a "merge" (views that share
    one tab, with chips on top of the page to switch) or hidden from the menu (the page itself still works). */
-const MERGES = { kov: ['Overview', P.grid], fnow: ['Today', P.sun], fwo: ['Workouts', P.run], fprog: ['Progress', P.trend], huid: ['Skin', P.flask], kennis: ['Learn', P.book], klog: ['Log', P.pen], kspul: ['Gear', P.spoon],
+const MERGES = { kov: ['Today', P.grid], fnow: ['Plan', P.sun], fwo: ['Workouts', P.run], fprog: ['Progress', P.trend], huid: ['Skin', P.flask], kennis: ['Learn', P.book], klog: ['Food log', P.pen], kspul: ['Gear', P.spoon],
   uit: ['Spending', P.coins], clean: ['Cleaning', P.broom], move: ['Moving', P.box], collab: ['Collabs', P.handshake] };
 const NAV_FIX = {
-  plan: { groups: { wish: ['Wishlist', P.heart], stats: ['Analysis', P.trend] }, subs: { mind: { dagboek: ['Journal', P.pen], groei: ['Growth', P.target], visie: ['Vision', P.sparkle] }, body: { health: ['Health', P.heart] } },
+  plan: { groups: { wish: ['Wishlist', P.heart], stats: ['Stats', P.trend], plans: ['Life admin', P.star] }, subs: { mind: { dagboek: ['Journal', P.pen], groei: ['Growth', P.target], visie: ['Vision', P.sparkle] }, body: { health: ['Health', P.heart] } },
     hide: ['week', 'weekplan', 'todo', 'plan/mind', 'body/today', 'plan/plans', 'wish/today'], order: ['care/checkin', 'care/journal', 'care/habits', 'care/mindful', 'care/growth', 'care/learn', 'care/discover', 'today', 'care/vision', 'reports', 'plan/mindstats', 'body/stats', 'fit/stats', 'care/skinstats', 'plan/planstats', 'wish/stats'],
-    set: { 'today': ['My year', 'mind', 'visie'], 'care/vision': ['Vision', 'mind', 'visie'], 'care/checkin': ['Check-in', 'mind', 'dagboek'], 'care/journal': ['Journal', 'mind', 'dagboek'], 'care/habits': ['Routines', 'mind'], 'care/mindful': ['Mindfulness', 'mind'],
-      'care/growth': ['Growth', 'mind', 'groei'], 'care/learn': ['Learning', 'mind', 'groei'], 'care/discover': ['Self discovery', 'mind', 'groei'],
-      'care/sleep': ['Sleep'], 'care/health': ['Symptoms'], 'care/cycle': ['Cycle'], 'care/supplements': ['Supplements'],
+    set: { 'today': ['My year', 'mind', 'visie'], 'care/vision': ['Vision board', 'mind', 'visie'], 'care/checkin': ['Check-in', 'mind', 'dagboek'], 'care/journal': ['Writing', 'mind', 'dagboek'], 'care/habits': ['Routines', 'mind'], 'care/mindful': ['Mindfulness', 'mind'],
+      'care/growth': ['Goals', 'mind', 'groei'], 'care/learn': ['Learning', 'mind', 'groei'], 'care/discover': ['Self discovery', 'mind', 'groei'],
+      'care/sleep': ['Sleep'], 'body/clean': ['Smoke-free'], 'care/health': ['Symptoms'], 'care/cycle': ['Cycle'], 'care/supplements': ['Supplements'],
       'fit/routine': ['Routine', 0, 0, 'fnow'], 'fit/log': ['Log', 0, 0, 'fnow'], 'fit/workouts': ['Workouts', 0, 0, 'fwo'], 'fit/library': ['Videos', 0, 0, 'fwo'], 'fit/plans': ['Plans', 0, 0, 'fwo'], 'fit/exercises': ['Exercises'], 'fit/fgoals': ['Goals', 0, 0, 'fprog'], 'fit/body': ['Body', 0, 0, 'fprog'],
       'care/skin': ['Routine', 0, 0, 'huid'], 'care/skinmonth': ['Month', 0, 0, 'huid'], 'care/diary': ['Journal', 0, 0, 'huid'], 'care/beauty': ['Products'], 'care/hair': ['Hair'], 'care/perfume': ['Perfume'],
       'fit/res': ['Training', 'body', '', 'kennis'], 'care/skinres': ['Skin', 'body', '', 'kennis'],
       'reports': ['Overview', 'stats'], 'plan/mindstats': ['Mind', 'stats', ''], 'body/stats': ['Body', 'stats', ''], 'fit/stats': ['Train', 'stats', ''], 'care/skinstats': ['Skin', 'stats', ''], 'plan/planstats': ['Plans', 'stats', ''], 'wish/stats': ['Wishlist', 'stats', ''],
-      'wish/master': ['Wishlist'], overview: ['Overview'] } },
-  kitchen: { flat: 1, hide: ['todo'], set: { today: ['Overview', 0, 0, 'kov'], stats: ['Analysis', 0, 0, 'kov'], recipes: ['Recipes'], meals: ['Meal plan'], foodlog: ['Food', 0, 0, 'klog'], drinks: ['Drinks', 0, 0, 'klog'], cooked: ['Cooked', 0, 0, 'klog'], pantry: ['Pantry'], groceries: ['Groceries'], gear: ['Kitchen gear', 0, 0, 'kspul'], shops: ['Shops', 0, 0, 'kspul'] } },
-  money: { groups: { plan: ['Goals and debt', P.target], look: ['Review', P.trend] }, hide: ['todo'], set: { today: ['Today'], spending: ['All', 0, 0, 'uit'], impulse: ['Impulses', 0, 0, 'uit'], repeats: ['Fixed costs', 0, 0, 'uit'], plan: ['Goals'], debt: ['Debt'], insurance: ['Insurance'], forecast: ['Forecast'], year: ['Year'], networth: ['Net worth'] } },
-  home: { hide: ['todo'], set: { today: ['Overview'], chores: ['Schedule', 0, 0, 'clean'], houselog: ['Log', 0, 0, 'clean'], inventory: ['Moving list', 0, 0, 'move'], mood: ['Moodboard', 0, 0, 'move'], plants: ['Plants'], repairs: ['Repairs'] } },
-  social: { groups: { work: ['Work', P.check], create: ['Create', P.phone], grow: ['Growth', P.trend], library: ['Library', P.book] }, hide: ['todo'], set: { today: ['Overview'], ideas: ['Ideas'], plan: ['Calendar'], collabs: ['Deals', 0, 0, 'collab'], income: ['Income', 0, 0, 'collab'] } }
+      'wish/master': ['All wishes'], overview: ['Today'] } },
+  kitchen: { flat: 1, hide: ['todo'], set: { today: ['Today', 0, 0, 'kov'], stats: ['Stats', 0, 0, 'kov'], recipes: ['Recipes'], meals: ['Meal plan'], foodlog: ['Food', 0, 0, 'klog'], drinks: ['Drinks', 0, 0, 'klog'], cooked: ['Cooked', 0, 0, 'klog'], pantry: ['Pantry'], groceries: ['Groceries'], gear: ['Kitchen gear', 0, 0, 'kspul'], shops: ['Shops', 0, 0, 'kspul'] } },
+  money: { groups: { plan: ['Goals and debt', P.target], look: ['Review', P.trend] }, hide: ['todo'], set: { today: ['Today'], spending: ['All', 0, 0, 'uit'], impulse: ['Impulses', 0, 0, 'uit'], repeats: ['Fixed costs', 0, 0, 'uit'], insurance: ['Insurance', 0, 0, 'uit'], cards: ['Loyalty cards'], reviews: ['Months'], plan: ['Goals'], debt: ['Debt'], forecast: ['Forecast'], year: ['Year'], networth: ['Net worth'] } },
+  home: { hide: ['todo'], set: { today: ['Today'], chores: ['Schedule', 0, 0, 'clean'], houselog: ['Log', 0, 0, 'clean'], inventory: ['Moving list', 0, 0, 'move'], mood: ['Moodboard', 0, 0, 'move'], plants: ['Plants'], repairs: ['Repairs'] } },
+  social: { groups: { work: ['Tasks', P.check], create: ['Create', P.phone], grow: ['Results', P.trend], library: ['Library', P.book] }, hide: ['todo'], set: { today: ['Today'], ideas: ['Ideas'], plan: ['Planning'], collabs: ['Deals', 0, 0, 'collab'], income: ['Income', 0, 0, 'collab'] } }
 };
 for (const sec of SECTIONS) { const f = NAV_FIX[sec.key]; if (!f) continue;
   Object.assign(sec.groups ||= {}, f.groups || {}); for (const [g, o] of Object.entries(f.subs || {})) Object.assign((sec.subs ||= {})[g] ||= {}, o);
@@ -1818,14 +1818,14 @@ const PAGES = {
   'care/diary': { render: skinDiary, adds: ['skinlog'] },
   'care/supplements': { title: 'Supplements', segs: [{ kind: 'supplements' }, { kind: 'suplog' }] },
   'care/cycle': { title: 'Cycle', segs: [{ kind: 'cycles', label: 'Periods', listLabel: '🩸 Your periods', top: () => cycleTop() + cycleInsights() }, { kind: 'cyclelog', label: 'Daily diary' }] },
-  'care/journal': { title: 'Journal', segs: [{ kind: 'journal', top: journalTop }] },
+  'care/journal': { title: 'Writing', segs: [{ kind: 'journal', top: journalTop }] },
   'care/ideas': { title: 'Ideas', segs: [{ kind: 'ideas' }] },
   'care/habits': { title: 'Routines', segs: [{ kind: 'routines' }, { kind: 'habits', top: habitWeek }] },
   'care/gifts': { title: 'Gifts', segs: [{ kind: 'gifts' }] },
   'care/mindful': { title: 'Mindfulness', segs: [{ kind: 'mindful', top: mindTop }, { kind: 'meditation', label: 'Sessions' }] },
-  'care/growth': { title: 'Growth', segs: [{ kind: 'lgoals', top: growthTop }, { kind: 'courses' }, { kind: 'hobbies' }] },
+  'care/growth': { title: 'Goals', segs: [{ kind: 'lgoals', top: growthTop }, { kind: 'courses' }, { kind: 'hobbies' }] },
   'care/docs': { title: 'Documents', segs: [{ kind: 'documents' }] },
-  'care/vision': { title: 'Vision', segs: [{ kind: 'vision', top: visionTop }] },
+  'care/vision': { title: 'Vision board', segs: [{ kind: 'vision', top: visionTop }] },
   'care/discover': { title: 'Self discovery', segs: [{ kind: 'discover', top: discoverTop }] },
   'wish/orders': { title: 'Online orders', segs: [{ kind: 'orders', top: ordersTop }] },
   'money/insurance': { title: 'Insurance', segs: [{ kind: 'insurance', top: insuranceTop }] },
@@ -1835,7 +1835,7 @@ const PAGES = {
   'social/projects': { title: 'Projects', segs: [{ kind: 'projects' }] },
   'social/today': { render: socialToday, adds: ['tasks', 'projects', 'posts', 'cideas', 'stips', 'deals', 'sgoals'] },
   'wish/today': { render: wishToday, adds: ['wishes', 'winbox'] },
-  'wish/master': { title: 'Master wishlist', segs: [{ key: 'all', label: 'Everything', kind: 'wishes', fill: masterFill, tools: false }, { kind: 'wishes', label: 'Other wishes' }] },
+  'wish/master': { title: 'All wishes', segs: [{ key: 'all', label: 'Everything', kind: 'wishes', fill: masterFill, tools: false }, { kind: 'wishes', label: 'Other wishes' }] },
   'wish/inbox': { render: inboxPage, adds: ['winbox'] },
   'care/saved': { title: 'Saved links', segs: [{ kind: 'inbox', fill: savedFill, tools: false }, { kind: 'reslinks', label: 'Resources' }] },
   'wish/oldinbox': { title: 'Old wishlist inbox', segs: [{ kind: 'winbox' }] },
@@ -1855,7 +1855,7 @@ const PAGES = {
   'money/today': { render: moneyToday, adds: ['ftx', 'fincome', 'fbills', 'fchecks'] },
   'money/cards': { render: cardsPage, adds: ['lcards'] },
   'money/spending': { title: 'Spending', segs: [{ key: 'plan', label: 'Your plan', kind: 'ftx', fill: fEnvFill, tools: false }, { key: 'all', label: 'Everything in and out', kind: 'ftx', fill: fAllFill, tools: false }] },
-  'money/repeats': { title: 'Repeats', segs: [{ key: 'coming', label: 'Coming up', kind: 'fbills', fill: fComingFill, tools: false }, { kind: 'fbills', label: 'Repeats' }, { key: 'in', label: 'Money in', kind: 'fincome' }, { key: 'split', label: 'Split my pay', kind: 'fbills', fill: fSplitFill, tools: false }] },
+  'money/repeats': { title: 'Fixed costs', segs: [{ key: 'coming', label: 'Coming up', kind: 'fbills', fill: fComingFill, tools: false }, { kind: 'fbills', label: 'Repeats' }, { key: 'in', label: 'Money in', kind: 'fincome' }, { key: 'split', label: 'Split my pay', kind: 'fbills', fill: fSplitFill, tools: false }] },
   'money/plan': { title: 'Goals', segs: [{ kind: 'fgoals', top: fGoalsTop }, { key: 'safety', label: 'Safety net', kind: 'fgoals', fill: fSafetyFill, tools: false }, { key: 'chall', label: 'Challenges', kind: 'fgrid', fill: fChallFill, tools: false }, { key: 'wait', label: 'Wait list', kind: 'fwait', fill: fWaitFill, tools: false }] },
   'money/debt': { title: 'Debt', segs: [{ key: 'free', label: 'Debt-free date', kind: 'fdebts', fill: fDebtFreeFill, tools: false }, { key: 'method', label: 'Snowball or avalanche', kind: 'fdebts', fill: fMethodFill, tools: false }, { kind: 'fdebts', label: 'Your debts' }, { key: 'made', label: 'Payments made', kind: 'ftx', fill: fPaymentsFill, tools: false }] },
   'money/forecast': { render: moneyForecast, adds: ['ftx', 'fbills', 'fincome'] },
@@ -1863,9 +1863,9 @@ const PAGES = {
   'money/networth': { title: 'Net worth', segs: [{ key: 'nw', label: 'Net worth', kind: 'faccounts', fill: fNetFill, tools: false }, { kind: 'faccounts' }, { kind: 'fchecks' }, { kind: 'fset', label: 'Payday and buffer' }] },
   'money/reviews': { render: moneyReviews, adds: ['ftx', 'fincome'] },
   'home/today': { render: homeToday, adds: ['chores', 'plants', 'inventory', 'invopts', 'movecosts', 'repairs'] },
-  'home/chores': { title: 'Chores', segs: [{ key: 'plan', label: 'Schedule', kind: 'chores', fill: choreFill, tools: false }, { kind: 'chores', label: 'All chores' }] },
+  'home/chores': { title: 'Cleaning', segs: [{ key: 'plan', label: 'Schedule', kind: 'chores', fill: choreFill, tools: false }, { kind: 'chores', label: 'All chores' }] },
   'home/plants': { title: 'Plants', segs: [{ kind: 'plants' }] },
-  'home/inventory': { title: 'Moving list', segs: [{ key: 'rooms', label: 'By room', kind: 'inventory', fill: invRooms, tools: false }, { key: 'status', label: 'Per status', kind: 'inventory', fill: invByStatus, tools: false }, { key: 'prio', label: 'By priority', kind: 'inventory', fill: invByPrio, tools: false }, { key: 'board', label: 'Moodboard', kind: 'invopts', fill: invBoard, tools: false }, { key: 'analyse', label: 'Analysis', kind: 'inventory', fill: invAnalysis, tools: false }, { kind: 'inventory', label: 'All products' }, { kind: 'invopts', label: 'Options' }, { kind: 'movecosts', label: 'Moving costs' }] },
+  'home/inventory': { title: 'Moving', segs: [{ key: 'rooms', label: 'By room', kind: 'inventory', fill: invRooms, tools: false }, { key: 'status', label: 'Per status', kind: 'inventory', fill: invByStatus, tools: false }, { key: 'prio', label: 'By priority', kind: 'inventory', fill: invByPrio, tools: false }, { key: 'board', label: 'Moodboard', kind: 'invopts', fill: invBoard, tools: false }, { key: 'analyse', label: 'Analysis', kind: 'inventory', fill: invAnalysis, tools: false }, { kind: 'inventory', label: 'All products' }, { kind: 'invopts', label: 'Options' }, { kind: 'movecosts', label: 'Moving costs' }] },
   'home/repairs': { title: 'Repairs', segs: [{ kind: 'repairs' }] },
   'fit/today': { render: fitToday, adds: ['workouts', 'vworkouts', 'fitgoals', 'sets', 'body', 'exercises'] },
   'fit/routine': { render: fitRoutine, adds: ['plans', 'vworkouts', 'exercises'] },
@@ -3329,7 +3329,7 @@ function dealsPage(host) {
     shopStores = [...new Set([...(mkt ? [mktName] : []), ...allStores, ...shopping.map(x => x.store).filter(Boolean)])], shopBy = [...shopStores, 'Other'].map(s => [s, shopping.filter(x => (shopStores.includes(storeOf(x)) ? storeOf(x) : 'Other') === s)]).filter(([, l]) => l.length);
   const cost = fSum(shopping.filter(x => !x.have), 'price'), bud = groceryBudget();
   const saved = fSum(offers.filter(o => num(o.was) > num(o.price)).map(o => ({ amount: num(o.was) - num(o.price) })));
-  host.innerHTML = `${head('Deals of the week')}<div class="ldeals">
+  host.innerHTML = `${head('Deals')}<div class="ldeals">
   ${offers.length ? myDealsPanel(offers) + allDealsPanel(offers, saved) : ''}
   <div class="tiles">${fTile('Deals', String(offers.length), byStore.map(([s, l]) => `${s} ${l.length}`).join(' · ') || 'none yet')}${fTile('Dinners', String((plan?.dinners || []).length), plan ? `each for 2 days · ${esc(shortDate(plan.start))} to ${esc(shortDate(plan.end))}` : 'no plan yet')}${fTile('Shared', String((plan?.shared || []).length), 'deal ingredients used in more than one recipe')}${bud ? fTile('Budget this week', fEur0(bud.week), `${eur(bud.spentWeek)} spent since Wednesday${cost ? ` · plan about ${eur(cost)}` : ''}`) : fTile('Plan costs', cost ? eur(cost) : '–', saved ? `${eur(saved)} saved with deals` : 'from the shopping list')}</div>
   ${shopPickAll()}<div class="dday"><span class="rowlbl">Usually I shop on</span><div class="seg fseg" role="group">${[['Wed', 'Wednesday'], ['Fri', 'Friday'], ['Sat', 'Saturday']].map(([k, l]) => `<button data-act="shopday" data-v="${k}" aria-pressed="${food().shopDay === k}">${l}</button>`).join('')}</div><span class="lnone">${mkt ? `Fruit and vegetables go on the ${esc(mktName)} list: buy small amounts.` : sday ? 'No market today: fruit and vegetables stay at the shop.' : 'On Wednesday and Saturday fruit and vegetables move to the market list.'}</span></div>
@@ -4047,7 +4047,7 @@ function moneyReviews(host) {
   const yr = m.slice(0, 4), yd = Array.from({ length: Number(m.slice(5)) }, (_, i) => `${yr}-${String(i + 1).padStart(2, '0')}`).map(fMonthData);
   const yIn = yd.reduce((n, x) => n + x.in, 0), yOut = yd.reduce((n, x) => n + x.out, 0);
   const jump = [['m-r-health', 'Money health'], ['m-r-went', 'Where the money went'], ['m-r-added', 'How the month added up'], ['m-r-against', 'Against last month'], ['m-r-12', '12 months'], ['m-r-year', 'This year'], ['m-r-wish', 'Wishlists']];
-  host.innerHTML = `<div class="viewhead dviewhead"><div><p class="mh mkick">${isCur ? 'This month so far' : 'Looking back'}</p><h1>Reviews</h1></div><div class="spacer"></div><button class="iconbtn" data-rmon="1" aria-label="Previous month">${svg(P.left)}</button><b class="mmon">${esc(fMonthName(m))}</b><button class="iconbtn" data-rmon="-1" aria-label="Next month" ${isCur ? 'disabled' : ''}>${svg(P.right)}</button><button class="btn small" onclick="print()">Print</button></div>
+  host.innerHTML = `<div class="viewhead dviewhead"><div><p class="mh mkick">${isCur ? 'This month so far' : 'Looking back'}</p><h1>Months</h1></div><div class="spacer"></div><button class="iconbtn" data-rmon="1" aria-label="Previous month">${svg(P.left)}</button><b class="mmon">${esc(fMonthName(m))}</b><button class="iconbtn" data-rmon="-1" aria-label="Next month" ${isCur ? 'disabled' : ''}>${svg(P.right)}</button><button class="btn small" onclick="print()">Print</button></div>
   ${(() => { const zeroDays = zero, top = most, went = d.out - prev.out, fmt = v => eur(Math.abs(v));
     const good = [zeroDays >= 8 ? `${zeroDays} days without spending` : '', d.in > d.out ? `you had ${eur(d.in - d.out)} left over` : '', prev.out && went < 0 ? `${fmt(went)} less spent than the month before` : ''].filter(Boolean);
     const tip = top && d.out && top[1] / d.out > .3 ? `${esc(top[0])} was ${Math.round(top[1] / d.out * 100)}% of everything: look there first.` : zeroDays < 5 ? 'Try one day a week without spending.' : 'Put what you have left straight into a pot.';
@@ -4158,7 +4158,7 @@ function winAct(act, k) {
   if (act === 'winswap') { const used = new Set([...cur, ...(r?.swapped || [])]), next = winOrder(t).find(x => !used.has(x)); if (!next) { C.toast('No other wins left for today.'); return; } winSave({ picks: cur.map(x => x === k ? next : x), swapped: [...(r?.swapped || []), k] }); }
 }
 function moneyToday(host) {
-  if (!recs('faccounts').length) { host.innerHTML = `${head('Money')}<div class="panels">${panel('Start here', `${quiet('Import your Budget Planner backup, or add your accounts and check your balances.')}<button class="btn small" data-act="new" data-v="faccounts">Add an account</button>`)}</div>`; return; }
+  if (!recs('faccounts').length) { host.innerHTML = `${head('Today')}<div class="panels">${panel('Start here', `${quiet('Import your Budget Planner backup, or add your accounts and check your balances.')}<button class="btn small" data-act="new" data-v="faccounts">Add an account</button>`)}</div>`; return; }
   const st = fState(), t = st.t, s = fset(), hr = new Date().getHours();
   const tx = recs('ftx'), every = tx.filter(fEveryday);
   const payTx = every.filter(x => x.date >= st.start && x.date <= t), spentPay = fSum(payTx), spendPay = spentPay;
@@ -4888,7 +4888,7 @@ function careToday(host) {
   const appts = recs('appts').filter(a => !a.done && a.date && a.date >= t).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''))).slice(0, 3);
   const rts = recs('routines').filter(r => onDay(r)), habits = recs('habits').filter(h => !h.paused && onDay(h));
   const rslot = (l, list) => list.length ? `<div class="lslot"><span class="rowlbl">${l}</span>${list.map(r => tick(r.name, routineDone(r), `data-act="quick" data-id="${r.id}"`)).join('')}</div>` : '';
-  host.innerHTML = `${head('Life')}
+  host.innerHTML = `${head('Today')}
   <div class="panels">
     ${panel('Routines', rts.length ? ROUTINES.map(k => rslot(k, rts.filter(r => r.routine === k))).join('') + rslot('Other', rts.filter(r => !ROUTINES.includes(r.routine))) : `${quiet('Add the steps of your morning and evening routine and tick them off here.')}<button class="btn small" data-act="new" data-v="routines">Add a step</button>`, ['care/habits', 'All routines'])}
     ${recs('lgoals').some(g => g.status !== 'Completed') ? panel('Goals', `<div class="lrows">${recs('lgoals').filter(g => g.status !== 'Completed').sort((a, b) => (a.due || '9').localeCompare(b.due || '9')).slice(0, 4).map(g => `<div class="lrow"><button class="lmain" data-act="open" data-id="${g.id}"><b>${esc(g.name || 'Goal')}</b><span>${esc(KINDS.lgoals.sub(g))}</span><span class="lprog"><i style="width:${goalPct(g)}%"></i></span></button><span class="lside">${goalPct(g)}%</span></div>`).join('')}</div>`, ['care/growth', 'All goals']) : ''}
@@ -5785,7 +5785,7 @@ function socialToday(host) {
   const due = tasksDue(), nextTasks = recs('tasks').filter(x => !taskDone(x) && x.date && x.date > t).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 4);
   const projs = recs('projects').filter(p => p.status !== 'Completed').sort((a, b) => (a.end || '9').localeCompare(b.end || '9'));
   const pbar = p => { const ts = projTasks(p), pct = ts.length ? Math.round(100 * ts.filter(taskDone).length / ts.length) : 0; return `<div class="lrow"><button class="lmain" data-act="open" data-id="${p.id}"><b>${esc(titleOf(p))}</b><span>${esc(KINDS.projects.sub(p))}</span><span class="lprog"><i style="width:${pct}%"></i></span></button><span class="lside">${pct}%</span></div>`; };
-  host.innerHTML = `${head('Social')}
+  host.innerHTML = `${head('Today')}
   <div class="tiles lt3"><div class="tile"><div class="k">This week</div><div class="v">${week.length}</div><div class="h">${posted} posted</div></div>
     ${accs.slice(0, 2).map(a => `<div class="tile"><div class="k">${esc(a.platform || 'Account')}</div><div class="v">${(num(a.followers) || 0).toLocaleString('en-GB')}</div><div class="h">followers${a.freq ? ' · ' + esc(a.freq) : ''}</div></div>`).join('') || '<div class="tile"><div class="k">Followers</div><div class="v">–</div><div class="h">add your accounts under Brand</div></div>'}</div>
   <div class="panels">
@@ -8764,7 +8764,7 @@ function cleanPage(host) {
   const trig = {}; for (const l of st.logs.filter(l => l.trigger)) trig[l.trigger] = (trig[l.trigger] || 0) + 1;
   const helps = {}; for (const l of st.logs.filter(l => l.type === 'Trek')) for (const h of [].concat(l.helped || [])) helps[h] = (helps[h] || 0) + 1;
   const top = o => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, n]) => `${k} (${n}×)`).join(', ');
-  host.innerHTML = `${head('Clean')}
+  host.innerHTML = `${head('Smoke-free')}
   <div class="ltools"><button class="btn primary" data-act="crave">I have a craving</button><button class="btn small" data-act="cleanlog" data-v="Gekocht">Bought after all</button><button class="btn small" data-act="cleanlog" data-v="Gebruikt">Used after all</button></div>
   ${!st.start ? `<div class="banner"><p class="lnone">Pick a stop date 2 to 4 weeks from now. Until that day you prepare calmly.</p><label class="lnone">Stop date <input type="date" class="pill" data-cleandate value="${esc(addDays(t, 21))}"></label><button class="btn small primary" data-act="cleanstart">Set my stop date</button></div>` : ''}
   ${st.start ? `<div class="tiles">${st.before ? fTile('To go', plural(st.toGo, 'day', 'days'), 'until your stop date ' + shortDate(st.start)) : fTile('Clean', plural(st.streak, 'day', 'days'), `${st.clean} of ${st.days} days since ${shortDate(st.start)}`)}${fTile('Saved', eur(st.saved), st.spent ? `${eur(st.spent)} spent after all` : 'what you would have spent otherwise')}${fTile('This week', eur(st.weekSaved), 'goes to Verhuizen on Sunday')}${fTile('Cravings beaten', String(st.cravings.length), top(trig) ? 'most often: ' + top(trig).split(',')[0] : 'tap I have a craving')}</div>` : ''}
@@ -9638,7 +9638,7 @@ function mindAnalysis(host) {
   const topWords = [...words.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
   const goals = recs('lgoals').filter(g => g.status !== 'Completed'), behind = goals.filter(g => g.due && g.due <= addDays(today(), 30) && goalPct(g) < 70);
   const links = [link(days, d => sleepOn(d) == null ? null : sleepOn(d) >= 7, moodOn, 'Mood after 7+ hours of sleep', 'after less sleep'), link(days, d => workedOut(d), moodOn, 'Mood on training days', 'on other days'), link(days, d => recs('journal').some(j => j.date === d), moodOn, 'Mood on days you wrote', 'on other days'), link(days, d => med.some(m => m.date === d), energyOn, 'Energy on days with meditation', 'without')].join('');
-  host.innerHTML = `${anaHead('Mind · analysis', `${calDayLabel(days[0])} to today`)}
+  host.innerHTML = `${anaHead('Mind stats', `${calDayLabel(days[0])} to today`)}
   <div class="tiles">${aTile('Mood', avgOf(mood) != null ? r1(avgOf(mood)) + '/4' : '–', delta(avgOf(mood), pm))}${aTile('Energy', avgOf(energy) != null ? r1(avgOf(energy)) + '/4' : '–', delta(avgOf(energy), pe))}${aTile('Routines done', allPct != null ? Math.round(allPct) + '%' : '–', delta(allPct, prevPct))}${aTile('Journal', String(jr.length), delta(jr.length, jp.length) || 'entries')}</div>
   <div class="panels">
     ${panel('Mood per day', aLine(days, mood, { label: 'Mood', unit: '/4', max: 4.4 }) + `<p class="lnone">From your check-in on Body (How do you feel?) and your journal.</p>`)}
@@ -9662,7 +9662,7 @@ function bodyAnalysis(host) {
   const phases = ['Period', 'Follicular', 'Ovulation', 'Luteal'].map(p => { const ds = days.filter(d => phaseOf(d) === p); return [p, avgOf(ds.map(moodOn)), avgOf(ds.map(energyOn)), avgOf(ds.map(skinOn))]; });
   const veg = avgOf(days.map(d => num(nlOn(d)?.veg))), soda = avgOf(days.map(d => num(nlOn(d)?.soda))), water = avgOf(days.map(d => num(waterOn(d)?.glasses)));
   const links = [link(days, d => sleepOn(d) == null ? null : sleepOn(d) >= 7, energyOn, 'Energy after 7+ hours of sleep', 'after less sleep'), link(days, workedOut, d => sleepOn(addDays(d, 1)), 'Sleep after a training day', 'after other days', v => r1(v) + ' h'), link(days, d => stepsOn(d) == null ? null : stepsOn(d) >= 8000, moodOn, 'Mood on days with 8,000+ steps', 'on other days')].join('');
-  host.innerHTML = `${anaHead('Body · analysis', `${calDayLabel(days[0])} to today`)}
+  host.innerHTML = `${anaHead('Body stats', `${calDayLabel(days[0])} to today`)}
   <div class="tiles">${aTile('Sleep', avgOf(sl) != null ? r1(avgOf(sl)) + ' h' : '–', delta(avgOf(sl), avgOf(prev.map(sleepOn))))}${aTile('Steps', avgOf(st) != null ? Math.round(avgOf(st)).toLocaleString('en-GB') : '–', delta(avgOf(st), avgOf(prev.map(stepsOn))) || 'average per day')}${aTile('Workouts', String(wo), delta(wo, wop) || 'done')}${aTile('Clean', cleanDays != null ? `${cleanDays}/${n}` : '–', cs.start && !cs.before ? eur(cs.saved) + ' saved' : 'no stop date yet')}</div>
   <div class="panels">
     ${panel('Sleep per night', aLine(days, sl, { label: 'Sleep', unit: ' h', max: 11 }))}
@@ -9695,7 +9695,7 @@ function plansAnalysis(host) {
   const gifts = recs('gifts').filter(g => inP(g.given || g.date)), perP = new Map(), perO = new Map();
   for (const g of gifts) { const p = num(g.price) || 0; perP.set(g.for || 'Unknown', (perP.get(g.for || 'Unknown') || 0) + p); perO.set(g.occasion || 'Overig', (perO.get(g.occasion || 'Overig') || 0) + p); }
   const places = new Set(tripList().map(tr => tr.dest?.country || tr.dest?.name).filter(Boolean));
-  host.innerHTML = `${anaHead('Plans · analysis', `${calDayLabel(from)} to today`)}
+  host.innerHTML = `${anaHead('Plans stats', `${calDayLabel(from)} to today`)}
   <div class="tiles">${aTile('Trips', String(trips.length), eur(costs.reduce((a, c) => a + c[1], 0)) + ' spent')}${aTile('Places', String(places.size), 'countries and cities ever')}${aTile('Gifts', String(gifts.length), eur(gifts.reduce((a, g) => a + (num(g.price) || 0), 0)))}</div>
   <div class="panels">
     ${panel('Costs per trip', costs.length ? aBars(costs.map(([l, v]) => [l.slice(0, 14), v])) : quiet('No trips in this period.'), ['care/trips', 'Trips'])}
@@ -9712,7 +9712,7 @@ function wishAnalysis(host) {
   const orders = recs('orders').filter(o => inP(o.ordered || o.received || upd(o))), ret = orders.filter(o => o.status === 'Returned'), back = ret.reduce((a, o) => a + (num(o.price) || 0), 0);
   const perShop = new Map(); for (const o of orders) { const s = o.shop || 'Unknown', e = perShop.get(s) || { n: 0, r: 0 }; e.n++; if (o.status === 'Returned') e.r++; perShop.set(s, e); }
   const cats = new Map(); for (const w of bought) cats.set(w.category || 'Overig', (cats.get(w.category || 'Overig') || 0) + (num(w.boughtPrice ?? w.price) || 0));
-  host.innerHTML = `${anaHead('Wishlists · analysis', `${calDayLabel(from)} to today`)}
+  host.innerHTML = `${anaHead('Wishlists stats', `${calDayLabel(from)} to today`)}
   <div class="tiles">${aTile('Bought', String(bought.length), eur(spent))}${aTile('Let go', String(dropped.length), eur(saved) + ' saved')}${aTile('Waiting time', wait != null ? Math.round(wait) + ' days' : '–', 'average before you bought')}${aTile('Returns', `${ret.length}/${orders.length}`, eur(back) + ' back')}</div>
   <div class="panels">
     ${panel('Bought vs let go', aBars([['Bought', bought.length], ['Let go', dropped.length]]))}
@@ -9740,7 +9740,7 @@ function kitchenAnalysis(host) {
   const quick = rs.filter(r => totalTime(r) > 0 && totalTime(r) <= 30).length, tried = rs.filter(hasCooked).length, totry = rs.filter(r => r.totry).length;
   const protein = est.slice().sort((a, b) => b.n.per.p - a.n.per.p).slice(0, 6), light = est.filter(x => x.n.per.kcal >= 150).sort((a, b) => a.n.per.kcal - b.n.per.kcal).slice(0, 6);
   const rowR = (r, side) => `<div class="lrow"><button class="lmain" data-act="open" data-id="${r.id}"><b>${esc(titleOf(r))}</b><span>${esc(r.category || '')}</span></button><b class="lside">${side}</b></div>`;
-  host.innerHTML = `${anaHead('Kitchen · analysis', `${calDayLabel(from)} to today`)}
+  host.innerHTML = `${anaHead('Kitchen stats', `${calDayLabel(from)} to today`)}
   <div class="tiles">${aTile('Cooked', String(cookedN), delta(withR.length, pR.length))}${aTile('Eaten at home', String(home.length), `${plural(meals.length - home.length, 'time', 'times')} eating out`)}${aTile('Calories per day', kAvg != null ? Math.round(kAvg) + ' kcal' : '–', 'from your meal plan, estimated')}${aTile('Recipes', String(rs.length), `${newR} new · ${tried} cooked · ${totry} to try`)}</div>
   <div class="panels">
     ${panel('Calories per day', aLine(days, kcalDays, { label: 'Calories', unit: ' kcal' }) + '<p class="lnone">Per portion of the recipes in your meal plan. Meals without a recipe don\'t count.</p>', ['kitchen/meals', 'Meal plan'])}
@@ -9804,9 +9804,9 @@ function lifeOverview(host) {
   const go = (v, l) => `<button class="chip link" data-act="go" data-v="${v}">${esc(l)}</button>`;
   const d30 = dayList(30), mood = avgOf(d30.map(moodOn)), sleep = avgOf(d30.map(sleepOn)), wo = d30.filter(workedOut).length;
   const hs = recs('habits').filter(h => !h.paused), hp = avgOf(hs.map(h => { const due = d30.filter(d => !(h.onDays || []).length || h.onDays.includes(wdOf(d))); return due.length ? due.filter(d => daysSet(h).has(d)).length / due.length * 100 : null; }));
-  host.innerHTML = `${head('Life')}
+  host.innerHTML = `${head('Today')}
   <div class="tiles lifenums">${aTile('Mood', mood != null ? r1(mood) + '/4' : '–', '30 days')}${aTile('Sleep', sleep != null ? r1(sleep) + ' h' : '–', 'average')}${aTile('Workouts', String(wo), '30 days')}${aTile('Routines', hp != null ? Math.round(hp) + '%' : '–', 'done')}</div>
-  <div class="lanalinks">${[['plan/mindstats', 'Mind'], ['body/stats', 'Body'], ['plan/planstats', 'Plans'], ['wish/stats', 'Wishlists'], ['kitchen/stats', 'Kitchen']].map(([v, l]) => `<button class="chip link" data-act="go" data-v="${v}">Analysis ${l}</button>`).join('')}</div>
+  <div class="lanalinks">${[['plan/mindstats', 'Mind'], ['body/stats', 'Body'], ['plan/planstats', 'Life admin'], ['wish/stats', 'Wishlists'], ['kitchen/stats', 'Kitchen']].map(([v, l]) => `<button class="chip link" data-act="go" data-v="${v}">${l} stats</button>`).join('')}</div>
   <div class="quickacts lifeacts"><button class="chip" data-act="new" data-v="journal">+ Journal</button><button class="chip" data-act="new" data-v="sleep">+ Sleep</button><button class="chip" data-act="new" data-v="workouts">+ Workout</button><button class="chip" data-act="new" data-v="wishes">+ Wish</button></div>
   <div class="panels">
     ${panel('Mind', planTile(), ['plan/today', 'My year'])}
@@ -10082,7 +10082,7 @@ function skinAnalysis(host) {
   const links = [link(days, d => sleepOn(d) == null ? null : sleepOn(d) >= 7, scoreOn, 'Skin score after 7+ hours of sleep', 'after less sleep'), link(days, d => { const l = logs.find(x => x.date === d && x.stress); return l ? l.stress === 'High' : null; }, spotsOn, 'New spots on high-stress days', 'on calmer days')].join('');
   const vrow = b => { const x = v.get(b.id); return `<div class="lrow skv"><button class="lmain" data-act="open" data-id="${b.id}"><b>${esc(b.name)}</b><span>${esc(x.gs.map(g => g.label.replace(/ \(.*/, '')).join(', ') || (b.inci ? 'no active groups found' : 'no ingredient list yet'))}${x.hits[0] ? ` · best for ${esc(SKIN_CONCERNS.find(c => c[0] === x.hits[0].c)[1].toLowerCase())}` : ''}</span>${x.twin.length ? `<span class="skwarn">Same job as ${esc(x.twin[0].o.name)} (${esc(x.twin[0].g.label.replace(/ \(.*/, ''))})</span>` : ''}${x.watch.length ? `<span class="skwarn">Contains ${esc(x.watch.map(w => w.label.toLowerCase()).join(', '))}, which you avoid</span>` : ''}</button><span class="lside">${usesPerWeek(b)}×/wk</span></div>`; };
   const ev = e => ['', 'small studies', 'some trials', 'strong evidence'][e] || 'nothing yet';
-  host.innerHTML = `${anaHead('Skin · analysis', p ? [p.skinType, ...[].concat(p.concerns || []).slice(0, 3).map(k => SKIN_CONCERNS.find(c => c[0] === concernKey(k))?.[1].toLowerCase())].filter(Boolean).join(' · ') : 'Fill in your skin profile for a sharper picture')}
+  host.innerHTML = `${anaHead('Skin stats', p ? [p.skinType, ...[].concat(p.concerns || []).slice(0, 3).map(k => SKIN_CONCERNS.find(c => c[0] === concernKey(k))?.[1].toLowerCase())].filter(Boolean).join(' · ') : 'Fill in your skin profile for a sharper picture')}
   <div class="tiles">${aTile('In your routine', String(prods.length), plural(prods.reduce((a, b) => a + usesPerWeek(b), 0), 'application') + ' a week')}${aTile('Works for you', String(byTag[0][1].length), 'strong or good evidence for your goals')}${aTile('Does little', String(byTag[3][1].length), 'use up, don’t rebuy')}${aTile('Skin score', avgOf(days.map(scoreOn)) != null ? r1(avgOf(days.map(scoreOn))) + '/10' : '–', 'from your skin diary')}</div>
   <div class="panels">
     ${panel('Your skin profile', p ? `<p class="dline"><span>Skin type</span><b>${esc(p.skinType || '–')}</b></p><p class="dline"><span>Concerns</span><b>${esc([].concat(p.concerns || []).map(k => SKIN_CONCERNS.find(c => c[0] === concernKey(k))?.[1] || k).join(', ') || '–')}</b></p><p class="dline"><span>Avoid</span><b>${esc([].concat(p.avoid || []).join(', ') || '–')}</b></p>${p.notes ? `<p class="lnone">${esc(p.notes)}</p>` : ''}<button class="btn small" data-act="open" data-id="${p.id}">Edit profile</button>` : `${quiet('Tell the app your skin type and concerns; the analysis weighs everything by them.')}<button class="btn small primary" data-act="new" data-v="skinprofile">Fill in profile</button>`)}
@@ -10845,7 +10845,7 @@ function bodyExtra() {
   return panel('😴 Sleep', `${tilesOf([['⏰ Hours', fmt1(avgOf(sl.map(sleepHours).filter(v => v != null))), 'a night'], ['🌞 Rested', fmt1(avgKey(sl, 'rested')), 'out of 5'], ['📝 Logged', sl.length, 'nights']])}${aLine(days, days.map(d => { const r = recs('sleep').find(x => x.date === d); return r ? sleepHours(r) : null; }), { label: 'Hours', unit: ' h', max: 12 })}`, ['care/sleep', 'Sleep'])
     + panel('🌸 Cycle', `${tilesOf([['📝 Diary days', cy.length, ''], ['⚡ Energy', fmt1(avgKey(cy, 'energy')), 'out of 5'], ['🩸 Bleeding', cy.filter(x => x.flow && x.flow !== 'None').length, 'days']])}${sym.size ? `<div class="lwrap">${[...sym.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => `<span class="chip">${esc(k)} <span class="n">${n}</span></span>`).join('')}</div>` : ''}`, ['care/cycle', 'Cycle'])
     + panel('✨ Hair and nails', tilesOf([['🚿 Wash days', hr.filter(x => x.type === 'Wash day').length, ''], ['💧 Moisture', fmt1(avgKey(hr, 'moisture')), 'out of 5'], ['💅 Nail sets', nl.filter(x => ['Full set', 'Fill'].includes(x.kind)).length, `lasted ${fmt1(avgOf(nl.map(nailDays).filter(v => v != null)))} days`]]), ['care/hair', 'Hair'])
-    + panel('🧘🏾‍♀️ Back, neck and shoulders', tilesOf(PAIN_AREAS.map(([k, l]) => [l, fmt1(avgOf([...pc, ...recs('workouts').filter(w => w.done).filter(inP)].map(x => num(x['p' + k] ?? x['pb' + k])).filter(v => v != null))), 'pain out of 10'])), ['fit/stats', 'Training analysis']);
+    + panel('🧘🏾‍♀️ Back, neck and shoulders', tilesOf(PAIN_AREAS.map(([k, l]) => [l, fmt1(avgOf([...pc, ...recs('workouts').filter(w => w.done).filter(inP)].map(x => num(x['p' + k] ?? x['pb' + k])).filter(v => v != null))), 'pain out of 10'])), ['fit/stats', 'Training stats']);
 }
 function mindExtra() {
   const days = dayList(anaDays()), inP = inDays(days), ci = recs('checkin').filter(inP), med = recs('meditation').filter(inP), ll = recs('learnlog').filter(inP);
