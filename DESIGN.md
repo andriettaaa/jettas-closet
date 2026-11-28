@@ -130,3 +130,8 @@ Forms fit on one screen, are visual (emoji, tiles, photos, swatches) and keep ex
 - **Beauty (a product review)**: skin sliders after 1, 4 or 8 weeks, before and after photos, keep or toss.
 - **Social, deeper**: post story (stats after a week, do more or skip), content pillars with hooks, brand deal as a card with deadlines and deliverables.
 - **Scores, never stars**: always with one decimal (tap the same number again or swipe for halves). Recipes and meals: plates. Beauty, nails, closet and wishes: a score ring. Workouts and sleep: level bars. Check-ins, month review and home: number pills from red to green.
+
+## The whole app, visual (November 2026, with pictures)
+- **Lists**: one search bar and one ⚙︎ button (sort, group, view and select live behind it), then one row of filter chips, so the list starts right away. An item without a photo gets a colour field with a fitting emoji, never a big letter. A smart card on top (cook now with what you have, your week of workouts, what runs low). Rows with an icon tile and a small score ring, or cards with a colour photo and the score on it.
+- **Opening an item**: a full page: big photo or colour field, three tiles with the key numbers, title and tags, tabs (for a recipe: ingredients, steps, reviews), one big action button with small extra buttons.
+- **Settings**: an icon per row in a soft colour, switches for on/off, a search field on top.
