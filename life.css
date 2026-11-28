@@ -2159,3 +2159,20 @@ details.lmore > .form, .sheet .form { box-sizing: border-box; max-width: 100%; }
   .tside .trow span:first-child { white-space: normal; overflow: visible; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .tnum { flex-basis: calc((100% - 16px) / 3.3); }
 }
+/* tabs per device: iPhone four icon tabs + underlined pages; iPad portrait one icon row */
+.secbar.mobtabs { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 4px; margin: 6px 0 2px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); overflow: visible; }
+.secbar.mobtabs button { display: grid; justify-items: center; gap: 2px; padding: 7px 2px; border: 0; border-radius: 14px; background: none; font-size: 11.5px; color: var(--muted); min-width: 0; }
+.secbar.mobtabs button .mtico { font-size: 19px; line-height: 1; }
+.secbar.mobtabs button[aria-current="true"] { background: var(--accent); color: #fff; }
+.subbar.mobsub { gap: 16px; border-bottom: 1px solid var(--line); padding: 0 2px; margin: 4px 0 0; }
+.subbar.mobsub button { border: 0 !important; background: none !important; border-radius: 0 !important; padding: 8px 0 !important; color: var(--muted); font-weight: 600; flex: none; box-shadow: none !important; }
+.subbar.mobsub button[aria-current="true"] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent) !important; }
+@media (min-width: 700px) and (max-width: 1099px) {
+  body:not(.side) .secbar:not(.mobtabs) { gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+  body:not(.side) .secbar:not(.mobtabs) > button { flex: 1 1 0; display: grid !important; justify-items: center; gap: 3px; padding: 7px 4px; border: 0; border-radius: 14px; font-size: 11.5px; min-width: 64px; background: none; }
+  body:not(.side) .secbar:not(.mobtabs) > button svg { width: 20px; height: 20px; }
+  body:not(.side) .secbar:not(.mobtabs) > button[aria-current="true"] { background: var(--accent); color: #fff; }
+  body:not(.side) .subbar { gap: 16px; border-bottom: 1px solid var(--line); }
+  body:not(.side) .subbar button { border: 0 !important; background: none !important; border-radius: 0 !important; padding: 8px 0 !important; box-shadow: none !important; color: var(--muted); }
+  body:not(.side) .subbar button[aria-current="true"] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent) !important; }
+}

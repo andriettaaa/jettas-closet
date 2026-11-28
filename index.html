@@ -1141,6 +1141,39 @@ function applySide() {
 }
 SIDE_MQ.addEventListener?.('change', () => { applySide(); renderTabs(); });
 document.addEventListener('click', e => { if (!e.target.closest('#sideFold')) return; try { localStorage.setItem('dev:side', sideFolded() ? 'open' : 'fold'); } catch {} renderTabs(); });
+/* iPhone: every section as four icon tabs, the pages of the open one as an underlined row below (DESIGN.md › Tabs) */
+const MOB_TABS = {
+  kitchen: [['☀️', 'Today', v => /\/(today|stats)$/.test(v[0])], ['📖', 'Cook', v => /\/(recipes|meals)$/.test(v[0])], ['🍽', 'Food', v => /\/(foodlog|drinks|cooked)$/.test(v[0])], ['🛒', 'Shop', () => true]],
+  money: [['☀️', 'Today', v => v[0] === 'money/today'], ['🧾', 'Spending', v => /\/(spending|repeats|impulse|insurance)$/.test(v[0])], ['🎯', 'Goals', v => /\/(plan|debt|forecast)$/.test(v[0])], ['📊', 'Review', () => true]],
+  home: [['☀️', 'Today', v => v[0] === 'home/today'], ['🧽', 'Cleaning', v => /\/(chores|houselog)$/.test(v[0])], ['🪴', 'Care', v => /\/(plants|repairs)$/.test(v[0])], ['📦', 'Moving', () => true]],
+  social: [['☀️', 'Today', v => /\/(today|tasks|projects)$/.test(v[0])], ['🎬', 'Create', v => v[3] === 'create'], ['📈', 'Results', v => v[3] === 'grow'], ['📚', 'Library', () => true]],
+  plan: [['☀️', 'Today', v => !v[3] || v[3] === 'stats'], ['🧠', 'Mind', v => v[3] === 'mind'], ['💪', 'Body', v => v[3] === 'body'], ['🗂', 'Admin', () => true]],
+  closet: [['👗', 'Closet', v => ['closet', 'stats', 'todo'].includes(v[0])], ['💜', 'Wishes', v => v[0] === 'wishlist'], ['🧥', 'Outfits', v => ['outfits', 'calendar'].includes(v[0])], ['✈️', 'Travel', () => true]]
+};
+function mobTabs(sec, views, bar, sub, sub2) {
+  const def = MOB_TABS[sec]; if (!def || innerWidth >= 700) return false;
+  const vs = views.filter(v => !/\/settings$/.test(v[0]) && !/\/todo$/.test(v[0])), groups = def.map(() => []);
+  for (const v of vs) { const i = def.findIndex(d => d[2](v)); groups[i < 0 ? def.length - 1 : i].push(v); }
+  const cur = groups.findIndex(g => g.some(v => v[0] === S.view));
+  if (cur >= 0) pref.set('mob:' + sec + '/' + cur, S.view);
+  const target = i => { const last = pref.get('mob:' + sec + '/' + i, ''); return groups[i].some(v => v[0] === last) ? last : groups[i][0]?.[0]; };
+  bar.classList.add('mobtabs'); bar.hidden = false;
+  bar.innerHTML = def.map((d, i) => groups[i].length ? `<button data-view="${target(i)}" aria-current="${i === cur}"><span class="mtico">${d[0]}</span><span>${d[1]}</span></button>` : '').join('');
+  // the open group's pages: pages that share a merge or a sub-group show as one button, their own pages in a row under it
+  const mg = window.LIFE?.merges || {}, subs = SECTIONS.find(x => x.key === sec)?.subs || {}, g = groups[cur] || [];
+  const keyOf = v => v[4] && subs[v[3]]?.[v[4]] ? 's:' + v[4] : v[5] && mg[v[5]] ? 'm:' + v[5] : 'v:' + v[0];
+  const labelOf = (k, v) => k.startsWith('s:') ? subs[v[3]][v[4]][0] : k.startsWith('m:') ? mg[v[5]][0] : v[3] === 'stats' ? (/reports$/.test(v[0]) ? 'Reports' : v[1] + ' stats') : v[1];
+  const items = []; for (const v of g) { const k = keyOf(v); if (!items.some(x => x.k === k)) items.push({ k, v, vs: g.filter(y => keyOf(y) === k) }); }
+  // one item that holds several pages (Spending: All, Fixed costs…): its pages are the row
+  if (items.length === 1 && items[0].vs.length > 1) { const one = items.splice(0, 1)[0]; for (const v of one.vs) items.push({ k: 'v:' + v[0], v, vs: [v] }); }
+  const curItem = items.find(x => x.vs.some(v => v[0] === S.view));
+  sub.hidden = items.length < 2; sub.classList.add('mobsub');
+  sub.innerHTML = items.map(x => { const last = pref.get('mobi:' + x.k, ''), to = x.vs.some(v => v[0] === last) ? last : x.vs[0][0]; return `<button data-view="${to}" aria-current="${x === curItem}">${esc(labelOf(x.k, x.v))}</button>`; }).join('');
+  if (curItem) pref.set('mobi:' + curItem.k, S.view);
+  sub2.hidden = !curItem || curItem.vs.length < 2;
+  sub2.innerHTML = curItem && curItem.vs.length > 1 ? curItem.vs.map(([k, label]) => `<button data-view="${k}" aria-current="${S.view === k}">${esc(label)}</button>`).join('') : '';
+  return true;
+}
 function renderTabs() {
   applySide();
   const sw = document.querySelector('.secwrap'); if (sw && sw.parentElement !== document.querySelector('header.top')) document.querySelector('header.top').appendChild(sw);
@@ -1162,6 +1195,8 @@ function renderTabs() {
   for (const v of views) { const g = groups[v[3]] ? v[3] : ''; if (!g) row.push({ v }); else if (!row.some(t => t.g === g)) row.push({ g, vs: views.filter(x => x[3] === g) }); }
   if (curGrp) pref.set('grp:' + sec + '/' + curGrp, S.view);
   const grpTarget = t => { const last = pref.get('grp:' + sec + '/' + t.g, ''); return t.vs.some(v => v[0] === last) ? last : t.vs[0][0]; };
+  const sub2 = $('#sub2Bar'); bar.classList.remove('mobtabs'); sub.classList.remove('mobsub');
+  if (!mobTabs(sec, views, bar, sub, sub2)) {
   bar.innerHTML = row.map(t => {
     if (!t.g || t.vs.length === 1) { const [k, label, path] = t.v || t.vs[0]; if (/\/settings$/.test(k)) return `<button data-view="${k}" class="gearbtn" aria-current="${S.view === k}" aria-label="Settings" title="Settings">${icon(path)}</button>`; return `<button data-view="${k}" aria-current="${S.view === k}">${icon(path)}<span>${label}</span>${k === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`; }
     const [label, path] = groups[t.g]; return `<button data-view="${grpTarget(t)}" data-grp="${t.g}" aria-current="${curGrp === t.g}">${icon(path)}<span>${label}</span></button>`;
@@ -1169,7 +1204,7 @@ function renderTabs() {
   // what still misses info: a red number at the end of the row instead of a To do tab
   try { const tdv = sec === 'closet' ? 'todo' : sec + '/todo', tdn = sec === 'closet' ? S.items.filter(inCloset).filter(it => todoMissing(it).length).length : window.LIFE?.todoCount?.(sec) || 0;
     if (tdn && (sec === 'closet' || window.LIFE?.has?.(tdv))) (bar.querySelector('.gearbtn') || bar).insertAdjacentHTML(bar.querySelector('.gearbtn') ? 'beforebegin' : 'beforeend', `<button data-view="${tdv}" class="todobadge" aria-current="${S.view === tdv}" aria-label="${tdn} to fill in" title="Still to fill in">✓<i>${tdn > 99 ? '99+' : tdn}</i></button>`); } catch {}
-  const open = row.find(t => t.g && t.g === curGrp && t.vs.length > 1), sub2 = $('#sub2Bar');
+  const open = row.find(t => t.g && t.g === curGrp && t.vs.length > 1);
   // a group can hold sub-groups (Body › Health, Train, Beauty): they sit as one button in the second row, their pages in a third
   const subs = SECTIONS.find(x => x.key === sec)?.subs?.[curGrp] || {}, curSub = views.find(v => v[0] === S.view)?.[4] || '';
   if (curSub) pref.set('sub:' + sec + '/' + curGrp + '/' + curSub, S.view);
@@ -1181,6 +1216,7 @@ function renderTabs() {
   const openSub = row2.find(t => t.sg && t.sg === curSub);
   sub2.hidden = !openSub;
   sub2.innerHTML = openSub ? openSub.vs.map(([k, label]) => `<button data-view="${k}" aria-current="${S.view === k}">${label}</button>`).join('') : '';
+  }
   // open side bar: the pages sit right under the section; folded: they run along the top of the page
   if (document.body.classList.contains('side') && sw) { if (document.body.classList.contains('folded')) { if (!bar.hidden) $('#main').before(sw); } else {
     const cur = $('#tabsTop [aria-current="page"]'); if (cur && !bar.hidden) cur.after(sw);
@@ -2421,7 +2457,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v229';
+const APP_VERSION = 'hangtag-v230';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2816,6 +2852,7 @@ function packDash(el) {
   for (const c of cards) cols.reduce((a, b) => b.offsetHeight < a.offsetHeight ? b : a).appendChild(c);
 }
 let dashW = 0;
+let MOBW = innerWidth < 700; window.addEventListener('resize', () => { if ((innerWidth < 700) !== MOBW) { MOBW = innerWidth < 700; try { renderTabs(); } catch {} } });
 window.addEventListener('resize', () => { const el = document.querySelector('.dash'); if (!el || Math.abs(el.clientWidth - dashW) < 40) return; dashW = el.clientWidth; const n = Math.max(1, Math.floor((dashW + 16) / 316)); if (String(n) !== el.dataset.n) packDash(el); });
 /* wiggle to arrange Today on this device: press and hold a block, drag it up or down, ⊖ hides it, Klaar saves */
 let wig = null;
