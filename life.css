@@ -2087,3 +2087,11 @@ details.lmore > .form, .sheet .form { box-sizing: border-box; max-width: 100%; }
 .wzq { font-size: 22px; margin: 0 0 12px; } .wzinput { width: 100%; box-sizing: border-box; font-size: 18px; }
 #photoArea canvas, #photoArea img { max-height: 52vh; }
 .wmask { flex-wrap: nowrap; } .wmask small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .wmask { flex-wrap: wrap; } .wmask .chip { flex: 1; justify-content: center; }
+/* Today: phase and money cards side by side, also on a phone */
+.stcards, :root .stcards { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+.stcard { align-content: start; min-height: 150px; padding: 14px; }
+.stcard b { font-size: 17px; line-height: 1.2; }
+.stcard.money b { font-size: 26px; }
+.stcard span, .stcard small { font-size: 12.5px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.stcard .stbar { display: block; }
+@media (min-width: 700px) { .stcard { min-height: 0; padding: 16px; } .stcard b { font-size: 19px; } .stcard.money b { font-size: 28px; } .stcard span, .stcard small { font-size: 13.5px; } }
