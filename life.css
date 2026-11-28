@@ -1902,3 +1902,13 @@ details.room { border-top: 1px solid var(--line); padding: 10px 0; } details.roo
 .rvlist dt { color: var(--muted); font-size: 13.5px; } .rvlist dd { margin: 0; text-align: right; font-weight: 600; font-size: 13.5px; }
 .rvnotes { white-space: pre-wrap; background: var(--surface); border-radius: 14px; padding: 12px; }
 .rview > .btn { justify-self: start; margin-bottom: 8px; }
+/* settings, visual */
+.seticon { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; margin-right: 10px; font-size: 16px; vertical-align: middle; flex: none; }
+:root[data-theme="dark"] .seticon { filter: saturate(.8) brightness(.85); }
+.settog input[type="checkbox"], .fset input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 42px; height: 26px; border-radius: 99px; background: color-mix(in srgb, var(--ink) 18%, transparent); position: relative; cursor: pointer; transition: background .2s; flex: none; margin: 0; }
+.settog input[type="checkbox"]::after, .fset input[type="checkbox"]::after { content: ''; position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .2s; }
+.settog input[type="checkbox"]:checked, .fset input[type="checkbox"]:checked { background: #5f9b6b; }
+.settog input[type="checkbox"]:checked::after, .fset input[type="checkbox"]:checked::after { transform: translateX(16px); }
+.seticon { display: inline-grid !important; place-items: center !important; width: 34px !important; height: 34px !important; min-width: 34px; border-radius: 10px !important; margin: 0 12px 0 0 !important; font-size: 17px !important; vertical-align: middle; } h3:has(> .seticon) { display: flex !important; align-items: center; }
+
+.seticon { font-style: normal; flex: 0 0 34px !important; } .setfold > summary { align-items: center; }

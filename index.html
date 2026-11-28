@@ -1245,7 +1245,24 @@ function render() {
   if (isSecSettings(S.view)) renderSettings(host);
   else if (isLife(S.view)) window.LIFE.render(host, S.view);
   else ({ overview: renderOverview, settings: renderSettings, closet: renderRail, wishlist: renderRail, outfits: renderOutfits, calendar: renderCalendar, trips: renderTrips, stats: renderStats, todo: renderTodo })[S.view](host);
+  if (S.view === 'settings' || isSecSettings(S.view)) setTimeout(() => decorateSettings(host), 0);
   S.sheetRefresh?.();
+}
+// settings, visual: an icon in a soft colour before every block title, and switches instead of checkboxes (CSS)
+const SET_ICONS = [[/money|geld|budget|pay|salar/i, '💶', '#e1f3e5'], [/account|rekening|bank/i, '🏦', '#e2ecfa'], [/bill|vaste|repeat|subscri/i, '🧾', '#fbf3d6'], [/categor|pot|envelope/i, '🏷️', '#ece3f5'], [/import|backup|export|csv/i, '⬇️', '#efe7de'], [/rule|sort/i, '🪄', '#fbe3e3'], [/quick|chip/i, '⚡', '#fbf3d6'],
+  [/notif|melding|remind/i, '🔔', '#fbe3e3'], [/today|vandaag/i, '☀️', '#fbf3d6'], [/look|theme|colour|color|font|thema/i, '🎨', '#ece3f5'], [/device|apparaat/i, '📱', '#e2ecfa'], [/health|apple/i, '❤️', '#fbe3e3'], [/sleep|slaap|bed/i, '🌙', '#e2ecfa'], [/food|kitchen|shop|grocer|meal/i, '🛒', '#e1f3e5'],
+  [/closet|wardrobe|categor/i, '👗', '#fbe3e3'], [/list|lijst|menu|tab/i, '📋', '#efe7de'], [/calendar|agenda/i, '📅', '#e2ecfa'], [/social|instagram|tiktok|pinterest/i, '📱', '#ece3f5'], [/goal|doel/i, '🎯', '#fbe3e3'], [/undo|history/i, '↩️', '#efe7de'], [/privacy|hide|account &|sign/i, '🔒', '#efe7de'], [/skin|beauty/i, '🧴', '#fbe3e3'], [/train|workout|fit/i, '🏋🏾‍♀️', '#ece3f5'], [/home|chore|clean/i, '🏠', '#e1f3e5'], [/cycle|period/i, '🩸', '#fbe3e3'], [/drink|water/i, '💧', '#e2ecfa'], [/nail/i, '💅', '#fbe3e3']];
+function decorateSettings(host) {
+  // the folded setting cards: their title carries the icon as a tile
+  for (const b of host.querySelectorAll('.setfold > summary > span > b, details.fpanel > summary h3')) {
+    if (b.querySelector('.seticon') || b.closest('summary')?.querySelector(':scope > .seticon')) continue; const raw = b.textContent.trim(), em = raw.match(/^(\p{Extended_Pictographic}\uFE0F?)/u)?.[1], t = em ? raw.slice(em.length).trim() : raw;
+    const m = SET_ICONS.find(([re]) => re.test(t)) || [0, '⚙️', '#efe7de'], tile = `<i class="seticon" style="background:${m[2]}">${em || m[1]}</i>`;
+    if (b.matches('.setfold b')) { b.textContent = t; b.closest('summary').insertAdjacentHTML('afterbegin', tile); } else b.innerHTML = tile + esc(t);
+  }
+  for (const h of host.querySelectorAll('.panel h3, details > summary h3, .setpanel > h3')) {
+    if (h.querySelector('.seticon')) continue; const t = h.textContent.trim(); if (/^\p{Extended_Pictographic}/u.test(t)) continue;
+    const m = SET_ICONS.find(([re]) => re.test(t)) || [0, '⚙️', '#efe7de']; h.insertAdjacentHTML('afterbegin', `<i class="seticon" style="background:${m[2]}">${m[1]}</i>`);
+  }
 }
 
 /* ---------- sign-in & setup screens ---------- */
@@ -2401,7 +2418,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v215';
+const APP_VERSION = 'hangtag-v216';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2544,18 +2561,18 @@ function renderSettings(host) {
     host.innerHTML = `<div class="viewhead"><h1>Settings</h1><span class="sub">Menu, notifications and your account</span></div>
   <div class="panels setpanels">
     ${syncPanel()}
-    <section class="panel setpanel" id="set-sections"><h3>Tabs onderin en menu</h3><p class="muted">Order the menu, hide what you don't use and pick what sits in the bar at the bottom of your phone (tick <b>Bottom bar</b>, up to five reads best). Hidden sections stay in the ☰ menu.</p>
+    <section class="panel setpanel" id="set-sections"><h3>Menu and bottom bar</h3><p class="muted">Order the menu, hide what you don't use and pick what sits in the bar at the bottom of your phone (tick <b>Bottom bar</b>, up to five reads best). Hidden sections stay in the ☰ menu.</p>
       ${all.map((s, i) => `<div class="setrow"><span class="seti">${icon(s.icon)}</span><b>${esc(s.label)}</b><div class="spacer"></div>
         <label class="settog"><input type="checkbox" data-nshow="${s.key}" ${hid.includes(s.key) ? '' : 'checked'}> Menu</label>
         <label class="settog"><input type="checkbox" data-nbot="${s.key}" ${bottom.includes(s.key) && !hid.includes(s.key) ? 'checked' : ''} ${hid.includes(s.key) ? 'disabled' : ''}> Bottom bar</label>${mv('data-nmove', s.key, i, all.length)}</div>`).join('')}
       <button class="chip link" data-nreset>Back to the standard menu</button>
       <p class="muted">Tabs and choice lists now live in each section, under its own Settings tab.</p></section>
-    <section class="panel setpanel" id="set-names"><h3>Namen</h3><p class="muted">Geef elk onderdeel van het menu je eigen naam en tik op een icoon om een ander te kiezen. Het menu, de paginatitels en Settings gebruiken die naam op al je apparaten. Leeg laten zet de standaardnaam terug.</p>
+    <section class="panel setpanel" id="set-names"><h3>Names and icons</h3><p class="muted">Give every section your own name and tap an icon to pick another. The menu, page titles and Settings use it on all your devices. Leave it empty for the standard name.</p>
       <label class="setnsearch setname"><input class="setninp" type="search" data-nfind placeholder="Zoek een naam" aria-label="Zoek een naam"></label>
       ${SECTIONS.map(s => `<div class="setrow setname" data-nrow="${esc(norm(s.base + ' ' + s.label))}"><button type="button" class="seti iconbtnpick" data-ipickfor="${s.key}" aria-label="Kies icoon voor ${esc(s.label)}">${icon(s.icon)}</button><input class="setninp" data-nname="${s.key}" value="${esc((S.prefs.names || {})[s.key] || '')}" placeholder="${esc(s.base)}" aria-label="Naam voor ${esc(s.base)}" autocomplete="off">${(S.prefs.names || {})[s.key] ? `<button class="chip link" data-nnreset="${s.key}">Herstel</button>` : ''}</div>`).join('')}
     </section>
-    <section class="panel setpanel" id="set-account"><h3>Account en back-up</h3><p class="muted">Ingelogd als ${esc(EMAIL)}. Je foto's en gegevens staan in je eigen Supabase-project.</p><div class="lwrap"><button class="btn" data-setexport>Back-up downloaden (.json)</button><button class="btn" data-setimport>Importeren uit je oude app</button></div></section>
-    <section class="panel setpanel" id="set-today"><h3>Vandaag</h3><p class="muted">Kies per apparaat wat Vandaag laat zien en in welke volgorde. Op deze ${esc(deviceName())} nu: ${esc(devOrder().filter(devVis).map(k => TODAY_BLOCKS.find(b => b[0] === k)[1].replace(/^\S+\s/, '')).join(', '))}.</p><div class="setbtns"><button class="btn small" data-devtoday2>Vandaag op deze ${esc(deviceName())} aanpassen</button></div></section>
+    <section class="panel setpanel" id="set-account"><h3>Account and backup</h3><p class="muted">Signed in as ${esc(EMAIL)}. Your photos and data live in your own Supabase project.</p><div class="lwrap"><button class="btn" data-setexport>Download backup (.json)</button><button class="btn" data-setimport>Import from your old app</button></div></section>
+    <section class="panel setpanel" id="set-today"><h3>Today</h3><p class="muted">Choose per device what Today shows and in which order. On this ${esc(deviceName())} now: ${esc(devOrder().filter(devVis).map(k => TODAY_BLOCKS.find(b => b[0] === k)[1].replace(/^\S+\s/, '')).join(', '))}.</p><div class="setbtns"><button class="btn small" data-devtoday2>Vandaag op deze ${esc(deviceName())} aanpassen</button></div></section>
     ${lookPanel()}
     ${notiPanel()}
     <section class="panel setpanel" id="set-account"><h3>Account and app</h3><p class="muted">Signed in as ${esc(EMAIL || 'you')}. Your data lives in your own Supabase project.</p>
