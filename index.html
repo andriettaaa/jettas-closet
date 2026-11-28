@@ -2435,6 +2435,14 @@ document.addEventListener('click', async e => { if (!e.target.closest?.('[data-s
 const myName = () => String(S.prefs.name || window.LIFE?.userName?.() || '').trim();
 /* ---------- Today: a greeting for this moment, and an affirmation ---------- */
 // night from 22:00 to 5:00, then morning, afternoon (from 12:00) and evening (from 17:00)
+// a line icon after the greeting, in the same style as the section icons
+const GI = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const GREET_ICON = {
+  morning: GI('<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>'),
+  afternoon: GI('<path d="M8 4.5v1.5M3.5 9H5M4.8 5.8l1 1M12.2 5.8l-1 1"/><path d="M5.6 11.6A3.5 3.5 0 0 1 11.4 8"/><path d="M8.5 19.5h9a3.5 3.5 0 0 0 .4-7 5 5 0 0 0-9.6 1.2 2.9 2.9 0 0 0 .2 5.8Z"/>'),
+  evening: GI('<path d="M3 18.5h18M5.5 15.5a6.5 6.5 0 0 1 13 0"/><path d="M12 4.5v3M4.6 8.6l2 2M19.4 8.6l-2 2"/><path d="M8 21.5h8"/>'),
+  night: GI('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/><path d="M16.5 3.5v2M15.5 4.5h2M19.5 8v1.5M18.75 8.75h1.5"/>')
+};
 function greeting(now = new Date()) {
   const hr = now.getHours(), wd = now.getDay(), name = myName(), day = now.toLocaleDateString('en-GB', { weekday: 'long' });
   const part = hr >= 22 || hr < 5 ? 'night' : hr < 12 ? 'morning' : hr < 17 ? 'afternoon' : 'evening';
@@ -2850,7 +2858,7 @@ function renderOverview(host) {
   const st = window.LIFE?.dayStats?.(), wx = wxDay(today()) || wxDay(today(), 'alm'), pin = window.LIFE?.pinAffirmToday?.(), intent = window.LIFE?.intentText?.() || '';
   const aff = S.prefs.affirm?.off && !pin ? '' : pin ? (pin.text || 'Affirmatie') : affirmToday(S.affShift || 0);
   const BLK = {
-    greet: () => `<div class="sthead ${G.part}"><div><h1><span class="gicon" aria-hidden="true">${({ morning: '☀️', afternoon: '🌤️', evening: '🌆', night: '🌙' })[G.part] || '✨'}</span>${esc(G.hello)}</h1><p class="greetline">${esc(G.line)}</p><span class="sub">${t.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })}</span>${st?.cheer ? `<p class="stcheer">✨ ${esc(st.cheer)}</p>` : ''}</div>${st ? `<span class="ring string ${st.cheer ? 'pop' : ''}" style="--p:${st.pct}%" title="${st.done} van ${st.total} klaar"><b>${st.pct}%</b></span>` : ''}</div>`,
+    greet: () => `<div class="sthead ${G.part}"><div><h1>${esc(G.hello)}<span class="gicon" aria-hidden="true">${GREET_ICON[G.part] || GREET_ICON.morning}</span></h1><p class="greetline">${esc(G.line)}</p><span class="sub">${t.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })}</span>${st?.cheer ? `<p class="stcheer">✨ ${esc(st.cheer)}</p>` : ''}</div>${st ? `<span class="ring string ${st.cheer ? 'pop' : ''}" style="--p:${st.pct}%" title="${st.done} van ${st.total} klaar"><b>${st.pct}%</b></span>` : ''}</div>`,
     chips: () => `<div class="stchips">${wx ? `<button type="button" class="stchip" data-overday="${today()}"><span>${wmo(wx.c)[1]}</span>${wx.hi}°${wx.p != null && wx.p >= 30 ? ` · ${wx.p}% regen` : ` · ${esc(wmo(wx.c)[2]).toLowerCase()}`}</button>` : ''}${aff && !(pin?.img && window.LIFE?.visionStrip?.()) ? `<button type="button" class="stchip aff" data-affsheet>${pin?.img ? `<img src="${esc(pin.img)}" referrerpolicy="no-referrer" alt="">` : '<span>✨</span>'}<em>${esc(aff)}</em></button>` : ''}${window.LIFE?.cycleChip?.() || ''}${window.LIFE?.moneyChip?.() || ''}${intent ? `<span class="stchip"><span>🎯</span><em>${esc(intent)}</em></span>` : ''}${window.LIFE?.cardChips?.() || ''}</div>`,
     day: () => window.LIFE?.dayStory?.() || window.LIFE?.todayTop?.() || '',
     affbig: () => affirmBlock() + (window.LIFE?.pinAffirm?.() || ''),
