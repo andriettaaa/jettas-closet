@@ -8322,7 +8322,7 @@ function dayItems(d = today()) {
   const add = (min, key, label, sub, extra = {}) => L2.push({ min, key, label, sub, ...extra });
   add(w, 'wake', 'Opstaan', t === 'office' ? 'Kantoordag' : t === 'home' ? 'Thuiswerkdag' : 'Weekend');
   add(w + 5, 'stretch', 'Stretchen', '5 minuten, rustig wakker worden');
-  if (rt('Morning').length) add(w + 15, 'morning', 'Ochtendroutine', plural(rt('Morning').length, 'stap', 'stappen'), { go: 'care/habits' });
+  if (rt('Morning').length) add(w + 15, 'morning', 'Morning routine', plural(rt('Morning').length, 'step'), { go: 'care/habits' });
   add(w + 30, 'bf', 'Ontbijt', mealOf('Breakfast') ? relName(mealOf('Breakfast').recipe) || mealOf('Breakfast').what : 'Brood met hartig beleg', { done: eaten.has('Breakfast'), nl: 'Breakfast' });
   if (recs('supplements').some(s => !s.finished)) add(w + 35, 'sups', 'Supplementen en water', '', { go: 'care/supplements' });
   if (t !== 'weekend') add(ws, 'work', t === 'office' ? 'Kantoor' : 'Werken', `${c.workStart} tot ${c.workEnd}`);
@@ -8335,7 +8335,7 @@ function dayItems(d = today()) {
   if (dayType(addDays(d, 1)) !== 'weekend') add(20 * 60, 'prep', 'Morgen klaarzetten', 'Outfit, lunch en tas', { go: 'calendar' });
   if (wdShort(d) === 'Sun') add(19 * 60, 'review', 'Weekreview', 'Terugblik en plan voor volgende week', { go: 'plan/week' });
   add(bed - 60, 'wind', 'Afbouwen', 'Licht dimmen, schermen weg, 2 minuten journalen', { go: 'care/journal' });
-  if (rt('Evening').length) add(bed - 40, 'evening', 'Avondroutine', plural(rt('Evening').length, 'stap', 'stappen'), { go: 'care/habits' });
+  if (rt('Evening').length) add(bed - 40, 'evening', 'Evening routine', plural(rt('Evening').length, 'step'), { go: 'care/habits' });
   add(bed, 'bed', 'Naar bed', `${Math.round((wakeOn(addDays(d, 1)) + 1440 - bed) / 6) / 10} uur slaap tot ${hm(wakeOn(addDays(d, 1)))}`);
   return L2.sort((a, b) => a.min - b.min);
 }
@@ -8371,25 +8371,25 @@ function dayPlan(d = today()) {
   const add = x => { const min = at[x.key] != null ? at[x.key] : guess(x); out.push({ ...x, min, moved: at[x.key] != null, skipped: skip.has(x.key) }); };
   // meals
   const lunchAt = t === 'weekend' ? 13 * 60 : 12 * 60 + 30;
-  add({ key: 'meal:Breakfast', min: w + 30, label: 'Ontbijt', sub: mealName('Breakfast'), done: eaten.has('Breakfast'), type: 'meal', slot: 'Breakfast', act: () => nlToggle('Breakfast') });
-  add({ key: 'meal:Lunch', min: lunchAt, label: 'Lunch', sub: mealName('Lunch') || (t === 'office' ? 'Meegenomen lunch' : ''), done: eaten.has('Lunch'), type: 'meal', slot: 'Lunch', act: () => nlToggle('Lunch') });
-  add({ key: 'meal:snack', min: 15 * 60 + 30, label: 'Tussendoortje', sub: 'Iets hartigs en voedzaams', done: !!nl.snack, type: 'meal', slot: 'Snack', act: () => nlToggle('snack') });
-  if (!away) add({ key: 'meal:Dinner', min: 18 * 60 + 30, label: 'Avondeten', sub: mealName('Dinner'), done: eaten.has('Dinner'), type: 'meal', slot: 'Dinner', act: () => nlToggle('Dinner') });
+  add({ key: 'meal:Breakfast', min: w + 30, label: 'Breakfast', sub: mealName('Breakfast'), done: eaten.has('Breakfast'), type: 'meal', slot: 'Breakfast', act: () => nlToggle('Breakfast') });
+  add({ key: 'meal:Lunch', min: lunchAt, label: 'Lunch', sub: mealName('Lunch') || (t === 'office' ? 'Packed lunch' : ''), done: eaten.has('Lunch'), type: 'meal', slot: 'Lunch', act: () => nlToggle('Lunch') });
+  add({ key: 'meal:snack', min: 15 * 60 + 30, label: 'Snack', sub: 'Something savoury and nourishing', done: !!nl.snack, type: 'meal', slot: 'Snack', act: () => nlToggle('snack') });
+  if (!away) add({ key: 'meal:Dinner', min: 18 * 60 + 30, label: 'Dinner', sub: mealName('Dinner'), done: eaten.has('Dinner'), type: 'meal', slot: 'Dinner', act: () => nlToggle('Dinner') });
   // supplements, per time of day
-  const taken = recs('suplog').filter(l => l.date === d), supAt = { AM: w + 35, Midday: lunchAt, PM: bed - 45 }, supSub = { AM: 'ochtend', Midday: 'lunch', PM: 'avond' };
+  const taken = recs('suplog').filter(l => l.date === d), supAt = { AM: w + 35, Midday: lunchAt, PM: bed - 45 }, supSub = { AM: 'morning', Midday: 'lunch', PM: 'evening' };
   // one line per moment of the day; the sheet ticks them one by one
   const sups = recs('supplements').filter(x => !x.finished), isTaken = (sp, tm) => taken.some(l => l.supplement === sp.id && (l.time || 'AM') === tm);
   for (const tm of ['AM', 'Midday', 'PM']) {
     const list = sups.filter(sp => [].concat(sp.times?.length ? sp.times : ['AM']).includes(tm)); if (!list.length) continue;
     const n = list.filter(sp => isTaken(sp, tm)).length;
-    add({ key: 'sup:' + tm, min: supAt[tm], label: 'Supplementen ' + supSub[tm], sub: list.length === 1 ? list[0].name : `${n} van ${list.length}`, prog: n / list.length, moment: tm, done: n === list.length, type: 'sup', sups: list.map(sp => ({ sp, tm, on: isTaken(sp, tm) })),
+    add({ key: 'sup:' + tm, min: supAt[tm], label: 'Supplements ' + supSub[tm], sub: list.length === 1 ? list[0].name : `${n} of ${list.length}`, prog: n / list.length, moment: tm, done: n === list.length, type: 'sup', sups: list.map(sp => ({ sp, tm, on: isTaken(sp, tm) })),
       act: async () => { const open = list.filter(sp => !isTaken(sp, tm)); for (const sp of open.length ? open : list) await toggleSupp(sp.id, tm); } });
   }
   // routines: one line per routine, its steps in the sheet
-  for (const [k, min, label] of [['Morning', w + 15, 'Ochtendroutine'], ['Evening', bed - 40, 'Avondroutine']]) {
+  for (const [k, min, label] of [['Morning', w + 15, 'Morning routine'], ['Evening', bed - 40, 'Evening routine']]) {
     const steps = recs('routines').filter(r => r.routine === k && onDay(r, d)); if (!steps.length) continue;
     const n = steps.filter(routineDone).length;
-    add({ key: 'routine:' + k, min, label, sub: `${n} van ${steps.length}`, prog: n / steps.length, done: n === steps.length, type: 'routine', steps, act: async () => { const open = steps.filter(r => !routineDone(r)); for (const r of open.length ? open : steps) await toggleDay(r); } });
+    add({ key: 'routine:' + k, min, label, sub: `${n} of ${steps.length}`, prog: n / steps.length, done: n === steps.length, type: 'routine', steps, act: async () => { const open = steps.filter(r => !routineDone(r)); for (const r of open.length ? open : steps) await toggleDay(r); } });
   }
   // appointments and the planned workout have a time of their own
   for (const n of recs('calnote').filter(n => n.date === d && !n.allday && n.time)) add({ key: 'rec:' + n.id, min: hmToMin(n.time), label: (n.emoji ? n.emoji + ' ' : '') + (n.name || 'Agenda'), sub: n.where || 'agenda', done: !!n.done, type: 'rec', rec: n, move: nd => save(n, { date: nd }) });
@@ -8449,7 +8449,7 @@ function dayPlanHTML(head = true, mode = '') {
   const cheer = L.dpCheer && Date.now() - (L.dpCheerAt || 0) < 15000 ? L.dpCheer : '';
   const tot = drinkTotals(d), g = drinkGoal(), cs = cleanStats();
   const doneLabel = x => ({ meal: 'Eaten', sup: 'Taken', routine: 'All done', bill: 'Paid' })[x.type] || 'Done';
-  const hero = x => `<div class="dphero"><div class="dphk">${x.min != null && x.min > now + 20 ? 'Next · ' + hm(x.min) : 'Now' + (x.min != null ? ' · ' + hm(x.min) : '')}</div><div class="dpht"><span>${dpIcon(x)}</span>${esc(x.label)}</div>${x.sub && x.sub !== hm(x.min) ? `<div class="dphs">${esc(x.sub)}</div>` : ''}
+  const hero = x => `<div class="dphero" data-dpheroopen="${esc(x.key)}" role="button" tabindex="0" aria-label="Open ${esc(x.label)}"><div class="dphk">${x.min != null && x.min > now + 20 ? 'Next · ' + hm(x.min) : 'Now' + (x.min != null ? ' · ' + hm(x.min) : '')}</div><div class="dpht"><span>${dpIcon(x)}</span>${esc(x.label)}</div>${x.sub && x.sub !== hm(x.min) ? `<div class="dphs">${esc(x.sub)}</div>` : ''}
     <div class="dphb"><button type="button" class="p" data-dphero="done" data-v="${esc(x.key)}">✓ ${doneLabel(x)}</button><button type="button" data-dphero="other" data-v="${esc(x.key)}">Something else</button><button type="button" data-dphero="later" data-v="${esc(x.key)}">Later</button></div></div>`;
   const bar = `<div class="dpbar2"><button type="button" class="dpq" data-act="drinkadd"><span class="ring" style="--p:${Math.min(100, Math.round(100 * tot.all / g))}%"><b>🥤</b></span><span><b>${liters(tot.all)} / ${liters(g)} L</b><small>💧 ${liters(tot.water)} L water</small></span></button>${supNow ? `<button type="button" class="dpq" data-dpt="${esc(supNow.key)}"><span class="ring" style="--p:${Math.round(100 * dpProg(supNow))}%"><b>💊</b></span><span><b>${esc(supNow.sub)}</b><small>${esc(supNow.label.replace('Supplementen ', ''))}</small></span></button>` : ''}</div>`;
   const pane = ([k, ic, label]) => {
@@ -8520,6 +8520,8 @@ async function dpQuick(x) {
 document.addEventListener('click', e => {
   if (!C) return;
   const tb = e.target.closest?.('[data-dptab]'); if (tb) return dpTabTo(tb.dataset.dptab);
+  // tapping the Now card itself (not one of its buttons) opens it: a routine with its steps, a meal, the supplements
+  const ho = e.target.closest?.('[data-dpheroopen]'); if (ho && !e.target.closest('button')) { const x = L.dpMap?.[ho.dataset.dpheroopen]; if (x) return x.rec && !['routine', 'meal', 'sup'].includes(x.type) ? openRecord(x.rec.id) : dpSheet(x.key); return; }
   const h = e.target.closest?.('[data-dphero]'); if (h) { const x = L.dpMap?.[h.dataset.v]; if (!x) return; if (h.dataset.dphero === 'done') return x.type === 'meal' ? dpSheet(x.key) : dpQuick(x); return dpSheet(x.key, h.dataset.dphero); }
   const t = e.target.closest?.('[data-dpt]'); if (!t || t.closest('.sheet')) return;
   if (dpLong) { dpLong = false; return; }
@@ -8549,7 +8551,7 @@ async function mealFromPantry(x, ing) {
 // the sheet behind a tap: done, something else, skipped, later
 function dpSheet(key, mode = '') {
   const x = L.dpMap?.[key]; if (!x) return;
-  const d = today(), now = nowMin(), doneLabel = { meal: 'Gegeten', sup: 'Alles ingenomen', routine: 'Alles gedaan', bill: 'Betaald' }[x.type] || 'Gedaan';
+  const d = today(), now = nowMin(), doneLabel = { meal: 'Eaten', sup: 'All taken', routine: 'All done', bill: 'Paid' }[x.type] || 'Done';
   const hours = [...new Set([now + 60, ...[15, 17, 20, 21].map(h => h * 60)].map(m => Math.ceil(m / 30) * 30))].filter(m => m > now && m < 24 * 60).sort((a, b) => a - b).slice(0, 4);
   const other = x.type === 'meal' ? '<button class="btn" data-dpother>Iets anders gegeten</button>' : x.rec ? '<button class="btn" data-dpopen>Openen</button>' : x.go ? '<button class="btn" data-dpgo>Openen</button>' : '';
   const steps = x.type === 'routine' ? `<div class="lwrap dpsteps">${x.steps.map(r => tick(r.name, routineDone(r), `data-dpstep="${r.id}"`)).join('')}</div>`
@@ -8557,8 +8559,8 @@ function dpSheet(key, mode = '') {
   const pantry = x.type === 'meal' && !x.done ? (() => { const l = pantryNow(); return l.length ? `<p class="dsub">Uit je voorraad</p><input class="finp dpfind" type="search" placeholder="Zoek in je voorraad" aria-label="Zoek in je voorraad" data-dpfind><div class="dpgrid" data-dpgrid>${l.slice(0, 40).map(r => `<button type="button" class="dkt" data-dping="${r.id}" data-n="${esc(norm(r.name))}"><b>${foodEmo(r.name)}</b>${esc(r.name)}${cntOf(r) != null ? `<small>${esc(unitShort(cntOf(r), unitOf(r)))}</small>` : ''}</button>`).join('')}</div>` : ''; })() : '';
   const water = x.type === 'water' ? `<div class="lwater small"><button class="iconbtn small" data-dpwater="-1" aria-label="Eén glas minder">${svg(P.minus)}</button><div class="lwv"><b>${waterOn(d)?.glasses || 0}</b><span>${esc(x.sub)}</span></div><button class="iconbtn small lplus" data-dpwater="1" aria-label="Nog een glas">${svg(P.plus)}</button></div>` : '';
   const sh = C.sheet({ title: x.label, body: `<p class="lnone">${esc([x.min != null ? hm(x.min) : 'geen vaste tijd', x.skipped ? 'overgeslagen' : x.sub].filter(Boolean).join(' · '))}</p>${steps}${water}${pantry}
-    <div class="dpbar">${x.type === 'water' ? '' : x.done ? '<button class="btn" data-dpundo>Toch niet gedaan</button>' : `<button class="btn primary" data-dpdone>✓ ${doneLabel}</button>`}${other}${x.skipped ? '<button class="btn" data-dpunskip>Toch niet overslaan</button>' : x.done ? '' : '<button class="btn" data-dpskip>Overgeslagen</button>'}${x.done ? '' : '<button class="btn" data-dplater>Later ▾</button>'}</div>
-    <div class="dplater" hidden><div class="lwrap">${hours.map(m => `<button class="chip" data-dpat="${m}">${hm(m)}</button>`).join('')}<button class="chip" data-dpday="${addDays(d, 1)}">Morgen</button></div><label class="lfield"><span>Kies een dag</span><input class="finp" type="date" data-dppick min="${addDays(d, 1)}"></label></div>` });
+    <div class="dpbar">${x.type === 'water' ? '' : x.done ? '<button class="btn" data-dpundo>Not done after all</button>' : `<button class="btn primary" data-dpdone>✓ ${doneLabel}</button>`}${other}${x.skipped ? '<button class="btn" data-dpunskip>Do not skip</button>' : x.done ? '' : '<button class="btn" data-dpskip>Skipped</button>'}${x.done ? '' : '<button class="btn" data-dplater>Later ▾</button>'}</div>
+    <div class="dplater" hidden><div class="lwrap">${hours.map(m => `<button class="chip" data-dpat="${m}">${hm(m)}</button>`).join('')}<button class="chip" data-dpday="${addDays(d, 1)}">Tomorrow</button></div><label class="lfield"><span>Pick a day</span><input class="finp" type="date" data-dppick min="${addDays(d, 1)}"></label></div>` });
   const close = msg => { C.closeSheet(); if (msg) C.toast(msg); C.render(); };
   if (mode === 'later') sh.querySelector('.dplater').hidden = false;
   if (mode === 'other') { const b = sh.querySelector('[data-dpother], [data-dpopen], [data-dpgo]'); if (b && x.type !== 'meal') setTimeout(() => b.click(), 0); }
@@ -8569,7 +8571,7 @@ function dpSheet(key, mode = '') {
   sh.addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.hasAttribute('data-dpdone') || b.hasAttribute('data-dpundo')) { const before = dayStats(); if (b.hasAttribute('data-dpdone')) setTimeout(() => dpMilestone(before), 400); try { if (x.act) await x.act(); else { const q = KINDS[x.rec?.kind]?.quick?.(x.rec); if (q) await q.act(); } } catch (err) { failed(err); } close(b.hasAttribute('data-dpdone') ? `✓ ${x.label}` : ''); }
-    else if (b.hasAttribute('data-dpskip')) { await dpSave(d, { skip: [...new Set([...(dpState(d).skip || []), key])] }); close('Overgeslagen'); }
+    else if (b.hasAttribute('data-dpskip')) { await dpSave(d, { skip: [...new Set([...(dpState(d).skip || []), key])] }); close('Skipped'); }
     else if (b.hasAttribute('data-dpunskip')) { await dpSave(d, { skip: (dpState(d).skip || []).filter(k => k !== key) }); close(''); }
     else if (b.hasAttribute('data-dplater')) { sh.querySelector('.dplater').hidden = !sh.querySelector('.dplater').hidden; }
     else if (b.dataset.dpat) { await dpSave(d, { at: { ...(dpState(d).at || {}), [key]: Number(b.dataset.dpat) } }); close(`Verzet naar ${hm(Number(b.dataset.dpat))}`); }
@@ -10808,7 +10810,7 @@ return {
   quickAdd: q => { try { return C ? quickAdd(q) : null; } catch { return null; } },
   visionStrip: () => { try { return C ? visionStrip() : ''; } catch { return ''; } },
   dayNow: () => { try { return C ? dayPlanHTML(false, 'now') : ''; } catch (e) { console.error(e); return ''; } },
-  moneyChip: () => { try { if (!C || !recs('faccounts').length) return ''; const st = fState(); return `<button type="button" class="stchip money" data-overgo="money/today"><span>💶</span>${moneyHidden() ? '€•••' : (st.perDay < 0 ? '−' : '') + eur(Math.abs(st.perDay))} vandaag</button>`; } catch { return ''; } },
+  moneyChip: () => { try { if (!C || !recs('faccounts').length) return ''; const st = fState(); return `<button type="button" class="stchip money" data-overgo="money/today"><span>💶</span>${moneyHidden() ? '€•••' : (st.perDay < 0 ? '−' : '') + eur(Math.abs(st.perDay))} today</button>`; } catch { return ''; } },
   dayStats: () => { try { return C ? dayStats() : null; } catch { return null; } },
   pinAffirm: () => { try { return C ? pnAffirmHTML() : ''; } catch { return ''; } },
   pinAffirmToday: () => { try { return C ? pnAffirmToday(L.pnShift || 0) : null; } catch { return null; } },
