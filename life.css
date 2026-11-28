@@ -2087,3 +2087,29 @@ details.lmore > .form, .sheet .form { box-sizing: border-box; max-width: 100%; }
 .wzq { font-size: 22px; margin: 0 0 12px; } .wzinput { width: 100%; box-sizing: border-box; font-size: 18px; }
 #photoArea canvas, #photoArea img { max-height: 52vh; }
 .wmask { flex-wrap: nowrap; } .wmask small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .wmask { flex-wrap: wrap; } .wmask .chip { flex: 1; justify-content: center; }
+/* Today: phase and money cards side by side, also on a phone */
+.stcards, :root .stcards { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+.stcard { align-content: start; min-height: 150px; padding: 14px; }
+.stcard b { font-size: 17px; line-height: 1.2; }
+.stcard.money b { font-size: 26px; }
+.stcard span, .stcard small { font-size: 12.5px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.stcard .stbar { display: block; }
+@media (min-width: 700px) { .stcard { min-height: 0; padding: 16px; } .stcard b { font-size: 19px; } .stcard.money b { font-size: 28px; } .stcard span, .stcard small { font-size: 13.5px; } }
+.fjar.paid .jar i { background: linear-gradient(#cfe3c4, #a9c99a); } .fjar.paid small { color: #4e8a6a; }
+/* Spending: pay flow, fixed first, pots */
+.payflow .pfbig { display: block; font-size: 26px; font-family: var(--display); margin: 2px 0 8px; }
+.payflow .lnone { margin: 0; }
+.fixedfirst .ffbar { height: 8px; border-radius: 8px; background: var(--line); overflow: hidden; margin: 2px 0 10px; } .fixedfirst .ffbar i { display: block; height: 100%; background: #4e8a6a; }
+.ffseg { margin-bottom: 8px; }
+.ffrow { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); }
+.fflist > .ffrow:first-child, .fflist .dsub + .ffrow { border-top: 0; }
+.ffck { width: 26px; height: 26px; flex: none; border-radius: 50%; border: 2px solid var(--line); background: var(--surface); color: #fff; display: grid; place-items: center; font-size: 13px; cursor: pointer; padding: 0; }
+.ffck.ghost { border: 0; background: none; font-size: 18px; cursor: default; }
+.ffrow.on .ffck { background: #4e8a6a; border-color: #4e8a6a; }
+.ffname { flex: 1; min-width: 0; display: grid; text-align: left; background: none; border: 0; padding: 0; font: inherit; color: var(--ink); cursor: pointer; }
+.ffname b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; } .ffname small { color: var(--muted); font-size: 12px; }
+.ffrow.on .ffname b { color: var(--muted); }
+.ffamt { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ffnudge { display: grid; gap: 4px; margin: 10px 0; padding: 10px 12px; border-radius: 14px; background: #fdf1e7; border: 1px solid #f0d3b8; } .ffnudge span { font-size: 13px; color: var(--muted); } .ffnudge .chip { justify-self: start; }
+.ffevery { margin: 14px 0 6px; }
+.fixedfirst .lph3 { align-items: baseline; } .fixedfirst .lph3 .lnone { white-space: nowrap; }

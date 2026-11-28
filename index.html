@@ -627,7 +627,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><img src="logo-mark.png" alt="" width="34" height="34"><span class="brandname">A’s Life</span><button class="iconbtn sidefold" id="sideFold" type="button" aria-label="Zijbalk in- of uitklappen" title="Zijbalk in- of uitklappen"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9.5 4.5v15" stroke="currentColor" stroke-width="1.8"/></svg></button></div>
+    <div class="brand"><img src="logo-mark.png" alt="" width="34" height="34"><span class="brandname">A’s Life</span><button class="iconbtn sidefold" id="sideFold" type="button" aria-label="Expand or collapse the side bar" title="Expand or collapse the side bar"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9.5 4.5v15" stroke="currentColor" stroke-width="1.8"/></svg></button></div>
     <nav class="tabs" id="tabsTop" aria-label="Sections"></nav>
     <div class="spacer"></div>
     <button class="iconbtn findbtn" id="findBtn" hidden aria-label="Search everything" title="Search everything (/)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
@@ -696,9 +696,9 @@ function applyNames() { const n = S.prefs.names || {}, ic = S.prefs.icons || {},
 function pickIcon(key) {
   const s = SECTIONS.find(x => x.key === key); if (!s) return;
   const cur = (S.prefs.icons || {})[key], all = ICONS();
-  const sh = sheet({ title: 'Icoon voor ' + s.label, body: `<p class="muted">Kies een icoon. Het menu en Settings gebruiken het op al je apparaten.</p><div class="iconpick">${Object.entries(all).map(([k, v]) => `<button type="button" class="iconopt" data-ipick="${k}" aria-pressed="${cur === k}" aria-label="${esc(k)}">${icon(v)}</button>`).join('')}</div>`,
-    foot: `${cur ? '<button class="btn" data-ireset>Standaard icoon</button>' : ''}<div class="spacer"></div><button class="btn" data-close>Sluiten</button>` });
-  const save = v => { const ic = { ...(S.prefs.icons || {}) }; if (v) ic[key] = v; else delete ic[key]; DB.savePrefs({ icons: ic }).then(() => { closeSheet(); render(); toast(v ? 'Icoon opgeslagen' : 'Standaard icoon terug'); }).catch(err => saveErr(err, 'Could not save. Try again.')); };
+  const sh = sheet({ title: 'Icon for ' + s.label, body: `<p class="muted">Pick an icon. The menu and Settings use it on all your devices.</p><div class="iconpick">${Object.entries(all).map(([k, v]) => `<button type="button" class="iconopt" data-ipick="${k}" aria-pressed="${cur === k}" aria-label="${esc(k)}">${icon(v)}</button>`).join('')}</div>`,
+    foot: `${cur ? '<button class="btn" data-ireset>Default icon</button>' : ''}<div class="spacer"></div><button class="btn" data-close>Close</button>` });
+  const save = v => { const ic = { ...(S.prefs.icons || {}) }; if (v) ic[key] = v; else delete ic[key]; DB.savePrefs({ icons: ic }).then(() => { closeSheet(); render(); toast(v ? 'Icon saved' : 'Default icon back'); }).catch(err => saveErr(err, 'Could not save. Try again.')); };
   sh.addEventListener('click', e => { const b = e.target.closest('[data-ipick]'); if (b) return save(b.dataset.ipick); if (e.target.closest('[data-ireset]')) save(''); });
 }
 /* the menu follows your Settings: section order, hidden sections, the phone's bottom bar and the tabs inside each section */
@@ -1163,12 +1163,12 @@ function renderTabs() {
   if (curGrp) pref.set('grp:' + sec + '/' + curGrp, S.view);
   const grpTarget = t => { const last = pref.get('grp:' + sec + '/' + t.g, ''); return t.vs.some(v => v[0] === last) ? last : t.vs[0][0]; };
   bar.innerHTML = row.map(t => {
-    if (!t.g || t.vs.length === 1) { const [k, label, path] = t.v || t.vs[0]; if (/\/settings$/.test(k)) return `<button data-view="${k}" class="gearbtn" aria-current="${S.view === k}" aria-label="Instellingen" title="Instellingen">${icon(path)}</button>`; return `<button data-view="${k}" aria-current="${S.view === k}">${icon(path)}<span>${label}</span>${k === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`; }
+    if (!t.g || t.vs.length === 1) { const [k, label, path] = t.v || t.vs[0]; if (/\/settings$/.test(k)) return `<button data-view="${k}" class="gearbtn" aria-current="${S.view === k}" aria-label="Settings" title="Settings">${icon(path)}</button>`; return `<button data-view="${k}" aria-current="${S.view === k}">${icon(path)}<span>${label}</span>${k === 'closet' && n ? `<span class="badge">${n}</span>` : ''}</button>`; }
     const [label, path] = groups[t.g]; return `<button data-view="${grpTarget(t)}" data-grp="${t.g}" aria-current="${curGrp === t.g}">${icon(path)}<span>${label}</span></button>`;
   }).join('');
   // what still misses info: a red number at the end of the row instead of a To do tab
   try { const tdv = sec === 'closet' ? 'todo' : sec + '/todo', tdn = sec === 'closet' ? S.items.filter(inCloset).filter(it => todoMissing(it).length).length : window.LIFE?.todoCount?.(sec) || 0;
-    if (tdn && (sec === 'closet' || window.LIFE?.has?.(tdv))) (bar.querySelector('.gearbtn') || bar).insertAdjacentHTML(bar.querySelector('.gearbtn') ? 'beforebegin' : 'beforeend', `<button data-view="${tdv}" class="todobadge" aria-current="${S.view === tdv}" aria-label="${tdn} om aan te vullen" title="Nog aan te vullen">✓<i>${tdn > 99 ? '99+' : tdn}</i></button>`); } catch {}
+    if (tdn && (sec === 'closet' || window.LIFE?.has?.(tdv))) (bar.querySelector('.gearbtn') || bar).insertAdjacentHTML(bar.querySelector('.gearbtn') ? 'beforebegin' : 'beforeend', `<button data-view="${tdv}" class="todobadge" aria-current="${S.view === tdv}" aria-label="${tdn} to fill in" title="Still to fill in">✓<i>${tdn > 99 ? '99+' : tdn}</i></button>`); } catch {}
   const open = row.find(t => t.g && t.g === curGrp && t.vs.length > 1), sub2 = $('#sub2Bar');
   // a group can hold sub-groups (Body › Health, Train, Beauty): they sit as one button in the second row, their pages in a third
   const subs = SECTIONS.find(x => x.key === sec)?.subs?.[curGrp] || {}, curSub = views.find(v => v[0] === S.view)?.[4] || '';
@@ -1413,7 +1413,7 @@ const azSort = (a, b) => String(a).localeCompare(String(b), undefined, { sensiti
 const daysOn = it => it.wishSince ? Math.max(0, Math.round((Date.now() - fromISO(it.wishSince)) / 864e5)) : it.created ? Math.max(0, Math.round((Date.now() - it.created) / 864e5)) : null;
 const saving = it => it.origPrice > 0 && it.price > 0 && it.origPrice > it.price ? it.origPrice - it.price : 0;
 const SORTS = {
-  closet: [['new', 'Nieuwste eerst'], ['name', 'A tot Z'], ['worn', 'Vaakst gedragen'], ['least', 'Minst gedragen'], ['idle', 'Langst niet gedragen'], ['cpw', 'Hoogste prijs per keer'], ['price', 'Prijs']],
+  closet: [['new', 'Newest first'], ['name', 'A to Z'], ['worn', 'Most worn'], ['least', 'Least worn'], ['idle', 'Longest not worn'], ['cpw', 'Highest cost per wear'], ['price', 'Price']],
   wishlist: [['new', 'Newest first'], ['old', 'Longest on wishlist'], ['price', 'Price high–low'], ['cheap', 'Price low–high'], ['sale', 'Biggest discount'], ['name', 'Name A–Z']]
 };
 const SORTFN = {
@@ -1497,7 +1497,7 @@ function renderRail(host) {
         <select class="pill" id="sort" aria-label="Sort">${SORTS[view].map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
         <button class="btn" data-selmode>Select</button>
       </div>
-      ${view === 'closet' ? `<div class="seg cview" role="group" aria-label="Weergave">${[['grid', 'Photo grid'], ['shelves', 'Shelves'], ['rail', 'Rail']].map(([k, l]) => `<button type="button" data-cview="${k}" aria-pressed="${closetView() === k}">${l}</button>`).join('')}</div>` : ''}
+      ${view === 'closet' ? `<div class="seg cview" role="group" aria-label="View">${[['grid', 'Photo grid'], ['shelves', 'Shelves'], ['rail', 'Rail']].map(([k, l]) => `<button type="button" data-cview="${k}" aria-pressed="${closetView() === k}">${l}</button>`).join('')}</div>` : ''}
       <div class="chips" id="catChips" role="group" aria-label="Category"></div>
       <div class="chips facets" id="facetTabs" role="group" aria-label="Filter by"></div>
       <div class="chips" id="facetVals" role="group"></div>
@@ -1626,32 +1626,32 @@ function capsPropose() {
   const pool = S.items.filter(it => inCloset(it) && atHand(it) && (!(it.seasons || []).length || it.seasons.includes(now)));
   const best = (cat, n) => pool.filter(it => catKey(it.cat) === cat).sort((a, b) => wearCount(b) - wearCount(a)).slice(0, n).map(it => it.id);
   const ids = [...best('tops', 3), ...best('knitwear', 1), ...best('bottoms', 2), ...best('outerwear', 1), ...best('shoes', 2)];
-  return { id: 'cap' + Date.now().toString(36), name: { Winter: 'Winter', Spring: 'Lente', Summer: 'Zomer', Autumn: 'Herfst' }[now] + ' basis', ids, proposed: true };
+  return { id: 'cap' + Date.now().toString(36), name: { Winter: 'Winter', Spring: 'Spring', Summer: 'Summer', Autumn: 'Autumn' }[now] + ' basics', ids, proposed: true };
 }
 const capThumbs = ids => `<div class="capstrip">${ids.filter(id => S.byId[id]).map(id => `<span class="capth">${S.byId[id].photo ? pimg(S.byId[id].photo, '', 'loading="lazy"') : PH}</span>`).join('')}</div>`;
 function capsHTML() {
   const list = capsAll(), prop = S.capProp ||= capsPropose();
-  const card = c => `<div class="capcard"><div class="caph"><b>${esc(c.name || 'Capsule')}</b><span>${c.ids.length} stukken · ${capsOutfits(c.ids)} outfits</span></div>${capThumbs(c.ids)}
-    <div class="capb">${c.proposed ? `<button class="btn small primary" data-capkeep>Bewaren</button><button class="btn small" data-capnew>Ander voorstel</button>` : `<button class="btn small" data-capedit="${c.id}">Aanpassen</button><button class="btn small" data-capshuffle="${c.id}">Outfit uit deze capsule</button><button class="btn small" data-capdel="${c.id}">Weg</button>`}</div></div>`;
-  return `<p class="muted">Een capsule is een kleine set kleding die allemaal met elkaar combineert. Hoe meer combinaties, hoe meer outfits uit weinig stukken.</p>
-    ${prop.ids.length ? `<p class="dsub">✨ Voorstel voor nu</p>${card(prop)}` : ''}
-    ${list.length ? `<p class="dsub">Jouw capsules</p>${list.map(card).join('')}` : ''}<button class="btn" data-capblank>+ Eigen capsule</button>`;
+  const card = c => `<div class="capcard"><div class="caph"><b>${esc(c.name || 'Capsule')}</b><span>${c.ids.length} pieces · ${capsOutfits(c.ids)} outfits</span></div>${capThumbs(c.ids)}
+    <div class="capb">${c.proposed ? `<button class="btn small primary" data-capkeep>Keep</button><button class="btn small" data-capnew>Another suggestion</button>` : `<button class="btn small" data-capedit="${c.id}">Edit</button><button class="btn small" data-capshuffle="${c.id}">Outfit from this capsule</button><button class="btn small" data-capdel="${c.id}">Delete</button>`}</div></div>`;
+  return `<p class="muted">A capsule is a small set of clothes that all go together. The more combinations, the more outfits from few pieces.</p>
+    ${prop.ids.length ? `<p class="dsub">✨ Suggestion for now</p>${card(prop)}` : ''}
+    ${list.length ? `<p class="dsub">Your capsules</p>${list.map(card).join('')}` : ''}<button class="btn" data-capblank>+ Own capsule</button>`;
 }
 function capEdit(id) {
   const c = capsAll().find(x => x.id === id); if (!c) return; const sel = new Set(c.ids);
   const pool = S.items.filter(inCloset).sort((a, b) => azSort(a.cat || '', b.cat || '') || azSort(a.name, b.name));
-  const sh = sheet({ title: c.name || 'Capsule', body: `<input class="finp" data-capname value="${esc(c.name || '')}" placeholder="Naam"><p class="muted" data-capcount>${sel.size} stukken · ${capsOutfits([...sel])} outfits</p><div class="grid">${pool.map(it => `<button class="card ${sel.has(it.id) ? 'picked' : ''}" data-cappick="${it.id}"><div class="stage">${it.photo ? pimg(it.photo, it.name, 'loading="lazy"') : PH}</div><div class="meta"><b>${esc(it.name || '')}</b></div></button>`).join('')}</div>`,
-    foot: '<div class="spacer"></div><button class="btn primary" data-capsave>Opslaan</button>' });
-  sh.addEventListener('click', e => { const b = e.target.closest('[data-cappick]'); if (b) { const k = b.dataset.cappick; sel.has(k) ? sel.delete(k) : sel.add(k); b.classList.toggle('picked'); sh.querySelector('[data-capcount]').textContent = `${sel.size} stukken · ${capsOutfits([...sel])} outfits`; }
+  const sh = sheet({ title: c.name || 'Capsule', body: `<input class="finp" data-capname value="${esc(c.name || '')}" placeholder="Name"><p class="muted" data-capcount>${sel.size} pieces · ${capsOutfits([...sel])} outfits</p><div class="grid">${pool.map(it => `<button class="card ${sel.has(it.id) ? 'picked' : ''}" data-cappick="${it.id}"><div class="stage">${it.photo ? pimg(it.photo, it.name, 'loading="lazy"') : PH}</div><div class="meta"><b>${esc(it.name || '')}</b></div></button>`).join('')}</div>`,
+    foot: '<div class="spacer"></div><button class="btn primary" data-capsave>Save</button>' });
+  sh.addEventListener('click', e => { const b = e.target.closest('[data-cappick]'); if (b) { const k = b.dataset.cappick; sel.has(k) ? sel.delete(k) : sel.add(k); b.classList.toggle('picked'); sh.querySelector('[data-capcount]').textContent = `${sel.size} pieces · ${capsOutfits([...sel])} outfits`; }
     if (e.target.closest('[data-capsave]')) { closeSheet(); capsSave(capsAll().map(x => x.id === id ? { ...x, name: sh.querySelector('[data-capname]').value.trim() || x.name, ids: [...sel] } : x)); } });
 }
 function capsClick(e) {
   const q = s => e.target.closest(s); let b;
   if (q('[data-capkeep]')) { const p = { ...S.capProp, proposed: false }; S.capProp = null; capsSave([...capsAll(), p]); return true; }
   if (q('[data-capnew]')) { const p = capsPropose(); p.ids = p.ids.sort(() => Math.random() - .5).slice(0, Math.max(4, p.ids.length - 2)); S.capProp = p; render(); return true; }
-  if (q('[data-capblank]')) { const c = { id: 'cap' + Date.now().toString(36), name: 'Nieuwe capsule', ids: [] }; capsSave([...capsAll(), c]).then(() => capEdit(c.id)); return true; }
+  if (q('[data-capblank]')) { const c = { id: 'cap' + Date.now().toString(36), name: 'New capsule', ids: [] }; capsSave([...capsAll(), c]).then(() => capEdit(c.id)); return true; }
   if ((b = q('[data-capedit]'))) { capEdit(b.dataset.capedit); return true; }
-  if ((b = q('[data-capdel]'))) { if (confirm('Deze capsule weghalen? Je kleding blijft.')) capsSave(capsAll().filter(x => x.id !== b.dataset.capdel)); return true; }
+  if ((b = q('[data-capdel]'))) { if (confirm('Remove this capsule? Your clothes stay.')) capsSave(capsAll().filter(x => x.id !== b.dataset.capdel)); return true; }
   if ((b = q('[data-capshuffle]'))) { const c = capsAll().find(x => x.id === b.dataset.capshuffle); if (!c) return true; const pick = cat => { const l = c.ids.filter(id => catKey(S.byId[id]?.cat) === cat); return l.length ? [l[Math.floor(Math.random() * l.length)]] : []; };
     const ids = [...(pick('tops').length ? pick('tops') : pick('knitwear')), ...pick('bottoms'), ...pick('shoes'), ...pick('outerwear')]; openBuilder(null, autoLayout(ids), c.name + ' look'); return true; }
   return false;
@@ -1683,7 +1683,7 @@ function renderOutfits(host) {
   const looks = lookPhotos().slice(0, 24);
   $('#looksHost', host).innerHTML = `<div class="looks"><div class="viewhead" style="margin-bottom:8px"><h2 style="font-size:20px">Your looks</h2><span class="sub">${looks.length ? `${lookPhotos().length} photos of you wearing it` : 'a mirror selfie or any photo of you in an outfit'}</span></div>
     <div class="row"><button class="look add" data-addlook>${I.camera}<span>Add a look</span></button>${looks.map(l => `<button class="look" data-day="${l.date}">${pimg(l.path, 'Your look', 'loading="lazy"')}<span>${shortDate(l.date)}${l.outfit && S.outById[l.outfit] ? ' · ' + esc(S.outById[l.outfit].name) : ''}</span></button>`).join('')}</div></div>`;
-  const pnH = $('#pnHost', host); if (pnH) pnH.innerHTML = window.LIFE?.pnStrip?.('pnCloset', 'Outfit-inspiratie van Pinterest') || '';
+  const pnH = $('#pnHost', host); if (pnH) pnH.innerHTML = window.LIFE?.pnStrip?.('pnCloset', 'Outfit inspiration from Pinterest') || '';
   const g = $('#outGrid', host);
   if (!S.outfits.length) {
     g.className = '';
@@ -1762,7 +1762,7 @@ function renderCalendar(host) {
     host.dataset.built = '1';
     host.innerHTML = `<div class="viewhead"><h1>Calendar</h1><span class="sub">Log what you wore, plan what's next</span></div>
       <div class="calhead"><button class="iconbtn" data-cal="-1" aria-label="Previous month">${I.left}</button><h2 id="calTitle"></h2><button class="iconbtn" data-cal="1" aria-label="Next month">${I.right}</button><button class="btn small" data-cal="0">Today</button></div>
-      <div class="seg calview" role="group" aria-label="Weergave">${[['month', 'Month'], ['week', 'Week'], ['list', 'List']].map(([k, l]) => `<button type="button" data-calv="${k}" aria-pressed="${pref.get('calView', 'month') === k}">${l}</button>`).join('')}</div>
+      <div class="seg calview" role="group" aria-label="View">${[['month', 'Month'], ['week', 'Week'], ['list', 'List']].map(([k, l]) => `<button type="button" data-calv="${k}" aria-pressed="${pref.get('calView', 'month') === k}">${l}</button>`).join('')}</div>
       <div class="cal" id="calGrid"></div><div id="calAlt" hidden></div><p class="calnote" id="calNote"></p>`;
     host.addEventListener('click', e => {
       const c = e.target.closest('[data-cal]');
@@ -1789,13 +1789,13 @@ function fillCalAlt(host, v) {
   const alt = $('#calAlt', host), t = today();
   if (v === 'week') {
     const ws = S.calWeek || weekStartIso(), days = Array.from({ length: 7 }, (_, i) => addDaysIso(ws, i));
-    $('#calTitle', host).textContent = 'Week van ' + new Date(ws + 'T12:00:00').toLocaleDateString('nl-NL', { day: 'numeric', month: 'long' });
-    alt.innerHTML = `<div class="calweekbar"><button class="iconbtn" data-calw="-1" aria-label="Vorige week">${I.left}</button><span class="spacer"></span><button class="iconbtn" data-calw="1" aria-label="Volgende week">${I.right}</button></div>
-      <div class="ocweek">${days.map(k => { const w = wxDay(k), th = dayThumb(k); return `<button class="cwday ${k === t ? 'today' : ''}" data-day="${k}"><span class="cwh"><b>${new Date(k + 'T12:00:00').toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric' })}</b>${w ? `<i>${wmo(w.c)[1]} ${w.hi}°</i>` : ''}</span><div class="cwthumb">${th || '<span class="cwplus">+</span>'}</div><small>${esc(dayName(k) || (k > t ? 'Plannen' : 'Niets gelogd'))}</small></button>`; }).join('')}</div>`;
+    $('#calTitle', host).textContent = 'Week of ' + new Date(ws + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+    alt.innerHTML = `<div class="calweekbar"><button class="iconbtn" data-calw="-1" aria-label="Previous week">${I.left}</button><span class="spacer"></span><button class="iconbtn" data-calw="1" aria-label="Next week">${I.right}</button></div>
+      <div class="ocweek">${days.map(k => { const w = wxDay(k), th = dayThumb(k); return `<button class="cwday ${k === t ? 'today' : ''}" data-day="${k}"><span class="cwh"><b>${new Date(k + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' })}</b>${w ? `<i>${wmo(w.c)[1]} ${w.hi}°</i>` : ''}</span><div class="cwthumb">${th || '<span class="cwplus">+</span>'}</div><small>${esc(dayName(k) || (k > t ? 'Plan' : 'Nothing logged'))}</small></button>`; }).join('')}</div>`;
   } else {
     const ks = Object.keys(S.days).filter(k => k <= addDaysIso(t, 14) && dayThumb(k)).sort().reverse().slice(0, 90);
-    $('#calTitle', host).textContent = 'Wat je droeg';
-    alt.innerHTML = ks.length ? `<div class="callist">${ks.map(k => `<button class="clrow" data-day="${k}"><div class="clthumb">${dayThumb(k)}</div><span><b>${esc(dayName(k) || 'Outfit')}</b><small>${new Date(k + 'T12:00:00').toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })}${k > t ? ' · gepland' : ''}</small></span></button>`).join('')}</div>` : '<p class="muted">Nog niets gelogd.</p>';
+    $('#calTitle', host).textContent = 'What you wore';
+    alt.innerHTML = ks.length ? `<div class="callist">${ks.map(k => `<button class="clrow" data-day="${k}"><div class="clthumb">${dayThumb(k)}</div><span><b>${esc(dayName(k) || 'Outfit')}</b><small>${new Date(k + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}${k > t ? ' · planned' : ''}</small></span></button>`).join('')}</div>` : '<p class="muted">Nothing logged yet.</p>';
   }
 }
 function fillCal(host) {
@@ -2256,19 +2256,19 @@ function closetGaps() {
   const neutral = it => (it.colors || []).some(c => ['Black', 'White', 'Grey', 'Beige', 'Brown', 'Navy', 'Denim'].includes(c));
   const tops = n('tops') + n('knitwear'), bottoms = n('bottoms'), shoes = n('shoes'), out = [];
   const nb = live.filter(it => k(it) === 'bottoms' && neutral(it)).length, ns = live.filter(it => k(it) === 'shoes' && neutral(it)).length;
-  if (tops && nb < 2) out.push(['👖', `Een <b>neutrale broek</b> (zwart, beige of denim)`, `combineert met je ${tops} tops: +${tops} outfits`]);
-  if (bottoms && tops < bottoms * 1.5) out.push(['👚', `Een <b>basic top</b> in een neutrale kleur`, `past bij je ${bottoms} broeken en rokken: +${bottoms} outfits`]);
-  if (tops > bottoms * 3 && bottoms) out.push(['⚖️', `Veel tops (${tops}) en weinig broeken (${bottoms})`, `een extra broek levert het meest op: +${tops} outfits`]);
-  if (ns < 1 && (tops || bottoms)) out.push(['👟', `<b>Neutrale schoenen</b> (wit, zwart of beige)`, 'passen bij bijna alles']);
+  if (tops && nb < 2) out.push(['👖', `A <b>neutral pair of trousers</b> (black, beige or denim)`, `goes with your ${tops} tops: +${tops} outfits`]);
+  if (bottoms && tops < bottoms * 1.5) out.push(['👚', `A <b>basic top</b> in a neutral colour`, `goes with your ${bottoms} trousers and skirts: +${bottoms} outfits`]);
+  if (tops > bottoms * 3 && bottoms) out.push(['⚖️', `Lots of tops (${tops}) and few trousers (${bottoms})`, `an extra pair of trousers gives you the most: +${tops} outfits`]);
+  if (ns < 1 && (tops || bottoms)) out.push(['👟', `<b>Neutral shoes</b> (white, black or beige)`, 'go with almost everything']);
   const now = SEASONS[[3, 3, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3][new Date().getMonth()]], outerNow = live.filter(it => k(it) === 'outerwear' && (!(it.seasons || []).length || it.seasons.includes(now))).length;
-  if (!outerNow) out.push(['🧥', `Een <b>jas voor de ${({ Winter: 'winter', Spring: 'lente', Summer: 'zomer', Autumn: 'herfst' })[now]}</b>`, 'je hebt er nog geen voor dit seizoen']);
-  if (!n('bags')) out.push(['👜', 'Een <b>tas</b> die bij je neutrale kleuren past', 'maakt een outfit af']);
-  const idle = live.filter(it => !wearCount(it)).length; if (idle >= 3) out.push(['💡', `<b>${idle} stukken</b> droeg je nog nooit`, 'eerst die combineren voordat je iets nieuws koopt']);
+  if (!outerNow) out.push(['🧥', `A <b>coat for ${({ Winter: 'winter', Spring: 'spring', Summer: 'summer', Autumn: 'autumn' })[now]}</b>`, 'you don\'t have one for this season yet']);
+  if (!n('bags')) out.push(['👜', 'A <b>bag</b> that goes with your neutral colours', 'finishes an outfit']);
+  const idle = live.filter(it => !wearCount(it)).length; if (idle >= 3) out.push(['💡', `<b>${idle} pieces</b> you have never worn`, 'combine those first before you buy something new']);
   return out;
 }
 function statsGaps(host) {
   const g = closetGaps();
-  host.innerHTML = `<div class="panel wide"><h3>🧩 Gaten in je kast</h3><p class="hint">Wat één nieuw stuk zou opleveren, op basis van wat je hebt en draagt.</p>${g.length ? g.map(([e, t, w]) => `<div class="gaprow"><span>${e}</span><div><div>${t}</div><small>${esc(w)}</small></div></div>`).join('') : '<p class="muted">Je kast is mooi in balans 🎉</p>'}</div>`;
+  host.innerHTML = `<div class="panel wide"><h3>🧩 Gaps in your closet</h3><p class="hint">What one new piece would add, based on what you have and wear.</p>${g.length ? g.map(([e, t, w]) => `<div class="gaprow"><span>${e}</span><div><div>${t}</div><small>${esc(w)}</small></div></div>`).join('') : '<p class="muted">Your closet is nicely balanced 🎉</p>'}</div>`;
 }
 // panels on the Analyse pages fold; the first two start open
 function foldPanels(root, key) {
@@ -2293,26 +2293,26 @@ function weatherPicks(t = today()) {
   const tops = [...by('tops'), ...by('knitwear')], bottoms = by('bottoms'), shoes = by('shoes'), outer = by('outerwear');
   for (let k = 0; k < 3 && tops.length && bottoms.length; k++) {
     const ids = [tops[k % tops.length], bottoms[k % bottoms.length], ...(shoes.length ? [shoes[k % shoes.length]] : []), ...((hi < 15 || wet) && outer.length ? [outer[k % outer.length]] : [])].map(i => i.id);
-    picks.push({ ids, name: ids.slice(0, 2).map(id => S.byId[id]?.name).filter(Boolean).join(' + ') || 'Stukken die je even niet droeg' });
+    picks.push({ ids, name: ids.slice(0, 2).map(id => S.byId[id]?.name).filter(Boolean).join(' + ') || 'Pieces you haven\'t worn for a while' });
   }
   if (!picks.length) return null;
-  return { picks, w, why: `${wmo(w.c)[1]} ${hi}°${wet ? ' · regen' : ''}` };
+  return { picks, w, why: `${wmo(w.c)[1]} ${hi}°${wet ? ' · rain' : ''}` };
 }
 function weatherPick(t = today(), shift = S.wxPickN || 0) { const r = weatherPicks(t); if (!r) return null; const pick = r.picks[shift % r.picks.length]; return { ...pick, count: r.picks.length, why: r.why }; }
 // lay a suggestion out for a day: a saved outfit, or the pieces
 function wearPick(t, pick, msg) {
   const cur = S.days[t] || {};
-  return DB.put('days', t, { outfit: pick.outfit || null, items: pick.outfit ? cur.items || [] : [...new Set([...(cur.items || []), ...pick.ids])], note: cur.note || '', photos: cur.photos || [], place: cur.place || '' }).then(() => toast(msg)).catch(err => saveErr(err, 'Opslaan lukte niet. Probeer het opnieuw.'));
+  return DB.put('days', t, { outfit: pick.outfit || null, items: pick.outfit ? cur.items || [] : [...new Set([...(cur.items || []), ...pick.ids])], note: cur.note || '', photos: cur.photos || [], place: cur.place || '' }).then(() => toast(msg)).catch(err => saveErr(err, 'Could not save. Please try again.'));
 }
 const pickThumb = pick => { const o = pick.outfit && S.outById[pick.outfit]; if (o) return boardHTML(o.pieces); const ph = pick.ids.map(id => S.byId[id]).filter(i => i?.photo).slice(0, 4); return ph.length ? `<div class="ofpcs n${ph.length}">${ph.map(i => pimg(i.photo, i.name || '', 'loading="lazy"')).join('')}</div>` : '<div class="ofempty">👗</div>'; };
 /* the outfit on Today: in the morning the Nu card with three suggestions, during the day a strip, in the evening tomorrow */
 // taps on the outfit card (Today and Closet share it)
 function ofClick(e) {
       if (e.target.closest('[data-wxnext]')) { S.wxPickN = (S.wxPickN || 0) + 1; render(); return true; }
-      const ow = e.target.closest('[data-ofwear]'); if (ow) { const r = weatherPicks(today()); if (r) wearPick(today(), r.picks[Number(ow.dataset.ofwear)], '👗 Outfit voor vandaag gekozen'); return true; }
+      const ow = e.target.closest('[data-ofwear]'); if (ow) { const r = weatherPicks(today()); if (r) wearPick(today(), r.picks[Number(ow.dataset.ofwear)], '👗 Outfit for today picked'); return true; }
       if (e.target.closest('[data-ofmore]')) { S.wxPickN = (S.wxPickN || 0) + 3; render(); return true; }
       if (e.target.closest('[data-oftmnext]')) { S.wxTmN = (S.wxTmN || 0) + 1; render(); return true; }
-      if (e.target.closest('[data-oftm]')) { const tm = iso(new Date(Date.now() + 864e5)), p = weatherPick(tm, S.wxTmN || 0); if (p) wearPick(tm, p, '👗 Klaargelegd voor morgen'); return true; }
+      if (e.target.closest('[data-oftm]')) { const tm = iso(new Date(Date.now() + 864e5)), p = weatherPick(tm, S.wxTmN || 0); if (p) wearPick(tm, p, '👗 Laid out for tomorrow'); return true; }
       if (e.target.closest('[data-wxwear]')) { const wp = weatherPick(); if (!wp) return true; const t = today(), cur = S.days[t] || {};
         DB.put('days', t, { outfit: wp.outfit || null, items: wp.outfit ? cur.items || [] : [...new Set([...(cur.items || []), ...wp.ids])], note: cur.note || '', photos: cur.photos || [], place: cur.place || '' }).then(() => toast('Logged for today')).catch(err => saveErr(err, 'Could not log that. Try again.')); return true; }
   return false;
@@ -2329,19 +2329,19 @@ function outfitBlock(only = '') {
       <div class="dphb"><button type="button" data-ofmore>Other ideas</button><button type="button" data-overday="${t}">Choose myself</button></div></section>`;
   } else if (rec) {
     const o = rec.outfit && S.outById[rec.outfit], ids = dayItems(rec).filter(id => S.byId[id]), look = rec.photos?.[0];
-    const thumb = look ? pimg(look, 'Je look vandaag') : o ? boardHTML(o.pieces) : pickThumb({ ids });
-    out += `<div class="ofstrip"><button type="button" class="ofth" data-overday="${t}">${thumb}</button><div><b>${esc(o ? o.name || 'Outfit' : ids.length ? ids.slice(0, 2).map(id => S.byId[id].name).filter(Boolean).join(' + ') + (ids.length > 2 ? ` +${ids.length - 2}` : '') : 'Je outfit')}</b><small>Vandaag${look ? ' · met foto' : ''}</small>
-      <div class="ofbtns"><button type="button" class="chip small" data-overday="${t}">Wissel</button><button type="button" class="chip small" data-overday="${t}">${look ? 'Foto’s' : '📷 Foto'}</button><span class="chip small on">Gedragen ✓</span></div></div></div>`;
+    const thumb = look ? pimg(look, 'Your look today') : o ? boardHTML(o.pieces) : pickThumb({ ids });
+    out += `<div class="ofstrip"><button type="button" class="ofth" data-overday="${t}">${thumb}</button><div><b>${esc(o ? o.name || 'Outfit' : ids.length ? ids.slice(0, 2).map(id => S.byId[id].name).filter(Boolean).join(' + ') + (ids.length > 2 ? ` +${ids.length - 2}` : '') : 'Your outfit')}</b><small>Today${look ? ' · with photo' : ''}</small>
+      <div class="ofbtns"><button type="button" class="chip small" data-overday="${t}">Swap</button><button type="button" class="chip small" data-overday="${t}">${look ? 'Photos' : '📷 Photo'}</button><span class="chip small on">Worn ✓</span></div></div></div>`;
   } else {
     const wp = weatherPick(t);
-    if (wp) out += `<div class="ofstrip"><button type="button" class="ofth" data-overday="${t}">${pickThumb(wp)}</button><div><b>${esc(wp.name)}</b><small>Voorstel · ${esc(wp.why)}</small>
-      <div class="ofbtns"><button type="button" class="chip small primary" data-wxwear>Draag ik</button>${wp.count > 1 ? '<button type="button" class="chip small" data-wxnext>Ander</button>' : ''}</div></div></div>`;
+    if (wp) out += `<div class="ofstrip"><button type="button" class="ofth" data-overday="${t}">${pickThumb(wp)}</button><div><b>${esc(wp.name)}</b><small>Suggestion · ${esc(wp.why)}</small>
+      <div class="ofbtns"><button type="button" class="chip small primary" data-wxwear>I'll wear this</button>${wp.count > 1 ? '<button type="button" class="chip small" data-wxnext>Another</button>' : ''}</div></div></div>`;
   }
   if (only === 'tomorrow' || (!only && hr >= 18)) {
     const tr = S.days[tm], tp = weatherPick(tm, S.wxTmN || 0);
-    if (tr) out += `<div class="ofstrip tomorrow"><button type="button" class="ofth" data-overday="${tm}">${tr.outfit && S.outById[tr.outfit] ? boardHTML(S.outById[tr.outfit].pieces) : pickThumb({ ids: dayItems(tr).filter(id => S.byId[id]) })}</button><div><b>Morgen klaargelegd ✓</b><small>${esc(tr.outfit && S.outById[tr.outfit]?.name || 'Je outfit voor morgen')}</small><div class="ofbtns"><button type="button" class="chip small" data-overday="${tm}">Wissel</button></div></div></div>`;
-    else if (tp) out += `<div class="ofstrip tomorrow"><button type="button" class="ofth" data-overday="${tm}">${pickThumb(tp)}</button><div><b>Morgen 👗 ${esc(tp.name)}</b><small>${esc(tp.why)} · klaarleggen voor het slapen</small>
-      <div class="ofbtns"><button type="button" class="chip small primary" data-oftm>Klaarleggen</button>${tp.count > 1 ? '<button type="button" class="chip small" data-oftmnext>Ander</button>' : ''}</div></div></div>`;
+    if (tr) out += `<div class="ofstrip tomorrow"><button type="button" class="ofth" data-overday="${tm}">${tr.outfit && S.outById[tr.outfit] ? boardHTML(S.outById[tr.outfit].pieces) : pickThumb({ ids: dayItems(tr).filter(id => S.byId[id]) })}</button><div><b>Laid out for tomorrow ✓</b><small>${esc(tr.outfit && S.outById[tr.outfit]?.name || 'Your outfit for tomorrow')}</small><div class="ofbtns"><button type="button" class="chip small" data-overday="${tm}">Swap</button></div></div></div>`;
+    else if (tp) out += `<div class="ofstrip tomorrow"><button type="button" class="ofth" data-overday="${tm}">${pickThumb(tp)}</button><div><b>Tomorrow 👗 ${esc(tp.name)}</b><small>${esc(tp.why)} · lay it out before bed</small>
+      <div class="ofbtns"><button type="button" class="chip small primary" data-oftm>Lay out</button>${tp.count > 1 ? '<button type="button" class="chip small" data-oftmnext>Another</button>' : ''}</div></div></div>`;
   }
   return out;
 }
@@ -2421,7 +2421,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v224';
+const APP_VERSION = 'hangtag-v226';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2438,9 +2438,9 @@ function lookPanel() {
     ${row('font', 'Letters', o => `<span class="fs" style="font-family:${o[3]}">${o[1]}</span><small>${o[2]}</small>`)}
     ${row('size', 'Text size', o => `<b>${o[1]}</b><small>${o[2]}</small>`)}
     ${(() => { const dl = devLook(), dn = deviceName(), g = (k, title, opts, cur) => `<div class="setgroup"><p class="dsub">${title}</p><div class="lookopts">${opts.map(([v, l, h]) => `<button data-devlook="${k}" data-v="${v}" aria-pressed="${cur === v}"><b>${l}</b><small>${h}</small></button>`).join('')}</div></div>`;
-      return `<div class="devlookbox"><p class="dsub">Alleen op deze ${esc(dn)}</p>${g('theme', 'Licht of donker', [['', 'Zoals hierboven', 'gelijk overal'], ['auto', 'Volgt dit apparaat', 'licht of donker'], ['light', 'Licht', 'altijd'], ['dark', 'Donker', 'altijd']], dl.theme || '')}
-        ${g('motion', 'Beweging', [['calm', 'Rustig', 'zachte overgangen'], ['lively', 'Levendig', 'ringen, veren, confetti'], ['buzz', 'Levendig + trilling', 'waar het kan']], dl.motion || 'lively')}
-        ${g('density', 'Ruimte', [['compact', 'Compact', 'meer op je scherm'], ['roomy', 'Ruim', 'grotere tegels']], dl.density || (innerWidth >= 900 ? 'compact' : 'roomy'))}</div>`; })()}
+      return `<div class="devlookbox"><p class="dsub">Only on this ${esc(dn)}</p>${g('theme', 'Light or dark', [['', 'As above', 'the same everywhere'], ['auto', 'Follows this device', 'light or dark'], ['light', 'Light', 'always'], ['dark', 'Dark', 'always']], dl.theme || '')}
+        ${g('motion', 'Motion', [['calm', 'Calm', 'soft transitions'], ['lively', 'Lively', 'rings, springs, confetti'], ['buzz', 'Lively + vibration', 'where possible']], dl.motion || 'lively')}
+        ${g('density', 'Spacing', [['compact', 'Compact', 'more on your screen'], ['roomy', 'Roomy', 'bigger tiles']], dl.density || (innerWidth >= 900 ? 'compact' : 'roomy'))}</div>`; })()}
     <div class="setrow"><label class="settog"><input type="checkbox" data-lookcompact ${L.compact ? 'checked' : ''}> <b>Compact closet</b></label><span class="muted setsub">More pieces and products per row, with smaller text under each tile.</span></div></section>`;
 }
 async function saveLook(patch) {
@@ -2571,8 +2571,8 @@ function renderSettings(host) {
       <button class="chip link" data-nreset>Back to the standard menu</button>
       <p class="muted">Tabs and choice lists now live in each section, under its own Settings tab.</p></section>
     <section class="panel setpanel" id="set-names"><h3>Names and icons</h3><p class="muted">Give every section your own name and tap an icon to pick another. The menu, page titles and Settings use it on all your devices. Leave it empty for the standard name.</p>
-      <label class="setnsearch setname"><input class="setninp" type="search" data-nfind placeholder="Zoek een naam" aria-label="Zoek een naam"></label>
-      ${SECTIONS.map(s => `<div class="setrow setname" data-nrow="${esc(norm(s.base + ' ' + s.label))}"><button type="button" class="seti iconbtnpick" data-ipickfor="${s.key}" aria-label="Kies icoon voor ${esc(s.label)}">${icon(s.icon)}</button><input class="setninp" data-nname="${s.key}" value="${esc((S.prefs.names || {})[s.key] || '')}" placeholder="${esc(s.base)}" aria-label="Naam voor ${esc(s.base)}" autocomplete="off">${(S.prefs.names || {})[s.key] ? `<button class="chip link" data-nnreset="${s.key}">Herstel</button>` : ''}</div>`).join('')}
+      <label class="setnsearch setname"><input class="setninp" type="search" data-nfind placeholder="Search for a name" aria-label="Search for a name"></label>
+      ${SECTIONS.map(s => `<div class="setrow setname" data-nrow="${esc(norm(s.base + ' ' + s.label))}"><button type="button" class="seti iconbtnpick" data-ipickfor="${s.key}" aria-label="Pick an icon for ${esc(s.label)}">${icon(s.icon)}</button><input class="setninp" data-nname="${s.key}" value="${esc((S.prefs.names || {})[s.key] || '')}" placeholder="${esc(s.base)}" aria-label="Name for ${esc(s.base)}" autocomplete="off">${(S.prefs.names || {})[s.key] ? `<button class="chip link" data-nnreset="${s.key}">Reset</button>` : ''}</div>`).join('')}
     </section>
     <section class="panel setpanel" id="set-today"><h3>Today</h3><p class="muted">Choose per device what Today shows and in which order. On this ${esc(deviceName())} now: ${esc(devOrder().filter(devVis).map(k => TODAY_BLOCKS.find(b => b[0] === k)[1].replace(/^\S+\s/, '')).join(', '))}.</p><div class="setbtns"><button class="btn small" data-devtoday2>Arrange Today on this ${esc(deviceName())}</button></div></section>
     ${lookPanel()}
@@ -2613,7 +2613,7 @@ function renderSettings(host) {
   host.addEventListener('change', e => {
     const ni = e.target.closest?.('[data-nname]'); if (!ni) return;
     const n = { ...(S.prefs.names || {}) }, v = ni.value.trim().slice(0, 30); if (v) n[ni.dataset.nname] = v; else delete n[ni.dataset.nname];
-    DB.savePrefs({ names: n }).then(() => { render(); toast(v ? 'Naam opgeslagen' : 'Standaardnaam terug'); }).catch(err => saveErr(err, 'Could not save. Try again.'));
+    DB.savePrefs({ names: n }).then(() => { render(); toast(v ? 'Name saved' : 'Default name back'); }).catch(err => saveErr(err, 'Could not save. Try again.'));
   });
   host.addEventListener('input', e => { const f = e.target.closest?.('[data-nfind]'); if (!f) return; const q = norm(f.value); host.querySelectorAll('[data-nrow]').forEach(r => { r.hidden = !!q && !r.dataset.nrow.includes(q); }); });
   host.addEventListener('click', e => {
@@ -2625,7 +2625,7 @@ function renderSettings(host) {
     const om = t.closest('[data-omove]'); if (om) { const L = fullList(SET.list); return saveList(SET.list, swap(L.list, +om.dataset.omove, +om.dataset.d), L.hidden); }
     if (t.closest('[data-nreset]')) return DB.savePrefs({ nav: {} });
     const ipf = t.closest('[data-ipickfor]'); if (ipf) return pickIcon(ipf.dataset.ipickfor);
-    const nr = t.closest('[data-nnreset]'); if (nr) { const n = { ...(S.prefs.names || {}) }; delete n[nr.dataset.nnreset]; return DB.savePrefs({ names: n }).then(() => { render(); toast('Standaardnaam terug'); }).catch(err => saveErr(err, 'Could not save. Try again.')); }
+    const nr = t.closest('[data-nnreset]'); if (nr) { const n = { ...(S.prefs.names || {}) }; delete n[nr.dataset.nnreset]; return DB.savePrefs({ names: n }).then(() => { render(); toast('Default name back'); }).catch(err => saveErr(err, 'Could not save. Try again.')); }
     if (t.closest('[data-editcats]')) return openCategories();
     const ud = t.closest('[data-undo]'); if (ud) return undoRun(+ud.dataset.undo);
     if (t.closest('[data-signout]')) return sb.auth.signOut();
@@ -2697,7 +2697,7 @@ const NOTI = [
   ['eatsnack', 'Snack', 'An afternoon nudge for a hearty snack', '15:30'],
   ['foodweek', 'Food week', 'Sundays: how your food week went, with one tip', '18:00'],
   ['movelist', 'Move list', 'The 1st of the month: what the move still costs and what to save', '19:15'],
-  ['fillstep', 'Je kwartiertje', 'Weekdays until 18 Dec: the step of today from your fill-in plan, with a direct link', '20:00'],
+  ['fillstep', 'Your quarter of an hour', 'Weekdays until 18 Dec: the step of today from your fill-in plan, with a direct link', '20:00'],
   ['socialweek', 'Content next week', 'Sundays: every step of your posts and collabs for the coming week', '18:30'],
   ['budget', 'Budget almost gone', 'When a category passes 80% and 100% of its budget', ''],
   ['applepay', 'After each Apple Pay payment', 'Saved, with what is left in that category', '']
@@ -2821,13 +2821,13 @@ window.addEventListener('resize', () => { const el = document.querySelector('.da
 let wig = null;
 function wiggleStart() {
   const st = document.querySelector('.story'); if (!st || wig) return; wig = {}; st.classList.add('wiggle'); try { navigator.vibrate?.(20); } catch {}
-  st.querySelectorAll('.sblk').forEach(b => b.insertAdjacentHTML('afterbegin', `<button type="button" class="wigx" data-wigx="${b.dataset.blk}" aria-label="Verbergen">−</button><span class="wigh" aria-hidden="true">⋮⋮</span>`));
-  document.body.insertAdjacentHTML('beforeend', '<div class="wigbar"><span>Sleep om te ordenen · − verbergt</span><button class="btn primary" data-wigdone>Klaar</button></div>');
+  st.querySelectorAll('.sblk').forEach(b => b.insertAdjacentHTML('afterbegin', `<button type="button" class="wigx" data-wigx="${b.dataset.blk}" aria-label="Hide">−</button><span class="wigh" aria-hidden="true">⋮⋮</span>`));
+  document.body.insertAdjacentHTML('beforeend', '<div class="wigbar"><span>Drag to reorder · − hides</span><button class="btn primary" data-wigdone>Done</button></div>');
 }
 function wiggleDone() {
   const st = document.querySelector('.story'); if (!wig) return; wig = null; document.querySelector('.wigbar')?.remove();
   if (st) { const order = [...st.querySelectorAll('.sblk')].map(b => b.dataset.blk), d = devT(), rest = devOrder().filter(k => !order.includes(k)); d.order = [...order, ...rest]; try { localStorage.setItem('dev:today', JSON.stringify(d)); } catch {} }
-  render(); toast('✓ Vandaag staat zo op deze ' + deviceName());
+  render(); toast('✓ Today is now set like this on this ' + deviceName());
 }
 (() => {
   let hold = null, drag = null;
@@ -2845,7 +2845,7 @@ function wiggleDone() {
   document.addEventListener('pointercancel', () => { stop(); if (drag) { drag.b.classList.remove('dragging'); drag = null; } });
   document.addEventListener('click', e => {
     if (e.target.closest('[data-wigdone]')) return wiggleDone();
-    const x = e.target.closest('[data-wigx]'); if (x) { const d = devT(), k = x.dataset.wigx; d.vis = { ...(d.vis || {}), [k]: false }; try { localStorage.setItem('dev:today', JSON.stringify(d)); } catch {} x.closest('.sblk').remove(); toast('Verborgen. Terugzetten kan in Settings › Vandaag.'); }
+    const x = e.target.closest('[data-wigx]'); if (x) { const d = devT(), k = x.dataset.wigx; d.vis = { ...(d.vis || {}), [k]: false }; try { localStorage.setItem('dev:today', JSON.stringify(d)); } catch {} x.closest('.sblk').remove(); toast('Hidden. You can bring it back in Settings › Today.'); }
   });
   document.addEventListener('dptab', () => {}); window.addEventListener('hashchange', () => { if (wig) { wig = null; document.querySelector('.wigbar')?.remove(); } });
 })();
@@ -2858,12 +2858,12 @@ const devVis = k => { const d = devT(); if ([].concat(d.hide || []).includes(k =
 const devOrder = () => { const o = [].concat(devT().order || []).filter(k => TODAY_BLOCKS.some(b => b[0] === k)); return [...o, ...TODAY_BLOCKS.map(b => b[0]).filter(k => !o.includes(k))]; };
 function devTodaySheet() {
   const name = deviceName(), body = () => { const d = devT(), ord = devOrder(), on = (k, v, cur, label) => `<button type="button" class="chip" data-dev="${k}" data-v="${v}" aria-pressed="${String(cur) === String(v)}">${label}</button>`;
-    return `<p class="muted">Alleen voor deze ${esc(name)}. Je andere apparaten houden hun eigen keuze.</p>
-      <p class="dsub">Volgorde en aan of uit</p><div class="devlist">${ord.map((k, i) => `<div class="devrow ${devVis(k) ? '' : 'off'}"><span class="devgrip" aria-hidden="true">⠿</span><b>${esc(TODAY_BLOCKS.find(b => b[0] === k)[1])}</b><span class="spacer"></span><button type="button" class="iconbtn small" data-devmv="${k}" data-d="-1" aria-label="Omhoog" ${i ? '' : 'disabled'}>↑</button><button type="button" class="iconbtn small" data-devmv="${k}" data-d="1" aria-label="Omlaag" ${i < ord.length - 1 ? '' : 'disabled'}>↓</button><label class="settog"><input type="checkbox" data-devvis="${k}" ${devVis(k) ? 'checked' : ''}> Aan</label></div>`).join('')}</div>
-      <p class="dsub">Tegels per onderdeel (onder Overzicht)</p><div class="lwrap"><button type="button" class="chip" data-devblock="tiles" aria-pressed="${!devOff('tiles')}">🧩 Tegels</button></div>
-      <p class="dsub">Affirmatiekaarten: grootte</p><div class="lwrap">${[['s', 'Klein'], ['m', 'Middel'], ['l', 'Groot']].map(([v, l]) => on('affSize', v, d.affSize || '', l)).join('')}</div>
-      <p class="dsub">Aantal kaarten</p><div class="lwrap">${[1, 2, 3].map(v => on('affCount', v, d.affCount || '', String(v))).join('')}</div>
-      <button type="button" class="chip link" data-devreset>Terug naar standaard</button>`; };
+    return `<p class="muted">Only for this ${esc(name)}. Your other devices keep their own choice.</p>
+      <p class="dsub">Order and on or off</p><div class="devlist">${ord.map((k, i) => `<div class="devrow ${devVis(k) ? '' : 'off'}"><span class="devgrip" aria-hidden="true">⠿</span><b>${esc(TODAY_BLOCKS.find(b => b[0] === k)[1])}</b><span class="spacer"></span><button type="button" class="iconbtn small" data-devmv="${k}" data-d="-1" aria-label="Up" ${i ? '' : 'disabled'}>↑</button><button type="button" class="iconbtn small" data-devmv="${k}" data-d="1" aria-label="Down" ${i < ord.length - 1 ? '' : 'disabled'}>↓</button><label class="settog"><input type="checkbox" data-devvis="${k}" ${devVis(k) ? 'checked' : ''}> On</label></div>`).join('')}</div>
+      <p class="dsub">Tiles per section (under Overview)</p><div class="lwrap"><button type="button" class="chip" data-devblock="tiles" aria-pressed="${!devOff('tiles')}">🧩 Tiles</button></div>
+      <p class="dsub">Affirmation cards: size</p><div class="lwrap">${[['s', 'Small'], ['m', 'Medium'], ['l', 'Large']].map(([v, l]) => on('affSize', v, d.affSize || '', l)).join('')}</div>
+      <p class="dsub">Number of cards</p><div class="lwrap">${[1, 2, 3].map(v => on('affCount', v, d.affCount || '', String(v))).join('')}</div>
+      <button type="button" class="chip link" data-devreset>Back to default</button>`; };
   const sh = sheet({ title: 'Today on this ' + name, body: `<div data-devbody>${body()}</div>` });
   const put = d => { try { localStorage.setItem('dev:today', JSON.stringify(d)); } catch {} $('[data-devbody]', sh).innerHTML = body(); render(); };
   sh.addEventListener('click', e => {
@@ -2880,7 +2880,7 @@ document.addEventListener('click', e => { if (e.target.closest?.('[data-devtoday
 document.addEventListener('click', e => { if (e.target.closest?.('[data-setexport]')) exportBackup();
   if (e.target.closest?.('[data-setimport]')) { S.statsTab = 'overview'; pref.set('statsTab', 'overview'); go('stats'); setTimeout(() => { const d = [...document.querySelectorAll('details.fpanel')].find(x => /Account/.test(x.textContent)); if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); } }, 500); } });
 function affirmSheet() {
-  const pin = window.LIFE?.pinAffirm?.() || '', sh = sheet({ title: 'Affirmatie van vandaag', body: `<div data-affbody>${pin || affirmBlock(true)}</div>` });
+  const pin = window.LIFE?.pinAffirm?.() || '', sh = sheet({ title: 'Today\'s affirmation', body: `<div data-affbody>${pin || affirmBlock(true)}</div>` });
   sh.addEventListener('click', e => {
     if (e.target.closest('[data-affnext]')) { S.affShift = (S.affShift || 0) + 1; $('[data-affbody]', sh).innerHTML = affirmBlock(true); render(); }
     if (e.target.closest('[data-afffav]')) { const a = affirmToday(S.affShift || 0), l = new Set(S.prefs.affirm?.fav || []); l.has(a) ? l.delete(a) : l.add(a); affirmSave({ fav: [...l] }).then(() => { const x = $('[data-affbody]', sh); if (x) x.innerHTML = affirmBlock(true); }); }
@@ -2893,10 +2893,10 @@ function renderOverview(host) {
   const hidden = dashHidden(), cards = devOff('tiles') ? [] : dashCards().filter(s => !hidden.has(s.key));
   // Today as one story: each block in the order this device chose
   const st = window.LIFE?.dayStats?.(), wx = wxDay(today()) || wxDay(today(), 'alm'), pin = window.LIFE?.pinAffirmToday?.(), intent = window.LIFE?.intentText?.() || '';
-  const aff = S.prefs.affirm?.off && !pin ? '' : pin ? (pin.text || 'Affirmatie') : affirmToday(S.affShift || 0);
+  const aff = S.prefs.affirm?.off && !pin ? '' : pin ? (pin.text || 'Affirmation') : affirmToday(S.affShift || 0);
   const BLK = {
-    greet: () => `<div class="sthead ${G.part}"><div><h1>${esc(G.hello)}<span class="gicon" aria-hidden="true">${GREET_ICON[G.part] || GREET_ICON.morning}</span></h1><p class="greetline">${esc(G.line)}</p><span class="sub">${t.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}${wx ? ` · <button type="button" class="gwx" data-overday="${today()}">${wmo(wx.c)[1]} ${wx.hi}°${wx.p != null && wx.p >= 30 ? ` · ${wx.p}% rain` : ` · ${esc(wmo(wx.c)[2]).toLowerCase()}`}</button>` : ''}</span>${st?.cheer ? `<p class="stcheer">✨ ${esc(st.cheer)}</p>` : ''}</div>${st ? `<span class="ring string ${st.cheer ? 'pop' : ''}" style="--p:${st.pct}%" title="${st.done} van ${st.total} klaar"><b>${st.pct}%</b></span>` : ''}</div>`,
-    chips: () => `${(() => { const c = (window.LIFE?.cycleChip?.() || '') + (window.LIFE?.moneyChip?.() || ''); return c ? `<div class="stcards">${c}</div>` : ''; })()}${window.LIFE?.sortCard?.('today') || ''}<div class="stchips">${false ? `<button type="button" class="stchip" data-overday="${today()}"><span>${wmo(wx.c)[1]}</span>${wx.hi}°${wx.p != null && wx.p >= 30 ? ` · ${wx.p}% regen` : ` · ${esc(wmo(wx.c)[2]).toLowerCase()}`}</button>` : ''}${aff && !(pin?.img && window.LIFE?.visionStrip?.()) ? `<button type="button" class="stchip aff" data-affsheet>${pin?.img ? `<img src="${esc(pin.img)}" referrerpolicy="no-referrer" alt="">` : '<span>✨</span>'}<em>${esc(aff)}</em></button>` : ''}${intent ? `<span class="stchip"><span>🎯</span><em>${esc(intent)}</em></span>` : ''}${window.LIFE?.cardChips?.() || ''}</div>`,
+    greet: () => `<div class="sthead ${G.part}"><div><h1>${esc(G.hello)}<span class="gicon" aria-hidden="true">${GREET_ICON[G.part] || GREET_ICON.morning}</span></h1><p class="greetline">${esc(G.line)}</p><span class="sub">${t.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}${wx ? ` · <button type="button" class="gwx" data-overday="${today()}">${wmo(wx.c)[1]} ${wx.hi}°${wx.p != null && wx.p >= 30 ? ` · ${wx.p}% rain` : ` · ${esc(wmo(wx.c)[2]).toLowerCase()}`}</button>` : ''}</span>${st?.cheer ? `<p class="stcheer">✨ ${esc(st.cheer)}</p>` : ''}</div>${st ? `<span class="ring string ${st.cheer ? 'pop' : ''}" style="--p:${st.pct}%" title="${st.done} of ${st.total} done"><b>${st.pct}%</b></span>` : ''}</div>`,
+    chips: () => `${(() => { const c = (window.LIFE?.cycleChip?.() || '') + (window.LIFE?.moneyChip?.() || ''); return c ? `<div class="stcards">${c}</div>` : ''; })()}${window.LIFE?.sortCard?.('today') || ''}<div class="stchips">${false ? `<button type="button" class="stchip" data-overday="${today()}"><span>${wmo(wx.c)[1]}</span>${wx.hi}°${wx.p != null && wx.p >= 30 ? ` · ${wx.p}% rain` : ` · ${esc(wmo(wx.c)[2]).toLowerCase()}`}</button>` : ''}${aff && !(pin?.img && window.LIFE?.visionStrip?.()) ? `<button type="button" class="stchip aff" data-affsheet>${pin?.img ? `<img src="${esc(pin.img)}" referrerpolicy="no-referrer" alt="">` : '<span>✨</span>'}<em>${esc(aff)}</em></button>` : ''}${intent ? `<span class="stchip"><span>🎯</span><em>${esc(intent)}</em></span>` : ''}${window.LIFE?.cardChips?.() || ''}</div>`,
     day: () => window.LIFE?.dayStory?.() || window.LIFE?.todayTop?.() || '',
     affbig: () => affirmBlock() + (window.LIFE?.pinAffirm?.() || ''),
     wx: () => wxStrip(),
@@ -3010,7 +3010,7 @@ function tdSuggest(it, k) {
   if (k === 'model' && catKey(it.cat) === 'shoes') return null;
   return null;
 }
-const tdSugText = (k, v) => k === 'care' ? 'zoals je andere stukken van dit materiaal' : Array.isArray(v) ? v.join(', ') : String(v);
+const tdSugText = (k, v) => k === 'care' ? 'like your other pieces of this material' : Array.isArray(v) ? v.join(', ') : String(v);
 // save one piece without redrawing the page (so the table keeps your place); Undo still works
 async function tdSave(id, patch, label) {
   const it = S.byId[id]; if (!it) return;
@@ -3160,15 +3160,15 @@ function statsSort(host) {
   const now = seasonNow(), d182 = iso(new Date(Date.now() - 182 * 864e5)), live = S.items.filter(inCloset);
   const off = live.filter(i => (!(i.seasons || []).length || (i.seasons || []).includes(now)) && (!S.lastWorn[i.id] || S.lastWorn[i.id] < d182) && (!i.created || i.created < Date.now() - 30 * 864e5));
   const vinted = live.filter(i => i.sell === 'Vinted'), give = live.filter(i => i.sell === 'Weggeven'), cb = clothesBudget(), m = new Date().getMonth();
-  const tile = i => `<button class="sorttile" data-item="${esc(i.id)}">${i.photo ? `<img src="${esc(photoURL(i.photo))}" alt="" loading="lazy">` : ''}<span>${esc(i.name || 'Piece')}${S.lastWorn[i.id] ? ' · ' + fromISO(S.lastWorn[i.id]).toLocaleDateString('nl-NL', { month: 'short', year: '2-digit' }) : ' · nooit'}</span></button>`;
+  const tile = i => `<button class="sorttile" data-item="${esc(i.id)}">${i.photo ? `<img src="${esc(photoURL(i.photo))}" alt="" loading="lazy">` : ''}<span>${esc(i.name || 'Piece')}${S.lastWorn[i.id] ? ' · ' + fromISO(S.lastWorn[i.id]).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }) : ' · never'}</span></button>`;
   host.innerHTML = `<div class="ltools ckbar"><button class="btn small primary" data-closetcheck>✅ Check your closet</button></div><div class="panels">
-    <div class="panel"><h3>Kledinggeld en one in, one out</h3><p class="hint">Sinds ${esc(fromISO(cb.start).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long' }))}: wat je verkocht minus wat je kocht, en stukken eruit tegen stukken erin.</p>
-      <p class="dline"><span>Kledinggeld</span><b>${eur(Math.max(0, cb.money))}</b></p><p class="dline"><span>Ruimte voor nieuwe stukken</span><b>${Math.max(0, cb.room)}</b></p>
-      <p class="muted">${cb.outN} eruit (${cb.soldN} verkocht), ${cb.inN} erin. ${cb.room <= 0 || cb.money <= 0 ? 'Eerst iets verkopen of weggeven voor je iets nieuws koopt.' : 'Je mag iets nieuws kopen van je wishlist.'}</p></div>
-    ${(m === 3 || m === 9) ? `<div class="panel"><h3>Seizoenswissel</h3><div class="sortcheck">${['Was en berg de kleding van vorig seizoen op', 'Haal het nieuwe seizoen tevoorschijn', 'Pas wat twijfelachtig is', 'Zet wat niet meer past op Vinted of weggeven', 'Maak een lijstje van wat echt ontbreekt'].map(t => `<label><input type="checkbox"> ${t}</label>`).join('')}</div></div>` : ''}
-    <div class="panel wide"><h3>Weinig gedragen · ${off.length}</h3><p class="hint">Niet gedragen in 6 maanden, alleen stukken voor dit seizoen (${esc(now)}). Draag het deze week, of laat het gaan.</p>${off.length ? `<div class="sortgrid">${off.slice(0, 40).map(tile).join('')}</div>` : '<p class="muted">Alles wordt gedragen. Mooi.</p>'}</div>
-    <div class="panel"><h3>Vinted-lijst · ${vinted.length}</h3>${vinted.length ? `<div class="sortgrid">${vinted.map(tile).join('')}</div><p class="muted">Verkocht? Open het stuk en tik Sold met de prijs. Het telt mee als kledinggeld.</p>` : '<p class="muted">Open een stuk en tik Op Vinted-lijst.</p>'}</div>
-    <div class="panel"><h3>Weggeven · ${give.length}</h3>${give.length ? `<div class="sortgrid">${give.map(tile).join('')}</div>` : '<p class="muted">Open een stuk en tik Weggeven.</p>'}</div>
+    <div class="panel"><h3>Clothes money and one in, one out</h3><p class="hint">Since ${esc(fromISO(cb.start).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }))}: what you sold minus what you bought, and pieces out against pieces in.</p>
+      <p class="dline"><span>Clothes money</span><b>${eur(Math.max(0, cb.money))}</b></p><p class="dline"><span>Room for new pieces</span><b>${Math.max(0, cb.room)}</b></p>
+      <p class="muted">${cb.outN} out (${cb.soldN} sold), ${cb.inN} in. ${cb.room <= 0 || cb.money <= 0 ? 'Sell or give something away first before you buy something new.' : 'You may buy something new from your wishlist.'}</p></div>
+    ${(m === 3 || m === 9) ? `<div class="panel"><h3>Season swap</h3><div class="sortcheck">${['Wash and store last season\'s clothes', 'Bring out the new season', 'Try on what you\'re unsure about', 'Put what no longer fits on Vinted or give it away', 'Make a list of what is really missing'].map(t => `<label><input type="checkbox"> ${t}</label>`).join('')}</div></div>` : ''}
+    <div class="panel wide"><h3>Hardly worn · ${off.length}</h3><p class="hint">Not worn in 6 months, only pieces for this season (${esc(now)}). Wear it this week, or let it go.</p>${off.length ? `<div class="sortgrid">${off.slice(0, 40).map(tile).join('')}</div>` : '<p class="muted">Everything gets worn. Nice.</p>'}</div>
+    <div class="panel"><h3>Vinted list · ${vinted.length}</h3>${vinted.length ? `<div class="sortgrid">${vinted.map(tile).join('')}</div><p class="muted">Sold? Open the piece and tap Sold with the price. It counts as clothes money.</p>` : '<p class="muted">Open a piece and tap On Vinted list.</p>'}</div>
+    <div class="panel"><h3>Give away · ${give.length}</h3>${give.length ? `<div class="sortgrid">${give.map(tile).join('')}</div>` : '<p class="muted">Open a piece and tap Give away.</p>'}</div>
   </div>`;
 }
 function renderStats(host) {
@@ -3445,7 +3445,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#scrim'
    One box over every list in the life sections, every page and your settings. A record opens in its editor
    on its own page; a page or a setting takes you there. */
 const SET_SPOTS = [
-  ['set-sections', 'Tabs onderin en menu', 'Sections, menu order, hide sections, bottom bar, tabs'],
+  ['set-sections', 'Bottom tabs and menu', 'Sections, menu order, hide sections, bottom bar, tabs'],
   ['set-noti', 'Notifications', 'Morning, evening, bills, payday, budget, push'],
   ['set-account', 'Account and backup', 'Backup, update, sign out'],
   ['set-undo', 'Undo', 'Undo your last changes and imports']
@@ -3480,10 +3480,10 @@ function openSearch(start = '') {
   const draw = () => {
     const q = inp.value, words = norm(q).split(/\s+/).filter(Boolean);
     const recent = (() => { try { return JSON.parse(localStorage.getItem('findRecent') || '[]'); } catch { return []; } })();
-    if (!words.length) { found = recent.slice(0, 8); res.innerHTML = (found.length ? `<h3 class="findh">Recent en vaak</h3><div class="findlist">${found.map((r, i) => `<button class="findrow" data-fi="${i}"><span class="findic">${icon(r.icon || SUN)}</span><span class="findtx"><b>${esc(r.title)}</b>${r.n > 1 ? `<span>${r.n}× geopend</span>` : ''}</span></button>`).join('')}</div>` : '') + '<p class="muted findhint">Zoek alles, of typ om snel iets toe te voegen: “melk op lijst” of “tandarts vrijdag 10:00”.</p>'; return; }
+    if (!words.length) { found = recent.slice(0, 8); res.innerHTML = (found.length ? `<h3 class="findh">Recent and frequent</h3><div class="findlist">${found.map((r, i) => `<button class="findrow" data-fi="${i}"><span class="findic">${icon(r.icon || SUN)}</span><span class="findtx"><b>${esc(r.title)}</b>${r.n > 1 ? `<span>${r.n}× opened</span>` : ''}</span></button>`).join('')}</div>` : '') + '<p class="muted findhint">Search everything, or type to add something fast: “melk op lijst” or “tandarts vrijdag 10:00”.</p>'; return; }
     const qa = window.LIFE?.quickAdd?.(q), pages = findPages(words), recs = window.LIFE?.search?.(q) || [];
     found = [...(qa ? [{ t: 'quick', title: qa.label, run: qa.run }] : []), ...pages, ...recs.map(r => ({ ...r, t: 'rec' }))];
-    const qaHTML = qa ? `<div class="findlist"><button class="findrow findquick" data-fi="0"><span class="findic">＋</span><span class="findtx"><b>${esc(qa.label)}</b><span>Enter of tik om toe te voegen</span></span></button></div>` : '', off = qa ? 1 : 0;
+    const qaHTML = qa ? `<div class="findlist"><button class="findrow findquick" data-fi="0"><span class="findic">＋</span><span class="findtx"><b>${esc(qa.label)}</b><span>Enter or tap to add</span></span></button></div>` : '', off = qa ? 1 : 0;
     const rowOf = (r, i) => `<button class="findrow" data-fi="${i}"><span class="findic">${icon(r.icon)}</span><span class="findtx"><b>${mark(r.title, words)}</b>${r.sub ? `<span>${r.label ? esc(r.label) + ': ' : ''}${mark(around(r.sub, words), words)}</span>` : ''}<small>${esc(r.where)}</small></span></button>`;
     const shown = 60, more = recs.length > shown ? `<p class="muted findhint">${recs.length - shown} more. Add a word to narrow it down.</p>` : '';
     res.innerHTML = !found.length ? `<p class="muted findhint">Nothing found for “${esc(q.trim())}”.</p>`
@@ -3651,7 +3651,7 @@ function openItem(id) {
   const drawGone = () => {
     const cur = S.byId[id], el = $('#goneBox', sh); if (!cur || !el || wish) return;
     el.innerHTML = G.mode ? `<div class="confirm calm"><b>${G.mode === 'sold' ? 'Sold' : 'Donated'}</b> on <input type="date" id="g-date" value="${today()}" aria-label="Date">${G.mode === 'sold' ? `for € <input class="amt" id="g-price" inputmode="decimal" placeholder="optional" aria-label="Sale price, optional">` : ''}<button class="btn small primary" data-act="goneyes">Save</button><button class="btn small" data-act="goneno">Cancel</button></div>`
-      : inCloset(cur) ? `<div class="goneact"><span class="muted">Not in your closet anymore?</span><button class="btn small" data-act="sold">Sold</button><button class="btn small" data-act="donated">Donated</button></div><div class="goneact"><span class="muted">Opruimen:</span><button class="btn small ${cur.sell === 'Vinted' ? 'primary' : ''}" data-act="sellv">${cur.sell === 'Vinted' ? '✓ ' : ''}Op Vinted-lijst</button><button class="btn small ${cur.sell === 'Weggeven' ? 'primary' : ''}" data-act="sellg">${cur.sell === 'Weggeven' ? '✓ ' : ''}Weggeven</button></div>`
+      : inCloset(cur) ? `<div class="goneact"><span class="muted">Not in your closet anymore?</span><button class="btn small" data-act="sold">Sold</button><button class="btn small" data-act="donated">Donated</button></div><div class="goneact"><span class="muted">Clear out:</span><button class="btn small ${cur.sell === 'Vinted' ? 'primary' : ''}" data-act="sellv">${cur.sell === 'Vinted' ? '✓ ' : ''}On Vinted list</button><button class="btn small ${cur.sell === 'Weggeven' ? 'primary' : ''}" data-act="sellg">${cur.sell === 'Weggeven' ? '✓ ' : ''}Give away</button></div>`
       : `<div class="goneact"><span class="muted">${cur.status === 'sold' ? 'Sold' : 'Donated'}${cur.goneDate ? ' on ' + niceDate(cur.goneDate) : ''}${cur.status === 'sold' && cur.soldPrice > 0 ? ' for ' + eur(cur.soldPrice) : ''}</span><button class="btn small" data-act="undogone">Back to my closet</button></div>`;
   };
   const draw = () => {
@@ -3672,7 +3672,7 @@ function openItem(id) {
     $('#itemBody', sh).innerHTML = `<div class="detail">
       <div class="stage">${cur.photo ? pimg(cur.photo, cur.name) : PH}</div>
       <div style="display:grid;gap:14px;align-content:start;min-width:0">
-        <div><h2 style="font-size:24px">${esc(cur.name || 'Untitled piece')}</h2><span class="muted">${cur.brand ? fchip('brand', cur.brand) + ' · ' : ''}${cur.model ? fchip('model', cur.model) + ' · ' : ''}${cur.where && cur.where !== 'In de kast' ? `<b class="wheretag">${esc(cur.where)}${cur.where === 'Uitgeleend' && cur.loanTo ? ' aan ' + esc(cur.loanTo) : ''}${cur.whereSince ? ' · sinds ' + esc(fromISO(cur.whereSince).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })) : ''}</b> · ` : ''}${cur.sub ? fchip('sub', cur.sub) : esc(cur.cat || '')}${inCloset(cur) || wish ? '' : ` · <b>${cur.status === 'sold' ? 'Sold' : 'Donated'}</b>`}</span></div>
+        <div><h2 style="font-size:24px">${esc(cur.name || 'Untitled piece')}</h2><span class="muted">${cur.brand ? fchip('brand', cur.brand) + ' · ' : ''}${cur.model ? fchip('model', cur.model) + ' · ' : ''}${cur.where && cur.where !== 'In de kast' ? `<b class="wheretag">${esc(cur.where)}${cur.where === 'Uitgeleend' && cur.loanTo ? ' to ' + esc(cur.loanTo) : ''}${cur.whereSince ? ' · since ' + esc(fromISO(cur.whereSince).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })) : ''}</b> · ` : ''}${cur.sub ? fchip('sub', cur.sub) : esc(cur.cat || '')}${inCloset(cur) || wish ? '' : ` · <b>${cur.status === 'sold' ? 'Sold' : 'Donated'}</b>`}</span></div>
         ${(() => { if (!cur.model) return ''; const same = S.items.filter(i => i.id !== cur.id && i.model && norm(i.model) === norm(cur.model) && norm(i.brand) === norm(cur.brand) && !isInbox(i)); return same.length ? `<div class="samemodel"><span class="lbl">Same model, other colours (${same.length + 1} in total)</span><div class="samerow">${same.map(i => `<button class="sameit" data-item="${esc(i.id)}" title="${esc(i.name || '')}">${i.photo ? pimg(i.photo, '', 'loading="lazy"') : '<span></span>'}<small>${esc((i.colors || []).join(', ') || i.name || '')}</small></button>`).join('')}</div></div>` : ''; })()}
         <div class="tagrow">${tagrow}</div>
         ${priceLine ? `<p class="priceline">${priceLine}</p>` : ''}
@@ -3730,7 +3730,7 @@ function openItem(id) {
     if (a === 'del') $('#delConfirm', sh).innerHTML = `<div class="confirm">Delete this piece and its photo for good? <button class="btn small danger" data-act="delyes">Delete</button><button class="btn small" data-act="delno">Keep it</button></div>`;
     if (a === 'delno') $('#delConfirm', sh).innerHTML = '';
     if (a === 'sold' || a === 'donated') { G.mode = a; drawGone(); $('#g-date', sh)?.focus(); }
-    if (a === 'sellv' || a === 'sellg') { const v = a === 'sellv' ? 'Vinted' : 'Weggeven', cur = S.byId[id]; DB.put('items', id, { ...noId(cur), sell: cur.sell === v ? null : v, updated: Date.now() }).then(() => { toast(cur.sell === v ? 'Van de lijst gehaald' : v === 'Vinted' ? 'Op je Vinted-lijst' : 'Op je weggeef-lijst'); drawGone(); }).catch(() => toast('Could not save. Try again.')); }
+    if (a === 'sellv' || a === 'sellg') { const v = a === 'sellv' ? 'Vinted' : 'Weggeven', cur = S.byId[id]; DB.put('items', id, { ...noId(cur), sell: cur.sell === v ? null : v, updated: Date.now() }).then(() => { toast(cur.sell === v ? 'Removed from the list' : v === 'Vinted' ? 'On your Vinted list' : 'On your give-away list'); drawGone(); }).catch(() => toast('Could not save. Try again.')); }
     if (a === 'goneno') { G.mode = null; drawGone(); }
     if (a === 'goneyes' || a === 'undogone') {
       const { id: _, goneDate, soldPrice, ...data } = S.byId[id];
@@ -3821,7 +3821,7 @@ function openEditor(id, opts = {}) {
         <div class="field full"><span class="lbl">Texture · tap all that apply</span><div class="togglegroup">${optList('textures', TEXTURES, it.textures).map(s => `<button type="button" class="chip" data-multi="textures" data-v="${esc(s)}" aria-pressed="${it.textures.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('textures', 'multi:textures')}</div></div>
         <div class="field full"><span class="lbl">Print · tap all that apply</span><div class="togglegroup">${optList('prints', PRINTS, it.prints).map(s => `<button type="button" class="chip" data-multi="prints" data-v="${esc(s)}" aria-pressed="${it.prints.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('prints', 'multi:prints')}</div></div>
         <div class="field"><span class="lbl">New, secondhand or gift</span><div class="togglegroup">${optList('acquired', ACQUIRED, it.acquired).map(v => `<button type="button" class="chip" data-one="acquired" data-v="${esc(v)}" aria-pressed="${it.acquired === v}">${v === 'Gift' ? '🎁 ' : ''}${esc(v)}</button>`).join('')}${ownBtn('acquired', 'one:acquired')}</div></div>
-        <div class="field" id="f-giftrow" ${it.acquired === 'Gift' ? '' : 'hidden'}><label for="f-giftfrom">Gift from</label><input id="f-giftfrom" value="${esc(it.giftFrom || '')}" placeholder="e.g. Mama, Sanne" autocomplete="off"></div>
+        <div class="field" id="f-giftrow" ${it.acquired === 'Gift' ? '' : 'hidden'}><label for="f-giftfrom">Gift from</label><input id="f-giftfrom" value="${esc(it.giftFrom || '')}" placeholder="e.g. Mum, Sanne" autocomplete="off"></div>
         <div class="field"><span class="lbl">${wishMode ? 'Where to buy' : 'Where bought'}</span><div class="togglegroup">${optList('purchasePlace', PLACES, it.purchasePlace).map(v => `<button type="button" class="chip" data-one="purchasePlace" data-v="${esc(v)}" aria-pressed="${it.purchasePlace === v}">${esc(v)}</button>`).join('')}${ownBtn('purchasePlace', 'one:purchasePlace')}</div></div>
         <div class="field full"><label for="f-shop">Shop or store name</label><input id="f-shop" value="${esc(it.shop)}" placeholder="e.g. Zara, Vinted, a vintage store" autocomplete="off">${sugRow('shop', [])}</div>
         ${wishMode ? '' : `<div class="field full"><span class="lbl">Condition</span><div class="togglegroup">${optList('condition', CONDITIONS, it.condition).map(c => `<button type="button" class="chip" data-cond="${esc(c)}" aria-pressed="${it.condition === c}">${esc(c)}</button>`).join('')}${ownBtn('condition', 'cond')}</div></div>`}
@@ -3829,9 +3829,9 @@ function openEditor(id, opts = {}) {
         <div class="field full"><span class="lbl">Season</span><div class="togglegroup">${optList('seasons', SEASONS, it.seasons).map(s => `<button type="button" class="chip" data-multi="seasons" data-v="${esc(s)}" aria-pressed="${it.seasons.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('seasons', 'multi:seasons')}</div></div>
         <div class="field full"><span class="lbl">Tags</span><div class="togglegroup">${optList('tags', [...new Set(S.items.flatMap(i => i.tags || []))], it.tags).sort(azSort).map(s => `<button type="button" class="chip" data-multi="tags" data-v="${esc(s)}" aria-pressed="${it.tags.includes(s)}">${esc(s)}</button>`).join('')}${ownBtn('tags', 'multi:tags')}</div></div>
         <div class="field" ${review || buying ? 'hidden' : ''}><label for="f-status">Status</label><select id="f-status"><option value="closet">In my closet</option><option value="wishlist">On my wishlist</option><option value="passed">Wishlist archive (no longer want it)</option><option value="sold">Sold</option><option value="donated">Donated</option></select></div>
-        <div class="field full" ${wishMode ? 'hidden' : ''}><label for="f-where">Waar is het</label><div class="chips wherechips">${[...new Set([...WHERE_TAGS, ...valuesOf('where')])].map(w => `<button type="button" class="chip" data-where="${esc(w)}" aria-pressed="${(it.where || 'In de kast') === w}">${esc(w)}</button>`).join('')}</div><input id="f-where" value="${esc(it.where || '')}" placeholder="Of typ een eigen plek" autocomplete="off"></div>
-        <div class="field" data-loan ${it.where === 'Uitgeleend' ? '' : 'hidden'}><label for="f-loanto">Uitgeleend aan</label><input id="f-loanto" value="${esc(it.loanTo || '')}" placeholder="Naam" autocomplete="off">${sugRow('loanto', [])}</div>
-        <div class="field" data-loan ${it.where === 'Uitgeleend' ? '' : 'hidden'}><label for="f-loanon">Sinds</label><input id="f-loanon" type="date" value="${esc(it.whereSince || today())}"></div>
+        <div class="field full" ${wishMode ? 'hidden' : ''}><label for="f-where">Where is it</label><div class="chips wherechips">${[...new Set([...WHERE_TAGS, ...valuesOf('where')])].map(w => `<button type="button" class="chip" data-where="${esc(w)}" aria-pressed="${(it.where || 'In de kast') === w}">${esc(w)}</button>`).join('')}</div><input id="f-where" value="${esc(it.where || '')}" placeholder="Or type your own place" autocomplete="off"></div>
+        <div class="field" data-loan ${it.where === 'Uitgeleend' ? '' : 'hidden'}><label for="f-loanto">Lent to</label><input id="f-loanto" value="${esc(it.loanTo || '')}" placeholder="Name" autocomplete="off">${sugRow('loanto', [])}</div>
+        <div class="field" data-loan ${it.where === 'Uitgeleend' ? '' : 'hidden'}><label for="f-loanon">Since</label><input id="f-loanon" type="date" value="${esc(it.whereSince || today())}"></div>
         <div class="field" id="goneF" hidden><label for="f-gone">Sold or donated on</label><input id="f-gone" type="date" value="${esc(it.goneDate)}"></div>
         <div class="field" id="soldF" hidden><label for="f-sold">Sold for (€)</label><input id="f-sold" inputmode="decimal" value="${money2(it.soldPrice)}" placeholder="optional"></div>
         <div class="field full"><label for="f-link">Shop link</label><input id="f-link" type="url" value="${esc(it.link)}" placeholder="https://"></div>
@@ -4491,7 +4491,7 @@ async function start(session) {
     closetVals: k => valuesOf(k),
     // planned outfits for the master calendar, and moving one to another day
     // planned and worn days for the calendar; one odd day is skipped instead of hiding all of them
-    closetDays: () => Object.entries(S.days || {}).flatMap(([date, r]) => { try { if (!r || !(r.outfit || dayItems(r).length || asList(r.photos).length)) return []; const n = dayItems(r).length; return [{ date: String(date).slice(0, 10), name: (r.outfit && S.outById?.[r.outfit]?.name) || (n ? n + (n === 1 ? ' stuk' : ' stukken') : 'foto') }]; } catch (e) { console.error('closet day', date, e); return []; } }),
+    closetDays: () => Object.entries(S.days || {}).flatMap(([date, r]) => { try { if (!r || !(r.outfit || dayItems(r).length || asList(r.photos).length)) return []; const n = dayItems(r).length; return [{ date: String(date).slice(0, 10), name: (r.outfit && S.outById?.[r.outfit]?.name) || (n ? n + (n === 1 ? ' piece' : ' pieces') : 'photo') }]; } catch (e) { console.error('closet day', date, e); return []; } }),
     closetMove: async (from, to) => { const r = S.days[from]; if (!r || S.days[to]) { if (S.days[to]) toast('There is already an outfit on that day'); return; } await DB.put('days', to, r); await DB.del('days', from); },
     // the public address of one of your Supabase functions (for the calendar subscription links)
     fnUrl: name => FN(name),
