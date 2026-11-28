@@ -2421,7 +2421,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v223';
+const APP_VERSION = 'hangtag-v224';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -3756,9 +3756,29 @@ async function addToDay(date, ids) {
 
 /* ---------- item editor + photo cut-out ---------- */
 const PE = { canvas: null, ctx: null, w: 0, h: 0, orig: null, cur: null, hist: [], autoBefore: null, changed: false, mode: 'view', tol: 34 };
+/* a new piece step by step: one question per screen (name, kind, colour, season, occasion), then the photo in the full form */
+function closetWizard(opts = {}) {
+  const P = { name: '', cat: FV().cat !== 'All' ? FV().cat : cats()[0], colors: [], seasons: [], occasions: [] };
+  const steps = [
+    ['What is it?', () => `<input id="wz-name" class="wzinput" placeholder="e.g. Wool blend coat" value="${esc(P.name)}" autocomplete="off">`],
+    ['What kind of piece?', () => `<div class="togglegroup">${cats().map(c => `<button type="button" class="chip" data-wz="cat" data-v="${esc(c)}" aria-pressed="${P.cat === c}">${esc(c)}</button>`).join('')}</div>`],
+    ['Which colours?', () => `<div class="togglegroup wzcolors">${COLORS.map(([n, h]) => `<button type="button" class="chip" data-wz="colors" data-v="${esc(n)}" aria-pressed="${P.colors.includes(n)}"><span class="pdot" style="background:${h === 'multi' ? 'conic-gradient(#c23b33,#e8c547,#4f7a4a,#4a78c2,#7f5aa6,#c23b33)' : h}"></span>${esc(n)}</button>`).join('')}</div>`],
+    ['Which seasons?', () => `<div class="togglegroup">${SEASONS.map(n => `<button type="button" class="chip" data-wz="seasons" data-v="${n}" aria-pressed="${P.seasons.includes(n)}">${{ Spring: '🌷', Summer: '☀️', Autumn: '🍂', Winter: '❄️' }[n]} ${n}</button>`).join('')}</div>`],
+    ['When do you wear it?', () => `<div class="togglegroup">${OCCASIONS.map(n => `<button type="button" class="chip" data-wz="occasions" data-v="${esc(n)}" aria-pressed="${P.occasions.includes(n)}">${esc(n)}</button>`).join('')}</div>`]];
+  let i = 0;
+  const sh = sheet({ title: opts.wish ? 'New wish, step by step' : 'New piece, step by step', body: '<div data-wzbody></div>', foot: '<button class="btn" data-wzback>Back</button><div class="spacer"></div><button class="btn primary" data-wznext>Next</button>' });
+  const draw = () => { $('[data-wzbody]', sh).innerHTML = `<div class="wzbar">${steps.map((_, k) => `<i class="${k <= i ? 'on' : ''}"></i>`).join('')}</div><h3 class="wzq">${steps[i][0]}</h3>${steps[i][1]()}${i < steps.length - 1 ? `<p class="muted">Next: ${steps.slice(i + 1).map(x => x[0].replace('?', '').toLowerCase()).join(' → ')} → photo</p>` : '<p class="muted">Next: the photo</p>'}`; $('[data-wznext]', sh).textContent = i === steps.length - 1 ? '📷 Add the photo' : 'Next'; $('[data-wzback]', sh).hidden = i === 0; $('#wz-name', sh)?.focus(); };
+  sh.addEventListener('input', e => { if (e.target.id === 'wz-name') P.name = e.target.value; });
+  sh.addEventListener('click', e => {
+    const b = e.target.closest('[data-wz]'); if (b) { const k = b.dataset.wz; if (k === 'cat') { P.cat = b.dataset.v; draw(); setTimeout(() => { i++; draw(); }, 180); } else { toggleIn(P[k], b.dataset.v); b.setAttribute('aria-pressed', P[k].includes(b.dataset.v)); } return; }
+    if (e.target.closest('[data-wzback]')) { i = Math.max(0, i - 1); draw(); return; }
+    if (e.target.closest('[data-wznext]')) { if (i < steps.length - 1) { i++; draw(); return; } closeSheet(); openEditor(null, { ...opts, preset: { ...P } }); }
+  });
+  draw();
+}
 function openEditor(id, opts = {}) {
   const base = id ? S.byId[id] : null;
-  const it = base ? JSON.parse(JSON.stringify(base)) : { cat: FV().cat !== 'All' ? FV().cat : cats()[0], status: opts.wish ? 'wishlist' : 'closet', wishSince: opts.wish ? today() : '' };
+  const it = base ? JSON.parse(JSON.stringify(base)) : { cat: FV().cat !== 'All' ? FV().cat : cats()[0], status: opts.wish ? 'wishlist' : 'closet', wishSince: opts.wish ? today() : '', ...(opts.preset || {}) };
   for (const k of ['colors', 'seasons', 'tags', 'occasions', 'fits', 'materials', 'textures', 'prints']) it[k] = it[k] || [];
   it.matPct = { ...(it.matPct || {}) };
   it.care = it.care || {};
@@ -3775,7 +3795,9 @@ function openEditor(id, opts = {}) {
     body: `${review ? `<div class="note">From <b>${esc(it.shop || 'a link')}</b>${it.link ? ` · <a href="${esc(it.link)}" target="_blank" rel="noopener">open the shop page</a>` : ''}. Check the category and colour, and the cut-out below.${it.importNote ? ` <br><span class="muted">${esc(it.importNote)}: fill in what's missing.</span>` : ''}</div>` : ''}
       ${buying ? `<div class="note">Nice! Check the price you paid and the cut-out, then it moves from your wishlist into your closet.</div>` : ''}
       ${review && (it.candidates || []).length > 1 ? `<div><span class="lbl">Shop photos · tap the one that shows just the item</span><div class="cands" id="cands"></div></div>` : ''}
+      ${!id && !review ? `<div class="clquick"><div class="cllink"><input id="f-quicklink" type="url" inputmode="url" placeholder="🔗 Paste a product link" autocomplete="off"><button type="button" class="btn small primary" data-quicklink>Fill in</button></div><p class="muted">Photo, brand, colour and price fill in from the shop page.</p>${opts.preset ? '' : '<button type="button" class="btn small" data-wizard>🪄 Step by step instead</button>'}</div>` : ''}
       <div id="photoArea"></div>
+      <div id="pchips" class="pchips"></div>
       <h3 style="font-size:17px">Details</h3>
       <div class="form">
         <div class="field full"><label for="f-name">Name</label><input id="f-name" value="${esc(it.name)}" placeholder="e.g. Cream cable-knit jumper"></div>
@@ -3831,6 +3853,8 @@ function openEditor(id, opts = {}) {
     };
     syncGone(); stEl.addEventListener('change', syncGone);
   }
+  // under the big photo: the colours as dots and the kind, seasons and occasions as chips, so you see the piece at a glance
+  const drawPChips = () => { const box = $('#pchips', sh); if (!box) return; const sw = n => (COLORS.find(c => c[0] === n) || [n, '#ccc'])[1]; box.innerHTML = `${it.colors.map(n => `<span class="pdot" title="${esc(n)}" style="background:${sw(n) === 'multi' ? 'conic-gradient(#c23b33,#e8c547,#4f7a4a,#4a78c2,#7f5aa6,#c23b33)' : sw(n)}"></span>`).join('')}${[$('#f-cat', sh)?.value || it.cat, ...it.seasons, ...it.occasions].filter(Boolean).map(x => `<span class="chip on">${esc(x)}</span>`).join('')}`; };
   const colorNames = () => { $('#f-colornames', sh).textContent = it.colors.length ? `Picked: ${it.colors.join(', ')}` : ''; };
   colorNames();
   // remembered values offered as taps under brand, type, size and shop, A to Z
@@ -3861,11 +3885,28 @@ function openEditor(id, opts = {}) {
   sh.addEventListener('click', async e => {
     const sg = e.target.closest('[data-sug]'); if (sg) { const inp = $(`#f-${sg.dataset.sug}`, sh); inp.value = norm(inp.value) === norm(sg.dataset.v) ? '' : sg.dataset.v; drawSug(sg.dataset.sug); if (sg.dataset.sug === 'brand') drawSug('model'); return; }
     const wh = e.target.closest('[data-where]'); if (wh) { $('#f-where', sh).value = wh.dataset.where; sh.querySelectorAll('[data-where]').forEach(b => b.setAttribute('aria-pressed', b === wh)); sh.querySelectorAll('[data-loan]').forEach(x => x.hidden = wh.dataset.where !== 'Uitgeleend'); return; }
-    const c = e.target.closest('[data-color]'); if (c) { toggleIn(it.colors, c.dataset.color); c.setAttribute('aria-pressed', it.colors.includes(c.dataset.color)); colorNames(); }
+    const c = e.target.closest('[data-color]'); if (c) { toggleIn(it.colors, c.dataset.color); c.setAttribute('aria-pressed', it.colors.includes(c.dataset.color)); colorNames(); drawPChips(); }
+    if (e.target.closest('[data-wizard]')) { closeSheet(); closetWizard(opts); return; }
+    const ql = e.target.closest('[data-quicklink]'); if (ql) {
+      const u = $('#f-quicklink', sh).value.trim(); if (!/^https?:\/\/\S+$/.test(u)) { toast('Paste a link that starts with https://'); return; }
+      ql.disabled = true; ql.textContent = 'Reading…';
+      try {
+        const j = await callFn('offers', { action: 'linkinfo', url: u, kind: 'closet' });
+        const set = (sel, v) => { const el = $(sel, sh); if (el && v != null && v !== '' && !el.value.trim()) el.value = typeof v === 'number' ? String(v).replace('.', ',') : v; };
+        set('#f-name', j.name); set('#f-brand', j.brand); set('#f-price', j.price); set('#f-orig', j.origPrice); set('#f-link', u);
+        try { set('#f-shop', (j.shop || new URL(u).hostname.replace(/^www\./, '').split('.')[0]).replace(/^./, x => x.toUpperCase())); } catch {}
+        const txt = String((j.name || '') + ' ' + (j.color || '')).toLowerCase();
+        for (const [n] of COLORS) if (n !== 'Multi' && new RegExp('\\b' + n.toLowerCase() + '\\b').test(txt) && !it.colors.includes(n)) { it.colors.push(n); sh.querySelector(`[data-color="${CSS.escape(n)}"]`)?.setAttribute('aria-pressed', 'true'); }
+        colorNames(); drawPChips();
+        if (j.photo) { const r = await fetch(photoURL(j.photo)); if (r.ok) await loadPhoto(await r.blob()); }
+        toast(j.name ? '✓ Filled in from the shop page' : 'That page gave little. Fill in the rest yourself.');
+      } catch (err) { toast('Could not read that page: ' + (err.message || err)); }
+      ql.disabled = false; ql.textContent = 'Fill in'; return;
+    }
     const o1 = e.target.closest('[data-one]'); if (o1) { const k = o1.dataset.one; it[k] = it[k] === o1.dataset.v ? '' : o1.dataset.v; $$(`[data-one="${k}"]`, sh).forEach(b => b.setAttribute('aria-pressed', it[k] === b.dataset.v)); if (k === 'acquired') { const g = $('#f-giftrow', sh); if (g) g.hidden = it[k] !== 'Gift'; } }
     if (e.target.closest('[data-rcx]')) { it.receipt = ''; const row = $('#f-rcrow .rcbox', sh); row.innerHTML = `<label class="btn small">Add PDF or photo<input type="file" id="f-rcfile" class="vh" accept="application/pdf,image/*"></label><span class="muted" id="f-rcname"></span>`; row.insertAdjacentHTML('afterend', '<input id="f-receipt" type="url" placeholder="or paste a link to the receipt or order (https://…)" style="margin-top:8px">'); }
     const cd = e.target.closest('[data-cond]'); if (cd) { it.condition = it.condition === cd.dataset.cond ? '' : cd.dataset.cond; $$('[data-cond]', sh).forEach(b => b.setAttribute('aria-pressed', it.condition === b.dataset.cond)); }
-    const m = e.target.closest('[data-multi]'); if (m) { const arr = it[m.dataset.multi]; toggleIn(arr, m.dataset.v); m.setAttribute('aria-pressed', arr.includes(m.dataset.v)); if (m.dataset.multi === 'materials') $('#matpct', sh).innerHTML = matPctHTML(it); }
+    const m = e.target.closest('[data-multi]'); if (m) { const arr = it[m.dataset.multi]; toggleIn(arr, m.dataset.v); m.setAttribute('aria-pressed', arr.includes(m.dataset.v)); drawPChips(); if (m.dataset.multi === 'materials') $('#matpct', sh).innerHTML = matPctHTML(it); }
     const cr = e.target.closest('[data-care]'); if (cr) { const k = cr.dataset.care; it.care[k] = it.care[k] === cr.dataset.v ? '' : cr.dataset.v; $$(`[data-care="${k}"]`, sh).forEach(b => b.setAttribute('aria-pressed', it.care[k] === b.dataset.v)); }
     if (e.target.closest('#discard')) $('#discardConfirm', sh).hidden = false;
     if (e.target.closest('#discardNo')) $('#discardConfirm', sh).hidden = true;
@@ -3922,6 +3963,7 @@ function openEditor(id, opts = {}) {
     it.photo = b.dataset.cand; drawCands(); loadPhoto(photoURL(it.photo), true, it.photo === it.shot);
   });
   if (it.photo) loadPhoto(photoURL(it.photo), review || buying, review && !!it.shot && it.photo === it.shot); else showPicker();
+  drawPChips(); $('#f-cat', sh)?.addEventListener('change', drawPChips);
 
   const num = sel => { const el = $(sel, sh); if (!el) return null; const v = el.value.trim().replace(/[\s€]/g, '').replace(',', '.'); return v ? Number(v) || 0 : null; };
   const save = async asWish => {
@@ -4443,7 +4485,7 @@ async function start(session) {
   await obFlush(); // send changes made offline before loading fresh data over them
   subscribeLive(); wxRefresh();
   // what life.js needs from the closet: the signed-in Supabase client, photos, sheets and settings
-  const lifeLoad = window.LIFE?.start({ sb, uid: () => UID, outfitPart, logoOf, view: () => S.view, outfits: () => S.outfits.map(o => ({ id: o.id, name: o.name || 'Outfit', board: boardHTML(o.pieces) })), go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url, shop: it.shop, planBuy: it.planBuy || '' })),
+  const lifeLoad = window.LIFE?.start({ sb, uid: () => UID, outfitPart, logoOf, view: () => S.view, outfits: () => S.outfits.map(o => ({ id: o.id, name: o.name || 'Outfit', board: boardHTML(o.pieces) })), go, render, sheet, closeSheet, toast, uuid, photoURL, uploadPhoto, deletePhoto, photoToJpeg, prefs: () => S.prefs, savePrefs: patch => DB.savePrefs(patch), undoPush, closetWish: () => S.items.filter(isWish).map(it => ({ id: it.id, name: it.name, brand: it.brand, price: it.price, photo: it.photo, rank: it.rank, waited: it.waited, since: it.wishSince || (it.created ? iso(new Date(it.created)) : ''), url: it.url, shop: it.shop, planBuy: it.planBuy || '' })),
     undoQuiet, sbWrite, sbWriteMany, obFlush, uploadFile,
     // what you typed before in the closet (shops, brands), offered as buttons in the rest of the app too
     closetVals: k => valuesOf(k),
