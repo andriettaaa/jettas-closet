@@ -9950,12 +9950,26 @@ function lifeOverview(host) {
   <div class="tiles lifenums">${aTile('Mood', mood != null ? r1(mood) + '/4' : '–', '30 days')}${aTile('Sleep', sleep != null ? r1(sleep) + ' h' : '–', 'average')}${aTile('Workouts', String(wo), '30 days')}${aTile('Routines', hp != null ? Math.round(hp) + '%' : '–', 'done')}</div>
   <div class="lanalinks">${[['plan/mindstats', 'Mind'], ['body/stats', 'Body'], ['plan/planstats', 'Life admin'], ['wish/stats', 'Wishlists'], ['kitchen/stats', 'Kitchen']].map(([v, l]) => `<button class="chip link" data-act="go" data-v="${v}">${l} stats</button>`).join('')}</div>
   <div class="quickacts lifeacts"><button class="chip" data-act="new" data-v="journal">+ Journal</button><button class="chip" data-act="new" data-v="sleep">+ Sleep</button><button class="chip" data-act="new" data-v="workouts">+ Workout</button><button class="chip" data-act="new" data-v="wishes">+ Wish</button></div>
-  <div class="panels">
+  <div class="lifesplit"><div class="lifeleft">${lifeYearHTML()}${lifeWeekHTML()}</div>
+  <div class="panels lifeareas">
     ${panel('Mind', planTile(), ['plan/today', 'My year'])}
     ${panel('Body', bodyTile() || quiet('Nothing for today yet.'), ['body/today', 'Body'])}
-    ${panel('Plans', `${nt ? `<p class="dline"><span>Next trip</span><b>${esc(tripName(nt))}</b></p>` : quiet('No trip planned.')}${gifts.length ? `<p class="dline"><span>Gift ideas</span><b>${gifts.length}</b></p>` : ''}`, ['care/trips', 'Trips'])}
+    ${panel('Life admin', `${nt ? `<p class="dline"><span>Next trip</span><b>${esc(tripName(nt))}</b></p>` : quiet('No trip planned.')}${gifts.length ? `<p class="dline"><span>Gift ideas</span><b>${gifts.length}</b></p>` : ''}`, ['care/trips', 'Trips'])}
     ${panel('Wishlists', `${typeof wishTile === 'function' ? wishTile() : ''}${orders.length ? `<p class="dline"><span>On the way</span><b>${plural(orders.length, 'order', 'orders')}</b></p>` : ''}`, ['wish/today', 'Wishlists'])}
-  </div>`;
+  </div></div>`;
+}
+// Life (L2): the year goal and your week as a timeline on the left
+function lifeYearHTML() {
+  const g = moveGoal() || recs('fgoals').filter(x => !x.done && num(x.target)).sort((a, b) => (a.by || '9').localeCompare(b.by || '9'))[0];
+  if (!g) return '';
+  const pct = num(g.target) ? Math.min(100, Math.round(100 * (num(g.saved) || 0) / num(g.target))) : 0, hid = moneyHidden();
+  return `<button type="button" class="lifeyear" data-act="go" data-v="plan/today"><b>${esc(g.emoji || '🏡')} My year · ${esc(g.name || 'Goal')}${g.by ? ' · ' + esc(niceDate(g.by)) : ''}</b><span class="tbar"><i style="width:${pct}%"></i></span><small>${pct}%${hid ? '' : ` · ${fEur0(num(g.saved) || 0)} of ${fEur0(num(g.target))}`}</small></button>`;
+}
+function lifeWeekHTML() {
+  const t = today(); let ev = []; try { ev = calEvents(t, addDays(t, 6)).filter(e => e.cat !== 'money'); } catch {}
+  const days = Array.from({ length: 7 }, (_, i) => addDays(t, i));
+  return `<section class="panel lifeweek"><div class="lph3"><h3 class="mh">Your week</h3><button class="chip link" data-act="go" data-v="plan/week">Calendar</button></div>${days.map(d => { const l = ev.filter(e => e.date === d).sort((a, b) => (a.time || '99').localeCompare(b.time || '99')).slice(0, 3);
+    return `<div class="lwrow"><b>${d === t ? 'Today' : esc(dayName(d))}</b><span>${l.length ? l.map(e => esc(`${e.title}${e.time ? ' ' + e.time : ''}`)).join(' · ') : '<span class="muted">free</span>'}</span></div>`; }).join('')}</section>`;
 }
 
 /* Life › My year */
