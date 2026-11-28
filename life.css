@@ -2176,3 +2176,17 @@ details.lmore > .form, .sheet .form { box-sizing: border-box; max-width: 100%; }
   body:not(.side) .subbar button { border: 0 !important; background: none !important; border-radius: 0 !important; padding: 8px 0 !important; box-shadow: none !important; color: var(--muted); }
   body:not(.side) .subbar button[aria-current="true"] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent) !important; }
 }
+/* Finance Spending (F2/F3/F4): four numbers on top, then two columns on wide screens */
+.fkpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.fkpi { display: grid; gap: 2px; padding: 14px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.fkpi small { color: var(--muted); font-size: 12px; } .fkpi b { font-family: var(--display); font-size: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .fkpi span { color: var(--muted); font-size: 12px; }
+.fkpi.mo { background: linear-gradient(135deg, #6b3f22, #a8673d); color: #fff; border: 0; } .fkpi.ph { background: linear-gradient(135deg, #7fae7a, #4e8a6a); color: #fff; border: 0; }
+.fkpi.mo small, .fkpi.mo span, .fkpi.ph small, .fkpi.ph span { color: rgba(255,255,255,.88); }
+.fsplit2 { display: grid; gap: 12px; align-items: start; margin-bottom: 12px; } .fcol { display: grid; gap: 12px; min-width: 0; }
+.fcol > .panel, .fcol > section { margin: 0; }
+@media (min-width: 1000px) { .fsplit2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+@media (max-width: 699px) { .fkpis { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; } .fkpis::-webkit-scrollbar { display: none; } .fkpi { flex: 0 0 calc((100% - 20px) / 2.3); scroll-snap-align: start; } }
+@media (min-width: 700px) and (max-width: 999px) { .fkpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.fevery .tiles { margin-top: 6px; }
+.fevery .tiles .tile .v { font-size: clamp(17px, 2.2vw, 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fevery .tiles .tile .k { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
