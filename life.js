@@ -262,8 +262,12 @@ const mins = n => n ? (n >= 60 ? `${Math.floor(n / 60)} h${n % 60 ? ' ' + (n % 6
 const totalTime = r => (num(r.prep) || 0) + (num(r.cook) || 0);
 const RATE_KEY = k => { const f = KINDS[k]?.fields.find(f => f.type === 'rating' && ['rating', 'score'].includes(f.k)) || KINDS[k]?.fields.find(f => f.type === 'rating'); return f?.k; };
 const ringOf = (r, size) => { const k = RATE_KEY(r.kind); return k && num(r[k]) ? scoreRing(r[k], size) : ''; };
-const sc10 = v => { const n = num(v); return n ? Math.round(n * 4) / 2 : null; };
+const sc10 = v => { const n = num(v); return n ? Math.round(n * 20) / 10 : null; };
 const scFmt = x => String(x).replace('.', ',');
+// how a score looks per place (no stars): plates for food, a ring for beauty, nails, closet and wishes, bars for workouts and sleep, pills for the rest
+const SCORE_STYLE = k => ['recipes', 'meals', 'rreviews', 'cooked', 'foodlog'].includes(k) ? 'plates' : ['workouts', 'vworkouts', 'sleep', 'exercises', 'fitgoals'].includes(k) ? 'bars'
+  : ['beauty', 'breviews', 'nbits', 'ncolors', 'nprods', 'fragrances', 'wishes', 'gifts', 'supplements', 'fitgear', 'gear', 'inventory'].includes(k) ? 'ring' : 'pills';
+const scoreWord = x => x >= 9 ? 'Wow, a keeper' : x >= 8 ? 'Really good' : x >= 7 ? 'Good' : x >= 5.5 ? 'Okay' : x >= 4 ? 'Meh' : 'Not for me';
 const scCls = x => 'sc' + Math.max(1, Math.min(10, Math.round(x)));
 const scoreRing = (v5, size = 'sm') => { const x = sc10(v5); return x ? `<span class="sring ${size} ${scCls(x)}" style="--p:${x * 10}" title="${scFmt(x)} out of 10" aria-label="${scFmt(x)} out of 10"><b>${scFmt(x)}</b></span>` : ''; };
 const stars = n => n ? scFmt(sc10(n)) + '/10' : '';
@@ -658,7 +662,7 @@ const KINDS = {
   },
   sleep: {
     one: 'night', many: 'Sleep',
-    fields: [F('date', 'Morning of', 'date'), F('bed', 'Went to bed', 'time', { half: 1 }), F('up', 'Woke up', 'time', { half: 1 }),
+    fields: [F('date', 'Morning of', 'date'), F('clock', 'Drag the moon and the sun', 'sleepclock'), F('bed', 'Went to bed', 'time', { half: 1 }), F('up', 'Woke up', 'time', { half: 1 }),
       F('hours', 'Hours slept (worked out from your times)', 'num'),
       F('quality', 'Sleep quality', 'select', { options: ['Excellent', 'Good', 'Fair', 'Poor'] }),
       F('wake', 'Mood on waking', 'select', { options: ['Energized', 'Okay', 'Tired', 'Groggy'] }), F('rested', 'How rested', 'emo', { scale: EMO.rested }),
@@ -2099,7 +2103,7 @@ const WORD_EMO = [[/chicken|kip/, '🍗'], [/pasta|spaghetti|pesto|lasagne/, '�
 const TONES = ['#f6d7b0,#e0a04a', '#f3c7a8,#d9707c', '#d6ecd0,#6fae8c', '#cfe0f0,#7fa6c9', '#e7dcf3,#a58bd0', '#f4e3c4,#c9a97a', '#f6d0dc,#d98aa6', '#d9efe9,#5fa39a'];
 const itemEmo = r => { const t = norm(titleOf(r) + ' ' + [r.type, r.category, r.cat, r.step].filter(Boolean).join(' ')); return (WORD_EMO.find(([re]) => re.test(t)) || [0, KIND_EMO[r.kind] || '✨'])[1]; };
 const toneOf = r => { const t = String(r.id || titleOf(r)); let h = 0; for (const c of t) h = (h * 31 + c.charCodeAt(0)) >>> 0; return TONES[h % TONES.length]; };
-const phFill = r => `<span class="lemo" style="background:linear-gradient(160deg,${toneOf(r)})">${itemEmo(r)}</span>`;
+const phFill = r => `<span class="lemofill" style="background:linear-gradient(160deg,${toneOf(r)})">${itemEmo(r)}</span>`;
 function card(r) {
   if (PRODUCTS.has(r.kind)) return prodCard(r);
   const K = KINDS[r.kind], ph = photoOf(r);
@@ -2494,7 +2498,7 @@ function openReview(recipeId, date = today()) {
   });
   sh.addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.rset) { const cur = sc10(D.score) || 0, v = b.dataset.v; const x = v === 'clear' ? 0 : /^[+-]/.test(v) ? Math.max(1, Math.min(10, (cur || 5) + Number(v))) : Number(v); D.score = x ? x / 2 : 0; sh.querySelector('[data-rvscore]').innerHTML = fieldInner('rreviews', { k: 'score', type: 'rating', label: '' }, { score: D.score }); }
+    if (b.dataset.rset) { const cur = sc10(D.score) || 0, v = b.dataset.v; const x = v === 'clear' ? 0 : /^[+-]/.test(v) ? Math.max(1, Math.min(10, Math.round(((cur || 5) + Number(v)) * 10) / 10)) : Number(v); D.score = x ? x / 2 : 0; sh.querySelector('[data-rvscore]').innerHTML = fieldInner('rreviews', { k: 'score', type: 'rating', label: '' }, { score: D.score }); }
     if (b.dataset.rk) { const k = b.dataset.rk; D[k] = D[k] === b.dataset.v ? '' : b.dataset.v; sh.querySelectorAll(`[data-rk="${k}"]`).forEach(x => x.setAttribute('aria-pressed', x.dataset.v === D[k])); }
     if (b.dataset.rm) { const k = b.dataset.rm, a = D[k], i = a.indexOf(b.dataset.v); i >= 0 ? a.splice(i, 1) : a.push(b.dataset.v); b.setAttribute('aria-pressed', i < 0); }
     if (b.dataset.ri) {
@@ -5824,6 +5828,7 @@ function fieldInner(kind, f, D) {
     case 'num': case 'money': return lab + `<input id="${id}" type="text" inputmode="decimal" autocomplete="off" data-k="${f.k}" data-num value="${v == null || v === '' ? '' : f.type === 'money' ? String(v).replace('.', ',') : v}">`;
     case 'date': return lab + `<input id="${id}" type="date" data-k="${f.k}" value="${esc(v || '')}">`;
     case 'time': return lab + `<input id="${id}" type="time" data-k="${f.k}" value="${esc(v || '')}">`;
+    case 'sleepclock': return span + sleepClockHTML(D);
     case 'url': return lab + `<div class="lurl"><input id="${id}" type="url" inputmode="url" data-k="${f.k}" value="${esc(v || '')}" placeholder="https://">${v ? `<a class="iconbtn" href="${esc(v)}" target="_blank" rel="noopener" aria-label="Open link">${svg(P.link)}</a>` : ''}</div>`;
     case 'check': return `<button type="button" class="chip lcheck" data-chk="${f.k}" aria-pressed="${!!v}">${v ? svg(P.check) : ''}${esc(f.label)}</button>`;
     case 'pct': {
@@ -5832,9 +5837,13 @@ function fieldInner(kind, f, D) {
         <div class="lpctr"><input type="range" min="0" max="100" step="5" data-pctr="${f.k}" value="${p ?? 100}" ${p == null ? 'disabled' : ''} aria-label="${esc(f.label)}"><b data-pctv="${f.k}">${p == null ? 'Niet open' : p + '%'}</b></div></div>`;
     }
     case 'emo': { const sc = f.scale || EMO.mood; return span + `<div class="lemo">${sc.map(([n, e, l]) => `<button type="button" data-rate="${f.k}" data-v="${n}" aria-label="${esc(l)}" title="${esc(l)}" aria-pressed="${v === n}"><span>${e}</span><small>${esc(l)}</small></button>`).join('')}</div>`; }
-    case 'rating': { const x = sc10(v); return span + `<div class="lscore"><span class="sring lg ${x ? scCls(x) : 'sc0'}" style="--p:${(x || 0) * 10}"><b>${x ? scFmt(x) : '–'}</b></span>
-        <div class="lscorein"><div class="lscoretaps">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => `<button type="button" class="${scCls(n)}" data-rset="${f.k}" data-v="${n}" aria-pressed="${x != null && Math.floor(x) === n}" aria-label="${n} out of 10">${n}</button>`).join('')}</div>
-        <div class="lscorebtns"><button type="button" class="iconbtn" data-rset="${f.k}" data-v="-0.5" aria-label="Half a point less">−</button><button type="button" class="iconbtn" data-rset="${f.k}" data-v="+0.5" aria-label="Half a point more">+</button>${x ? `<button type="button" class="chip link" data-rset="${f.k}" data-v="clear">Clear</button>` : '<span class="lnone">Tap a number, then − or + for half points</span>'}</div></div></div>`; }
+    case 'rating': { const x = sc10(v), st = SCORE_STYLE(kind), n10 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+      const show = st === 'plates' ? `<div class="scplates">${[1, 2, 3, 4, 5].map(i => { const f = Math.max(0, Math.min(1, ((x || 0) - (i - 1) * 2) / 2)); return `<span class="scplate ${f >= 1 ? 'on' : f >= .5 ? 'half' : 'off'}">🍽</span>`; }).join('')}</div>`
+        : st === 'bars' ? `<div class="scbars">${n10.map(i => `<i style="height:${8 + i * 5}px" class="${x && i <= Math.ceil(x) ? 'on' : ''}"></i>`).join('')}</div>`
+        : st === 'ring' ? `<span class="sring lg ${x ? scCls(x) : 'sc0'}" style="--p:${(x || 0) * 10}"><b>${x ? scFmt(x) : '–'}</b></span>` : '';
+      return span + `<div class="lscore sc-${st}">${show}<div class="scbig"><b>${x ? scFmt(x) : '–'}</b><small>/10</small>${x ? `<em>${scoreWord(x)}</em>` : ''}</div>
+        <div class="lscorein"><div class="lscoretaps">${n10.map(n => `<button type="button" class="${scCls(n)}" data-rset="${f.k}" data-v="${n}" aria-pressed="${x != null && Math.floor(x) === n}" aria-label="${n} out of 10">${n}</button>`).join('')}</div>
+        <div class="lscorebtns"><button type="button" class="iconbtn" data-rset="${f.k}" data-v="-0.1" aria-label="A tenth less">−</button><button type="button" class="iconbtn" data-rset="${f.k}" data-v="+0.1" aria-label="A tenth more">+</button>${x ? `<button type="button" class="chip link" data-rset="${f.k}" data-v="clear">Clear</button>` : '<span class="lnone">Tap a number, then − or + for tenths</span>'}</div></div></div>`; }
     case 'oldrating': return span + `<div class="lrating">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-rate="${f.k}" data-v="${n}" aria-label="${n} of 5" aria-pressed="${(v || 0) >= n}">${svg(P.star)}</button>`).join('')}</div>`;
     case 'select': case 'multi': {
       if (f.dep && !D?.[f.dep] && !v) return span + `<p class="lnone">${esc(f.depHint || 'Kies eerst een categorie.')}</p>`;
@@ -5875,6 +5884,18 @@ function fieldInner(kind, f, D) {
     }
     default: { const sg = textSugs(kind, f), kn = !!knownFor(f.k); return lab + `<input id="${id}" type="text" data-k="${f.k}"${kind === 'ingredients' && f.k === 'name' ? ' data-sug="ing"' : ''} value="${esc(v || '')}" autocomplete="off"${sg.length || kn ? ` data-sugk="${f.k}"` : ''}>${sg.length || kn ? `<div class="lwrap ltsugs" data-sugs="${f.k}">${sg.map(o => `<button type="button" class="chip" data-tsug="${f.k}" data-v="${esc(o)}" aria-pressed="${norm(o) === norm(v || '')}">${esc(o)}</button>`).join('')}</div>` : ''}`; }
   }
+}
+/* the sleep clock: a 24-hour dial; the moon is when you went to bed, the sun when you woke up, the hours in the middle */
+const hmMin = t => { const m = String(t || '').match(/^(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : null; };
+const minHm = m => `${String(Math.floor(((m % 1440) + 1440) % 1440 / 60)).padStart(2, '0')}:${String(((m % 60) + 60) % 60).padStart(2, '0')}`;
+function sleepClockHTML(D) {
+  const b = hmMin(D.bed) ?? 23 * 60, u = hmMin(D.up) ?? 7 * 60, dur = ((u - b) + 1440) % 1440, h = Math.floor(dur / 60), m = dur % 60;
+  const ang = t => t / 1440 * 360, a0 = ang(b), a1 = a0 + dur / 1440 * 360, pos = t => { const r = (ang(t) - 90) * Math.PI / 180; return `left:${50 + 42 * Math.cos(r)}%;top:${50 + 42 * Math.sin(r)}%`; };
+  return `<div class="sclock" data-sclock><div class="scdial" style="background:conic-gradient(from ${a0}deg, #3b4a78 0deg ${a1 - a0}deg, color-mix(in srgb, var(--ink) 8%, transparent) ${a1 - a0}deg 360deg)"></div>
+    <div class="scmid"><b>${h}h ${String(m).padStart(2, '0')}</b><small>slept</small></div>
+    ${[0, 6, 12, 18].map(x => `<span class="sctick" style="${pos(x * 60)}">${x}</span>`).join('')}
+    <button type="button" class="scknob" data-sknob="bed" style="${pos(b)}" aria-label="Bedtime ${minHm(b)}">🌙</button><button type="button" class="scknob" data-sknob="up" style="${pos(u)}" aria-label="Wake time ${minHm(u)}">☀️</button></div>
+    <div class="sctimes"><span>🌙 Bed <b>${minHm(b)}</b></span><span>☀️ Up <b>${minHm(u)}</b></span></div>`;
 }
 /* fewer things to type: a text field offers what you wrote there before as buttons. Shops are one list for the
    whole app (the closet too); a name only offers names you used more than once, so unique titles stay quiet */
@@ -5940,7 +5961,12 @@ function openEditor(kind, id, preset = {}) {
     img.src = v;
   };
   const pickRel = (k, rid) => { const f = fdef(k); D[k] = f.multi ? [...new Set([...[].concat(D[k] || []), rid])] : rid; redraw(k); };
-  if (kind === 'sleep') sh.addEventListener('change', e => { const k = e.target.dataset?.k; if (!['bed', 'up'].includes(k)) return; D[k] = e.target.value; if (D.bed && D.up) { const h = sleepHours({ bed: D.bed, up: D.up }); if (h != null) { D.hours = h; const hi = sh.querySelector('[data-k="hours"]'); if (hi) hi.value = String(h).replace('.', ','); } } });
+  if (kind === 'sleep') { let drag = null;
+    const setT = (k, t) => { D[k] = minHm(Math.round(t / 5) * 5); const inp = sh.querySelector(`[data-k="${k}"]`); if (inp) inp.value = D[k]; const h = sleepHours({ bed: D.bed || '23:00', up: D.up || '07:00' }); if (h != null) { D.hours = h; const hi = sh.querySelector('[data-k="hours"]'); if (hi) hi.value = String(h).replace('.', ','); } const box = sh.querySelector('[data-sclock]'); if (box) box.parentElement.innerHTML = box.parentElement.querySelector('.lflabel').outerHTML + sleepClockHTML(D); };
+    sh.addEventListener('pointerdown', e => { const k = e.target.closest('[data-sknob]'); if (!k) return; e.preventDefault(); drag = k.dataset.sknob; });
+    sh.addEventListener('pointermove', e => { if (!drag) return; const box = sh.querySelector('[data-sclock] .scdial'); if (!box) return; const r = box.getBoundingClientRect(), x = e.clientX - (r.left + r.width / 2), y = e.clientY - (r.top + r.height / 2); let deg = Math.atan2(y, x) * 180 / Math.PI + 90; if (deg < 0) deg += 360; setT(drag, deg / 360 * 1440); });
+    const end = () => { drag = null; }; sh.addEventListener('pointerup', end); sh.addEventListener('pointercancel', end); }
+  if (kind === 'sleep') sh.addEventListener('change', e => { const k = e.target.dataset?.k; if (!['bed', 'up'].includes(k)) return; D[k] = e.target.value; if (D.bed && D.up) { const h = sleepHours({ bed: D.bed, up: D.up }); if (h != null) { D.hours = h; const hi = sh.querySelector('[data-k="hours"]'); if (hi) hi.value = String(h).replace('.', ','); } } const box = sh.querySelector('[data-sclock]'); if (box) box.parentElement.innerHTML = box.parentElement.querySelector('.lflabel').outerHTML + sleepClockHTML(D); });
   sh.addEventListener('input', e => {
     const t = e.target;
     if (t.dataset.k) { D[t.dataset.k] = t.dataset.num !== undefined ? numIn(t.value) : t.value; if (t.dataset.photourl !== undefined) { delete D._blobs[t.dataset.k]; photoPreview(t); } }
@@ -6084,7 +6110,7 @@ function openEditor(kind, id, preset = {}) {
     if (d.opt) { const f = fdef(d.opt); if (f.type === 'multi') { const a = [].concat(D[d.opt] || []); const i = a.indexOf(d.v); i >= 0 ? a.splice(i, 1) : a.push(d.v); D[d.opt] = a; } else D[d.opt] = D[d.opt] === d.v ? '' : d.v; redraw(d.opt); }
     else if (d.chk) { D[d.chk] = !D[d.chk]; redraw(d.chk); }
     else if (d.rate) { const n = Number(d.v); D[d.rate] = D[d.rate] === n ? 0 : n; redraw(d.rate); }
-    else if (d.rset) { const k = d.rset, cur = sc10(D[k]) || 0; let x = d.v === 'clear' ? 0 : /^[+-]/.test(d.v) ? Math.max(1, Math.min(10, (cur || 5) + Number(d.v))) : Number(d.v); D[k] = x ? x / 2 : 0; redraw(k); }
+    else if (d.rset) { const k = d.rset, cur = sc10(D[k]) || 0; let x = d.v === 'clear' ? 0 : /^[+-]/.test(d.v) ? Math.max(1, Math.min(10, Math.round(((cur || 5) + Number(d.v)) * 10) / 10)) : Number(d.v); D[k] = x ? x / 2 : 0; redraw(k); }
     else if (d.pct) { D[d.pct] = d.v === '' ? null : Number(d.v); D.fill = ''; redraw(d.pct); }
     else if (d.relx) { const f = fdef(d.relx); D[d.relx] = f.multi ? [].concat(D[d.relx] || []).filter(x => x !== d.id) : ''; redraw(d.relx); }
     else if (d.relpick) pickRel(d.relpick, d.id);

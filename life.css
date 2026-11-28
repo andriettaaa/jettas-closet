@@ -1882,12 +1882,12 @@ details.room { border-top: 1px solid var(--line); padding: 10px 0; } details.roo
 .tools.ltools2 .lgear { flex: none; } .tools.ltools2 .lgear[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 .lmoretools { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 10px; }
 .lmoretools[hidden] { display: none; }
-.lemo { position: absolute; inset: 0; display: grid; place-items: center; font-size: 40px; }
+.lemofill { position: absolute; inset: 0; display: grid; place-items: center; font-size: 40px; }
 .lph, .stage { position: relative; }
 .lph img, .stage img { position: relative; z-index: 1; }
 .lthumb.lticon { display: grid; place-items: center; font-size: 22px; border: 0; }
-.lcard .lph span.lemo, .lcard.prod .stage .lemo { font-family: inherit; font-size: 40px; color: inherit; opacity: 1; }
-.lcard .lph > span.lemo, .lcard.prod .stage > span.lemo { position: absolute; inset: 0; width: auto; height: auto; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1; font-size: 44px; }
+.lcard .lph span.lemofill, .lcard.prod .stage .lemofill { font-family: inherit; font-size: 40px; color: inherit; opacity: 1; }
+.lcard .lph > span.lemofill, .lcard.prod .stage > span.lemofill { position: absolute; inset: 0; width: auto; height: auto; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1; font-size: 44px; }
 /* an item as a full page */
 .rview { display: grid; gap: 10px; margin: -18px -18px 0; }
 .rvhero { height: 210px; position: relative; display: grid; place-items: center; overflow: hidden; background: var(--stage); }
@@ -1912,3 +1912,15 @@ details.room { border-top: 1px solid var(--line); padding: 10px 0; } details.roo
 .seticon { display: inline-grid !important; place-items: center !important; width: 34px !important; height: 34px !important; min-width: 34px; border-radius: 10px !important; margin: 0 12px 0 0 !important; font-size: 17px !important; vertical-align: middle; } h3:has(> .seticon) { display: flex !important; align-items: center; }
 
 .seticon { font-style: normal; flex: 0 0 34px !important; } .setfold > summary { align-items: center; }
+/* scores without stars */
+.lscore { display: grid; gap: 10px; }
+.scbig { display: flex; align-items: baseline; gap: 4px; } .scbig b { font: 800 34px/1 var(--display, inherit); } .scbig small { color: var(--muted); font-size: 14px; } .scbig em { font-style: normal; margin-left: 10px; font-weight: 700; color: #5f9b6b; }
+.scplates { display: flex; gap: 6px; } .scplate { font-size: 30px; transition: opacity .2s; } .scplate.off { opacity: .2; filter: grayscale(1); } .scplate.half { opacity: .55; }
+.scbars { display: flex; gap: 4px; align-items: flex-end; height: 60px; } .scbars i { width: 14px; border-radius: 4px 4px 2px 2px; background: color-mix(in srgb, var(--ink) 12%, transparent); } .scbars i.on { background: var(--accent); }
+/* the sleep clock */
+.sclock { position: relative; width: min(240px, 70vw); aspect-ratio: 1; margin: 8px auto 4px; touch-action: none; }
+.scdial { position: absolute; inset: 0; border-radius: 50%; } .scdial::after { content: ''; position: absolute; inset: 18%; border-radius: 50%; background: var(--bg); }
+.scmid { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; z-index: 2; } .scmid b { font: 800 30px/1 var(--display, inherit); } .scmid small { color: var(--muted); }
+.sctick { position: absolute; transform: translate(-50%, -50%); font-size: 10px; color: var(--muted); z-index: 1; }
+.scknob { position: absolute; transform: translate(-50%, -50%); width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--surface); box-shadow: 0 3px 10px rgba(0,0,0,.25); font-size: 20px; z-index: 3; cursor: grab; touch-action: none; }
+.sctimes { display: flex; justify-content: space-between; margin: 4px 8px 0; color: var(--muted); } .sctimes b { color: var(--ink); font-size: 16px; }
