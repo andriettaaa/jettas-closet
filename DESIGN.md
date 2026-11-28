@@ -126,3 +126,7 @@ Forms fit on one screen, are visual (emoji, tiles, photos, swatches) and keep ex
 - **Calendar (an item)**: type it in one line, day strip with a time wheel, templates of her usual plans.
 - **Wishlist (a wish)**: link card, price watch with a nudge, moodboard to rank.
 - **Kitchen (a recipe)**: from a reel, step cards with timers, a photo of a cookbook page.
+- **Kitchen (a recipe review)**: taste dials, tags that teach the app her taste, photo with a verdict; plus a score.
+- **Beauty (a product review)**: skin sliders after 1, 4 or 8 weeks, before and after photos, keep or toss.
+- **Social, deeper**: post story (stats after a week, do more or skip), content pillars with hooks, brand deal as a card with deadlines and deliverables.
+- **Scores, never stars**: always with one decimal (tap the same number again or swipe for halves). Recipes and meals: plates. Beauty, nails, closet and wishes: a score ring. Workouts and sleep: level bars. Check-ins, month review and home: number pills from red to green.
