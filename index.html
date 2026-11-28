@@ -674,7 +674,7 @@ const VIEWS = [
   ['outfits', 'Outfits', '<path d="M8 3 4 6l2 4 2-1v12h8V9l2 1 2-4-4-3c-.5 1.5-2 2.5-4 2.5S8.5 4.5 8 3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'],
   ['calendar', 'Calendar', '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
   ['trips', 'Trips', '<rect x="4" y="7.5" width="16" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 7.5V5.8A1.5 1.5 0 0 1 10.5 4.3h3A1.5 1.5 0 0 1 15 5.8v1.7M4 13h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
-  ['stats', 'Analyse', '<path d="M5 20V11M12 20V4M19 20v-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>'],
+  ['stats', 'Analysis', '<path d="M5 20V11M12 20V4M19 20v-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>'],
   ['todo', 'To do', '<path d="M9 6.5h11M9 12h11M9 17.5h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m3.5 6.5 1.4 1.4 2.4-2.6M3.5 12l1.4 1.4 2.4-2.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5.2" cy="17.5" r="1.4" fill="none" stroke="currentColor" stroke-width="1.6"/>']
 ];
 // Today (the overview of everything), the closet and the areas life.js adds (Kitchen, Life, Social, Money, Home, Fitness). The areas sit in the
@@ -1477,7 +1477,7 @@ function renderRail(host) {
         <select class="pill" id="sort" aria-label="Sort">${SORTS[view].map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
         <button class="btn" data-selmode>Select</button>
       </div>
-      ${view === 'closet' ? `<div class="seg cview" role="group" aria-label="Weergave">${[['grid', 'Fotogrid'], ['shelves', 'Planken'], ['rail', 'Rek']].map(([k, l]) => `<button type="button" data-cview="${k}" aria-pressed="${closetView() === k}">${l}</button>`).join('')}</div>` : ''}
+      ${view === 'closet' ? `<div class="seg cview" role="group" aria-label="Weergave">${[['grid', 'Photo grid'], ['shelves', 'Shelves'], ['rail', 'Rail']].map(([k, l]) => `<button type="button" data-cview="${k}" aria-pressed="${closetView() === k}">${l}</button>`).join('')}</div>` : ''}
       <div class="chips" id="catChips" role="group" aria-label="Category"></div>
       <div class="chips facets" id="facetTabs" role="group" aria-label="Filter by"></div>
       <div class="chips" id="facetVals" role="group"></div>
@@ -1641,7 +1641,7 @@ function renderOutfits(host) {
     host.dataset.built = '1';
     host.innerHTML = `<div class="viewhead"><h1>Outfits</h1><span class="sub" id="outSub"></span><div class="spacer"></div>
       <div class="tools" style="margin:0"><button class="btn" data-shuffle>${I.shuffle} Shuffle an outfit</button><button class="btn primary" data-newoutfit>${I.plus} New outfit</button></div></div>
-      <div class="seg outseg" role="group" aria-label="Outfits">${[['looks', 'Looks'], ['caps', 'Capsules'], ['board', 'Bord']].map(([k, l]) => `<button type="button" data-outt="${k}" aria-pressed="${(S.outT || 'looks') === k}">${l}</button>`).join('')}</div>
+      <div class="seg outseg" role="group" aria-label="Outfits">${[['looks', 'Looks'], ['caps', 'Capsules'], ['board', 'Board']].map(([k, l]) => `<button type="button" data-outt="${k}" aria-pressed="${(S.outT || 'looks') === k}">${l}</button>`).join('')}</div>
       <div id="capsHost" hidden></div>
       <div data-lookspane><div id="wxHost"></div>
       <div id="looksHost"></div>
@@ -1742,7 +1742,7 @@ function renderCalendar(host) {
     host.dataset.built = '1';
     host.innerHTML = `<div class="viewhead"><h1>Calendar</h1><span class="sub">Log what you wore, plan what's next</span></div>
       <div class="calhead"><button class="iconbtn" data-cal="-1" aria-label="Previous month">${I.left}</button><h2 id="calTitle"></h2><button class="iconbtn" data-cal="1" aria-label="Next month">${I.right}</button><button class="btn small" data-cal="0">Today</button></div>
-      <div class="seg calview" role="group" aria-label="Weergave">${[['month', 'Maand'], ['week', 'Week'], ['list', 'Lijst']].map(([k, l]) => `<button type="button" data-calv="${k}" aria-pressed="${pref.get('calView', 'month') === k}">${l}</button>`).join('')}</div>
+      <div class="seg calview" role="group" aria-label="Weergave">${[['month', 'Month'], ['week', 'Week'], ['list', 'List']].map(([k, l]) => `<button type="button" data-calv="${k}" aria-pressed="${pref.get('calView', 'month') === k}">${l}</button>`).join('')}</div>
       <div class="cal" id="calGrid"></div><div id="calAlt" hidden></div><p class="calnote" id="calNote"></p>`;
     host.addEventListener('click', e => {
       const c = e.target.closest('[data-cal]');
@@ -2229,7 +2229,7 @@ function monthCols(list, dateOf, amount) {
   const max = Math.max(1, ...months.map(m => m.v));
   return { total: months.reduce((a, m) => a + m.v, 0), html: `<div class="months">${months.map(m => `<div class="col"><span class="amt">${m.v ? eur0(m.v) : ''}</span><div class="b ${m.v ? '' : 'zero'}" style="height:${Math.max(2, m.v / max * 120)}px"></div><span class="m">${m.label}</span></div>`).join('')}</div>` };
 }
-const STATS_TABS = [['overview', 'Overzicht'], ['gaps', 'Gaten'], ['breakdown', 'Verdeling'], ['money', 'Geld'], ['sort', 'Opruimen']];
+const STATS_TABS = [['overview', 'Overview'], ['gaps', 'Gaps'], ['breakdown', 'Breakdown'], ['money', 'Money'], ['sort', 'Declutter']];
 // gaps in the closet, as a stylist sees them: what one new piece would unlock
 function closetGaps() {
   const live = S.items.filter(it => inCloset(it) && atHand(it)), k = it => catKey(it.cat), n = c => live.filter(it => k(it) === c).length;
@@ -2401,7 +2401,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v210';
+const APP_VERSION = 'hangtag-v211';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2435,6 +2435,14 @@ document.addEventListener('click', async e => { if (!e.target.closest?.('[data-s
 const myName = () => String(S.prefs.name || window.LIFE?.userName?.() || '').trim();
 /* ---------- Today: a greeting for this moment, and an affirmation ---------- */
 // night from 22:00 to 5:00, then morning, afternoon (from 12:00) and evening (from 17:00)
+// a line icon after the greeting, in the same style as the section icons
+const GI = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const GREET_ICON = {
+  morning: GI('<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>'),
+  afternoon: GI('<path d="M8 4.5v1.5M3.5 9H5M4.8 5.8l1 1M12.2 5.8l-1 1"/><path d="M5.6 11.6A3.5 3.5 0 0 1 11.4 8"/><path d="M8.5 19.5h9a3.5 3.5 0 0 0 .4-7 5 5 0 0 0-9.6 1.2 2.9 2.9 0 0 0 .2 5.8Z"/>'),
+  evening: GI('<path d="M3 18.5h18M5.5 15.5a6.5 6.5 0 0 1 13 0"/><path d="M12 4.5v3M4.6 8.6l2 2M19.4 8.6l-2 2"/><path d="M8 21.5h8"/>'),
+  night: GI('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/><path d="M16.5 3.5v2M15.5 4.5h2M19.5 8v1.5M18.75 8.75h1.5"/>')
+};
 function greeting(now = new Date()) {
   const hr = now.getHours(), wd = now.getDay(), name = myName(), day = now.toLocaleDateString('en-GB', { weekday: 'long' });
   const part = hr >= 22 || hr < 5 ? 'night' : hr < 12 ? 'morning' : hr < 17 ? 'afternoon' : 'evening';
@@ -2850,16 +2858,16 @@ function renderOverview(host) {
   const st = window.LIFE?.dayStats?.(), wx = wxDay(today()) || wxDay(today(), 'alm'), pin = window.LIFE?.pinAffirmToday?.(), intent = window.LIFE?.intentText?.() || '';
   const aff = S.prefs.affirm?.off && !pin ? '' : pin ? (pin.text || 'Affirmatie') : affirmToday(S.affShift || 0);
   const BLK = {
-    greet: () => `<div class="sthead ${G.part}"><div><h1>${esc(G.hello)}</h1><p class="greetline">${esc(G.line)}</p><span class="sub">${t.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })}</span>${st?.cheer ? `<p class="stcheer">✨ ${esc(st.cheer)}</p>` : ''}</div>${st ? `<span class="ring string ${st.cheer ? 'pop' : ''}" style="--p:${st.pct}%" title="${st.done} van ${st.total} klaar"><b>${st.pct}%</b></span>` : ''}</div>`,
-    chips: () => `<div class="stchips">${wx ? `<button type="button" class="stchip" data-overday="${today()}"><span>${wmo(wx.c)[1]}</span>${wx.hi}°${wx.p != null && wx.p >= 30 ? ` · ${wx.p}% regen` : ` · ${esc(wmo(wx.c)[2]).toLowerCase()}`}</button>` : ''}${aff ? `<button type="button" class="stchip aff" data-affsheet>${pin?.img ? `<img src="${esc(pin.img)}" referrerpolicy="no-referrer" alt="">` : '<span>✨</span>'}<em>${esc(aff)}</em></button>` : ''}${window.LIFE?.cycleChip?.() || ''}${window.LIFE?.moneyChip?.() || ''}${intent ? `<span class="stchip"><span>🎯</span><em>${esc(intent)}</em></span>` : ''}${window.LIFE?.cardChips?.() || ''}</div>`,
+    greet: () => `<div class="sthead ${G.part}"><div><h1>${esc(G.hello)}<span class="gicon" aria-hidden="true">${GREET_ICON[G.part] || GREET_ICON.morning}</span></h1><p class="greetline">${esc(G.line)}</p><span class="sub">${t.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })}</span>${st?.cheer ? `<p class="stcheer">✨ ${esc(st.cheer)}</p>` : ''}</div>${st ? `<span class="ring string ${st.cheer ? 'pop' : ''}" style="--p:${st.pct}%" title="${st.done} van ${st.total} klaar"><b>${st.pct}%</b></span>` : ''}</div>`,
+    chips: () => `<div class="stchips">${wx ? `<button type="button" class="stchip" data-overday="${today()}"><span>${wmo(wx.c)[1]}</span>${wx.hi}°${wx.p != null && wx.p >= 30 ? ` · ${wx.p}% regen` : ` · ${esc(wmo(wx.c)[2]).toLowerCase()}`}</button>` : ''}${aff && !(pin?.img && window.LIFE?.visionStrip?.()) ? `<button type="button" class="stchip aff" data-affsheet>${pin?.img ? `<img src="${esc(pin.img)}" referrerpolicy="no-referrer" alt="">` : '<span>✨</span>'}<em>${esc(aff)}</em></button>` : ''}${window.LIFE?.cycleChip?.() || ''}${window.LIFE?.moneyChip?.() || ''}${intent ? `<span class="stchip"><span>🎯</span><em>${esc(intent)}</em></span>` : ''}${window.LIFE?.cardChips?.() || ''}</div>`,
     day: () => window.LIFE?.dayStory?.() || window.LIFE?.todayTop?.() || '',
     affbig: () => affirmBlock() + (window.LIFE?.pinAffirm?.() || ''),
     wx: () => wxStrip(),
     find: () => `<button class="findbar" data-find>${I.search}<span>Search recipes, notes, pages, settings…</span></button>`,
     quick: () => `<div class="quickacts">${QUICK.filter(q => q[2]()).map(([k, l]) => `<button class="chip" data-quick="${k}">${esc(l)}</button>`).join('')}</div>`
   };
-  host.innerHTML = `<div class="story">${devVis('day') ? window.LIFE?.dayNow?.() || '' : ''}${devOrder().filter(devVis).map(k => { try { const h = BLK[k]?.() || ''; return h ? `<div class="sblk" data-blk="${k}">${h}</div>` : ''; } catch (err) { console.error(err); return ''; } }).join('')}</div>
-    <div class="ltools dashfoot"><button class="btn small" data-devtoday>📱 Vandaag op deze ${esc(deviceName())}</button><button class="btn small" data-wigstart>✋ Ordenen</button>${window.LIFE ? '<button class="chip link" data-act="export">Back up all your lists</button>' : ''}</div>`;
+  host.innerHTML = `<div class="story">${window.LIFE?.visionStrip?.() || ''}${devVis('day') ? window.LIFE?.dayNow?.() || '' : ''}${devOrder().filter(devVis).map(k => { try { const h = BLK[k]?.() || ''; return h ? `<div class="sblk" data-blk="${k}">${h}</div>` : ''; } catch (err) { console.error(err); return ''; } }).join('')}</div>
+    <div class="ltools dashfoot"><button class="btn small" data-devtoday>📱 Vandaag op deze ${esc(deviceName())}</button><button class="btn small" data-wigstart>✋ Arrange</button>${window.LIFE ? '<button class="chip link" data-act="export">Back up all your lists</button>' : ''}</div>`;
   if (!host.dataset.wired) {
     host.dataset.wired = '1';
     host.addEventListener('click', e => {
@@ -3127,7 +3135,7 @@ function statsSort(host) {
 }
 function renderStats(host) {
   const tab = S.statsTab = S.statsTab || pref.get('statsTab', 'overview');
-  host.innerHTML = `<div class="viewhead"><h1>Analyse</h1><span class="sub">Wat je kast echt kost en hoe je hem gebruikt</span></div>
+  host.innerHTML = `<div class="viewhead"><h1>Analysis</h1><span class="sub">What your wardrobe really costs, and how you use it</span></div>
     <div class="seg statseg" role="group" aria-label="Stats section">${STATS_TABS.map(([k, l]) => `<button data-stab="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>
     <div id="statsBody"></div>`;
   host.onclick = e => {
