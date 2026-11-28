@@ -1896,7 +1896,7 @@ details.room { border-top: 1px solid var(--line); padding: 10px 0; } details.roo
 .rvfacts { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; margin: -34px 18px 0; position: relative; }
 .rvfacts > div { background: var(--surface); border-radius: 14px; padding: 10px 6px; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,.08); }
 .rvfacts b { display: block; font-size: 16px; } .rvfacts small { color: var(--muted); font-size: 11px; }
-.rvtitle, .rvsub, .rvtags, .rvlist, .rvnotes, .rview > .btn { margin-left: 18px; margin-right: 18px; }
+.rvtitle, .rvsub, .rvtags, .rvlist, .rvnotes, .rview > .btn, .rview > .pstory, .rview > .dlcard { margin-left: 18px; margin-right: 18px; }
 .rvtitle { font-size: 22px; margin-top: 6px; margin-bottom: 0; } .rvsub { color: var(--muted); margin-top: 0; margin-bottom: 0; }
 .rvlist { display: grid; gap: 0; margin-top: 4px; margin-bottom: 0; } .rvlist > div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); }
 .rvlist dt { color: var(--muted); font-size: 13.5px; } .rvlist dd { margin: 0; text-align: right; font-weight: 600; font-size: 13.5px; }
@@ -1953,3 +1953,46 @@ details.lmore > .form, .sheet .form { box-sizing: border-box; max-width: 100%; }
 .chstep .bx { width: 20px; height: 20px; border-radius: 6px; border: 2px solid var(--line); flex: none; } .chstep.on { opacity: .6; text-decoration: line-through; } .chstep.on .bx { background: #5f9b6b; border-color: #5f9b6b; }
 .kpsplit { align-items: center; margin-top: 8px; }
 .recadd { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+/* meals: the plate that fills up */
+.lplate { text-align: center; margin: 4px 0 2px; }
+.lpdish { position: relative; width: min(190px, 56vw); aspect-ratio: 1; margin: 6px auto; border-radius: 50%;
+  background: radial-gradient(circle, var(--surface) 0 52%, color-mix(in srgb, var(--ink) 7%, var(--surface)) 53% 60%, var(--surface) 61% 100%);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--ink) 14%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent); }
+.lpdish.empty { display: grid; place-items: center; }
+.lpfood { position: absolute; transform: translate(-50%, -50%); font-size: 34px; line-height: 1; animation: lpdrop .35s ease-out; }
+.lphint { font-size: 12px; color: var(--muted); max-width: 60%; }
+.lpnames { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+@keyframes lpdrop { from { transform: translate(-50%, -90%) scale(.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .lpfood { animation: none; } }
+/* Social: post story and collab card */
+.pstory, .dlcard { margin: 12px 0; padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.pshead, .dlhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.pstory .pgood { background: color-mix(in srgb, #2f9e6a 18%, transparent); }
+.pstory .plow { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.psbubbles { display: grid; grid-template-columns: repeat(auto-fit, minmax(52px, 1fr)); gap: 5px; }
+.psbubbles small { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.psbubbles div { display: grid; justify-items: center; padding: 8px 4px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.psbubbles span { font-size: 20px; } .psbubbles b { font-size: 17px; } .psbubbles small { color: var(--muted); font-size: 11px; }
+.psgrow { margin: 8px 0 0; font-size: 13px; }
+.psverdict { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.psverdict small { width: 100%; color: var(--muted); }
+.psverdict .chip[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+.dlfee { display: grid; margin-bottom: 10px; } .dlfee b { font-size: 26px; font-family: var(--display); } .dlfee small { color: var(--muted); }
+.dlline { display: flex; list-style: none; margin: 0 0 12px; padding: 0; position: relative; }
+.dlline::before { content: ''; position: absolute; left: 12%; right: 12%; top: 16px; height: 2px; background: var(--line); }
+.dlline li { flex: 1; display: grid; justify-items: center; text-align: center; position: relative; font-size: 12px; }
+.dlline li span { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: var(--bg); border: 2px solid var(--line); }
+.dlline li.on span { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg)); }
+.dlline small { color: var(--muted); }
+.dllist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.dllist .chip { width: 100%; justify-content: flex-start; text-align: left; white-space: normal; }
+.dllist .chip[aria-pressed="true"] { text-decoration: line-through; opacity: .65; }
+/* Calendar: day strip and usual plans */
+.calq { margin-bottom: 10px; min-width: 0; }
+.calstrip { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.calstrip .chip { flex: 0 0 auto; display: grid; justify-items: center; min-width: 46px; padding: 6px 4px; line-height: 1.1; }
+.calstrip .chip small { font-size: 10px; color: var(--muted); } .calstrip .chip b { font-size: 16px; }
+.calstrip .chip[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+.calstrip .chip[aria-pressed="true"] small { color: #fff; }
+.caltpls { margin-top: 8px; display: grid; gap: 4px; }
+.dllist .chip[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--ink); border-color: transparent; }
