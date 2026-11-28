@@ -1876,3 +1876,15 @@ details.room { border-top: 1px solid var(--line); padding: 10px 0; } details.roo
 .cfolded > .cfx { display: none !important; }
 .cftyping > .cfx { display: inline-flex !important; } .cftyping > .cfmore { display: none; }
 .chip.cfmore { background: none; border-style: dashed; color: var(--accent); font-weight: 700; }
+/* lists: one search and one tools button; emoji colour fields instead of letters */
+.tools.ltools2 { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tools.ltools2 > .search { flex: 1 1 200px; min-width: 0; }
+.tools.ltools2 .lgear { flex: none; } .tools.ltools2 .lgear[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.lmoretools { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 10px; }
+.lmoretools[hidden] { display: none; }
+.lemo { position: absolute; inset: 0; display: grid; place-items: center; font-size: 40px; }
+.lph, .stage { position: relative; }
+.lph img, .stage img { position: relative; z-index: 1; }
+.lthumb.lticon { display: grid; place-items: center; font-size: 22px; border: 0; }
+.lcard .lph span.lemo, .lcard.prod .stage .lemo { font-family: inherit; font-size: 40px; color: inherit; opacity: 1; }
+.lcard .lph > span.lemo, .lcard.prod .stage > span.lemo { position: absolute; inset: 0; width: auto; height: auto; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1; font-size: 44px; }
