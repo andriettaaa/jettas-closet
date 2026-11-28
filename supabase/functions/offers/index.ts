@@ -826,7 +826,10 @@ Deno.serve(async req => {
     if (body.action === 'filllist') {
       const { data, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).eq('data->>needsFill', 'true').limit(200);
       if (error) throw error;
-      return json({ items: (data || []).map((r: any) => ({ id: r.id, kind: r.kind, data: r.data })) });
+      // closet pieces made from a purchase live in the items table: kind closet (fields name, brand, cat, colors, photo, url)
+      const { data: cl, error: ec } = await sb.from('items').select('id,data').eq('user_id', uid).eq('data->>needsFill', 'true').limit(100);
+      if (ec) throw ec;
+      return json({ items: [...(data || []).map((r: any) => ({ id: r.id, kind: r.kind, data: r.data })), ...(cl || []).map((r: any) => ({ id: r.id, kind: 'closet', data: r.data }))] });
     }
     // the fill-in page: every record of the kinds asked for, and saving what the user typed there
     //   { "token": "...", "action": "scanlist", "kinds": ["beauty", "recipes", ...] } → {items: [{id, kind, data}]}
@@ -893,8 +896,10 @@ Deno.serve(async req => {
       const items = (Array.isArray(body.items) ? body.items : []).slice(0, 100); let saved = 0;
       for (const it of items) {
         const id = str(it?.id, 60); if (!id) continue;
-        const { data: row, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).eq('id', id).maybeSingle();
-        if (error) throw error; if (!row) continue;
+        const { data: rec, error } = await sb.from('records').select('id,kind,data').eq('user_id', uid).eq('id', id).maybeSingle();
+        if (error) throw error;
+        let row: any = rec, closet = false;
+        if (!row) { const { data: it2, error: e1 } = await sb.from('items').select('id,data').eq('user_id', uid).eq('id', id).maybeSingle(); if (e1) throw e1; if (!it2) continue; row = { id, kind: 'closet', data: it2.data }; closet = true; }
         const d = { ...row.data }, f = it.fields && typeof it.fields === 'object' ? it.fields : {};
         const empty = (v: any) => v == null || v === '' || (Array.isArray(v) && !v.length);
         for (const [k, v] of Object.entries(f)) {
@@ -902,7 +907,8 @@ Deno.serve(async req => {
           d[k] = k === 'photo' && typeof v === 'string' && /^https?:/.test(v) ? await keepPhoto(uid, v) : v;
         }
         if (it.done !== false) { delete d.needsFill; d.filledAt = new Date().toISOString().slice(0, 10); }
-        const { error: e2 } = await sb.from('records').upsert({ user_id: uid, id, kind: row.kind, data: d, updated_at: new Date().toISOString() });
+        const { error: e2 } = closet ? await sb.from('items').upsert({ user_id: uid, id, data: { ...d, updated: Date.now() }, updated_at: new Date().toISOString() })
+          : await sb.from('records').upsert({ user_id: uid, id, kind: row.kind, data: d, updated_at: new Date().toISOString() });
         if (e2) throw e2; saved++;
       }
       return json({ ok: true, saved });

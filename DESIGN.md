@@ -135,3 +135,22 @@ Forms fit on one screen, are visual (emoji, tiles, photos, swatches) and keep ex
 - **Lists**: one search bar and one ⚙︎ button (sort, group, view and select live behind it), then one row of filter chips, so the list starts right away. An item without a photo gets a colour field with a fitting emoji, never a big letter. A smart card on top (cook now with what you have, your week of workouts, what runs low). Rows with an icon tile and a small score ring, or cards with a colour photo and the score on it.
 - **Opening an item**: a full page: big photo or colour field, three tiles with the key numbers, title and tags, tabs (for a recipe: ingredients, steps, reviews), one big action button with small extra buttons.
 - **Settings**: an icon per row in a soft colour, switches for on/off, a search field on top.
+
+## Today blocks, phase and money cards, budget coach (Nov 2026)
+- Day-part blocks on Today: big, two in a row on a phone (more on wide screens).
+- Cycle phase and safe-to-spend: colour cards with a tip (phase colour per phase; money card with a bar to payday). Both open their page.
+- Finance, budget coach on Your plan: a suggestion per category (Use €X) plus one plan for her pay (fixed, everyday, pots, save) with Apply this plan. Fixed things like subscriptions and repeats count at their exact amount; everything else her 3-month average plus a 10% buffer. Categories that spend in bursts and non-monthly bills become pots to keep apart every month.
+
+## From purchase to product (Nov 2026)
+Think as a personal finance coach and a home organiser: every purchase can become products in her lists, with as little typing as possible.
+1. Where: a sort card on Today, a row on Finance Today, a badge on Finance in the menu, and the purchase form itself. All read the same state, so sorting in one place clears the others (synced through the database).
+2. The shop guesses the list (Albert Heijn = Pantry, Zara = Closet, Kruidvat = Beauty...) and learns from what she picks.
+3. Adding products: her usual products at that shop as chips, items from her shopping list to tick off, one line typed ("2 oat milk, spinach, chicken 500g"), and a receipt photo that the night round reads.
+4. Clothes: quick card (name, type, colour), paste the product link (fills photo, brand, colour, price), or only the name and the night round fills the rest. New pieces are "new, not worn yet".
+5. Price per product: type it, split evenly in one tap, or from the receipt. A bar shows how much of the total has a product.
+6. After buying: stock goes up (pantry, supplements days, beauty backup), dates (best before, opened on, not worn yet), cost per wear and price per use, and a matching wish is marked bought.
+7. Returns for every purchase: a return-by date, a reminder, the refund matched from the bank, and the product taken out of its list.
+8. Overview: in Finance a bar per month by list plus what she buys most, and each list shows what she spent on it this month.
+9. Notifications: right after paying (Apple Pay shortcut), in the evening at 21:00 for today, and on Sunday for the week.
+10. The night round reads receipts (not order mails).
+11. Lists: Pantry, Closet, Beauty, Supplements, Home, Kitchen gear, Nails, Train gear, Moving list, Gifts.

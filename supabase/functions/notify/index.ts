@@ -180,6 +180,7 @@ function reminders(recs: Rec[], prefs: any, today: string) {
     const d = Math.round((fromISO(today).getTime() - fromISO(i.whereSince).getTime()) / 864e5);
     if (d > 0 && d % 14 === 0) { ids.push(i.id); page = 'closet'; } if (d > 0 && d % 14 === 0) lines.push(i.where === 'Uitgeleend' ? `${i.name || 'A piece'} is lent out${i.loanTo ? ' to ' + i.loanTo : ''} for ${d / 7} weeks` : `${i.name || 'A piece'} has been "${i.where}" for ${d / 7} weeks`);
   }
+  for (const o of recs.filter(r => r.kind === 'ftx' && r.returnBy === addDays(today, 2) && !r.returned && !r.kept)) { lines.push(`Last 2 days to return what you bought at ${String(o.name || 'a shop').split(/\s+/).slice(0, 2).join(' ')}`); ids.push(o.id); page = 'money/today'; }
   for (const o of recs.filter(r => r.kind === 'orders' && r.status === 'Delivered' && r.returnBy === addDays(today, 2))) { lines.push(`Last 2 days to return ${o.name}${o.shop ? ' (' + o.shop + ')' : ''}`); ids.push(o.id); page = 'wish/orders'; }
   for (const o of recs.filter(r => r.kind === 'orders' && ['Ordered', 'Shipped'].includes(r.status || 'Ordered') && r.expected === today)) { lines.push(`${o.name} should arrive today`); ids.push(o.id); page = 'wish/orders'; }
   for (const i of recs.filter(r => r.kind === 'insurance' && r.status !== 'Stopped' && r.renews === addDays(today, 30))) { lines.push(`${i.name} renews in a month: check if you want to keep it`); ids.push(i.id); page = 'money/insurance'; }
@@ -428,6 +429,17 @@ async function runUser(uid: string, prefs: any, force = false, only: string[] | 
     if ([10, 12, 14, 16, 18, 20].includes(h) && now.mins % 60 < 30) {
       const m = drinkNudge(await loadAll(uid), prefs, now.day, h);
       if (m && (force || await claim(uid, 'drink' + h, now.day))) await send(uid, m);
+    }
+  }
+  // purchases to sort: at 21:00 the ones from today, on Sunday at 18:00 the whole week (still without products)
+  if (!only && prefs?.sortNudge !== false) {
+    const h = Math.floor(now.mins / 60), sun = now.wd === 'sun' && h === 18, eve = h === 21;
+    if ((sun || eve) && now.mins % 60 < 30) {
+      const recs = await loadAll(uid), from = sun ? addDays(now.day, -6) : now.day;
+      const l = recs.filter(r => r.kind === 'ftx' && !r.sorted && !r.bill && !r.transfer && !r.debt && (num(r.amount) || 0) > 0 && r.date >= from && r.date <= now.day && (!(r.items || []).length || r.items.some((e: any) => !e.id)));
+      const k = sun ? 'sort:week' : 'sort:day';
+      if (l.length && (force || await claim(uid, k, now.day)))
+        await send(uid, { title: '🛍 What did you buy?', body: `${l.length} ${l.length === 1 ? 'purchase' : 'purchases'} ${sun ? 'this week' : 'today'} to sort: ${[...new Set(l.map(r => String(r.name || '').split(/\s+/).slice(0, 2).join(' ')))].slice(0, 3).join(', ')}`, url: './#money/today', tag: 'sort' });
     }
   }
   // cuticle oil twice a day: at 11:00 and 22:00 a nudge when the tick on Today is still open

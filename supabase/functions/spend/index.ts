@@ -89,7 +89,7 @@ Deno.serve(async req => {
         break;
       }
     }
-    if (cfg.applepay?.on !== false) await send(uid, { title: `${eur(amount)} at ${merchant}`, body: [category ? left : 'Saved. Tap to pick a category; next time it goes there by itself.', warn].filter(Boolean).join('\n'), url: `./#money/spending?open=${id}`, tag: 'spend-' + id });
+    if (cfg.applepay?.on !== false) await send(uid, { title: `${eur(amount)} at ${merchant}`, body: [category ? left : 'Saved. Tap to pick a category; next time it goes there by itself.', warn, cfg.sortNudge !== false ? '🛍 Tap to say what you bought.' : ''].filter(Boolean).join('\n'), url: `./#money/spending?open=${id}`, tag: 'spend-' + id });
     else if (warn) await send(uid, { title: 'Budget', body: [warn, left].join('\n'), url: `./#money/spending?open=${id}`, tag: 'budget' });
     return json({ ok: true, id, category: cat?.name || null });
   } catch (e) { console.error(e); return json({ error: String(e) }, 500); }
