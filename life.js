@@ -658,10 +658,10 @@ const KINDS = {
   },
   sleep: {
     one: 'night', many: 'Sleep',
-    fields: [F('date', 'Morning of', 'date', { half: 1 }), F('hours', 'Hours slept', 'num', { half: 1 }),
+    fields: [F('date', 'Morning of', 'date'), F('bed', 'Went to bed', 'time', { half: 1 }), F('up', 'Woke up', 'time', { half: 1 }),
+      F('hours', 'Hours slept (worked out from your times)', 'num'),
       F('quality', 'Sleep quality', 'select', { options: ['Excellent', 'Good', 'Fair', 'Poor'] }),
-      F('wake', 'Mood on waking', 'select', { options: ['Energized', 'Okay', 'Tired', 'Groggy'] }),
-      F('bed', 'Went to bed', 'time', { half: 1 }), F('up', 'Got up', 'time', { half: 1 }), F('rested', 'How rested', 'emo', { scale: EMO.rested }),
+      F('wake', 'Mood on waking', 'select', { options: ['Energized', 'Okay', 'Tired', 'Groggy'] }), F('rested', 'How rested', 'emo', { scale: EMO.rested }),
       F('asleep', 'Falling asleep', 'select', { options: ['Fast', 'Normal', 'Slow'], half: 1 }), F('wakeups', 'Woke up (times)', 'num', { half: 1 }),
       F('factors', 'What played a part', 'multi', { options: ['Alcohol', 'Caffeine', 'Exercise', 'Late meal', 'Medication', 'Screen time', 'Phone in bed', 'Stress', 'Joint', 'Nap', 'Evening routine done'] }),
       F('nightmare', 'Nightmare', 'check', { half: 1 }), F('dreams', 'Dreams', 'long')],
@@ -5929,9 +5929,12 @@ function openEditor(kind, id, preset = {}) {
     img.src = v;
   };
   const pickRel = (k, rid) => { const f = fdef(k); D[k] = f.multi ? [...new Set([...[].concat(D[k] || []), rid])] : rid; redraw(k); };
+  if (kind === 'sleep') sh.addEventListener('change', e => { const k = e.target.dataset?.k; if (!['bed', 'up'].includes(k)) return; D[k] = e.target.value; if (D.bed && D.up) { const h = sleepHours({ bed: D.bed, up: D.up }); if (h != null) { D.hours = h; const hi = sh.querySelector('[data-k="hours"]'); if (hi) hi.value = String(h).replace('.', ','); } } });
   sh.addEventListener('input', e => {
     const t = e.target;
     if (t.dataset.k) { D[t.dataset.k] = t.dataset.num !== undefined ? numIn(t.value) : t.value; if (t.dataset.photourl !== undefined) { delete D._blobs[t.dataset.k]; photoPreview(t); } }
+    // sleep: the hours follow from the time you went to bed and woke up
+    if (kind === 'sleep' && ['bed', 'up'].includes(t.dataset.k) && D.bed && D.up) { const h = sleepHours({ bed: D.bed, up: D.up }); if (h != null) { D.hours = h; const hi = sh.querySelector('[data-k="hours"]'); if (hi) hi.value = String(h).replace('.', ','); } }
     if (t.dataset.relq) relOpts(t.dataset.relq, t.value);
     if (t.dataset.buyq !== undefined) { D._buyq = t.value; const box = sh.querySelector('[data-buyres]'); if (box) box.innerHTML = buysResults(D); }
     if (t.dataset.buyp !== undefined) { const e2 = D.items?.[+t.dataset.buyp]; if (e2) { const n = num(String(t.value).replace(/\s|€/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.')); n == null ? delete e2.p : (e2.p = n); } }
