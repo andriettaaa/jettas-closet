@@ -553,7 +553,7 @@ const KINDS = {
   },
   meals: {
     one: 'meal', many: 'Meals',
-    fields: [F('date', 'Date', 'date', { half: 1 }), F('slot', 'Meal', 'select', { options: MEALS, half: 1 }),
+    fields: [F('date', 'Date', 'date', { half: 1 }), F('slot', 'Meal', 'select', { options: MEALS, half: 1 }), F('plate', 'Your plate', 'plate'),
       F('recipe', 'Recipe', 'rel', { to: 'recipes' }), F('ing', 'Or from your pantry (an apple, a banana…)', 'rel', { to: 'ingredients', multi: 1 }), F('what', 'Or just write what you eat'), F('away', 'Not eating at home', 'check'), F('leftover', 'Leftovers', 'select', { options: ['None', 'Fridge', 'Freezer'], half: 1 }),
       F('ate', 'Eaten', 'check', { half: 1 }), F('photo', 'Photo of what you ate', 'photo'), F('notes', 'Notes', 'long')],
     title: r => ((r.parts || []).length > 1 ? partsTitle(r.parts) : '') || relName(r.recipe) || relNames(r.ing).join(', ') || r.what || (r.away ? 'Not at home' : '') || r.slot || 'Meal',
@@ -720,7 +720,7 @@ const KINDS = {
       F('caption', 'Caption', 'long'), F('hashtags', 'Hashtags', 'text'),
       F('link', 'Post link', 'url'), F('views', 'Views', 'num', { half: 1 }), F('likes', 'Likes', 'num', { half: 1 }), F('comments', 'Comments', 'num', { half: 1 }), F('shares', 'Shares', 'num', { half: 1 }), F('top', 'Top performer', 'check', { half: 1 }), F('repurpose', 'Repurpose this', 'check', { half: 1 }),
       F('v24', 'Views after 24 hours', 'num', { half: 1 }), F('l24', 'Likes after 24 hours', 'num', { half: 1 }), F('s24', 'Saves after 24 hours', 'num', { half: 1 }),
-      F('v7', 'Views after 7 days', 'num', { half: 1 }), F('l7', 'Likes after 7 days', 'num', { half: 1 }), F('s7', 'Saves after 7 days', 'num', { half: 1 }), F('learned', 'What worked, what didn’t', 'long', { rows: 2 }),
+      F('v7', 'Views after 7 days', 'num', { half: 1 }), F('l7', 'Likes after 7 days', 'num', { half: 1 }), F('s7', 'Saves after 7 days', 'num', { half: 1 }), F('learned', 'What worked, what didn’t', 'long', { rows: 2 }), F('verdict', 'Next time', 'select', { options: ['Do more of this', 'Keep testing', 'Skip this'] }),
       F('photo', 'Cover', 'photo'), F('video', 'Video', 'video'), F('notes', 'Notes', 'long')],
     sorts: [['date', 'Soonest'], ['-date', 'Newest'], ['name', 'A to Z']],
     hide: r => r.stage === 'Posted', hideLabel: 'Show posted',
@@ -1128,10 +1128,10 @@ const KINDS = {
     sub: r => [niceDate(r.date), r.technique, r.minutes ? r.minutes + ' min' : '', nailDays(r) != null ? `lasted ${nailDays(r)} days` : ''].filter(Boolean).join(' · ')
   },
   calnote: {
-    one: 'agenda-item', many: 'Agenda',
-    fields: [F('name', 'Wat'), F('date', 'Datum', 'date', { half: 1 }), F('time', 'Tijd', 'time', { half: 1 }), F('end', 'Tot', 'time', { half: 1 }), F('allday', 'Hele dag', 'check', { half: 1 }),
-      F('where', 'Waar', 'text'), F('emoji', 'Emoji', 'text', { half: 1 }), F('notes', 'Notities', 'long')],
-    sorts: [['date', 'Eerst'], ['-date', 'Laatst']], sub: r => [niceDate(r.date), r.allday ? 'hele dag' : r.time, r.where].filter(Boolean).join(' · ')
+    one: 'plan', many: 'Agenda',
+    fields: [F('name', 'What'), F('date', 'Date', 'date', { half: 1 }), F('time', 'Time', 'time', { half: 1 }), F('end', 'Until', 'time', { half: 1 }), F('allday', 'All day', 'check', { half: 1 }),
+      F('where', 'Where', 'text'), F('emoji', 'Emoji', 'text', { half: 1 }), F('notes', 'Notes', 'long')],
+    sorts: [['date', 'Soonest'], ['-date', 'Latest']], sub: r => [niceDate(r.date), r.allday ? 'all day' : r.time, r.where].filter(Boolean).join(' · ')
   },
   nbits: {
     one: 'bit', many: 'Drill bits', facet: 'shape', photo: 'photo', display: 'cards',
@@ -5840,6 +5840,7 @@ function fieldInner(kind, f, D) {
     case 'date': return lab + `<input id="${id}" type="date" data-k="${f.k}" value="${esc(v || '')}">`;
     case 'time': return lab + `<input id="${id}" type="time" data-k="${f.k}" value="${esc(v || '')}">`;
     case 'sleepclock': return span + sleepClockHTML(D);
+    case 'plate': return span + plateHTML(D);
     case 'url': return lab + `<div class="lurl"><input id="${id}" type="url" inputmode="url" data-k="${f.k}" value="${esc(v || '')}" placeholder="https://">${v ? `<a class="iconbtn" href="${esc(v)}" target="_blank" rel="noopener" aria-label="Open link">${svg(P.link)}</a>` : ''}</div>`;
     case 'check': return `<button type="button" class="chip lcheck" data-chk="${f.k}" aria-pressed="${!!v}">${v ? svg(P.check) : ''}${esc(f.label)}</button>`;
     case 'pct': {
@@ -5912,6 +5913,20 @@ document.addEventListener('click', e => {
 /* the sleep clock: a 24-hour dial; the moon is when you went to bed, the sun when you woke up, the hours in the middle */
 const hmMin = t => { const m = String(t || '').match(/^(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : null; };
 const minHm = m => `${String(Math.floor(((m % 1440) + 1440) % 1440 / 60)).padStart(2, '0')}:${String(((m % 60) + 60) % 60).padStart(2, '0')}`;
+/* a meal as a plate that fills up: every food you add lands on it as its own emoji, the gaps show what is missing */
+function plateFoods(D) {
+  const out = [];
+  if (D.recipe) { const n = relName(D.recipe); if (n) out.push([foodEmo(n), n]); }
+  for (const id of [].concat(D.ing || [])) { const n = relName(id); if (n) out.push([foodEmo(n), n]); }
+  for (const w of String(D.what || '').split(/,| and | en |\+/)) { const t = w.trim(); if (t) out.push([foodEmo(t), t]); }
+  return out.slice(0, 8);
+}
+function plateHTML(D) {
+  const fd = plateFoods(D), n = fd.length;
+  const spot = i => { if (n === 1) return 'left:50%;top:50%'; const a = (i / n) * 2 * Math.PI - Math.PI / 2, r = n > 4 ? 30 : 24; return `left:${50 + r * Math.cos(a)}%;top:${50 + r * Math.sin(a)}%`; };
+  return `<div class="lplate" data-plate><div class="lpdish${n ? '' : ' empty'}">${n ? fd.map(([e], i) => `<span class="lpfood" style="${spot(i)}">${e}</span>`).join('') : '<span class="lphint">Add a recipe or food below</span>'}</div>
+    ${n ? `<p class="lpnames">${fd.map(([, t]) => esc(t)).join(' · ')}</p>` : ''}</div>`;
+}
 function sleepClockHTML(D) {
   const b = hmMin(D.bed) ?? 23 * 60, u = hmMin(D.up) ?? 7 * 60, dur = ((u - b) + 1440) % 1440, h = Math.floor(dur / 60), m = dur % 60;
   const ang = t => t / 1440 * 360, a0 = ang(b), a1 = a0 + dur / 1440 * 360, pos = t => { const r = (ang(t) - 90) * Math.PI / 180; return `left:${50 + 42 * Math.cos(r)}%;top:${50 + 42 * Math.sin(r)}%`; };
@@ -5981,10 +5996,10 @@ function openEditor(kind, id, preset = {}) {
   if (!r) for (const f of K.fields) if (f.type === 'date' && D[f.k] === undefined && ['date', 'start'].includes(f.k)) D[f.k] = today();
   const sh = C.sheet({
     title: r ? titleOf(r) : 'New ' + K.one,
-    body: `${r && WISHY[kind] && kind !== 'inventory' ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${r && kind === 'beauty' ? beautyReviews(r) : ''}${r && kind === 'inventory' ? invOptionsPanel(r) : ''}${r && kind === 'fbills' ? billPayPanel(r) : ''}${r && savedOf(r) ? `<p class="lsaved">🏷️ You ${esc(savedText(r))} on this</p>` : ''}${r && kind === 'recipes' ? cookedPanel(r) : ''}${kind === 'stips' ? '<div data-tipsteps></div>' : ''}${kind === 'posts' ? '<div data-postkit></div><div data-posttips></div>' : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}${(() => { const fh = f => `<div class="field ${f.half && f.type !== 'rating' ? '' : 'full'}" data-f="${f.k}" ${f.when && !f.when(D) ? 'hidden' : ''}>${fieldInner(kind, f, D)}</div>`;
+    body: `${kind === 'calnote' && !r ? calQuick(D) : ''}${r && WISHY[kind] && kind !== 'inventory' ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${r && kind === 'beauty' ? beautyReviews(r) : ''}${r && kind === 'inventory' ? invOptionsPanel(r) : ''}${r && kind === 'fbills' ? billPayPanel(r) : ''}${r && savedOf(r) ? `<p class="lsaved">🏷️ You ${esc(savedText(r))} on this</p>` : ''}${r && kind === 'recipes' ? cookedPanel(r) : ''}${kind === 'stips' ? '<div data-tipsteps></div>' : ''}${kind === 'posts' ? '<div data-postkit></div><div data-posttips></div>' : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}${(() => { const fh = f => `<div class="field ${f.half && f.type !== 'rating' ? '' : 'full'}" data-f="${f.k}" ${f.when && !f.when(D) ? 'hidden' : ''}>${fieldInner(kind, f, D)}</div>`;
       // the form fits on one screen: the first fields and everything you filled in, the rest folded under More
       const has = f => { const v = D[f.k]; return v != null && v !== '' && !(Array.isArray(v) && !v.length) && v !== false; };
-      const main = [], more = []; K.fields.forEach((f, i) => (i < 6 || has(f) || ['photo', 'sleepclock', 'ilines', 'steplist'].includes(f.type) ? main : more).push(f));
+      const main = [], more = []; K.fields.forEach((f, i) => (i < 6 || has(f) || ['photo', 'sleepclock', 'plate', 'ilines', 'steplist'].includes(f.type) ? main : more).push(f));
       if (more.length < 3) { main.push(...more); more.length = 0; }
       return `<div class="form">${main.map(fh).join('')}</div>${more.length ? `<details class="lmore"><summary><b>➕ More</b><span>${more.map(f => f.label.split(' (')[0]).slice(0, 4).join(', ')}${more.length > 4 ? '…' : ''}</span></summary><div class="form">${more.map(fh).join('')}</div></details>` : ''}`; })()}`,
     foot: `${r ? '<button class="btn danger" data-del>Delete</button>' : ''}<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save</button>`,
@@ -5992,7 +6007,7 @@ function openEditor(kind, id, preset = {}) {
   });
   const fdef = k => K.fields.find(f => f.k === k);
   // fields that only apply to some records (fragrance notes, skincare steps) show and hide as you choose the type
-  const redraw = k => { const el = sh.querySelector(`[data-f="${k}"]`); if (el) { el.innerHTML = fieldInner(kind, fdef(k), D); fillSigned(el); } sh.querySelectorAll('[data-f]').forEach(x => { const f = fdef(x.dataset.f); if (f?.when) x.hidden = !f.when(D); }); };
+  const redraw = k => { if (kind === 'meals' && k !== 'plate') setTimeout(() => { const p = sh.querySelector('[data-plate]'); if (p) p.outerHTML = plateHTML(D); }); const el = sh.querySelector(`[data-f="${k}"]`); if (el) { el.innerHTML = fieldInner(kind, fdef(k), D); fillSigned(el); } sh.querySelectorAll('[data-f]').forEach(x => { const f = fdef(x.dataset.f); if (f?.when) x.hidden = !f.when(D); }); };
   fillSigned(sh);
   const relOpts = (k, q) => {
     const f = fdef(k), box = sh.querySelector(`[data-relopts="${k}"]`), n = norm(q), have = [].concat(D[k] || []);
@@ -6013,6 +6028,11 @@ function openEditor(kind, id, preset = {}) {
     img.onload = () => { const n = box.querySelector('.lphnote'); if (n) n.textContent = 'Shown from the web. Save to keep it.'; };
     img.src = v;
   };
+  if (kind === 'meals') sh.addEventListener('input', e => { if (e.target.dataset?.k === 'what') { D.what = e.target.value; const el = sh.querySelector('[data-plate]'); if (el) el.outerHTML = plateHTML(D); } });
+  if (kind === 'calnote') sh.addEventListener('click', e => {
+    const d = e.target.closest('[data-calday]'); if (d) { D.date = d.dataset.calday; redraw('date'); sh.querySelectorAll('[data-calday]').forEach(b => b.setAttribute('aria-pressed', b === d)); return; }
+    const t = e.target.closest('[data-caltpl]'); if (t) { const x = calTemplates()[+t.dataset.caltpl]; if (!x) return; for (const k of ['name', 'time', 'end', 'where', 'emoji', 'allday']) if (x[k] != null && x[k] !== '') { D[k] = x[k]; redraw(k); } }
+  });
   const pickRel = (k, rid) => { const f = fdef(k); D[k] = f.multi ? [...new Set([...[].concat(D[k] || []), rid])] : rid; redraw(k); };
   if (kind === 'sleep') { let drag = null;
     const setT = (k, t) => { D[k] = minHm(Math.round(t / 5) * 5); const inp = sh.querySelector(`[data-k="${k}"]`); if (inp) inp.value = D[k]; const h = sleepHours({ bed: D.bed || '23:00', up: D.up || '07:00' }); if (h != null) { D.hours = h; const hi = sh.querySelector('[data-k="hours"]'); if (hi) hi.value = String(h).replace('.', ','); } const box = sh.querySelector('[data-sclock]'); if (box) box.parentElement.innerHTML = box.parentElement.querySelector('.lflabel').outerHTML + sleepClockHTML(D); };
@@ -6204,7 +6224,7 @@ function openEditor(kind, id, preset = {}) {
 }
 /* opening an item: a full page first (photo or colour field, three tiles with the key facts, tags, the details),
    then one big action. Editing is one tap away. Kinds with a page of their own (recipes) keep it. */
-const VIEW_SKIP = new Set(['photo', 'name', 'notes', 'url', 'link', 'needsFill', 'fillMiss', 'fillHow']);
+const VIEW_SKIP = new Set(['photo', 'name', 'notes', 'url', 'link', 'deliverables', 'verdict', 'needsFill', 'fillMiss', 'fillHow']);
 function factOf(f, v) {
   if (v == null || v === '' || (Array.isArray(v) && !v.length)) return null;
   if (f.type === 'money') return eur(num(v)); if (f.type === 'date') return niceDate(v); if (f.type === 'rating') return scFmt(sc10(v)) + '/10';
@@ -6230,15 +6250,16 @@ document.addEventListener('click', e => { const b = e.target.closest('[data-chru
 function viewRecord(r) {
   const K = KINDS[r.kind]; if (!K) return openEditor(r.kind, r.id);
   const ph = photoOf(r), q = K.quick?.(r), link = r.url || r.link;
-  const filled = K.fields.filter(f => !VIEW_SKIP.has(f.k) && !['photo', 'pphoto', 'video', 'doc', 'ilines', 'buys', 'steplist'].includes(f.type)).map(f => [f, factOf(f, r[f.k])]).filter(([, v]) => v);
+  const filled = K.fields.filter(f => !VIEW_SKIP.has(f.k) && !['photo', 'pphoto', 'video', 'doc', 'ilines', 'buys', 'steplist', 'plate'].includes(f.type)).map(f => [f, factOf(f, r[f.k])]).filter(([, v]) => v);
   const tiles = filled.filter(([f]) => ['money', 'num', 'date', 'rating', 'pct', 'time'].includes(f.type)).slice(0, 3);
   const tags = filled.filter(([f]) => ['select', 'multi'].includes(f.type)).flatMap(([f]) => [].concat(r[f.k] || [])).slice(0, 8);
   const rest = filled.filter(x => !tiles.includes(x) && !['select', 'multi'].includes(x[0].type));
-  const ring = ringOf(r, 'lg');
+  const ring = ringOf(r, 'lg'), story = r.kind === 'posts' ? postStory(r) : r.kind === 'deals' ? dealCard(r) : '';
   const body = `<div class="rview"><div class="rvhero" ${ph ? '' : `style="background:linear-gradient(160deg,${toneOf(r)})"`}>${ph ? `<img src="${esc(C.photoURL(ph))}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : `<span>${itemEmo(r)}</span>`}${ring ? `<i class="rvring">${ring}</i>` : ''}</div>
     ${tiles.length ? `<div class="rvfacts">${tiles.map(([f, v]) => `<div><b>${esc(v)}</b><small>${esc(f.label)}</small></div>`).join('')}</div>` : ''}
     <h2 class="rvtitle">${esc(titleOf(r))}</h2>${K.sub?.(r) ? `<p class="rvsub">${esc(K.sub(r))}</p>` : ''}
     ${tags.length ? `<div class="lwrap rvtags">${tags.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>` : ''}
+    ${story}
     ${rest.length ? `<dl class="rvlist">${rest.map(([f, v]) => `<div><dt>${esc(f.label)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
     ${r.notes ? `<p class="rvnotes">${esc(r.notes)}</p>` : ''}
     ${link ? `<a class="btn small" href="${esc(link)}" target="_blank" rel="noopener">${svg(P.link)} Open link</a>` : ''}</div>`;
@@ -6246,8 +6267,43 @@ function viewRecord(r) {
     foot: `<button class="btn" data-rvedit>✏️ Edit</button><div class="spacer"></div>${r.kind === 'chores' ? `<button class="btn" data-chrun="${r.id}">⏱ Start</button>` : ''}${q ? `<button class="btn primary" data-rvq>${q.on ? '↺ ' : '✓ '}${esc(q.label)}</button>` : `<button class="btn primary" data-rvedit>Edit</button>`}` });
   sh.addEventListener('click', async e => {
     if (e.target.closest('[data-rvedit]')) { C.closeSheet(); openEditor(r.kind, r.id); }
+    const dv = e.target.closest('[data-dlv]'); if (dv) { const i = +dv.dataset.dlv, done = new Set([].concat(r.delivDone || [])); done.has(i) ? done.delete(i) : done.add(i); try { await save(r, { delivDone: [...done] }); dv.setAttribute('aria-pressed', done.has(i)); dv.closest('.dlcard')?.querySelector('[data-dlcount]')?.replaceChildren(`${done.size}/${dv.closest('ul').children.length}`); } catch (err) { failed(err); } }
+    const vd = e.target.closest('[data-verdict]'); if (vd) { const v = r.verdict === vd.dataset.verdict ? '' : vd.dataset.verdict; try { await save(r, { verdict: v }); sh.querySelectorAll('[data-verdict]').forEach(b => b.setAttribute('aria-pressed', b.dataset.verdict === v)); } catch (err) { failed(err); } }
     if (e.target.closest('[data-rvq]')) { try { await q.act(); C.toast('✓ ' + titleOf(r)); C.closeSheet(); C.render(); } catch (err) { failed(err); } }
   });
+}
+/* Social: a posted post tells its story after a week. The numbers as bubbles, how it grew from day 1 to day 7, and one tap for next time */
+function postStory(r) {
+  if (r.stage !== 'Posted' && !num(r.views) && !num(r.v7)) return '';
+  const views = num(r.v7) || num(r.views), likes = num(r.l7) || num(r.likes), saves = num(r.s7) || num(r.s24);
+  const st = [['👀', views, 'views'], ['❤️', likes, 'likes'], ['🔖', saves, 'saves'], ['💬', num(r.comments), 'replies'], ['↗️', num(r.shares), 'shares']].filter(x => x[1]);
+  const eng = views && (likes || saves) ? Math.round(((likes || 0) + (saves || 0) * 2 + (num(r.comments) || 0) * 2 + (num(r.shares) || 0) * 3) / views * 1000) / 10 : null;
+  const grow = num(r.v24) && num(r.v7) ? Math.round((num(r.v7) / num(r.v24) - 1) * 100) : null;
+  const week = r.date && addDays(r.date, 7) > today() ? `<p class="muted">The full story comes ${relDay(addDays(r.date, 7))}, a week after posting.</p>` : '';
+  return `<div class="pstory"><div class="pshead"><b>📈 How it did</b>${eng != null ? `<span class="chip ${eng >= 6 ? 'pgood' : eng >= 3 ? '' : 'plow'}">${eng}% engagement</span>` : ''}</div>
+    ${st.length ? `<div class="psbubbles">${st.map(([e, v, l]) => `<div><span>${e}</span><b>${kfmt(v)}</b><small>${l}</small></div>`).join('')}</div>` : '<p class="muted">Fill in the numbers after 24 hours and after 7 days to see how it grew.</p>'}
+    ${grow != null ? `<p class="psgrow">${grow >= 0 ? '🚀' : '📉'} Views ${grow >= 0 ? 'grew' : 'dropped'} ${Math.abs(grow)}% from day 1 to day 7</p>` : ''}${week}
+    <div class="psverdict"><small>Next time</small>${[['Do more of this', '🔁'], ['Keep testing', '🧪'], ['Skip this', '🙅‍♀️']].map(([v, e]) => `<button type="button" class="chip" data-verdict="${v}" aria-pressed="${r.verdict === v}">${e} ${v}</button>`).join('')}</div></div>`;
+}
+/* a collab as one card: the money, the deadlines on a line from draft to paid, and the deliverables to tick off */
+function dealCard(r) {
+  const lines = String(r.deliverables || '').split(/\n|;/).map(x => x.replace(/^[-•*\d.)\s]+/, '').trim()).filter(Boolean), done = new Set([].concat(r.delivDone || []));
+  const steps = [['✍️', 'Draft', r.draftBy], ['📲', 'Post', r.postBy || r.due], ['🧾', 'Invoice', r.invoiced ? 'done' : ''], ['💶', 'Paid', r.status === 'Paid' ? 'done' : r.payBy]].filter(x => x[2]);
+  const t = today(), stepOn = d => d === 'done' || (d && d < t);
+  if (!lines.length && !steps.length && !num(r.fee)) return '';
+  return `<div class="dlcard">${steps.length ? `<ol class="dlline">${steps.map(([e, l, d]) => `<li class="${stepOn(d) ? 'on' : ''}"><span>${e}</span><b>${l}</b><small>${d === 'done' ? 'done' : d === t ? 'today' : d < t ? niceDate(d) : relDay(d)}</small></li>`).join('')}</ol>` : ''}
+    ${lines.length ? `<div class="dlhead"><b>📦 Deliverables</b><span class="muted" data-dlcount>${[...done].filter(i => i < lines.length).length}/${lines.length}</span></div><ul class="dllist">${lines.map((x, i) => `<li><button type="button" class="chip lcheck" data-dlv="${i}" aria-pressed="${done.has(i)}">${esc(x)}</button></li>`).join('')}</ul>` : ''}</div>`;
+}
+/* Calendar: a strip of the next two weeks and her usual plans as one-tap templates (from what she put in the agenda before) */
+function calTemplates() {
+  const m = new Map();
+  for (const r of recs('calnote')) { const k = norm(r.name || ''); if (!k) continue; const e = m.get(k); e ? (e.n++, (r.date || '') > (e.r.date || '') && (e.r = r)) : m.set(k, { n: 1, r }); }
+  return [...m.values()].filter(e => e.n > 1).sort((a, b) => b.n - a.n).slice(0, 8).map(e => e.r);
+}
+function calQuick(D) {
+  const t = today(), days = Array.from({ length: 14 }, (_, i) => addDays(t, i)), tp = calTemplates();
+  return `<div class="calq"><div class="calstrip">${days.map(d => `<button type="button" class="chip" data-calday="${d}" aria-pressed="${D.date === d}"><small>${d === t ? 'Today' : dayName(d).slice(0, 3)}</small><b>${+d.slice(8)}</b></button>`).join('')}</div>
+    ${tp.length ? `<div class="caltpls"><small class="muted">Your usual plans</small><div class="lwrap">${tp.map((x, i) => `<button type="button" class="chip" data-caltpl="${i}">${esc(x.emoji || '📌')} ${esc(x.name)}${x.time ? ` <span class="muted">${esc(x.time)}</span>` : ''}</button>`).join('')}</div></div>` : ''}</div>`;
 }
 // kinds that open straight in the editor (forms more than things to look at)
 const EDIT_FIRST = new Set(['ftx', 'fincome', 'nlog', 'checkin', 'journal', 'suplog', 'drinklog', 'cyclelog', 'skinlog', 'nsteps', 'fset', 'calnote', 'sleep', 'meals']);
@@ -8672,7 +8728,14 @@ document.addEventListener('click', e => {
 const FOOD_EMO = [[/appel/, '🍎'], [/banaan/, '🍌'], [/mandarijn|sinaas|clementine/, '🍊'], [/peer/, '🍐'], [/druif/, '🍇'], [/aardbei/, '🍓'], [/bes|blauwe/, '🫐'], [/kiwi/, '🥝'], [/mango/, '🥭'], [/ananas/, '🍍'], [/meloen/, '🍈'], [/cracker|beschuit|rijstwafel/, '🍘'], [/\bkers/, '🍒'],
   [/kaas/, '🧀'], [/ei(eren)?\b|eitje/, '🥚'], [/yoghurt|kwark|skyr/, '🥣'], [/brood|bol|pistolet|croissant/, '🍞'], [/cracker|beschuit|rijstwafel/, '🍘'], [/komkommer/, '🥒'], [/tomaat/, '🍅'], [/wortel/, '🥕'], [/paprika/, '🫑'],
   [/noot|noten|amandel|cashew|pinda/, '🥜'], [/popcorn/, '🍿'], [/chips/, '🥔'], [/chocola/, '🍫'], [/koek|cookie/, '🍪'], [/avocado/, '🥑'], [/rookvlees|kip|ham|vlees/, '🥩'], [/zalm|vis|tonijn|makreel/, '🐟'], [/hummus|dip/, '🫙']];
-const foodEmo = n => FOOD_EMO.find(([re]) => re.test(norm(n)))?.[1] || '🍽';
+// the app speaks English now, so English food words get their emoji too (and a few more dishes)
+const FOOD_EN = [[/\bapples?\b/, '🍎'], [/banana/, '🍌'], [/orange|clementine|tangerine/, '🍊'], [/\bpears?\b/, '🍐'], [/grape/, '🍇'], [/strawberr/, '🍓'], [/blueberr|berries|raspberr/, '🫐'], [/lemon|lime/, '🍋'], [/peach/, '🍑'], [/cherr/, '🍒'], [/coconut/, '🥥'],
+  [/\beggs?\b|omelet/, '🥚'], [/bread|toast|sourdough|bagel|bun\b|roll\b|baguette/, '🍞'], [/croissant/, '🥐'], [/pancake|waffle/, '🥞'], [/cheese/, '🧀'], [/yogh?urt|granola|oat|porridge|cereal|muesli/, '🥣'],
+  [/coffee|latte|cappuccino|espresso/, '☕'], [/\btea\b|matcha/, '🍵'], [/milk/, '🥛'], [/juice|smoothie/, '🧃'], [/wine/, '🍷'], [/water/, '💧'],
+  [/salad|lettuce|spinach|kale/, '🥗'], [/cucumber/, '🥒'], [/tomato/, '🍅'], [/carrot/, '🥕'], [/pepper/, '🫑'], [/broccoli/, '🥦'], [/potato|fries/, '🥔'], [/sweet potato/, '🍠'], [/corn\b/, '🌽'], [/mushroom/, '🍄'], [/onion/, '🧅'], [/garlic/, '🧄'],
+  [/rice|risotto/, '🍚'], [/pasta|spaghetti|noodle|lasagn/, '🍝'], [/pizza/, '🍕'], [/burger/, '🍔'], [/wrap|burrito|taco/, '🌯'], [/sushi/, '🍣'], [/soup/, '🍲'], [/curry/, '🍛'], [/sandwich/, '🥪'],
+  [/chicken/, '🍗'], [/steak|beef|meat|bacon|ham\b/, '🥩'], [/salmon|tuna|fish|shrimp|prawn/, '🐟'], [/tofu|tempeh/, '🧈'], [/nuts?\b|almond|cashew|peanut/, '🥜'], [/chocolate/, '🍫'], [/cookie|biscuit/, '🍪'], [/cake|muffin/, '🧁'], [/ice cream/, '🍦'], [/honey/, '🍯']];
+const foodEmo = n => { const t = norm(n); return FOOD_EN.find(([re]) => re.test(t))?.[1] || FOOD_EMO.find(([re]) => re.test(t))?.[1] || '🍽'; };
 const pantryNow = () => recs('ingredients').filter(r => r.stock !== false && (r.stock || (cntOf(r) ?? 0) > 0) && r.location !== 'Vriezer')
   .sort((a, b) => (FOOD_EMO.some(([re]) => re.test(norm(b.name))) ? 1 : 0) - (FOOD_EMO.some(([re]) => re.test(norm(a.name))) ? 1 : 0) || norm(a.name).localeCompare(norm(b.name)));
 // eating something from the pantry: the meal gets it, and the app asks whether one comes off your stock
