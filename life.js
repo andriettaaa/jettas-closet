@@ -6123,9 +6123,43 @@ function openEditor(kind, id, preset = {}) {
     }
   });
 }
+/* opening an item: a full page first (photo or colour field, three tiles with the key facts, tags, the details),
+   then one big action. Editing is one tap away. Kinds with a page of their own (recipes) keep it. */
+const VIEW_SKIP = new Set(['photo', 'name', 'notes', 'url', 'link', 'needsFill', 'fillMiss', 'fillHow']);
+function factOf(f, v) {
+  if (v == null || v === '' || (Array.isArray(v) && !v.length)) return null;
+  if (f.type === 'money') return eur(num(v)); if (f.type === 'date') return niceDate(v); if (f.type === 'rating') return scFmt(sc10(v)) + '/10';
+  if (f.type === 'num' || f.type === 'pct') return String(v).replace('.', ',') + (f.unit ? ' ' + f.unit : f.type === 'pct' ? '%' : '');
+  if (f.type === 'check') return v ? '✓' : null; if (f.type === 'rel') return relNames(v).join(', ') || null; if (f.type === 'time') return v;
+  return Array.isArray(v) ? v.join(', ') : String(v);
+}
+function viewRecord(r) {
+  const K = KINDS[r.kind]; if (!K) return openEditor(r.kind, r.id);
+  const ph = photoOf(r), q = K.quick?.(r), link = r.url || r.link;
+  const filled = K.fields.filter(f => !VIEW_SKIP.has(f.k) && !['photo', 'pphoto', 'video', 'doc', 'ilines', 'buys', 'steplist'].includes(f.type)).map(f => [f, factOf(f, r[f.k])]).filter(([, v]) => v);
+  const tiles = filled.filter(([f]) => ['money', 'num', 'date', 'rating', 'pct', 'time'].includes(f.type)).slice(0, 3);
+  const tags = filled.filter(([f]) => ['select', 'multi'].includes(f.type)).flatMap(([f]) => [].concat(r[f.k] || [])).slice(0, 8);
+  const rest = filled.filter(x => !tiles.includes(x) && !['select', 'multi'].includes(x[0].type));
+  const ring = ringOf(r, 'lg');
+  const body = `<div class="rview"><div class="rvhero" ${ph ? '' : `style="background:linear-gradient(160deg,${toneOf(r)})"`}>${ph ? `<img src="${esc(C.photoURL(ph))}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : `<span>${itemEmo(r)}</span>`}${ring ? `<i class="rvring">${ring}</i>` : ''}</div>
+    ${tiles.length ? `<div class="rvfacts">${tiles.map(([f, v]) => `<div><b>${esc(v)}</b><small>${esc(f.label)}</small></div>`).join('')}</div>` : ''}
+    <h2 class="rvtitle">${esc(titleOf(r))}</h2>${K.sub?.(r) ? `<p class="rvsub">${esc(K.sub(r))}</p>` : ''}
+    ${tags.length ? `<div class="lwrap rvtags">${tags.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>` : ''}
+    ${rest.length ? `<dl class="rvlist">${rest.map(([f, v]) => `<div><dt>${esc(f.label)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
+    ${r.notes ? `<p class="rvnotes">${esc(r.notes)}</p>` : ''}
+    ${link ? `<a class="btn small" href="${esc(link)}" target="_blank" rel="noopener">${svg(P.link)} Open link</a>` : ''}</div>`;
+  const sh = C.sheet({ title: K.one[0].toUpperCase() + K.one.slice(1), body,
+    foot: `<button class="btn" data-rvedit>✏️ Edit</button><div class="spacer"></div>${q ? `<button class="btn primary" data-rvq>${q.on ? '↺ ' : '✓ '}${esc(q.label)}</button>` : `<button class="btn primary" data-rvedit>Edit</button>`}` });
+  sh.addEventListener('click', async e => {
+    if (e.target.closest('[data-rvedit]')) { C.closeSheet(); openEditor(r.kind, r.id); }
+    if (e.target.closest('[data-rvq]')) { try { await q.act(); C.toast('✓ ' + titleOf(r)); C.closeSheet(); C.render(); } catch (err) { failed(err); } }
+  });
+}
+// kinds that open straight in the editor (forms more than things to look at)
+const EDIT_FIRST = new Set(['ftx', 'fincome', 'nlog', 'checkin', 'journal', 'suplog', 'drinklog', 'cyclelog', 'skinlog', 'nsteps', 'fset', 'calnote', 'sleep', 'meals']);
 function openRecord(id) {
   const r = L.byId[id]; if (!r) return false;
-  if (r.kind === 'recipes') openRecipe(r); else openEditor(r.kind, id);
+  if (r.kind === 'recipes') openRecipe(r); else if (EDIT_FIRST.has(r.kind)) openEditor(r.kind, id); else viewRecord(r);
   return true;
 }
 
