@@ -2401,7 +2401,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v214';
+const APP_VERSION = 'hangtag-v215';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2443,6 +2443,24 @@ const GREET_ICON = {
   evening: GI('<path d="M3 18.5h18M5.5 15.5a6.5 6.5 0 0 1 13 0"/><path d="M12 4.5v3M4.6 8.6l2 2M19.4 8.6l-2 2"/><path d="M8 21.5h8"/>'),
   night: GI('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/><path d="M16.5 3.5v2M15.5 4.5h2M19.5 8v1.5M18.75 8.75h1.5"/>')
 };
+/* long rows of choices fold everywhere: 8 visible (plus what you picked), the rest behind "+ more"; typing shows every match */
+const FOLD_AT = 8;
+function foldChipRows(root) {
+  for (const row of root.querySelectorAll('.lwrap, .togglegroup, .ltsugs, .brandsugs, .chips')) {
+    if (row.dataset.cfold || row.closest('.story, .secbar, nav')) continue;
+    const chips = [...row.children].filter(c => c.matches('button.chip, .chip[data-v], button[data-tsug], button[data-opt], button[data-multi], button[data-relpick]'));
+    if (chips.length <= FOLD_AT + 2) continue;
+    row.dataset.cfold = '1'; let shown = 0;
+    for (const c of chips) { const on = c.getAttribute('aria-pressed') === 'true' || c.classList.contains('on'); if (!on && shown >= FOLD_AT) c.classList.add('cfx'); else shown++; }
+    const n = chips.filter(c => c.classList.contains('cfx')).length; if (!n) continue;
+    row.classList.add('cfolded');
+    const more = document.createElement('button'); more.type = 'button'; more.className = 'chip cfmore'; more.textContent = `＋ ${n} more`;
+    more.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); const open = row.classList.toggle('cfolded'); more.textContent = open ? `＋ ${n} more` : '− less'; });
+    const add = row.querySelector(':scope > input.laddopt'); add ? row.insertBefore(more, add) : row.appendChild(more);
+  }
+}
+let cfT = null; new MutationObserver(ms => { if (ms.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && (n.closest?.('.sheet') || n.querySelector?.('.sheet'))))) { clearTimeout(cfT); cfT = setTimeout(() => document.querySelectorAll('.sheet').forEach(foldChipRows), 0); } }).observe(document.body, { childList: true, subtree: true });
+document.addEventListener('input', e => { const k = e.target.dataset?.sugk; if (!k) return; const box = e.target.closest('.sheet')?.querySelector(`[data-sugs="${k}"]`); if (box) box.classList.toggle('cftyping', !!e.target.value.trim()); });
 function greeting(now = new Date()) {
   const hr = now.getHours(), wd = now.getDay(), name = myName(), day = now.toLocaleDateString('en-GB', { weekday: 'long' });
   const part = hr >= 22 || hr < 5 ? 'night' : hr < 12 ? 'morning' : hr < 17 ? 'afternoon' : 'evening';
