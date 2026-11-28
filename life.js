@@ -1727,23 +1727,23 @@ function mergeChips(host, view) {
 document.addEventListener('click', e => { const b = e.target.closest('[data-mgo]'); if (b && C) C.go(b.dataset.mgo); });
 /* the tidy menu: fewer tabs, the rest one tap away. Per view: a new label, another group or sub-group, a "merge" (views that share
    one tab, with chips on top of the page to switch) or hidden from the menu (the page itself still works). */
-const MERGES = { kov: ['Overzicht', P.grid], fnow: ['Vandaag', P.sun], fwo: ['Workouts', P.run], fprog: ['Voortgang', P.trend], huid: ['Huid', P.flask], kennis: ['Kennis', P.book], klog: ['Logboek', P.pen], kspul: ['Spullen', P.spoon],
-  uit: ['Uitgaven', P.coins], clean: ['Schoonmaak', P.broom], move: ['Verhuizen', P.box], collab: ['Samenwerkingen', P.handshake] };
+const MERGES = { kov: ['Overview', P.grid], fnow: ['Today', P.sun], fwo: ['Workouts', P.run], fprog: ['Progress', P.trend], huid: ['Skin', P.flask], kennis: ['Learn', P.book], klog: ['Log', P.pen], kspul: ['Gear', P.spoon],
+  uit: ['Spending', P.coins], clean: ['Cleaning', P.broom], move: ['Moving', P.box], collab: ['Collabs', P.handshake] };
 const NAV_FIX = {
-  plan: { groups: { wish: ['Verlanglijst', P.heart], stats: ['Analyse', P.trend] }, subs: { mind: { dagboek: ['Dagboek', P.pen], groei: ['Groei', P.target], visie: ['Visie', P.sparkle] }, body: { health: ['Gezondheid', P.heart] } },
+  plan: { groups: { wish: ['Wishlist', P.heart], stats: ['Analysis', P.trend] }, subs: { mind: { dagboek: ['Journal', P.pen], groei: ['Growth', P.target], visie: ['Vision', P.sparkle] }, body: { health: ['Health', P.heart] } },
     hide: ['week', 'weekplan', 'todo', 'plan/mind', 'body/today', 'plan/plans', 'wish/today'], order: ['care/checkin', 'care/journal', 'care/habits', 'care/mindful', 'care/growth', 'care/learn', 'care/discover', 'today', 'care/vision', 'reports', 'plan/mindstats', 'body/stats', 'fit/stats', 'care/skinstats', 'plan/planstats', 'wish/stats'],
-    set: { 'today': ['Mijn jaar', 'mind', 'visie'], 'care/vision': ['Visie', 'mind', 'visie'], 'care/checkin': ['Check-in', 'mind', 'dagboek'], 'care/journal': ['Journal', 'mind', 'dagboek'], 'care/habits': ['Routines', 'mind'], 'care/mindful': ['Rust', 'mind'],
-      'care/growth': ['Groei', 'mind', 'groei'], 'care/learn': ['Leren', 'mind', 'groei'], 'care/discover': ['Zelfkennis', 'mind', 'groei'],
-      'care/sleep': ['Slaap'], 'care/health': ['Klachten'], 'care/cycle': ['Cyclus'], 'care/supplements': ['Supplementen'],
-      'fit/routine': ['Routine', 0, 0, 'fnow'], 'fit/log': ['Logboek', 0, 0, 'fnow'], 'fit/workouts': ['Workouts', 0, 0, 'fwo'], 'fit/library': ["Video's", 0, 0, 'fwo'], 'fit/plans': ['Plannen', 0, 0, 'fwo'], 'fit/exercises': ['Oefeningen'], 'fit/fgoals': ['Doelen', 0, 0, 'fprog'], 'fit/body': ['Lichaam', 0, 0, 'fprog'],
-      'care/skin': ['Routine', 0, 0, 'huid'], 'care/skinmonth': ['Maand', 0, 0, 'huid'], 'care/diary': ['Dagboek', 0, 0, 'huid'], 'care/beauty': ['Producten'], 'care/hair': ['Haar'], 'care/perfume': ['Parfum'],
-      'fit/res': ['Training', 'body', '', 'kennis'], 'care/skinres': ['Huid', 'body', '', 'kennis'],
-      'reports': ['Overzicht', 'stats'], 'plan/mindstats': ['Mind', 'stats', ''], 'body/stats': ['Body', 'stats', ''], 'fit/stats': ['Train', 'stats', ''], 'care/skinstats': ['Huid', 'stats', ''], 'plan/planstats': ['Plans', 'stats', ''], 'wish/stats': ['Verlanglijst', 'stats', ''],
-      'wish/master': ['Verlanglijst'], overview: ['Overzicht'] } },
-  kitchen: { flat: 1, hide: ['todo'], set: { today: ['Overzicht', 0, 0, 'kov'], stats: ['Analyse', 0, 0, 'kov'], recipes: ['Recepten'], meals: ['Menu'], foodlog: ['Eten', 0, 0, 'klog'], drinks: ['Drinken', 0, 0, 'klog'], cooked: ['Gekookt', 0, 0, 'klog'], pantry: ['Voorraad'], groceries: ['Boodschappen'], gear: ['Keukenspullen', 0, 0, 'kspul'], shops: ['Winkels', 0, 0, 'kspul'] } },
-  money: { groups: { plan: ['Doelen en schulden', P.target], look: ['Terugblik', P.trend] }, hide: ['todo'], set: { today: ['Vandaag'], spending: ['Alles', 0, 0, 'uit'], impulse: ['Impulsen', 0, 0, 'uit'], repeats: ['Vaste lasten'], plan: ['Doelen'], debt: ['Schulden'], insurance: ['Verzekeringen'], forecast: ['Vooruitblik'], year: ['Jaar'], networth: ['Vermogen'] } },
-  home: { hide: ['todo'], set: { today: ['Overzicht'], chores: ['Schema', 0, 0, 'clean'], houselog: ['Logboek', 0, 0, 'clean'], inventory: ['Verhuislijst', 0, 0, 'move'], mood: ['Moodboard', 0, 0, 'move'], plants: ['Planten'], repairs: ['Reparaties'] } },
-  social: { groups: { work: ['Werk', P.check], create: ['Maken', P.phone], grow: ['Groei', P.trend], library: ['Bibliotheek', P.book] }, hide: ['todo'], set: { today: ['Overzicht'], ideas: ['Ideeën'], plan: ['Kalender'], collabs: ['Deals', 0, 0, 'collab'], income: ['Inkomsten', 0, 0, 'collab'] } }
+    set: { 'today': ['My year', 'mind', 'visie'], 'care/vision': ['Vision', 'mind', 'visie'], 'care/checkin': ['Check-in', 'mind', 'dagboek'], 'care/journal': ['Journal', 'mind', 'dagboek'], 'care/habits': ['Routines', 'mind'], 'care/mindful': ['Mindfulness', 'mind'],
+      'care/growth': ['Growth', 'mind', 'groei'], 'care/learn': ['Learning', 'mind', 'groei'], 'care/discover': ['Self discovery', 'mind', 'groei'],
+      'care/sleep': ['Sleep'], 'care/health': ['Symptoms'], 'care/cycle': ['Cycle'], 'care/supplements': ['Supplements'],
+      'fit/routine': ['Routine', 0, 0, 'fnow'], 'fit/log': ['Log', 0, 0, 'fnow'], 'fit/workouts': ['Workouts', 0, 0, 'fwo'], 'fit/library': ['Videos', 0, 0, 'fwo'], 'fit/plans': ['Plans', 0, 0, 'fwo'], 'fit/exercises': ['Exercises'], 'fit/fgoals': ['Goals', 0, 0, 'fprog'], 'fit/body': ['Body', 0, 0, 'fprog'],
+      'care/skin': ['Routine', 0, 0, 'huid'], 'care/skinmonth': ['Month', 0, 0, 'huid'], 'care/diary': ['Journal', 0, 0, 'huid'], 'care/beauty': ['Products'], 'care/hair': ['Hair'], 'care/perfume': ['Perfume'],
+      'fit/res': ['Training', 'body', '', 'kennis'], 'care/skinres': ['Skin', 'body', '', 'kennis'],
+      'reports': ['Overview', 'stats'], 'plan/mindstats': ['Mind', 'stats', ''], 'body/stats': ['Body', 'stats', ''], 'fit/stats': ['Train', 'stats', ''], 'care/skinstats': ['Skin', 'stats', ''], 'plan/planstats': ['Plans', 'stats', ''], 'wish/stats': ['Wishlist', 'stats', ''],
+      'wish/master': ['Wishlist'], overview: ['Overview'] } },
+  kitchen: { flat: 1, hide: ['todo'], set: { today: ['Overview', 0, 0, 'kov'], stats: ['Analysis', 0, 0, 'kov'], recipes: ['Recipes'], meals: ['Meal plan'], foodlog: ['Food', 0, 0, 'klog'], drinks: ['Drinks', 0, 0, 'klog'], cooked: ['Cooked', 0, 0, 'klog'], pantry: ['Pantry'], groceries: ['Groceries'], gear: ['Kitchen gear', 0, 0, 'kspul'], shops: ['Shops', 0, 0, 'kspul'] } },
+  money: { groups: { plan: ['Goals and debt', P.target], look: ['Review', P.trend] }, hide: ['todo'], set: { today: ['Today'], spending: ['All', 0, 0, 'uit'], impulse: ['Impulses', 0, 0, 'uit'], repeats: ['Fixed costs'], plan: ['Goals'], debt: ['Debt'], insurance: ['Insurance'], forecast: ['Forecast'], year: ['Year'], networth: ['Net worth'] } },
+  home: { hide: ['todo'], set: { today: ['Overview'], chores: ['Schedule', 0, 0, 'clean'], houselog: ['Log', 0, 0, 'clean'], inventory: ['Moving list', 0, 0, 'move'], mood: ['Moodboard', 0, 0, 'move'], plants: ['Plants'], repairs: ['Repairs'] } },
+  social: { groups: { work: ['Work', P.check], create: ['Create', P.phone], grow: ['Growth', P.trend], library: ['Library', P.book] }, hide: ['todo'], set: { today: ['Overview'], ideas: ['Ideas'], plan: ['Calendar'], collabs: ['Deals', 0, 0, 'collab'], income: ['Income', 0, 0, 'collab'] } }
 };
 for (const sec of SECTIONS) { const f = NAV_FIX[sec.key]; if (!f) continue;
   Object.assign(sec.groups ||= {}, f.groups || {}); for (const [g, o] of Object.entries(f.subs || {})) Object.assign((sec.subs ||= {})[g] ||= {}, o);
@@ -4841,7 +4841,7 @@ function cardsPage(host) {
   const l = cardsSorted(), v = cardsView();
   const card = c => `<button type="button" class="lcard" style="--cc:${esc(cardColor(c))}" data-act="cardopen" data-id="${c.id}">${logoHTML(c)}<span><b>${esc(c.name || 'Kaart')}</b><small>${esc(KINDS.lcards.sub(c))}</small></span></button>`;
   host.innerHTML = `<div class="viewhead"><h1>Klantenkaarten</h1><span class="sub">${l.length ? plural(l.length, 'kaart', 'kaarten') : 'Je kaarten op één plek'}</span></div>
-    <div class="cardtools"><div class="seg" role="group" aria-label="Weergave">${[['stack', 'Stapel'], ['tiles', 'Tegels']].map(([k, t]) => `<button data-act="cardsview" data-v="${k}" aria-pressed="${v === k}">${t}</button>`).join('')}</div><span class="spacer"></span><button class="btn primary" data-act="cardnew">+ Kaart</button></div>
+    <div class="cardtools"><div class="seg" role="group" aria-label="Weergave">${[['stack', 'Stack'], ['tiles', 'Tiles']].map(([k, t]) => `<button data-act="cardsview" data-v="${k}" aria-pressed="${v === k}">${t}</button>`).join('')}</div><span class="spacer"></span><button class="btn primary" data-act="cardnew">+ Kaart</button></div>
     ${l.length ? `<div class="lcards ${v}">${l.map(card).join('')}</div>` : `<div class="emptyx"><p class="ebig">💳</p><p><b>Nog geen kaarten.</b> Scan de streepjescode van een klantenkaart of typ het nummer, dan heb je hem altijd bij je.</p><button class="btn primary" data-act="cardnew">+ Kaart toevoegen</button><p class="dsub">Of begin met</p><div class="lwrap">${CARD_EXAMPLES.map(([n, w]) => `<button class="chip" data-act="cardex" data-v="${esc(n)}" data-w="${esc(w)}">${esc(n)}</button>`).join('')}</div></div>`}`;
 }
 async function cardShow(id) {
@@ -4985,7 +4985,7 @@ function cycleTop() {
   return `<div class="tiles lt3"><div class="tile"><div class="k">Cycle day</div><div class="v">${cy.day}</div><div class="h">${cy.open ? 'on your period' : 'since ' + shortDate(cy.last)}</div></div>
     <div class="tile"><div class="k">Average cycle</div><div class="v">${cy.avg}</div><div class="h">${cy.guessed ? 'days, a guess for now' : 'days, from your last periods'}</div></div>
     <div class="tile"><div class="k">Next period</div><div class="v">${shortDate(cy.next)}</div><div class="h">${relDay(cy.next)}</div></div></div>
-    <div class="lbar">${cy.open ? `<button class="btn small" data-act="periodend" data-id="${cy.open.id}">Period ended today</button>` : '<button class="btn small" data-act="periodstart">Period started today</button>'}</div>`;
+    <div class="cybar">${cy.open ? `<button class="btn small" data-act="periodend" data-id="${cy.open.id}">Period ended today</button>` : '<button class="btn small" data-act="periodstart">Period started today</button>'}</div>`;
 }
 
 /* ---------- home ---------- */
@@ -8344,7 +8344,7 @@ document.addEventListener('toggle', e => { if (e.target.matches?.('[data-tlopen]
    Morning runs from your alarm to 12:00, midday to 18:00, evening to your bedtime (Life › Settings). A tap opens the
    choices: done, something else, skipped or later (another time today, tomorrow or a day you pick). Skips and moved
    times live in prefs.dayplan, per day; things with their own date (a task, a workout) move to that date. */
-const DP_PARTS = [['morning', '☀️', 'Ochtend'], ['midday', '🌤', 'Middag'], ['evening', '🌙', 'Avond']];
+const DP_PARTS = [['morning', '☀️', 'Morning'], ['midday', '🌤', 'Afternoon'], ['evening', '🌙', 'Evening']];
 const dpState = d => (C?.prefs?.().dayplan || {})[d] || {};
 async function dpSave(d, patch) {
   const all = { ...(C.prefs().dayplan || {}) }, keep = addDays(today(), -3);
@@ -8458,7 +8458,7 @@ function dayPlanHTML(head = true, mode = '') {
   if (mode === 'now') return `<section class="dpnowtop">${nu ? hero(nu) : supNow && !supNow.done ? hero(supNow) : ''}${bar}</section>`;
   return `<section class="panel dplan2" data-dpwrap>
     ${head ? '' : '<!--'}<div class="dphead"><span class="ring ${cheer ? 'pop' : ''}" style="--p:${pct}%"><b>${pct}%</b></span><div><b>${done.length} van ${items.length} klaar</b><small>${cheer ? '✨ ' + esc(cheer) : `Nog ${curOpen.length + (supNow && !supNow.done ? 1 : 0)} deze ${name}`}</small></div>${cs.start ? '<button class="btn small" data-act="crave">Ik heb trek</button>' : ''}</div>${head ? '' : '-->'}
-    <div class="dptabs" role="tablist">${[...DP_PARTS, ['ov', '📋', 'Overzicht']].map(([k, ic, l]) => `<button type="button" role="tab" data-dptab="${k}" aria-selected="${k === tab}"><span class="dpti">${ic}</span> ${l}</button>`).join('')}</div>
+    <div class="dptabs" role="tablist">${[...DP_PARTS, ['ov', '📋', 'All']].map(([k, ic, l]) => `<button type="button" role="tab" data-dptab="${k}" aria-selected="${k === tab}"><span class="dpti">${ic}</span> ${l}</button>`).join('')}</div>
     ${DP_PARTS.map(pane).join('')}
     <div class="dppane" data-dppane="ov" ${tab === 'ov' ? '' : 'hidden'}>${todoHub()}${calStrip()}</div>
   </section>`;
@@ -8971,7 +8971,7 @@ function calPageInner(host) {
     body = `<div class="calagenda">${days.map(d => `<div class="calag ${cyc(d)}" data-calday="${d}"><div class="caldh"><button class="caldn" data-act="calgo" data-v="${d}">${esc(calDayLabel(d))}${d === t ? ' · vandaag' : ''}</button>${cyMark(d, cm[d])}${addBtn(d)}</div>${byDay[d].map(e => calItem(e, 'wide')).join('')}</div>`).join('') || quiet('Niets gepland in de komende 30 dagen.')}</div>`;
   }
   host.innerHTML = `<div class="viewhead"><h1>Calendar</h1><span class="sub">${esc(title)}</span></div>
-  <div class="caltools"><div class="seg" role="group" aria-label="Weergave">${[['month', 'Maand'], ['week', 'Week'], ['3day', '3 dagen'], ['day', 'Dag'], ['agenda', 'Agenda']].map(([k, l]) => `<button data-act="calview" data-v="${k}" aria-pressed="${c.view === k}">${l}</button>`).join('')}</div>
+  <div class="caltools"><div class="seg" role="group" aria-label="Weergave">${[['month', 'Month'], ['week', 'Week'], ['3day', '3 days'], ['day', 'Day'], ['agenda', 'Agenda']].map(([k, l]) => `<button data-act="calview" data-v="${k}" aria-pressed="${c.view === k}">${l}</button>`).join('')}</div>
     <div class="calnav"><button class="iconbtn" data-act="calstep" data-v="-1" aria-label="Vorige">‹</button><button class="btn small" data-act="calgo" data-v="${t}" data-keep="1">Vandaag</button><button class="iconbtn" data-act="calstep" data-v="1" aria-label="Volgende">›</button></div></div>
   <div class="calcats" role="group" aria-label="Onderdelen">${CAL_CATS.map(([k, l]) => `<button class="chip calcat cal-${k}" data-act="calcat" data-v="${k}" aria-pressed="${!c.off.has(k)}"><span class="caldot"></span>${l}</button>`).join('')}</div>
   ${Object.keys(cm).length ? `<p class="lnone calcylegend"><span class="calcy cy-period">🩸</span> menstruatie <span class="calcy cy-predict">🩸</span> verwacht <span class="calcy cy-fertile">🌸</span> vruchtbaar <span class="calcy cy-ovul">🌼</span> eisprong <button class="chip link small" data-act="go" data-v="care/cycle">Cyclus ›</button></p>` : ''}
@@ -9851,7 +9851,7 @@ function holderSlots() {
 }
 function bitsBody() {
   const v = nView('bits', innerWidth >= 700 ? 'holder' : 'steps'), bits = recs('nbits');
-  const tools = `<div class="ntools">${tabsHTML('data-nbv', v, [['holder', 'Houder'], ['steps', 'Per stap'], ['cards', 'Kaarten']])}<span class="spacer"></span><button class="btn small primary" data-nguide>+ Uit de gids</button><button class="btn small" data-lnew="nbits" data-pre="{}">+ Link of foto</button><button class="btn small" data-nbitset>+ Hele set</button></div>`;
+  const tools = `<div class="ntools">${tabsHTML('data-nbv', v, [['holder', 'Holder'], ['steps', 'Per step'], ['cards', 'Cards']])}<span class="spacer"></span><button class="btn small primary" data-nguide>+ Uit de gids</button><button class="btn small" data-lnew="nbits" data-pre="{}">+ Link of foto</button><button class="btn small" data-nbitset>+ Hele set</button></div>`;
   // the same bit twice as separate cards: offer to merge
   const key = r => [r.shape, r.grit, r.material].map(norm).join('|'), groups = {}; for (const r of bits) if (r.shape) (groups[key(r)] ||= []).push(r);
   const dups = Object.values(groups).filter(g => g.length > 1);
@@ -9912,7 +9912,7 @@ function colorsBody() {
   const l = all.filter(c => (!F2.finish || (F2.finish === 'wil' ? c.wanted : c.finish === F2.finish)) && (!F2.set || c.set === F2.set)).sort(colorSort);
   const chips = `<div class="nchips"><button class="chip ${!F2.finish ? 'on' : ''}" data-ncf="">Alles ${all.length}</button>${NFINISH.filter(f => all.some(c => c.finish === f)).map(f => `<button class="chip ${F2.finish === f ? 'on' : ''}" data-ncf="${esc(f)}">${esc(f)}</button>`).join('')}${all.some(c => c.wanted) ? `<button class="chip ${F2.finish === 'wil' ? 'on' : ''}" data-ncf="wil">🛒 Wil ik</button>` : ''}</div>
     ${sets.length ? `<div class="nchips">${sets.map(s => `<button class="chip nsetchip ${F2.set === s.id ? 'on' : ''}" style="--sc:${hexOk(s.color) || '#6b4a3c'}" data-ncs="${s.id}"><i></i>${esc(nSetCode(s))}</button>`).join('')}</div>` : ''}`;
-  const tools = `<div class="ntools">${tabsHTML('data-ncv', v, [['wall', 'Wand'], ['bottles', 'Flesjes'], ['wheel', 'Wiel'], ['sets', 'Sets']])}<span class="spacer"></span><button class="btn small primary" data-lnew="ncolors" data-pre="{}">+ Kleur</button><button class="btn small" data-nsetnew>+ Set</button><button class="btn small" data-ncompare>Vergelijken</button></div>`;
+  const tools = `<div class="ntools">${tabsHTML('data-ncv', v, [['wall', 'Wall'], ['bottles', 'Bottles'], ['wheel', 'Wheel'], ['sets', 'Sets']])}<span class="spacer"></span><button class="btn small primary" data-lnew="ncolors" data-pre="{}">+ Kleur</button><button class="btn small" data-nsetnew>+ Set</button><button class="btn small" data-ncompare>Vergelijken</button></div>`;
   if (!all.length && v !== 'sets') return tools + `<div class="emptyx"><p class="ebig">🎨</p><p><b>Nog geen kleuren.</b> Plak een link van een kleur, of voer een hele set in met een foto van de kleurenkaart.</p><button class="btn primary" data-nsetnew>+ Set invoeren</button></div>`;
   // almost the same colour in two different sets
   const ok = new Set(nailPrefs().okPairs || []), pairs = [];
@@ -10000,7 +10000,7 @@ function tutsBody() {
   const v = nView('tuts', 'rows'), F2 = L.nTutF ||= { cat: '', st: '' }, all = recs('ntuts');
   const cats = [...new Set([...NTUT_CATS.map(c => c[0]), ...all.flatMap(r => [].concat(r.cats || []))])];
   const card = r => `<button class="ntut" data-act="open" data-id="${r.id}"><div class="ntim" ${r.photo ? `style="background-image:url('${esc(photoURL(r.photo))}')"` : ''}><span class="src">${esc(tutSource(r.url) || 'Video')}</span><span class="play">▶</span>${r.status === 'Gedaan' ? '<span class="done">Gedaan</span>' : r.status === 'Bewaard' ? '<span class="done">⭐</span>' : ''}</div><b>${esc(titleOf(r))}</b></button>`;
-  const tools = `<div class="ntools">${tabsHTML('data-ntv', v, [['rows', 'Rijen'], ['grid', 'Grid']])}<span class="spacer"></span><button class="btn small primary" data-ntutlink>+ Link</button></div>`;
+  const tools = `<div class="ntools">${tabsHTML('data-ntv', v, [['rows', 'Rows'], ['grid', 'Grid']])}<span class="spacer"></span><button class="btn small primary" data-ntutlink>+ Link</button></div>`;
   if (!all.length) return tools + `<div class="emptyx"><p class="ebig">🎬</p><p><b>Nog geen tutorials.</b> Plak een link van TikTok, YouTube of Instagram. De app zet hem er meteen in, en 's nachts komen de stappen en de categorie erbij.</p><button class="btn primary" data-ntutlink>+ Link plakken</button></div>`;
   if (v === 'rows') return tools + cats.map(c => { const l = all.filter(r => [].concat(r.cats || []).includes(c)); return l.length ? `<div class="nrowt"><b>${esc(c)}</b><small>${l.length}</small></div><div class="nstrip">${l.map(card).join('')}</div>` : ''; }).join('')
     + (() => { const l = all.filter(r => ![].concat(r.cats || []).length); return l.length ? `<div class="nrowt"><b>Nog zonder categorie</b><small>${l.length}</small></div><div class="nstrip">${l.map(card).join('')}</div>` : ''; })();
@@ -10111,7 +10111,7 @@ function nailsPage(host) {
       <div class="lplanhead">${newBtn('naillog', '+ Full set', { what: 'Full set' })}${newBtn('naillog', '+ Fill', { what: 'Fill' })}${newBtn('naillog', 'Eraf of gebroken', { what: 'Removed' })}</div>${l.length ? `<div class="lgrid">${l.map(card).join('')}</div>` : quiet('Log je sets, dan zie je hoe lang ze houden en welke kleuren het best zijn.')}`
     : T === 'inspo' ? `<div class="lplanhead">${newBtn('ideas', '+ Inspiratie', { area: 'Nails', what: 'Look' })}</div>${ins.length ? `<div class="lgrid">${ins.map(r => `<button class="lcard" data-act="open" data-id="${r.id}"><div class="lph"><span>✨</span>${r.photo ? `<img referrerpolicy="no-referrer" src="${esc(C.photoURL(r.photo))}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div><div class="lcb"><b>${esc(titleOf(r))}</b></div></button>`).join('')}</div>` : quiet('Bewaar looks die je wilt proberen.')}`
     : `<div class="panels">${resTips(NAIL_RES, 'Nails')}${resLinks('Nails')}</div>`;
-  host.innerHTML = `<div class="viewhead"><h1>Nails</h1><span class="sub">Je eigen nagelstudio</span></div><div class="ntabs">${tabsHTML('data-nailt', T, [['ov', 'Overzicht'], ['routines', 'Routines'], ['bits', 'Bitjes'], ['colors', 'Kleuren'], ['things', 'Spullen'], ['tuts', 'Tutorials'], ['log', 'Log'], ['inspo', 'Inspiratie'], ['res', 'Tips']])}</div>${body}`;
+  host.innerHTML = `<div class="viewhead"><h1>Nails</h1><span class="sub">Je eigen nagelstudio</span></div><div class="ntabs">${tabsHTML('data-nailt', T, [['ov', 'Overview'], ['routines', 'Routines'], ['bits', 'Drill bits'], ['colors', 'Colours'], ['things', 'Products'], ['tuts', 'Tutorials'], ['log', 'Log'], ['inspo', 'Inspiration'], ['res', 'Tips']])}</div>${body}`;
   if (host.dataset.nailw) return; host.dataset.nailw = '1';
   host.addEventListener('change', e => { const s = e.target.closest('[data-nfilldays]'); if (s) nailSave({ fillDays: Number(s.value) }).then(() => nailsPage(host)); });
   host.addEventListener('click', async e => {

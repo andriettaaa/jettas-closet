@@ -1850,3 +1850,4 @@ details.room { border-top: 1px solid var(--line); padding: 10px 0; } details.roo
 .swacts .ok { background: #5f9b6b; } .swacts .later { background: #d99a4e; } .swacts .del { background: #d9707c; }
 .calweek.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .story > * { min-width: 0; } .story { grid-template-columns: minmax(0, 1fr); }
+.cybar { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 16px; }
