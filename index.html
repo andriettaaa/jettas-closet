@@ -2304,9 +2304,9 @@ function outfitBlock(only = '') {
   let out = '';
   if (only === 'tomorrow') {} else if (!rec && hr < 12) {
     const r = weatherPicks(t), n = S.wxPickN || 0, three = r ? [0, 1, 2].map(i => r.picks[(n + i) % r.picks.length]).filter((x, i, a) => a.indexOf(x) === i) : [];
-    if (three.length) out += `<section class="ofhero"><div class="dphk">Ochtend${r ? ' · ' + esc(r.why) : ''}</div><div class="dpht"><span>👗</span>Kies je outfit</div>
+    if (three.length) out += `<section class="ofhero"><div class="dphk">Morning${r ? ' · ' + esc(r.why) : ''}</div><div class="dpht"><span>👗</span>Pick your outfit</div>
       <div class="ofpicks">${three.map((p, i) => `<button type="button" class="ofpick" data-ofwear="${(n + i) % r.picks.length}" aria-label="${esc(p.name)}">${pickThumb(p)}<span>${esc(p.name)}</span></button>`).join('')}</div>
-      <div class="dphb"><button type="button" data-ofmore>Andere</button><button type="button" data-overday="${t}">Zelf kiezen</button></div></section>`;
+      <div class="dphb"><button type="button" data-ofmore>Other ideas</button><button type="button" data-overday="${t}">Choose myself</button></div></section>`;
   } else if (rec) {
     const o = rec.outfit && S.outById[rec.outfit], ids = dayItems(rec).filter(id => S.byId[id]), look = rec.photos?.[0];
     const thumb = look ? pimg(look, 'Je look vandaag') : o ? boardHTML(o.pieces) : pickThumb({ ids });
@@ -2401,7 +2401,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v212';
+const APP_VERSION = 'hangtag-v214';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2827,7 +2827,7 @@ function devTodaySheet() {
       <p class="dsub">Affirmatiekaarten: grootte</p><div class="lwrap">${[['s', 'Klein'], ['m', 'Middel'], ['l', 'Groot']].map(([v, l]) => on('affSize', v, d.affSize || '', l)).join('')}</div>
       <p class="dsub">Aantal kaarten</p><div class="lwrap">${[1, 2, 3].map(v => on('affCount', v, d.affCount || '', String(v))).join('')}</div>
       <button type="button" class="chip link" data-devreset>Terug naar standaard</button>`; };
-  const sh = sheet({ title: 'Vandaag op deze ' + name, body: `<div data-devbody>${body()}</div>` });
+  const sh = sheet({ title: 'Today on this ' + name, body: `<div data-devbody>${body()}</div>` });
   const put = d => { try { localStorage.setItem('dev:today', JSON.stringify(d)); } catch {} $('[data-devbody]', sh).innerHTML = body(); render(); };
   sh.addEventListener('click', e => {
     const b = e.target.closest('[data-dev]'), k = e.target.closest('[data-devblock]'), mv = e.target.closest('[data-devmv]'), d = devT(), hide = new Set(d.hide || []);
@@ -2868,7 +2868,7 @@ function renderOverview(host) {
   };
   const wrapB = k => { try { const h = BLK[k]?.() || ''; return h ? `<div class="sblk" data-blk="${k}">${h}</div>` : ''; } catch (err) { console.error(err); return ''; } };
   host.innerHTML = `<div class="story">${devVis('greet') ? wrapB('greet') : ''}${window.LIFE?.visionStrip?.() || ''}${devVis('day') ? window.LIFE?.dayNow?.() || '' : ''}${devOrder().filter(k => k !== 'greet' && devVis(k)).map(k => { try { const h = BLK[k]?.() || ''; return h ? `<div class="sblk" data-blk="${k}">${h}</div>` : ''; } catch (err) { console.error(err); return ''; } }).join('')}</div>
-    <div class="ltools dashfoot"><button class="btn small" data-devtoday>📱 Vandaag op deze ${esc(deviceName())}</button><button class="btn small" data-wigstart>✋ Arrange</button>${window.LIFE ? '<button class="chip link" data-act="export">Back up all your lists</button>' : ''}</div>`;
+    <div class="ltools dashfoot"><button class="btn small" data-devtoday>📱 Today on this ${esc(deviceName())}</button><button class="btn small" data-wigstart>✋ Arrange</button>${window.LIFE ? '<button class="chip link" data-act="export">Back up all your lists</button>' : ''}</div>`;
   if (!host.dataset.wired) {
     host.dataset.wired = '1';
     host.addEventListener('click', e => {

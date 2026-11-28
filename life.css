@@ -1871,3 +1871,4 @@ details.room { border-top: 1px solid var(--line); padding: 10px 0; } details.roo
 .dptabs button[data-dptab="ov"] { background: color-mix(in srgb, var(--ink) 18%, var(--surface)) !important; color: var(--ink) !important; }
 .dptabs button[aria-selected="true"] { flex: 2 1 0; opacity: 1; font-size: 13.5px !important; font-weight: 800; }
 .gwx { all: unset; cursor: pointer; color: inherit; } .gwx:hover { text-decoration: underline; }
+.dphero[data-dpheroopen] { cursor: pointer; }

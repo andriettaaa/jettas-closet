@@ -110,3 +110,19 @@ Design every part as an expert in that field would.
 - **Life**: fewer tabs (Mind 5, Train 5, Beauty 6, one Analyse, one Kennis); cycle coach; Sunday week review; mood and energy.
 - **Social and Calendar**: groups Werk, Maken, Groei, Bibliotheek, collaborations as a pipeline; content calendar with drag; one calendar with filter chips; her own calendar items, also in the iPhone calendar.
 - **Everywhere**: To do as a red badge instead of a tab, Settings as a ⚙️ instead of a named tab, blocks folded by default.
+
+## Forms, round by round (November 2026)
+Forms fit on one screen, are visual (emoji, tiles, photos, swatches) and keep extra fields under "More"; every form can switch between its versions, remembered per device.
+- **Sleep (a night)**: the sleep clock: drag the moon and the sun around a clock, the hours in the middle; how rested as emoji; the rest under More.
+- **Finance (a purchase)**: keypad (big amount, number pad, category tiles), quick chips (her usual purchases, one tap), receipt card (a photo of the receipt fills it in); more options to come.
+- **Kitchen (a meal)**: plate (tap what is on it, the plate colours in), from the pantry (photo tiles), photo first.
+- **Closet (a piece)**: big photo with colour swatches and chips, link first (shop link fills photo, brand, price), steps (one question per screen).
+- **Mind (a check-in)**: faces with an energy slider, three questions one per screen, a journal card in the mood colour; plus voice: speak and the app types what she says.
+- **Finance, more**: Apple Pay style card (swipe for the account), split and share (who owes her), "Can I afford it?" (the pot before buying). All six versions switchable.
+- **Home (a chore)**: room picture (room, then chore), timer that logs minutes, checklist of small steps.
+- **Train (a workout)**: workout card, live sets with a rest timer, from a saved video; the review must be richer than emoji alone.
+- **Social (a post)**: post card, quick idea (also by voice), planner (drop on a day); Social gets its own deeper round.
+- **Train (the review)**: review sliders (effort, fun, energy after, again, note), body map (where she felt it), personal bests (with voice); every other review in the app gets its own round too.
+- **Calendar (an item)**: type it in one line, day strip with a time wheel, templates of her usual plans.
+- **Wishlist (a wish)**: link card, price watch with a nudge, moodboard to rank.
+- **Kitchen (a recipe)**: from a reel, step cards with timers, a photo of a cookbook page.
