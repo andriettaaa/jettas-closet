@@ -2421,7 +2421,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v222';
+const APP_VERSION = 'hangtag-v223';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
@@ -2574,13 +2574,12 @@ function renderSettings(host) {
       <label class="setnsearch setname"><input class="setninp" type="search" data-nfind placeholder="Zoek een naam" aria-label="Zoek een naam"></label>
       ${SECTIONS.map(s => `<div class="setrow setname" data-nrow="${esc(norm(s.base + ' ' + s.label))}"><button type="button" class="seti iconbtnpick" data-ipickfor="${s.key}" aria-label="Kies icoon voor ${esc(s.label)}">${icon(s.icon)}</button><input class="setninp" data-nname="${s.key}" value="${esc((S.prefs.names || {})[s.key] || '')}" placeholder="${esc(s.base)}" aria-label="Naam voor ${esc(s.base)}" autocomplete="off">${(S.prefs.names || {})[s.key] ? `<button class="chip link" data-nnreset="${s.key}">Herstel</button>` : ''}</div>`).join('')}
     </section>
-    <section class="panel setpanel" id="set-account"><h3>Account and backup</h3><p class="muted">Signed in as ${esc(EMAIL)}. Your photos and data live in your own Supabase project.</p><div class="lwrap"><button class="btn" data-setexport>Download backup (.json)</button><button class="btn" data-setimport>Import from your old app</button></div></section>
-    <section class="panel setpanel" id="set-today"><h3>Today</h3><p class="muted">Choose per device what Today shows and in which order. On this ${esc(deviceName())} now: ${esc(devOrder().filter(devVis).map(k => TODAY_BLOCKS.find(b => b[0] === k)[1].replace(/^\S+\s/, '')).join(', '))}.</p><div class="setbtns"><button class="btn small" data-devtoday2>Vandaag op deze ${esc(deviceName())} aanpassen</button></div></section>
+    <section class="panel setpanel" id="set-today"><h3>Today</h3><p class="muted">Choose per device what Today shows and in which order. On this ${esc(deviceName())} now: ${esc(devOrder().filter(devVis).map(k => TODAY_BLOCKS.find(b => b[0] === k)[1].replace(/^\S+\s/, '')).join(', '))}.</p><div class="setbtns"><button class="btn small" data-devtoday2>Arrange Today on this ${esc(deviceName())}</button></div></section>
     ${lookPanel()}
     ${notiPanel()}
-    <section class="panel setpanel" id="set-account"><h3>Account and app</h3><p class="muted">Signed in as ${esc(EMAIL || 'you')}. Your data lives in your own Supabase project.</p>
-      <div class="setbtns"><button class="btn small" data-reload>Check for an update</button><button class="btn small ghost" data-signout>Sign out on this device</button></div>
-      <p class="muted">Version ${APP_VERSION}</p></section>
+    <section class="panel setpanel" id="set-account"><h3>Account and backup</h3><p class="muted">Signed in as ${esc(EMAIL || 'you')}. Your photos and data live in your own Supabase project. Version ${APP_VERSION}.</p>
+      <p class="dsub">Backup</p><div class="setbtns"><button class="btn small" data-setexport>Download backup (.json)</button><button class="btn small" data-setimport>Import from your old app</button></div>
+      <p class="dsub">App</p><div class="setbtns"><button class="btn small" data-reload>Check for an update</button><button class="btn small ghost" data-signout>Sign out on this device</button></div></section>
     ${undoPanel}
   </div>`;
   } else {
@@ -2853,7 +2852,7 @@ function wiggleDone() {
 const devT = () => { try { return JSON.parse(localStorage.getItem('dev:today') || '{}') || {}; } catch { return {}; } };
 const devOff = k => [].concat(devT().hide || []).includes(k);
 // Today as one story; per device you choose the order and what shows (Settings › Vandaag, or the button under Today)
-const TODAY_BLOCKS = [['greet', '👋 Groet en voortgang'], ['chips', '🌦 Weer, geld, affirmatie en focus'], ['day', '📅 Je dag (met je outfit in Ochtend en Avond)'], ['affbig', '✨ Grote affirmatie'], ['wx', '🌤 Weer per dag'], ['find', '🔍 Zoekbalk'], ['quick', '⚡ Snelle knoppen']];
+const TODAY_BLOCKS = [['greet', '👋 Greeting and progress'], ['chips', '🌦 Cycle, money, affirmation and focus'], ['day', '📅 Your day (with your outfit in Morning and Evening)'], ['affbig', '✨ Big affirmation'], ['wx', '🌤 Weather per day'], ['find', '🔍 Search bar'], ['quick', '⚡ Quick buttons']];
 const TODAY_DEF = { greet: true, chips: true, day: true, affbig: false, wx: false, find: false, quick: false };
 const devVis = k => { const d = devT(); if ([].concat(d.hide || []).includes(k === 'affbig' ? 'aff' : k)) return false; if (d.vis && k in d.vis) return !!d.vis[k]; return TODAY_DEF[k] ?? true; };
 const devOrder = () => { const o = [].concat(devT().order || []).filter(k => TODAY_BLOCKS.some(b => b[0] === k)); return [...o, ...TODAY_BLOCKS.map(b => b[0]).filter(k => !o.includes(k))]; };
@@ -3448,7 +3447,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#scrim'
 const SET_SPOTS = [
   ['set-sections', 'Tabs onderin en menu', 'Sections, menu order, hide sections, bottom bar, tabs'],
   ['set-noti', 'Notifications', 'Morning, evening, bills, payday, budget, push'],
-  ['set-account', 'Account and app', 'Sign out, version, update'],
+  ['set-account', 'Account and backup', 'Backup, update, sign out'],
   ['set-undo', 'Undo', 'Undo your last changes and imports']
 ];
 function findPages(words) {
