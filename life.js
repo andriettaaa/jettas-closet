@@ -7849,6 +7849,20 @@ function budgetCoach() {
    The fixed costs switch between the next 7 days, by date and by group. */
 const BILL_GROUP_COL = ['#6b3f22', '#c97a86', '#5b8fc9', '#8a9aa8', '#e0a948', '#a07ab8', '#4e8a6a', '#d6a35c', '#7fae7a'];
 const MUSIC_RE = /spotify|apple music|youtube premium|youtube music|deezer|tidal|amazon music/;
+// four numbers on top of Spending: safe today, left until payday, bills paid, saved this month
+function spendKpis() {
+  const st = fState(), t = today(), hid = moneyHidden(), m = v => hid ? '€•••' : fEur0(Math.round(v));
+  const end = [st.pay ? addDays(st.pay, -1) : addDays(t, 30), addDays(st.start, 31)].sort()[0], occ = fOccs(st.start, end).filter(o => !o.skipped && fMonthly(o.bill));
+  const paid = occ.filter(o => o.paid).reduce((n, o) => n + o.amount, 0), all = occ.reduce((n, o) => n + o.amount, 0);
+  const saved = recs('ftx').filter(x => x.date >= t.slice(0, 8) + '01' && x.date <= t && fMoved(x)).reduce((n, x) => n + (num(x.amount) || 0), 0);
+  const k = (cls, l, v, sub) => `<div class="fkpi ${cls}"><small>${l}</small><b>${v}</b>${sub ? `<span>${sub}</span>` : ''}</div>`;
+  return `<div class="fkpis">${k('mo', 'Safe today', hid ? '€•••' : (st.perDay < 0 ? '−' : '') + eur(Math.abs(st.perDay)), st.pay ? plural(st.days, 'day') + ' to payday' : '')}${k('', 'Left until payday', m(Math.max(0, st.until)), '')}${k('', 'Bills paid', `${m(paid)} / ${m(all)}`, all ? Math.round(100 * paid / all) + '%' : '')}${k('ph', 'Saved this month', m(saved), '')}</div>`;
+}
+function recentBuysHTML() {
+  const l = recs('ftx').filter(x => fEveryday(x) && (num(x.amount) || 0) > 0).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.created || 0) - (a.created || 0)).slice(0, 6), hid = moneyHidden();
+  if (!l.length) return '';
+  return `<section class="panel"><div class="lph3"><h3 class="mh">Recent purchases</h3></div>${l.map(x => { const c = L.byId[x.category]; return `<button type="button" class="trow" data-act="open" data-id="${x.id}"><span>${esc(c?.emoji || '🧾')} ${esc(shopOfTx(x.name) || x.name || 'Purchase')}</span><span class="muted">${hid ? '€•••' : eur(num(x.amount))} · ${esc(relDay(x.date) === 'today' ? 'today' : niceDate(x.date))}</span></button>`; }).join('')}</section>`;
+}
 function payFlowHTML() {
   const st = fState(), bills = recs('fbills').filter(b => !b.paused && !(b.ends && b.ends < today()));
   const fixed = Math.round(bills.filter(fMonthly).reduce((n, b) => n + fPerMonth(b), 0)), pots = Math.round(bills.filter(b => !fMonthly(b)).reduce((n, b) => n + fPerMonth(b), 0));
@@ -7880,7 +7894,7 @@ function fixedFirstHTML() {
   const mus = recs('fbills').filter(b => !b.paused && MUSIC_RE.test(norm(b.name || '')) && !b.musicOk);
   const musCard = mus.length > 1 && !C.prefs?.().musicNudgeOff ? `<div class="ffnudge"><b>🎧 You pay for ${mus.length} music services</b><span>${mus.map(b => esc(b.name)).join(', ')}. Keep one and save ${hid ? '€•••' : fEur0(Math.round((mus.reduce((n, b) => n + fPerMonth(b), 0) - Math.max(...mus.map(fPerMonth))) * 12))} a year.</span><button type="button" class="chip" data-act="musicok">Hide this</button></div>` : '';
   return `<section class="panel fixedfirst"><div class="lph3"><h3 class="mh">1 · Fixed first</h3><span class="lnone">${hid ? '€•••' : fEur0(Math.round(paidSum))} of ${hid ? '€•••' : fEur0(Math.round(all))} paid</span></div>
-    <div class="bar ffbar"><i style="width:${all ? 100 * paidSum / all : 0}%"></i></div>
+    <div class="ffbar"><i style="width:${all ? 100 * paidSum / all : 0}%"></i></div>
     <div class="seg fseg ffseg" role="group">${[['next', 'Next 7 days'], ['date', 'Date'], ['group', 'Group']].map(([k, l]) => `<button data-act="fixmode" data-v="${k}" aria-pressed="${mode === k}">${l}</button>`).join('')}</div>
     <div class="fflist">${body}</div>${musCard}<button class="chip link" data-act="go" data-v="money/repeats">All fixed costs ›</button></section>`;
 }
@@ -7894,15 +7908,14 @@ function fEnvFill(fill) {
   const planned = fSum(cats.filter(c => !c.nospend), 'budget'), spent = fSum(recs('ftx').filter(x => fEveryday(x) && x.date >= w.start && x.date <= w.end && x.date <= today()));
   const tags = {}; for (const x of recs('ftx')) for (const t of fTags(x)) tags[t.toLowerCase()] = (tags[t.toLowerCase()] || 0) + 1;
   const days = Math.max(0, diffDays(today(), w.end) + 1);
-  fill.innerHTML = `${fDupNote()}${payFlowHTML()}${fixedFirstHTML()}${potsApartHTML()}<h3 class="mh ffevery">3 · Everyday</h3><div class="tiles lt3">${fTile('Spent', eur(spent), `everyday spending this ${mode === 'month' ? 'month' : 'pay'}`)}${fTile('Planned', fEur0(planned), `in ${plural(cats.filter(c => !c.nospend).length, 'envelope')}, per ${mode === 'month' ? 'month' : 'paycheck'}`)}${spent > planned ? fTile('Over plan', eur(spent - planned), `${plural(days, 'day')} to ${mode === 'month' ? 'month end' : 'payday'}`, 'mneg') : fTile('Left in the plan', eur(planned - spent), `${plural(days, 'day')} to ${mode === 'month' ? 'month end' : 'payday'}`)}</div>
+  fill.innerHTML = `${fDupNote()}${spendKpis()}<div class="fsplit2"><div class="fcol">${fixedFirstHTML()}${potsApartHTML()}${budgetCoach()}</div><div class="fcol"><section class="panel fevery"><h3 class="mh">3 · Everyday</h3><div class="tiles lt3">${fTile('Spent', eur(spent), `everyday spending this ${mode === 'month' ? 'month' : 'pay'}`)}${fTile('Planned', fEur0(planned), `in ${plural(cats.filter(c => !c.nospend).length, 'envelope')}, per ${mode === 'month' ? 'month' : 'paycheck'}`)}${spent > planned ? fTile('Over plan', eur(spent - planned), `${plural(days, 'day')} to ${mode === 'month' ? 'month end' : 'payday'}`, 'mneg') : fTile('Left in the plan', eur(planned - spent), `${plural(days, 'day')} to ${mode === 'month' ? 'month end' : 'payday'}`)}</div>
   ${(() => { const billCats = new Set(recs('fbills').map(b => b.category).filter(Boolean)), pots = cats.filter(c => !c.nospend && num(c.budget) && !billCats.has(c.id)); if (!pots.length) return ''; return `<div class="fjars">${pots.map(c => { const b = num(c.budget) || 0, sp = fSum(recs('ftx').filter(x => x.category === c.id && x.date >= w.start && x.date <= w.end && x.date <= today())), left = Math.max(0, b - sp), pct = b ? Math.round(left / b * 100) : 0;
       // an empty jar for a bill is good news: the bill is paid. Red only when you spent more than planned, "too fast" only for everyday spending
       const txs = recs('ftx').filter(x => x.category === c.id && x.date >= w.start && x.date <= w.end), billy = recs('fbills').some(bl => bl.category === c.id) || txs.some(x => x.bill) || txs.some(x => (num(x.amount) || 0) >= b * .8);
       const paid = b && sp >= b * .98 && sp <= b * 1.02, over = b && sp > b * 1.02, fast = !billy && !paid && !over && b && sp / b > 1 - days / Math.max(1, diffDays(w.start, w.end) + 1) + .15;
       const money = v => moneyHidden() ? '€•••' : eur(v);
       return `<div class="fjar ${fast || over ? 'fast' : ''} ${paid ? 'paid' : ''}" title="${esc(c.name)}"><div class="jar"><i style="height:${paid ? 100 : pct}%"></i><span>${c.emoji || '🫙'}</span></div><b>${esc(c.name || '')}</b><small>${paid ? (billy ? '✓ Paid' : '✓ All used, as planned') : over ? `${money(sp - b)} over budget` : `${money(left)} left${fast ? ' · going fast' : ''}`}</small></div>`; }).join('')}</div>`; })()}
-  ${budgetCoach()}
-  ${byListPanel()}
+</section>${recentBuysHTML()}${byListPanel()}</div></div>
   <div class="fenvgrid">
     ${MP('Your envelopes', `<div class="seg fseg" role="group"><button data-act="envmode" data-v="month" aria-pressed="${mode === 'month'}">Per month</button><button data-act="envmode" data-v="pay" aria-pressed="${mode === 'pay'}">Per paycheck</button></div><p class="lnone">${esc(shortDate(w.start))} – ${esc(shortDate(w.end))}</p>${cats.map(c => fEnvRow(c, w)).join('') || quiet('Add a category for each kind of everyday spending.')}`, '<button class="chip link" data-act="new" data-v="fcats">+ Category</button>')}
     ${MP('Every purchase', `<div class="seg fseg" role="group">${[['out', 'Purchases'], ['in', 'Money in'], ['both', 'Both']].map(([k, l]) => `<button data-act="everymode" data-v="${k}" aria-pressed="${(L.everyMode || 'out') === k}">${l}</button>`).join('')}</div>
