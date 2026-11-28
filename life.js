@@ -121,7 +121,7 @@ const GOOD_LABELS = [...NUTRI, 'Meal prep', 'Freezes well', 'Office lunch', 'Mic
 const canMakeNow = r => { const ids = [].concat(r.ingredients || []); return ids.length > 0 && ids.every(id => { const i = L.byId[id]; return i && (i.stock || (cntOf(i) || 0) > 0); }); };
 const FILL_LEVELS = ['Full', 'Three quarters', 'Half', 'Almost empty'];
 // how much is left in an open product, in percent (0 to 100); the older fill words still read
-const LEFT_STEPS = [[100, 'Vol'], [75, '3/4'], [50, 'Half'], [25, '1/4'], [10, 'Nearly empty']];
+const LEFT_STEPS = [[100, 'Full'], [75, '3/4'], [50, 'Half'], [25, '1/4'], [10, 'Nearly empty']];
 const FILL_PCT = { Full: 100, 'Three quarters': 75, Half: 50, 'Almost empty': 10 };
 const LEFT_KINDS = new Set(['ingredients', 'beauty']);
 const leftOf = r => { const n = num(r?.left); return n != null ? Math.max(0, Math.min(100, n)) : r?.fill && r.fill !== 'Full' ? FILL_PCT[r.fill] ?? null : null; };
@@ -2271,7 +2271,7 @@ function fillList(host, page) {
     fh.hidden = !fh.innerHTML;
     // the second row (a recipe category's kinds of dish) sits under the scrolling chips, on its own line
     let f2 = host.querySelector('[data-facets2]'); if (!f2) { f2 = document.createElement('div'); f2.dataset.facets2 = ''; fh.after(f2); }
-    f2.innerHTML = (() => { if (!K.facet2 || !u.facet) return ''; const c2 = {}; for (const r of all) if ([].concat(r[K.facet] || []).includes(u.facet)) for (const v of [].concat(r[K.facet2] || [])) c2[v] = (c2[v] || 0) + 1; const o2 = Object.keys(c2).sort(azCmp); return o2.length ? `<div class="lfacet2" role="group" aria-label="Soort">${o2.map(v => `<button class="chip small" data-act="facet2" data-v="${esc(v)}" aria-pressed="${u.facet2 === v}">${esc(v)}<span class="n">${c2[v]}</span></button>`).join('')}</div>` : ''; })();
+    f2.innerHTML = (() => { if (!K.facet2 || !u.facet) return ''; const c2 = {}; for (const r of all) if ([].concat(r[K.facet] || []).includes(u.facet)) for (const v of [].concat(r[K.facet2] || [])) c2[v] = (c2[v] || 0) + 1; const o2 = Object.keys(c2).sort(azCmp); return o2.length ? `<div class="lfacet2" role="group" aria-label="Type">${o2.map(v => `<button class="chip small" data-act="facet2" data-v="${esc(v)}" aria-pressed="${u.facet2 === v}">${esc(v)}<span class="n">${c2[v]}</span></button>`).join('')}</div>` : ''; })();
     f2.hidden = !f2.innerHTML;
   }
   if (seg.fill) { seg.fill(fill, page); return; }
@@ -2359,7 +2359,7 @@ function inboxPage(host) {
   ${panel('Add a link', `<form class="lqadd" data-ibxadd><input placeholder="Paste a link, or type an idea" aria-label="Paste a link"><button class="btn small" type="submit">Add</button></form><p class="lnone">From your iPhone: share any page with the shortcut “Naar A’s Life” and it lands here.</p>
     <details class="vtable"><summary>Set up the share shortcut</summary><ol class="setsteps"><li>Open <b>Shortcuts</b>, tap <b>+</b> and name it <b>Naar A’s Life</b>.</li><li>Tap the <b>ⓘ</b> and turn on <b>Show in Share Sheet</b>. Let it receive URLs, Safari web pages, text and images.</li>
       <li>Add <b>Get contents of URL</b> with <span class="mono">${esc(String(C.sb?.supabaseUrl || '').replace(/\/$/, ''))}/functions/v1/offers</span>, method <b>POST</b>, request body <b>JSON</b> with: <span class="mono">token</span> (your OFFERS_TOKEN), <span class="mono">action</span> = share, <span class="mono">url</span> = Shortcut Input, <span class="mono">text</span> = Shortcut Input.</li>
-      <li>Add <b>Show notification</b> “In je inbox”.</li></ol></details>`)}
+      <li>Add <b>Show notification</b> “In your inbox”.</li></ol></details>`)}
   ${ready.length ? (() => { const by = new Map(); for (const r of ready) by.set(r.target, (by.get(r.target) || 0) + 1);
     return panel('Check these', `<div class="dbtns ibxall"><button class="btn small primary" data-act="ibxall">Accept all ${ready.length}</button>${[...by].filter(([, n]) => n > 1 && by.size > 1).map(([t, n]) => `<button class="btn small" data-act="ibxall" data-v="${t}">All ${n} ${esc(INBOX_TO[t]?.[0].toLowerCase() || t)}${n > 1 && !/s$/.test(INBOX_TO[t]?.[0] || '') ? 's' : ''}</button>`).join('')}</div>
       <div class="ibgrid">${ready.slice(0, L.ibxMore || 60).map(inboxCard).join('')}</div>${ready.length > (L.ibxMore || 60) ? `<button class="btn small" data-act="ibxmore">Show ${Math.min(60, ready.length - (L.ibxMore || 60))} more</button>` : ''}`); })() : ''}
@@ -3521,7 +3521,7 @@ function balanceHTML(d = today()) {
   const prot = rs.some(r => r.protein || /eiwit|protein/i.test([].concat(r.good || []).join(' '))) ? 1 : [].concat(nl.meals || []).length >= 2 ? .5 : 0;
   const fib = Math.min(1, (veg >= 200 ? .5 : veg >= 100 ? .25 : 0) + (fruit >= 1 ? .25 : 0) + (rs.some(r => /vezel|fib/i.test([].concat(r.good || []).join(' '))) ? .5 : 0));
   const dots = [['🥦', 'Veg', Math.min(1, veg / 250), `${veg} of 250 g`], ['🍗', 'Protein', prot, prot >= 1 ? 'in your meal' : 'not yet'], ['🌾', 'Fibre', fib, fib >= 1 ? 'good' : 'could be more'], ['🍎', 'Fruit', Math.min(1, fruit / 2), `${fruit} of 2 pieces`]];
-  return `<div class="balance" title="Ongeveer, zonder calorieën">${dots.map(([e, l, v, t]) => `<div class="bdot"><span class="ring" style="--p:${Math.round(v * 100)}%"><b>${e}</b></span><small><b>${l}</b>${esc(t)}</small></div>`).join('')}</div>`;
+  return `<div class="balance" title="Roughly, without calories">${dots.map(([e, l, v, t]) => `<div class="bdot"><span class="ring" style="--p:${Math.round(v * 100)}%"><b>${e}</b></span><small><b>${l}</b>${esc(t)}</small></div>`).join('')}</div>`;
 }
 const MOODS = [['Blij', '😊'], ['Rustig', '😌'], ['Gestrest', '😣'], ['Down', '😔']], ENERGY = [['Top', '⚡'], ['Goed', '🔋'], ['Oké', '🪫'], ['Laag', '😴']];
 // mood and energy: one tap each, with what goes together with a good day over the last 30 days
@@ -3545,7 +3545,7 @@ function weekReview() {
   const nls = days.map(nlOn).filter(Boolean), veg = avgOf(nls.map(x => num(x.veg))), moods = nls.map(x => x.mood).filter(Boolean), topMood = moods.sort((a, b) => moods.filter(x => x === b).length - moods.filter(x => x === a).length)[0];
   const spent = (() => { try { return fSum(recs('ftx').filter(x => days.includes(x.date))); } catch { return null; } })(), dp = days.map(d => dayPlan(d).filter(x => x.type !== 'water')), done = dp.flat().filter(x => x.done).length, tot = dp.flat().length;
   const tile = (e, l, v) => `<div class="tile"><div class="k">${e} ${l}</div><div class="v">${v ?? '–'}</div></div>`;
-  const sh = C.sheet({ title: '📊 Your week', body: `<div class="tiles lt3">${tile('😴', 'Sleep', sl != null ? sl.toFixed(1) + ' u' : null)}${tile('🏃🏾‍♀️', 'Trained', wo + '×')}${tile('🥦', 'Veg', veg != null ? Math.round(veg) + ' g' : null)}${tile('🙂', 'Mood', topMood || null)}${tile('✅', 'Ticked off', tot ? Math.round(done / tot * 100) + '%' : null)}${tile('💶', 'Spent', spent != null ? eur(spent) : null)}</div>
+  const sh = C.sheet({ title: '📊 Your week', body: `<div class="tiles lt3">${tile('😴', 'Sleep', sl != null ? sl.toFixed(1) + ' h' : null)}${tile('🏃🏾‍♀️', 'Trained', wo + '×')}${tile('🥦', 'Veg', veg != null ? Math.round(veg) + ' g' : null)}${tile('🙂', 'Mood', topMood || null)}${tile('✅', 'Ticked off', tot ? Math.round(done / tot * 100) + '%' : null)}${tile('💶', 'Spent', spent != null ? eur(spent) : null)}</div>
     <p class="dsub">One focus for next week</p><input class="finp" data-wrfocus placeholder="For example: breakfast every day" value="${esc(intentNow()?.text || '')}">`, foot: '<div class="spacer"></div><button class="btn primary" data-wrsave>Save</button>' });
   sh.querySelector('[data-wrsave]').onclick = () => { const v = sh.querySelector('[data-wrfocus]').value.trim(); C.savePrefs({ intent: { week: weekMon(addDays(today(), new Date().getDay() === 0 ? 1 : 0)), text: v } }).then(() => { C.closeSheet(); C.toast('🎯 Your focus is on Today'); C.render(); }); };
 }
@@ -4939,7 +4939,7 @@ async function cardShow(id) {
   const c = L.byId[id]; if (!c) return;
   const raw = String(c.number || '').replace(/\s/g, ''), fmt = c.format || 'Streepjescode';
   const sh = C.sheet({ title: c.name || 'Card', body: `<div class="cardbig" style="--cc:${esc(cardColor(c))}"><div class="cbtop">${logoHTML(c)}<b>${esc(c.name || '')}</b></div>
-    <div class="cbcode">${raw ? (fmt === 'Alleen nummer' ? '' : '<div data-code class="cbsvg">Even laden…</div>') + `<p class="cbnum">${esc(String(c.number).replace(/(\d{4})(?=\d)/g, '$1 '))}</p>` : `<p>No number yet. Tap Edit or scan the code.</p>`}</div>
+    <div class="cbcode">${raw ? (fmt === 'Alleen nummer' ? '' : '<div data-code class="cbsvg">Loading…</div>') + `<p class="cbnum">${esc(String(c.number).replace(/(\d{4})(?=\d)/g, '$1 '))}</p>` : `<p>No number yet. Tap Edit or scan the code.</p>`}</div>
     ${c.front || c.back ? `<div class="cbphotos">${[c.front, c.back].filter(Boolean).map(p => `<img src="${esc(photoURL(p))}" alt="">`).join('')}</div>` : ''}</div>
     <p class="lnone">Turn up your screen brightness if the till cannot read the code.</p>
     <div class="cbbar"><button class="btn" data-cbhere>📍 I'm at this shop</button><button class="btn" data-cbscan>📷 Scan code</button><button class="btn" data-cbedit>Edit</button></div>` });
@@ -5606,7 +5606,7 @@ function invOptionsPanel(r) {
   return `<section class="ltipsteps"><div class="lph3"><h3>Options${list.length ? ' · ' + list.length : ''}</h3><button type="button" class="chip" data-act="optadd" data-id="${r.id}">+ Manually</button></div>
     ${num(r.budget) == null && invAvg(r.id) != null ? `<div class="lwrap"><span class="lnone">Suggested budget: ${eur(invAvg(r.id))} (average of your options)</span><button type="button" class="chip" data-act="invsetbudget" data-id="${r.id}" data-v="${invAvg(r.id)}">Use</button></div>` : ''}
     ${BIG.test(r.name || '') || r.category === 'Meubels' ? `<p class="lnone"><a href="https://www.marktplaats.nl/q/${encodeURIComponent(r.name || '')}/#postcode:1315" target="_blank" rel="noopener">Search second-hand on Marktplaats</a>: big furniture is often nearly new for half the price.</p>` : ''}
-    <div class="optlink"><input type="url" inputmode="url" placeholder="Plak een link naar een product" data-optlink aria-label="Link naar een optie"><button type="button" class="btn small primary" data-act="optlink" data-id="${r.id}">Add</button></div>
+    <div class="optlink"><input type="url" inputmode="url" placeholder="Paste a link to a product" data-optlink aria-label="Link to an option"><button type="button" class="btn small primary" data-act="optlink" data-id="${r.id}">Add</button></div>
     ${list.length ? `<div class="iopts">${list.map(card).join('')}</div>${cmp}` : '<p class="lnone">Paste the link of a product you love. The app fetches the photo, name and price. When you buy, you pick one.</p>'}
     ${arch.length ? `<p class="lnone">${plural(arch.length, 'option', 'options')} archived.</p>` : ''}
     ${!bought ? `<div class="dbtns"><button type="button" class="btn small" data-act="optbuy" data-id="${r.id}" data-v="">Bought without an option</button></div>` : ''}</section>`;
@@ -6733,7 +6733,7 @@ const ingHits = r => ingF().sel.filter(t => ingHas(r, t)).length;
 const ingMatch = r => { const F = ingF(); if (!F.sel.length) return true; const h = ingHits(r); return F.mode === 'any' ? h > 0 : h === F.sel.length; };
 function ingFilterHTML() {
   const F = ingF(), sel = new Set(F.sel.map(norm)), soon = recs('ingredients').filter(useSoon).map(i => i.name).filter(n => !sel.has(norm(n))).slice(0, 6);
-  return `<div class="ingf"><input class="finp" type="search" data-ingq data-sug="ing" placeholder="Filter on ingredient, like rijst" autocomplete="off" enterkeyhint="done" aria-label="Filter on ingredient">
+  return `<div class="ingf"><input class="finp" type="search" data-ingq data-sug="ing" placeholder="Filter on ingredient, like rice" autocomplete="off" enterkeyhint="done" aria-label="Filter on ingredient">
     ${F.sel.length || soon.length ? `<div class="lwrap">${F.sel.map(t => `<button class="chip on" data-ingx="${esc(t)}" aria-label="Remove ${esc(t)}">${esc(t)} ×</button>`).join('')}${F.sel.length > 1 ? `<span class="ingmode"><button class="chip small ${F.mode === 'all' ? 'on' : ''}" data-ingmode="all" aria-pressed="${F.mode === 'all'}">Has all</button><button class="chip small ${F.mode === 'any' ? 'on' : ''}" data-ingmode="any" aria-pressed="${F.mode === 'any'}">Has any</button></span>` : ''}${soon.length ? `${F.sel.length ? '<span class="lsep"></span>' : ''}<span class="muted ingsoon">Use first:</span>${soon.map(n => `<button class="chip small" data-ingadd="${esc(n)}">+ ${esc(n)}</button>`).join('')}` : ''}</div>` : ''}</div>`;
 }
 // a change to the filter: the nearest place that shows it draws again
@@ -8981,7 +8981,7 @@ async function mealFromPantry(x, ing) {
   const d = today(), m = recs('meals').find(m => m.date === d && m.slot === x.slot);
   try { m ? await save(m, { ing: [...new Set([...[].concat(m.ing || []), ing.id])], ate: true }) : await create('meals', { date: d, slot: x.slot, ing: [ing.id], ate: true }); if (!x.done) await x.act?.(); } catch (e) { failed(e); return; }
   L.dpCheer = `${foodEmo(ing.name)} ${ing.name} eaten`; L.dpCheerAt = Date.now();
-  const step = stepOf(ing), sh = C.sheet({ title: `${foodEmo(ing.name)} ${ing.name}`, body: `<p>${esc(unitShort(step, unitOf(ing)).replace(/^1×$/, 'Eén'))} ${esc(ing.name.toLowerCase())} off your stock?</p><p class="lnone">Now: ${esc(cntOf(ing) == null ? 'amount unknown' : unitShort(cntOf(ing), unitOf(ing)))}</p>`,
+  const step = stepOf(ing), sh = C.sheet({ title: `${foodEmo(ing.name)} ${ing.name}`, body: `<p>${esc(unitShort(step, unitOf(ing)).replace(/^1×$/, 'One'))} ${esc(ing.name.toLowerCase())} off your stock?</p><p class="lnone">Now: ${esc(cntOf(ing) == null ? 'amount unknown' : unitShort(cntOf(ing), unitOf(ing)))}</p>`,
     foot: '<button class="btn" data-pno>No</button><div class="spacer"></div><button class="btn primary" data-pyes>Yes, take it off</button>' });
   sh.addEventListener('click', async e => {
     if (e.target.closest('[data-pno]')) { C.closeSheet(); C.render(); }
@@ -8997,7 +8997,7 @@ function dpSheet(key, mode = '') {
   const steps = x.type === 'routine' ? `<div class="lwrap dpsteps">${x.steps.map(r => tick(r.name, routineDone(r), `data-dpstep="${r.id}"`)).join('')}</div>`
     : x.type === 'sup' ? `<div class="lwrap dpsteps">${x.sups.map(o => tick(o.sp.name || 'Supplement', o.on, `data-dpsup="${o.sp.id}" data-t="${o.tm}"`)).join('')}</div>` : '';
   const pantry = x.type === 'meal' && !x.done ? (() => { const l = pantryNow(); return l.length ? `<p class="dsub">From your stock</p><input class="finp dpfind" type="search" placeholder="Search your stock" aria-label="Search your stock" data-dpfind><div class="dpgrid" data-dpgrid>${l.slice(0, 40).map(r => `<button type="button" class="dkt" data-dping="${r.id}" data-n="${esc(norm(r.name))}"><b>${foodEmo(r.name)}</b>${esc(r.name)}${cntOf(r) != null ? `<small>${esc(unitShort(cntOf(r), unitOf(r)))}</small>` : ''}</button>`).join('')}</div>` : ''; })() : '';
-  const water = x.type === 'water' ? `<div class="lwater small"><button class="iconbtn small" data-dpwater="-1" aria-label="Eén glas minder">${svg(P.minus)}</button><div class="lwv"><b>${waterOn(d)?.glasses || 0}</b><span>${esc(x.sub)}</span></div><button class="iconbtn small lplus" data-dpwater="1" aria-label="Nog een glas">${svg(P.plus)}</button></div>` : '';
+  const water = x.type === 'water' ? `<div class="lwater small"><button class="iconbtn small" data-dpwater="-1" aria-label="One glass less">${svg(P.minus)}</button><div class="lwv"><b>${waterOn(d)?.glasses || 0}</b><span>${esc(x.sub)}</span></div><button class="iconbtn small lplus" data-dpwater="1" aria-label="One more glass">${svg(P.plus)}</button></div>` : '';
   const sh = C.sheet({ title: x.label, body: `<p class="lnone">${esc([x.min != null ? hm(x.min) : 'no set time', x.skipped ? 'skipped' : x.sub].filter(Boolean).join(' · '))}</p>${steps}${water}${pantry}
     <div class="dpbar">${x.type === 'water' ? '' : x.done ? '<button class="btn" data-dpundo>Not done after all</button>' : `<button class="btn primary" data-dpdone>✓ ${doneLabel}</button>`}${other}${x.skipped ? '<button class="btn" data-dpunskip>Do not skip</button>' : x.done ? '' : '<button class="btn" data-dpskip>Skipped</button>'}${x.done ? '' : '<button class="btn" data-dplater>Later ▾</button>'}</div>
     <div class="dplater" hidden><div class="lwrap">${hours.map(m => `<button class="chip" data-dpat="${m}">${hm(m)}</button>`).join('')}<button class="chip" data-dpday="${addDays(d, 1)}">Tomorrow</button></div><label class="lfield"><span>Pick a day</span><input class="finp" type="date" data-dppick min="${addDays(d, 1)}"></label></div>` });
@@ -9547,7 +9547,7 @@ function link(days, cond, val, a, b, fmt = v => r1(v)) {
 const longest = days => { let best = 0, cur = 0; for (const ok of days) { cur = ok ? cur + 1 : 0; best = Math.max(best, cur); } return best; };
 function anaHead(title, sub) {
   const n = anaDays();
-  return `<div class="viewhead"><h1>${esc(title)}</h1><span class="sub">${esc(sub)}</span></div><div class="seg anaper" role="group" aria-label="Periode">${ANA_P.map(([k, l]) => `<button data-act="anaper" data-v="${k}" aria-pressed="${n === k}">${l}</button>`).join('')}</div>`;
+  return `<div class="viewhead"><h1>${esc(title)}</h1><span class="sub">${esc(sub)}</span></div><div class="seg anaper" role="group" aria-label="Period">${ANA_P.map(([k, l]) => `<button data-act="anaper" data-v="${k}" aria-pressed="${n === k}">${l}</button>`).join('')}</div>`;
 }
 const STOPW = new Set('de het een en van in op te dat die is was ik je mijn met voor niet maar ook als bij aan er zo nog wel dan om naar uit heb had heel echt even gewoon want omdat over door this that with have just were what when they them from your about would there their been very really'.split(' '));
 /* Mind */
@@ -9687,7 +9687,7 @@ function mindOverview(host) {
   const chip = (k, v) => `<button class="chip ${nl[k] === v ? 'on' : ''}" data-act="nlset" data-v="${k}" data-d="${v}" aria-pressed="${nl[k] === v}">${v}</button>`;
   host.innerHTML = `${head('Mind')}
   <div class="quickacts lifeacts"><button class="chip" data-act="new" data-v="journal">+ Journal</button><button class="chip" data-act="new" data-v="meditation">+ Meditation</button><button class="chip" data-act="new" data-v="lgoals">+ Goal</button><button class="chip" data-act="go" data-v="care/vision">Vision</button></div>
-  <div class="tiles">${aTile('Routines today', `${done.length}/${hs.length}`, hs.length ? 'done' : 'none for today')}${aTile('Stemming', mood7 != null ? r1(mood7) + '/4' : '–', 'last 7 days')}${aTile('Journal', jToday ? 'Written' : 'Not yet', 'today')}${aTile('Goals', String(goals.length), behind.length ? behind.length + ' behind' : 'active')}</div>
+  <div class="tiles">${aTile('Routines today', `${done.length}/${hs.length}`, hs.length ? 'done' : 'none for today')}${aTile('Mood', mood7 != null ? r1(mood7) + '/4' : '–', 'last 7 days')}${aTile('Journal', jToday ? 'Written' : 'Not yet', 'today')}${aTile('Goals', String(goals.length), behind.length ? behind.length + ' behind' : 'active')}</div>
   <div class="panels">
     ${panel('How do you feel?', `<p class="dsub">Mood</p><div class="lwrap">${['Down', 'Gestrest', 'Rustig', 'Blij'].map(v => chip('mood', v)).join('')}</div><p class="dsub">Energy</p><div class="lwrap">${['Laag', 'Oké', 'Goed', 'Top'].map(v => chip('energy', v)).join('')}</div>`)}
     ${panel('Routines today', hs.length ? `<div class="lwrap">${hs.map(h => `<button class="chip ${daysSet(h).has(t) ? 'on' : ''}" data-act="hday" data-id="${h.id}" data-d="${t}" aria-pressed="${daysSet(h).has(t)}">${esc(h.name)}</button>`).join('')}</div>` : quiet('No routines for today.'), ['care/habits', 'Routines'])}
@@ -10492,7 +10492,7 @@ function routinesBody() {
   const tools = `<div class="ntools"><span class="spacer"></span><button class="btn small primary" data-lnew="nroutines" data-pre='${esc(JSON.stringify({ parts: NPARTS.map(p => p[0]), emoji: '💅' }))}'>+ Routine</button><button class="btn small" data-ntutlink="routine">+ From a video</button></div>`;
   const fromVid = recs('ntuts').filter(t => t.steps && t.makeRoutine && !recs('nroutines').some(r => r.url === t.url));
   const ask = fromVid.map(t => `<div class="nwarn">🎬 <b>New routine from video:</b> ${esc(titleOf(t))}. Is this right? <button class="chip small primary" data-ntut2r="${t.id}">Make routine</button></div>`).join('');
-  if (!all.length) return tools + ask + `<div class="emptyx"><p class="ebig">📋</p><p><b>No routines yet.</b> Build one per treatment, like BIAB fill or gel polish. You share the blocks per part between routines.</p><div class="lwrap">${['BIAB fill', 'Gel polish nieuw', 'Acryl full set'].map(n => `<button class="chip" data-nrtex="${esc(n)}">${esc(n)}</button>`).join('')}</div></div>`;
+  if (!all.length) return tools + ask + `<div class="emptyx"><p class="ebig">📋</p><p><b>No routines yet.</b> Build one per treatment, like BIAB fill or gel polish. You share the blocks per part between routines.</p><div class="lwrap">${['BIAB fill', 'New gel polish', 'Acrylic full set'].map(n => `<button class="chip" data-nrtex="${esc(n)}">${esc(n)}</button>`).join('')}</div></div>`;
   return tools + ask + `<div class="nroutines">${all.map(r => { const st = routineSteps(r), done = byDate('naillog').filter(x => x.routine === r.id).length, mins = num(r.minutes) || st.reduce((n, s) => n + (num(s.minutes) || 0), 0);
     return `<div class="nrt"><div class="nrth"><b>${esc(r.emoji || '💅')} ${esc(titleOf(r))}</b><small>${mins ? '± ' + mins + ' min · ' : ''}${plural(st.length, 'step', 'steps')}${done ? ' · ' + done + ' times done' : ''}</small></div><div class="nblocks">${[].concat(r.parts || []).map(p => `<span style="background:${partOf(p)[2]}">${esc(p)} <i>${stepsFor(r, p).length}</i></span>`).join('')}</div><div class="lbar2"><button class="btn small primary" data-nrun="${r.id}">▶ Start</button><button class="btn small" data-nbuild="${r.id}">Build</button></div></div>`; }).join('')}</div>`;
 }
