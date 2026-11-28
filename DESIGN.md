@@ -135,3 +135,8 @@ Forms fit on one screen, are visual (emoji, tiles, photos, swatches) and keep ex
 - **Lists**: one search bar and one ⚙︎ button (sort, group, view and select live behind it), then one row of filter chips, so the list starts right away. An item without a photo gets a colour field with a fitting emoji, never a big letter. A smart card on top (cook now with what you have, your week of workouts, what runs low). Rows with an icon tile and a small score ring, or cards with a colour photo and the score on it.
 - **Opening an item**: a full page: big photo or colour field, three tiles with the key numbers, title and tags, tabs (for a recipe: ingredients, steps, reviews), one big action button with small extra buttons.
 - **Settings**: an icon per row in a soft colour, switches for on/off, a search field on top.
+
+## Today blocks, phase and money cards, budget coach (Nov 2026)
+- Day-part blocks on Today: big, two in a row on a phone (more on wide screens).
+- Cycle phase and safe-to-spend: colour cards with a tip (phase colour per phase; money card with a bar to payday). Both open their page.
+- Finance, budget coach on Your plan: a suggestion per category (Use €X) plus one plan for her pay (fixed, everyday, pots, save) with Apply this plan. Fixed things like subscriptions and repeats count at their exact amount; everything else her 3-month average plus a 10% buffer. Categories that spend in bursts and non-monthly bills become pots to keep apart every month.

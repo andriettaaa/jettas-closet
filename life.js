@@ -7483,6 +7483,8 @@ document.addEventListener('click', async e => {
     case 'fall': L.fall = (L.fall || 50) + 50; C.render(); break;
     case 'fafford': fAfford(fState()); break;
     case 'fchip': case 'frepeat': { const x = L.byId[d.id]; if (x) fQuick(x); break; }
+    case 'budsug': { const c = L.byId[d.id]; if (!c) break; await save(c, { budget: Number(d.v), ...(d.roll ? { rollover: true } : {}) }); C.toast(`${titleOf(c)}: budget ${fEur0(Number(d.v))}`); C.render(); break; }
+    case 'budall': { const box = b.closest('#m-coach'); for (const b of box?.querySelectorAll('[data-act="budsug"]') || []) { const c = L.byId[b.dataset.id]; if (c) await save(c, { budget: Number(b.dataset.v), ...(b.dataset.roll ? { rollover: true } : {}) }); } C.toast('✓ Your plan is set'); C.render(); break; }
     case 'fnothing': { const r = recs('fset')[0]; (r ? save(r, { nothingOn: today() }) : create('fset', { nothingOn: today() }).catch(() => {})); C.toast('Nothing spent today. Noted.'); break; }
     case 'fpay': case 'fskip': {
       const o = fOccs(addDays(fStart(), -62), addDays(today(), 400)).find(x => x.key === d.v); if (!o) break;
@@ -7565,6 +7567,40 @@ function fEveryList() {
   return [...groups].map(([d, rs]) => `<div class="mdayhead"><b>${esc(fromISO(d).toLocaleDateString('en-GB', { weekday: 'long', month: 'long', day: 'numeric' }))}</b></div><div class="lrows">${rs.map(r => row(r.x)).join('')}</div>`).join('')
     + (rows.length >= (L.everyLim || 50) ? '<button class="btn small mmore" data-act="everymore">Show more</button>' : '') || quiet(q ? 'Nothing matches.' : 'Nothing logged yet.');
 }
+/* the budget coach: what she really spends per category, and how much to keep apart per pot.
+   Fixed things (repeats like subscriptions, or a category that costs the same every month) get exactly their amount,
+   everything else her average of the last 3 months plus a 10% buffer, rounded up to €5. Categories that spend in bursts
+   (gifts, clothes) become a pot that rolls over, from the average of 12 months. Bills that are not monthly become a pot too. */
+function budgetCoach() {
+  const t = today(), m0 = t.slice(0, 7) + '-01', mk = i => addMonths(m0, -i).slice(0, 7), last3 = [3, 2, 1].map(mk), last12 = Array.from({ length: 12 }, (_, i) => mk(12 - i));
+  const tx = recs('ftx').filter(x => fEveryday(x) && x.date && x.date < m0 && x.date >= addMonths(m0, -12));
+  if (!tx.length) return '';
+  const by = new Map(); for (const x of tx) { const k = x.category || ''; if (!k) continue; const m = x.date.slice(0, 7), e = by.get(k) || {}; e[m] = (e[m] || 0) + (num(x.amount) || 0); by.set(k, e); }
+  const up5 = n => Math.ceil(n / 5) * 5, sugs = [];
+  for (const c of recs('fcats').filter(c => !c.nospend)) {
+    const e = by.get(c.id); if (!e) continue;
+    const m3 = last3.map(m => e[m] || 0), avg3 = m3.reduce((a, b) => a + b, 0) / 3, y = last12.reduce((n, m) => n + (e[m] || 0), 0) / 12;
+    if (!avg3 && !y) continue;
+    const sorted = [...m3].sort((a, b) => a - b), med = sorted[1], fixed = avg3 > 0 && Math.max(...m3) - Math.min(...m3) <= avg3 * 0.02;
+    const burst = !fixed && Math.max(...m3) > 2 * Math.max(med, 1) && y > 0;
+    const v = fixed ? Math.round(avg3 * 100) / 100 : burst ? up5(y * 1.1) : up5(avg3 * 1.1);
+    sugs.push({ c, v, fixed, burst, m3, avg: burst ? y : avg3, b: num(c.budget) || 0 });
+  }
+  const bills = recs('fbills').filter(b => !b.paused && !(b.ends && b.ends < t)), monthlyFixed = fSum(bills.filter(fMonthly).map(b => ({ amount: fPerMonth(b) }))), potBills = bills.filter(b => !fMonthly(b));
+  const inc = recs('fincome').filter(x => x.date && x.date < m0 && x.date >= addMonths(m0, -3) && x.type !== 'Other'), pay = inc.length ? fSum(inc) / 3 : 0;
+  const everyday = sugs.filter(x => !x.burst).reduce((n, x) => n + x.v, 0), pots = [...potBills.map(b => ({ e: b.type === 'Insurance' ? '🛡️' : '🧾', n: b.name, why: (b.cadence || '').toLowerCase(), v: Math.round(fPerMonth(b) * 100) / 100 })), ...sugs.filter(x => x.burst).map(x => ({ e: x.c.emoji || '🫙', n: x.c.name, why: 'spends in bursts, rolls over', v: x.v }))];
+  const potSum = pots.reduce((n, x) => n + x.v, 0), save = Math.max(0, pay - monthlyFixed - everyday - potSum), off = sugs.filter(x => Math.abs(x.v - x.b) >= 5 || (x.burst && !x.c.rollover));
+  const spark = m3 => { const mx = Math.max(...m3, 1); return `<div class="bcspark" aria-hidden="true">${m3.map(v => `<i style="height:${Math.max(6, 100 * v / mx)}%"></i>`).join('')}</div>`; };
+  const cards = off.map(x => `<div class="bcsug"><div class="bctop"><b>${esc(x.c.emoji || '🫙')} ${esc(x.c.name || '')}</b><button class="btn small primary" data-act="budsug" data-id="${x.c.id}" data-v="${x.v}"${x.burst ? ' data-roll="1"' : ''}>Use ${fEur0(x.v)}</button></div>${spark(x.m3)}<small class="muted">${x.fixed ? `Costs exactly ${fEur0(Math.round(x.avg * 100) / 100)} a month` : x.burst ? `Spends in bursts: about ${fEur0(Math.round(x.avg))} a month over a year, as a pot that rolls over` : `You spend about ${fEur0(Math.round(x.avg))} a month`} · budget now ${x.b ? fEur0(x.b) : 'none'}</small></div>`).join('');
+  const parts = pay ? [['Fixed', monthlyFixed, '#6b3f22'], ['Everyday', everyday, '#a8673d'], ['Pots', potSum, '#7fae7a'], ['Save', save, '#4e8a6a']].filter(x => x[1] > 0) : [];
+  const tot = parts.reduce((n, x) => n + x[1], 0) || 1;
+  const plan = pay ? `<div class="bcplan"><b>Your pay of about ${fEur0(Math.round(pay))}, split</b><div class="bcstack">${parts.map(([l, v, c]) => `<i style="width:${100 * v / tot}%;background:${c}" title="${l} ${fEur0(v)}">${v / tot > .12 ? l : ''}</i>`).join('')}</div>
+    <div class="bclegend">${parts.map(([l, v, c]) => `<span><i style="background:${c}"></i>${l} <b>${fEur0(Math.round(v))}</b></span>`).join('')}</div>
+    ${pots.length ? `<p class="dsub">Keep apart every month</p><div class="bcpots">${pots.map(x => `<div><span>${esc(x.e)} ${esc(x.n || '')} <small class="muted">${esc(x.why)}</small></span><b>${fEur0(x.v)}</b></div>`).join('')}</div>` : ''}
+    ${off.length ? `<button class="btn primary" data-act="budall">Apply this plan</button>` : '<p class="lnone">✓ Your budgets already match how you spend.</p>'}</div>` : '';
+  if (!cards && !plan) return '';
+  return MP('💡 Budget coach', `${cards ? `<div class="bcsugs">${cards}</div>` : ''}${plan}<p class="lnone">From your purchases of the last 3 months (12 for pots). Repeats count exactly, the rest with a 10% buffer.</p>`, '', 'coach');
+}
 function fEnvFill(fill) {
   const mode = fMode(), w = fWindow(mode), cats = recs('fcats').sort((a, b) => (a.nospend ? 1 : 0) - (b.nospend ? 1 : 0) || (num(b.budget) || 0) - (num(a.budget) || 0) || norm(a.name).localeCompare(norm(b.name)));
   const planned = fSum(cats.filter(c => !c.nospend), 'budget'), spent = fSum(recs('ftx').filter(x => fEveryday(x) && x.date >= w.start && x.date <= w.end && x.date <= today()));
@@ -7573,6 +7609,7 @@ function fEnvFill(fill) {
   fill.innerHTML = `${fDupNote()}<div class="tiles lt3">${fTile('Spent', eur(spent), `everyday spending this ${mode === 'month' ? 'month' : 'pay'}`)}${fTile('Planned', fEur0(planned), `in ${plural(cats.filter(c => !c.nospend).length, 'envelope')}, per ${mode === 'month' ? 'month' : 'paycheck'}`)}${spent > planned ? fTile('Over plan', eur(spent - planned), `${plural(days, 'day')} to ${mode === 'month' ? 'month end' : 'payday'}`, 'mneg') : fTile('Left in the plan', eur(planned - spent), `${plural(days, 'day')} to ${mode === 'month' ? 'month end' : 'payday'}`)}</div>
   ${(() => { const pots = cats.filter(c => !c.nospend && num(c.budget)); if (!pots.length) return ''; return `<div class="fjars">${pots.map(c => { const b = num(c.budget) || 0, sp = fSum(recs('ftx').filter(x => x.category === c.id && x.date >= w.start && x.date <= w.end && x.date <= today())), left = Math.max(0, b - sp), pct = b ? Math.round(left / b * 100) : 0, fast = b && sp / b > 1 - days / Math.max(1, diffDays(w.start, w.end) + 1) + .15;
       return `<div class="fjar ${fast ? 'fast' : ''}" title="${esc(c.name)}"><div class="jar"><i style="height:${pct}%"></i><span>${c.emoji || '🫙'}</span></div><b>${esc(c.name || '')}</b><small>${moneyHidden() ? '€•••' : eur(left)} over${fast ? ' · te snel' : ''}</small></div>`; }).join('')}</div>`; })()}
+  ${budgetCoach()}
   <div class="fenvgrid">
     ${MP('Your envelopes', `<div class="seg fseg" role="group"><button data-act="envmode" data-v="month" aria-pressed="${mode === 'month'}">Per month</button><button data-act="envmode" data-v="pay" aria-pressed="${mode === 'pay'}">Per paycheck</button></div><p class="lnone">${esc(shortDate(w.start))} – ${esc(shortDate(w.end))}</p>${cats.map(c => fEnvRow(c, w)).join('') || quiet('Add a category for each kind of everyday spending.')}`, '<button class="chip link" data-act="new" data-v="fcats">+ Category</button>')}
     ${MP('Every purchase', `<div class="seg fseg" role="group">${[['out', 'Purchases'], ['in', 'Money in'], ['both', 'Both']].map(([k, l]) => `<button data-act="everymode" data-v="${k}" aria-pressed="${(L.everyMode || 'out') === k}">${l}</button>`).join('')}</div>
@@ -11008,11 +11045,11 @@ return {
   todayTop: () => { try { return todayTop(); } catch (e) { console.error(e); return ''; } },
   // Today as one story: the greeting gets the ring, the day comes without its own header
   dayStory: () => { try { return C ? dayPlanHTML(false, 'rest') : ''; } catch (e) { console.error(e); return ''; } },
-  cycleChip: () => { try { if (!C || !recs('cycles').length) return ''; const cy = cycleStats(); if (!cy?.day) return ''; const ph = cyclePhase(cy.day), t = PHASE_TIPS[ph]; return t ? `<button type="button" class="stchip" data-overgo="care/cycle"><span>${t[0]}</span><em>Day ${cy.day} · ${esc(PHASE_COACH[ph]?.nl || ph)}</em></button>` : ''; } catch { return ''; } },
+  cycleChip: () => { try { if (!C || !recs('cycles').length) return ''; const cy = cycleStats(); if (!cy?.day) return ''; const ph = cyclePhase(cy.day), t = PHASE_TIPS[ph]; if (!t) return ''; const tip = PHASE_COACH[ph]?.energy || t[1].split(':')[0]; return `<button type="button" class="stcard ph-${esc(ph.toLowerCase())}" data-overgo="care/cycle"><b>${t[0]} Day ${cy.day} · ${esc(PHASE_COACH[ph]?.nl || ph)}</b><span>${esc(tip)} ›</span></button>`; } catch { return ''; } },
   quickAdd: q => { try { return C ? quickAdd(q) : null; } catch { return null; } },
   visionStrip: () => { try { return C ? visionStrip() : ''; } catch { return ''; } },
   dayNow: () => { try { return C ? dayPlanHTML(false, 'now') : ''; } catch (e) { console.error(e); return ''; } },
-  moneyChip: () => { try { if (!C || !recs('faccounts').length) return ''; const st = fState(); return `<button type="button" class="stchip money" data-overgo="money/today"><span>💶</span>${moneyHidden() ? '€•••' : (st.perDay < 0 ? '−' : '') + eur(Math.abs(st.perDay))} today</button>`; } catch { return ''; } },
+  moneyChip: () => { try { if (!C || !recs('faccounts').length) return ''; const st = fState(), hid = moneyHidden(), span = st.pay ? Math.max(1, diffDays(st.start, st.pay)) : 30, gone = Math.min(100, Math.max(0, 100 * diffDays(st.start, st.t) / span)); return `<button type="button" class="stcard money" data-overgo="money/today"><small>Safe to spend today</small><b>${hid ? '€•••' : (st.perDay < 0 ? '−' : '') + eur(Math.abs(st.perDay))}</b><span class="stbar"><i style="width:${gone}%"></i></span><span>${hid ? '' : `${eur(Math.max(0, st.until))} left `}${st.pay ? `until payday (${plural(st.days, 'day')})` : 'this month'} ›</span></button>`; } catch { return ''; } },
   dayStats: () => { try { return C ? dayStats() : null; } catch { return null; } },
   pinAffirm: () => { try { return C ? pnAffirmHTML() : ''; } catch { return ''; } },
   pinAffirmToday: () => { try { return C ? pnAffirmToday(L.pnShift || 0) : null; } catch { return null; } },

@@ -1996,3 +1996,32 @@ details.lmore > .form, .sheet .form { box-sizing: border-box; max-width: 100%; }
 .calstrip .chip[aria-pressed="true"] small { color: #fff; }
 .caltpls { margin-top: 8px; display: grid; gap: 4px; }
 .dllist .chip[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--ink); border-color: transparent; }
+/* Today: bigger day-part blocks, two in a row on a phone */
+.story .dptiles, :root[data-density] .story .dptiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 700px) { .story .dptiles, :root[data-density] .story .dptiles { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); } }
+.story .dpt, :root[data-density] .story .dpt { padding: 16px 10px 14px; gap: 6px; border-radius: 20px; }
+.story .dpt .ring, :root[data-density] .story .dpt .ring { width: 68px; height: 68px; } .story .dpt .ring > b { font-size: 28px; }
+.story .dptl { font-size: 15.5px; } .story .dpt small { font-size: 13.5px; font-weight: 600; }
+/* Today: cycle phase and money as colour cards with a tip */
+.stcards { display: grid; gap: 10px; margin-bottom: 10px; }
+@media (min-width: 700px) { .stcards { grid-template-columns: 1fr 1fr; } }
+.stcard { display: grid; gap: 4px; text-align: left; padding: 16px; border: 0; border-radius: 20px; color: #fff; font: inherit; cursor: pointer; background: linear-gradient(135deg, #7fae7a, #4e8a6a); -webkit-tap-highlight-color: transparent; }
+.stcard:active { transform: scale(.98); }
+.stcard b { font-size: 19px; } .stcard span, .stcard small { font-size: 13.5px; opacity: .95; line-height: 1.35; }
+.stcard.ph-period { background: linear-gradient(135deg, #c86a78, #9c4458); }
+.stcard.ph-ovulation { background: linear-gradient(135deg, #e0a948, #c97f2c); }
+.stcard.ph-luteal { background: linear-gradient(135deg, #a07ab8, #6f4f8c); }
+.stcard.money { background: linear-gradient(135deg, #6b3f22, #a8673d); }
+.stcard.money b { font-size: 28px; }
+.stbar { display: block; height: 8px; border-radius: 9px; background: rgba(255,255,255,.25); overflow: hidden; margin: 4px 0 2px; } .stbar i { display: block; height: 100%; background: #fff; border-radius: 9px; }
+/* Finance: budget coach */
+.bcsugs { display: grid; gap: 8px; } @media (min-width: 700px) { .bcsugs { grid-template-columns: 1fr 1fr; } }
+.bcsug { padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--bg); min-width: 0; }
+.bctop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bcspark { display: flex; align-items: flex-end; gap: 4px; height: 30px; margin: 8px 0 4px; } .bcspark i { flex: 1; border-radius: 4px; background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.bcspark i:last-child { background: color-mix(in srgb, var(--accent) 55%, transparent); }
+.bcplan { margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 16px; display: grid; gap: 8px; }
+.bcstack { display: flex; height: 34px; border-radius: 12px; overflow: hidden; } .bcstack i { display: grid; place-items: center; color: #fff; font-size: 12px; font-style: normal; min-width: 0; overflow: hidden; }
+.bclegend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; } .bclegend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; }
+.bcpots > div { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); } .bcpots small { display: block; }
+.bcplan .btn { justify-self: start; }
