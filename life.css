@@ -2190,3 +2190,31 @@ details.lmore > .form, .sheet .form { box-sizing: border-box; max-width: 100%; }
 .fevery .tiles { margin-top: 6px; }
 .fevery .tiles .tile .v { font-size: clamp(17px, 2.2vw, 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fevery .tiles .tile .k { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Closet per device (C1b): outfit first on a phone; filters left, closet middle, outfit and stats right on a laptop */
+.clwrap { display: grid; gap: 12px; grid-template-areas: "side" "tools" "filters" "grid"; min-width: 0; }
+.clside { grid-area: side; display: grid; gap: 12px; min-width: 0; align-content: start; } .cltools { grid-area: tools; min-width: 0; } .clfilters { grid-area: filters; min-width: 0; } .clwrap > #railGrid { grid-area: grid; min-width: 0; }
+.clstats .clsgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; text-align: center; }
+.clstats b { display: block; font-family: var(--display); font-size: 20px; } .clstats small { color: var(--muted); font-size: 11.5px; }
+@media (max-width: 699px) { .clstats .clsgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1100px) {
+  .clwrap.closet { grid-template-columns: 190px minmax(0, 1fr) 270px; grid-template-areas: "filters tools side" "filters grid side"; align-items: start; }
+  .clwrap.wishlist, .clwrap.stats { grid-template-columns: 190px minmax(0, 1fr); grid-template-areas: "filters tools" "filters grid"; }
+  .clwrap .clside { position: sticky; top: 12px; }
+  .clwrap .clfilters { position: sticky; top: 12px; display: grid; gap: 10px; }
+  .clwrap .clfilters .chips { flex-direction: column; align-items: stretch; flex-wrap: nowrap; overflow: visible; gap: 2px; }
+  .clwrap .clfilters .chips .chip { justify-content: space-between; border: 0; background: none; border-radius: 10px; padding: 7px 10px; text-align: left; width: 100%; }
+  .clwrap .clfilters .chips .chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  .clwrap .clstats .clsgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* a calm moodboard: photos only, the details when you hover a piece */
+  .clwrap.closet #railGrid .card .meta { position: absolute; left: 6px; right: 6px; bottom: 6px; border-radius: 10px; padding: 6px 8px; background: color-mix(in srgb, var(--surface) 92%, transparent); opacity: 0; transform: translateY(4px); transition: opacity .15s, transform .15s; pointer-events: none; }
+  .clwrap.closet #railGrid .card { position: relative; }
+  .clwrap.closet #railGrid .card:hover .meta, .clwrap.closet #railGrid .card:focus-visible .meta { opacity: 1; transform: none; }
+}
+@media (min-width: 1100px) {
+  .clwrap #railGrid.grid { grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 10px; }
+  .clwrap .cltools .tools { flex-wrap: nowrap; } .clwrap .cltools .tools .search { flex: 1; min-width: 0; }
+  .clwrap.closet #railGrid .card .wearb, .clwrap.closet #railGrid .card .cpwb { opacity: 0; transition: opacity .15s; }
+  .clwrap.closet #railGrid .card:hover .wearb, .clwrap.closet #railGrid .card:hover .cpwb { opacity: 1; }
+}
+@media (min-width: 700px) and (max-width: 1099px) { .clwrap #railGrid.grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; } }
+@media (max-width: 699px) { .clwrap #railGrid.grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; } .clwrap #railGrid .card .meta { font-size: 11px; } }
