@@ -2240,3 +2240,14 @@ details.lmore > .form, .sheet .form { box-sizing: border-box; max-width: 100%; }
 .panels.lifeareas { margin: 0; }
 @media (min-width: 1000px) { .lifesplit { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); } }
 @media (max-width: 699px) { .panels.lifeareas { grid-template-columns: minmax(0, 1fr); } }
+/* Home and Social: the thing of now as a warm card */
+.hnow { margin: 0; display: grid; gap: 4px; align-content: start; color: #fff; border: 0; background: linear-gradient(135deg, #6b3f22, #a8673d); }
+.hnow small, .hnow span { color: rgba(255,255,255,.88); } .hnow b { font-size: 20px; } .hnow .btn { background: #fff; color: #2a1d14; border-color: transparent; }
+.hnow.empty { background: linear-gradient(135deg, #7fae7a, #4e8a6a); }
+.hrooms { margin: 0; } .hrgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; }
+.hroom { display: grid; justify-items: center; gap: 3px; padding: 8px 4px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); font: inherit; color: var(--ink); cursor: pointer; }
+.hroom .ring { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; } .hroom .ring i { width: 34px; height: 34px; border-radius: 50%; background: var(--surface); display: grid; place-items: center; font-style: normal; font-size: 17px; }
+.hroom b { font-size: 12px; } .hroom small { font-size: 11px; color: var(--muted); }
+.scal { margin: 0; min-width: 0; }
+@media (max-width: 699px) { .hrgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 1000px) { .panels.kpanels { columns: 3; } }

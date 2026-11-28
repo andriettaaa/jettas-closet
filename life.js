@@ -5737,6 +5737,19 @@ async function moveGoalSync() {
   try { g ? await save(g, { target: Math.round(toGo * 100) / 100, by }) : await create('fgoals', { name: 'Verhuizen', target: Math.round(toGo * 100) / 100, saved: 0, by }); C.toast(g ? 'Savings goal updated' : 'Savings goal Verhuizen is in Finance'); } catch { C.toast('Could not save. Please try again.'); }
 }
 document.addEventListener('change', e => { const t = e.target; if (!C || !t.matches?.('[data-movemonth]') || !/^\d{4}-\d{2}$/.test(t.value)) return; C.savePrefs({ move: { ...(C.prefs().move || {}), month: t.value } }).catch(() => C.toast('Could not save.')); });
+// Home (H1/N1): the chore of now big, rooms as rings with how fresh they are
+function homeNowHTML(q15, mm) {
+  const c = q15[0]; if (!c) return `<section class="panel hnow empty"><small>Now</small><b>✨ All caught up</b><span>Nothing due. Enjoy your home.</span></section>`;
+  const steps = String(c.steps || '').split('\n').map(x => x.trim()).filter(Boolean);
+  return `<section class="panel hnow"><small>Now · ${mm} minutes</small><b>${esc(itemEmo(c))} ${esc(titleOf(c))}</b>${steps.length ? `<span>${esc(steps.slice(0, 5).join(' · '))}</span>` : q15.length > 1 ? `<span>then ${esc(q15.slice(1).map(titleOf).join(', '))}</span>` : ''}<div class="dbtns"><button class="btn small" data-chrun="${c.id}">⏱ Start</button><button class="btn small" data-act="open" data-id="${c.id}">Open</button></div></section>`;
+}
+function homeRoomsHTML() {
+  const t = today(), ch = recs('chores'), rooms = [...new Set(ch.flatMap(c => [].concat(c.space || [])).filter(Boolean))].slice(0, 8);
+  if (!rooms.length) return '';
+  const ROOM_EMO = [[/bath|badkamer|toilet|wc/i, '🛁'], [/kitchen|keuken/i, '🍳'], [/bed|slaap/i, '🛏'], [/living|woon|lounge/i, '🛋'], [/hall|gang|entree/i, '🚪'], [/laundry|was/i, '🧺'], [/office|werk|desk/i, '💻']];
+  return `<section class="panel hrooms"><h3 class="mh">Rooms</h3><div class="hrgrid">${rooms.map(rm => { const l = ch.filter(c => [].concat(c.space || []).includes(rm)), ok = l.filter(c => choreDue(c) > t).length, pct = l.length ? Math.round(100 * ok / l.length) : 100;
+    return `<button type="button" class="hroom" data-act="go" data-v="home/chores"><span class="ring" style="background:conic-gradient(#4e8a6a ${pct * 3.6}deg, var(--line) 0)"><i>${(ROOM_EMO.find(([re]) => re.test(rm)) || [0, '🏠'])[1]}</i></span><b>${esc(rm)}</b><small>${pct}% fresh</small></button>`; }).join('')}</div></section>`;
+}
 function homeToday(host) {
   const t = today();
   const chores = recs('chores').filter(c => choreDue(c) <= t).sort((a, b) => choreDue(a).localeCompare(choreDue(b)));
@@ -5753,8 +5766,8 @@ function homeToday(host) {
   const q15 = []; let mm = 0; for (const c of chores) { const m = num(c.mins) || 10; if (mm + m <= 15 || !q15.length) { q15.push(c); mm += m; } }
   const house = recs('ingredients').filter(i => ['Household', 'Personal care'].includes(i.category)).sort((a, b) => (b.list ? 1 : 0) - (a.list ? 1 : 0) || norm(a.name).localeCompare(norm(b.name)));
   const rooms = [...new Set([...recs('chores').flatMap(c => [].concat(c.space || [])), ...recs('inventory').map(i => i.room)].filter(Boolean))];
-  host.innerHTML = `${head('Home')}${mixHero('home')}
-  <div class="panels">
+  host.innerHTML = `${head('Today')}<div class="ktop">${homeNowHTML(q15, mm)}${homeRoomsHTML()}</div>
+  <div class="panels kpanels">
     ${q15.length ? panel(`⏱ Today ± ${mm} minutes`, `<p class="lnone">A quarter of an hour a day keeps your home on track, with no big cleaning day.</p><div class="lrows">${q15.map(row).join('')}</div>`) : ''}
     ${panel('🧻 Household stock', `${house.length ? `<div class="lrows">${house.map(i => `<div class="lrow"><span class="lmain"><b>${esc(i.name)}</b><span>${i.list ? '🛒 on your list' : i.low ? 'nearly empty' : i.stock ? 'enough' : 'empty'}</span></span><div class="lwrap"><button class="chip small" data-hstock="${i.id}" data-v="low">Nearly empty</button><button class="chip small" data-hstock="${i.id}" data-v="out">Empty</button><button class="chip small" data-hstock="${i.id}" data-v="got">Bought</button></div></div>`).join('')}</div>` : quiet('Add loo roll, washing powder and the like here. Nearly empty? Then it goes onto your grocery list by itself.')}${newBtn('ingredients', '+ Huishoudspul', { category: 'Household', stock: true })}`)}
     ${rooms.length ? panel('🚪 Room by room', rooms.map(rm => { const ch = recs('chores').filter(c => [].concat(c.space || []).includes(rm)), due = ch.filter(c => choreDue(c) <= t), inv = recs('inventory').filter(i => i.room === rm), want = inv.filter(i => INV_WANT.includes(invStatus(i)));
@@ -5786,6 +5799,13 @@ function lifeIdeas() {
   const have = new Set(recs('cideas').map(x => norm(x.name)));
   return out.filter(([, n]) => !have.has(norm(n))).slice(0, 6);
 }
+// Social (S2/O2): the post of today big, then the content week
+function socialTopHTML(upcoming) {
+  const t = today(), p = upcoming.find(x => x.date === t) || upcoming[0], wk = weekStart(0), days = Array.from({ length: 7 }, (_, i) => addDays(wk, i)), posts = recs('posts');
+  const card = p ? `<section class="panel hnow"><small>${p.date === t ? 'Post today' : 'Next post · ' + esc(relDay(p.date))}${p.time ? ' · ' + esc(p.time) : ''}</small><b>📲 ${esc(titleOf(p))}${p.format ? ` <span class="muted">(${esc(p.format)})</span>` : ''}</b><span>${esc([p.stage, [].concat(p.platforms || []).join(' + ')].filter(Boolean).join(' · '))}</span><div class="dbtns"><button class="btn small" data-act="open" data-id="${p.id}">Open</button></div></section>` : `<section class="panel hnow empty"><small>Next post</small><b>Nothing planned</b><div class="dbtns"><button class="btn small" data-act="new" data-v="posts">Plan a post</button></div></section>`;
+  const cal = `<section class="panel scal"><div class="lph3"><h3 class="mh">Content this week</h3><button class="chip link" data-act="go" data-v="social/plan">Planning</button></div><div class="kwdays">${days.map(d => { const l = posts.filter(x => x.date === d); return `<button type="button" class="kwday ${d === t ? 'on' : ''}" data-act="go" data-v="social/plan"><b>${esc(dayName(d))}</b>${l.length ? l.slice(0, 2).map(x => `<span>${x.stage === 'Posted' ? '✓' : '📲'} ${esc(titleOf(x))}</span>`).join('') : '<span class="muted">·</span>'}</button>`; }).join('')}</div></section>`;
+  return `<div class="ktop">${card}${cal}</div>`;
+}
 function socialToday(host) {
   const t = today(), posts = recs('posts');
   const wk = weekStart(0), end = addDays(wk, 6);
@@ -5804,7 +5824,7 @@ function socialToday(host) {
   const due = tasksDue(), nextTasks = recs('tasks').filter(x => !taskDone(x) && x.date && x.date > t).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 4);
   const projs = recs('projects').filter(p => p.status !== 'Completed').sort((a, b) => (a.end || '9').localeCompare(b.end || '9'));
   const pbar = p => { const ts = projTasks(p), pct = ts.length ? Math.round(100 * ts.filter(taskDone).length / ts.length) : 0; return `<div class="lrow"><button class="lmain" data-act="open" data-id="${p.id}"><b>${esc(titleOf(p))}</b><span>${esc(KINDS.projects.sub(p))}</span><span class="lprog"><i style="width:${pct}%"></i></span></button><span class="lside">${pct}%</span></div>`; };
-  host.innerHTML = `${head('Today')}
+  host.innerHTML = `${head('Today')}${socialTopHTML(upcoming)}
   <div class="tiles lt3"><div class="tile"><div class="k">This week</div><div class="v">${week.length}</div><div class="h">${posted} posted</div></div>
     ${accs.slice(0, 2).map(a => `<div class="tile"><div class="k">${esc(a.platform || 'Account')}</div><div class="v">${(num(a.followers) || 0).toLocaleString('en-GB')}</div><div class="h">followers${a.freq ? ' · ' + esc(a.freq) : ''}</div></div>`).join('') || '<div class="tile"><div class="k">Followers</div><div class="v">–</div><div class="h">add your accounts under Brand</div></div>'}</div>
   <div class="panels">
