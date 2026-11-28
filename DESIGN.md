@@ -122,3 +122,7 @@ Forms fit on one screen, are visual (emoji, tiles, photos, swatches) and keep ex
 - **Home (a chore)**: room picture (room, then chore), timer that logs minutes, checklist of small steps.
 - **Train (a workout)**: workout card, live sets with a rest timer, from a saved video; the review must be richer than emoji alone.
 - **Social (a post)**: post card, quick idea (also by voice), planner (drop on a day); Social gets its own deeper round.
+- **Train (the review)**: review sliders (effort, fun, energy after, again, note), body map (where she felt it), personal bests (with voice); every other review in the app gets its own round too.
+- **Calendar (an item)**: type it in one line, day strip with a time wheel, templates of her usual plans.
+- **Wishlist (a wish)**: link card, price watch with a nudge, moodboard to rank.
+- **Kitchen (a recipe)**: from a reel, step cards with timers, a photo of a cookbook page.
