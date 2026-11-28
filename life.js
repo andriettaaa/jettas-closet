@@ -1434,15 +1434,15 @@ const KINDS = {
   },
   orders: {
     one: 'order', many: 'Online orders', facet: 'status', photo: 'photo',
-    fields: [F('name', 'What'), F('shop', 'Shop', 'text', { half: 1 }), F('price', 'Price', 'money', { half: 1 }),
+    fields: [F('name', 'What'), F('shop', 'Shop', 'text', { half: 1 }), F('price', 'Price', 'money', { half: 1 }), F('orderNo', 'Order number', 'text', { half: 1 }),
       F('status', 'Status', 'select', { options: ORDER_STATUS, half: 1 }), F('ordered', 'Ordered on', 'date', { half: 1 }),
       F('expected', 'Expected', 'date', { half: 1 }), F('received', 'Received on', 'date', { half: 1 }), F('returnBy', 'Return by', 'date', { half: 1 }),
-      F('track', 'Track and trace', 'url'), F('url', 'Product link', 'url'), F('photo', 'Photo', 'photo'), F('notes', 'Notes', 'long')],
+      F('track', 'Track and trace', 'url'), F('url', 'Product link', 'url'), F('items', 'Items (one per line: name, price, size)', 'long', { rows: 4 }), F('photo', 'Photo', 'photo'), F('shot', 'Screenshot or receipt', 'photo'), F('notes', 'Notes', 'long')],
     sorts: [['expected', 'Arrives first'], ['-ordered', 'Newest'], ['returnBy', 'Return first']],
     hide: r => ['Kept', 'Returned'].includes(r.status), hideLabel: 'Show kept and returned',
     sub: r => [r.shop, r.status, eur(num(r.price)), !r.received && r.expected ? 'arrives ' + relDay(r.expected) : ''].filter(Boolean).join(' · '),
     side: r => r.status === 'Delivered' && r.returnBy ? (r.returnBy < today() ? 'return period over' : 'return by ' + shortDate(r.returnBy)) : r.status === 'Returning' && r.returnBy ? 'send by ' + shortDate(r.returnBy) : '',
-    quick: r => ['Kept', 'Returned'].includes(r.status) ? null : r.status === 'Delivered' ? ({ on: false, label: 'Keep', act: () => save(r, { status: 'Kept' }) }) : ({ on: false, label: 'Received', act: () => save(r, { status: 'Delivered', received: today(), returnBy: r.returnBy || addDays(today(), 14) }) })
+    quick: r => ['Kept', 'Returned'].includes(r.status) ? null : r.status === 'Delivered' ? ({ on: false, label: 'Keep', act: () => save(r, { status: 'Kept' }) }) : ({ on: false, label: 'Received', act: () => save(r, { ...(r.returnBy ? {} : { returnBy: addDays(today(), returnDays(r.shop)) }), status: 'Delivered', received: today(), returnBy: r.returnBy || addDays(today(), 14) }) })
   },
   vision: {
     one: 'dream', many: 'Vision board', facet: 'area', photo: 'photo', display: 'cards',
@@ -2334,8 +2334,8 @@ function emptyList(K, any) {
    times a day, works out what it is (recipe, wish, closet piece, beauty, supplement, gear, home, idea, content,
    gift) and fills in a card. You accept it, send it somewhere else, keep it as a saved link, or skip it. */
 const INBOX_TO = { recipes: ['Recipe', 'kitchen/recipes'], wishes: ['Wish', 'wish/master'], closet: ['Closet wishlist', 'wishlist'], beauty: ['Beauty', 'care/beauty'], supplements: ['Supplement', 'care/supplements'],
-  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], stips: ['Social tip', 'social/tips'], vworkouts: ['Workout video', 'fit/library'], reslinks: ['Resource', 'care/saved'], inspo: ['Inspiration', 'social/inspo'], gifts: ['Gift idea', 'care/gifts'], trip: ['Trip idea', 'care/trips'], stays: ['Saved stay', 'care/trips'], keep: ['Saved link', 'care/saved'] };
-const INBOX_EXTRA = { stays: () => ({ status: 'Saved' }), wishes: () => ({ status: 'Wish', since: today() }), beauty: () => ({ wish: true }), supplements: () => ({ wish: true }), gear: () => ({ own: false }), fitgear: () => ({ own: false }), inventory: () => ({ status: 'Idee' }), cideas: () => ({ status: 'Idea', source: 'Inbox' }), gifts: () => ({ status: 'Idea' }) };
+  gear: ['Kitchen gear', 'kitchen/gear'], fitgear: ['Fitness gear', 'fit/gear'], inventory: ['Home', 'home/inventory'], ideas: ['Self-care idea', 'care/ideas'], cideas: ['Content idea', 'social/ideas'], stips: ['Social tip', 'social/tips'], vworkouts: ['Workout video', 'fit/library'], reslinks: ['Resource', 'care/saved'], inspo: ['Inspiration', 'social/inspo'], orders: ['Online order', 'wish/orders'], gifts: ['Gift idea', 'care/gifts'], trip: ['Trip idea', 'care/trips'], stays: ['Saved stay', 'care/trips'], keep: ['Saved link', 'care/saved'] };
+const INBOX_EXTRA = { orders: () => ({ status: 'Ordered', ordered: today() }), stays: () => ({ status: 'Saved' }), wishes: () => ({ status: 'Wish', since: today() }), beauty: () => ({ wish: true }), supplements: () => ({ wish: true }), gear: () => ({ own: false }), fitgear: () => ({ own: false }), inventory: () => ({ status: 'Idee' }), cideas: () => ({ status: 'Idea', source: 'Inbox' }), gifts: () => ({ status: 'Idea' }) };
 const inboxOpen = () => recs('inbox').filter(r => ['New', 'Ready'].includes(r.status));
 const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
 // a short preview of inbox cards, with Accept where a card is ready
@@ -2492,6 +2492,8 @@ function inboxRows(r, target, now, made = new Map()) {
   }
   if (CAT_NL[target] && data.category) data.category = catNL(target, data.category);
   for (const k of Object.keys(data)) if (data[k] === '' || data[k] == null) delete data[k];
+  // an order mail for an order she already has (same order number) completes that order instead of making a second one
+  if (target === 'orders' && data.orderNo) { const dup = recs('orders').find(o => o.orderNo && norm(o.orderNo) === norm(data.orderNo)); if (dup) { rows.push({ id: dup.id, kind: 'orders', data: { ...data, ...dataOf(dup) } }, { id: r.id, kind: 'inbox', data: { ...dataOf(r), status: 'Done', target, made: dup.id, doneAt: now } }); return rows; } }
   rows.push({ id: rid, kind: target, data }, { id: r.id, kind: 'inbox', data: { ...dataOf(r), status: 'Done', target, made: rid, doneAt: now } });
   return rows;
 }
@@ -6304,7 +6306,7 @@ function openEditor(kind, id, preset = {}) {
 }
 /* opening an item: a full page first (photo or colour field, three tiles with the key facts, tags, the details),
    then one big action. Editing is one tap away. Kinds with a page of their own (recipes) keep it. */
-const VIEW_SKIP = new Set(['photo', 'name', 'notes', 'url', 'link', 'deliverables', 'verdict', 'needsFill', 'fillMiss', 'fillHow']);
+const VIEW_SKIP = new Set(['photo', 'name', 'notes', 'url', 'link', 'deliverables', 'verdict', 'items', 'shot', 'orderNo', 'track', 'needsFill', 'fillMiss', 'fillHow']);
 function factOf(f, v) {
   if (v == null || v === '' || (Array.isArray(v) && !v.length)) return null;
   if (f.type === 'money') return eur(num(v)); if (f.type === 'date') return niceDate(v); if (f.type === 'rating') return scFmt(sc10(v)) + '/10';
@@ -6334,7 +6336,7 @@ function viewRecord(r) {
   const tiles = filled.filter(([f]) => ['money', 'num', 'date', 'rating', 'pct', 'time'].includes(f.type)).slice(0, 3);
   const tags = filled.filter(([f]) => ['select', 'multi'].includes(f.type)).flatMap(([f]) => [].concat(r[f.k] || [])).slice(0, 8);
   const rest = filled.filter(x => !tiles.includes(x) && !['select', 'multi'].includes(x[0].type));
-  const ring = ringOf(r, 'lg'), story = r.kind === 'posts' ? postStory(r) : r.kind === 'deals' ? dealCard(r) : r.kind === 'ftx' ? payCard(r) : '';
+  const ring = ringOf(r, 'lg'), story = r.kind === 'posts' ? postStory(r) : r.kind === 'deals' ? dealCard(r) : r.kind === 'ftx' ? payCard(r) : r.kind === 'orders' ? orderCard(r) : '';
   const body = `<div class="rview"><div class="rvhero" ${ph ? '' : `style="background:linear-gradient(160deg,${toneOf(r)})"`}>${ph ? `<img src="${esc(C.photoURL(ph))}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : `<span>${itemEmo(r)}</span>`}${ring ? `<i class="rvring">${ring}</i>` : ''}</div>
     ${tiles.length ? `<div class="rvfacts">${tiles.map(([f, v]) => `<div><b>${esc(v)}</b><small>${esc(f.label)}</small></div>`).join('')}</div>` : ''}
     <h2 class="rvtitle">${esc(titleOf(r))}</h2>${K.sub?.(r) ? `<p class="rvsub">${esc(K.sub(r))}</p>` : ''}
@@ -6350,6 +6352,8 @@ function viewRecord(r) {
   sh.addEventListener('click', async e => {
     if (e.target.closest('[data-rvedit]')) { C.closeSheet(); openEditor(r.kind, r.id); }
     const dv = e.target.closest('[data-dlv]'); if (dv) { const i = +dv.dataset.dlv, done = new Set([].concat(r.delivDone || [])); done.has(i) ? done.delete(i) : done.add(i); try { await save(r, { delivDone: [...done] }); dv.setAttribute('aria-pressed', done.has(i)); dv.closest('.dlcard')?.querySelector('[data-dlcount]')?.replaceChildren(`${done.size}/${dv.closest('ul').children.length}`); } catch (err) { failed(err); } }
+    const ok = e.target.closest('[data-ordkeep], [data-ordret]'); if (ok) { const i = +(ok.dataset.ordkeep ?? ok.dataset.ordret); try { await orderDecide(L.byId[r.id], i, ok.dataset.ordkeep != null ? 'keep' : 'return'); const box = sh.querySelector('.ordcard'); if (box) box.outerHTML = orderCard(L.byId[r.id]); } catch (err) { failed(err); } return; }
+    if (e.target.closest('[data-orddeliv]')) { const x = L.byId[r.id]; try { await save(x, { status: 'Delivered', received: today(), ...(x.returnBy ? {} : { returnBy: addDays(today(), returnDays(x.shop)) }) }); const box = sh.querySelector('.ordcard'); if (box) box.outerHTML = orderCard(L.byId[r.id]); C.toast('📬 Arrived. Keep or Return per item.'); } catch (err) { failed(err); } return; }
     const pa = e.target.closest('[data-act="payacc"], [data-act="paycat"]'); if (pa && Date.now() - (sh._sw || 0) < 500) return; if (pa) { const d = pa.dataset, x = L.byId[d.id]; if (!x) return; try { await save(x, d.act === 'payacc' ? { account: d.v } : { category: x.category === d.v ? '' : d.v }); const box = pa.closest('.paycard'); if (box) box.outerHTML = payCard(L.byId[d.id]); } catch (err) { failed(err); } return; }
     const vd = e.target.closest('[data-verdict]'); if (vd) { const v = r.verdict === vd.dataset.verdict ? '' : vd.dataset.verdict; try { await save(r, { verdict: v }); sh.querySelectorAll('[data-verdict]').forEach(b => b.setAttribute('aria-pressed', b.dataset.verdict === v)); } catch (err) { failed(err); } }
     if (e.target.closest('[data-rvq]')) { try { await q.act(); C.toast('✓ ' + titleOf(r)); C.closeSheet(); C.render(); } catch (err) { failed(err); } }
@@ -7125,7 +7129,7 @@ function sortCardHTML(where) {
   if (!l.length && !rt.length) return '';
   const x = l[0], k = x ? guessKind(x) : '', shop = x ? (shopOfTx(x.name) || x.name || 'Purchase') : '';
   const card = x ? `<div class="sortcard"><small>🛍 ${plural(l.length, 'purchase')} to sort</small><b>${esc(shop)} · ${esc(eur(num(x.amount)))}</b><span>${esc(dayName(x.date))} ${esc(niceDate(x.date))}${(x.items || []).length ? ` · 🧾 receipt read: ${plural(x.items.length, 'product')}, check them` : k ? ` · probably ${esc(buyLabel(k).toLowerCase())}` : ''}</span>
-    <div class="sortbtns">${k ? `<button type="button" class="btn small sortgo" data-act="sortgo" data-id="${x.id}" data-v="${k}">${BUY_EMO[k] || '＋'} Add to ${esc(buyLabel(k).toLowerCase())}</button>` : ''}<button type="button" class="btn small sortgo" data-act="sortgo" data-id="${x.id}">${k ? 'Other list' : 'What did you buy?'}</button><button type="button" class="btn small sortskip" data-act="sortskip" data-id="${x.id}">Not a product</button></div></div>` : '';
+    <div class="sortbtns">${k ? `<button type="button" class="btn small sortgo" data-act="sortgo" data-id="${x.id}" data-v="${k}">${BUY_EMO[k] || '＋'} Add to ${esc(buyLabel(k).toLowerCase())}</button>` : ''}<button type="button" class="btn small sortgo" data-act="sortgo" data-id="${x.id}">${k ? 'Other list' : 'What did you buy?'}</button><button type="button" class="btn small sortskip" data-act="sortskip" data-id="${x.id}">Not a product</button>${ONLINE_SHOP.test(norm(shop)) && !recs('orders').some(o => o.tx === x.id) ? `<button type="button" class="btn small sortgo" data-act="ordtrack" data-id="${x.id}">📦 Track it</button>` : ''}</div></div>` : '';
   const rets = rt.slice(0, 3).map(r => { const ref = r.returned && refundOf(r); return `<div class="retrow"><span>↩️</span><span class="lmain"><b>${esc(relNames([].concat(r.items || []).map(e => e.id)).join(', ') || shopOfTx(r.name) || r.name)}</b><small>${r.returned ? (ref ? 'Refund received ✓' : `Refund of ${eur(num(r.retAmount) || num(r.amount))} expected`) : `Return by ${esc(niceDate(r.returnBy))} · ${relDay(r.returnBy)}`}</small></span>${r.returned ? '' : `<button class="btn small primary" data-act="retdone" data-id="${r.id}">Returned</button><button class="btn small" data-act="retkeep" data-id="${r.id}">Keep it</button>`}</div>`; }).join('');
   return `<div class="sortwrap ${where}">${card}${rets ? `<div class="retlist">${rets}</div>` : ''}</div>`;
 }
@@ -7491,6 +7495,9 @@ function setupCard(host) {
 }
 
 /* ---------- events ---------- */
+// online orders: a screenshot or a typed line on the orders page
+document.addEventListener('change', e => { const f = e.target.closest?.('[data-ordshot]'); if (!f || !C || !f.files?.[0]) return; const file = f.files[0]; f.value = ''; orderFromShot(file).catch(failed); });
+document.addEventListener('submit', e => { const f = e.target.closest?.('[data-ordline]'); if (!f || !C) return; e.preventDefault(); const inp = f.querySelector('input'); const v = inp.value; inp.value = ''; orderFromLine(v).catch(failed); });
 document.addEventListener('click', e => {
   if (!L.sel || !C) return;
   const b = e.target.closest('[data-lfill].selecting [data-act="open"][data-id]'); if (!b) return;
@@ -7680,6 +7687,7 @@ document.addEventListener('click', async e => {
     case 'fafford': fAfford(fState()); break;
     case 'fchip': case 'frepeat': { const x = L.byId[d.id]; if (x) fQuick(x); break; }
     case 'sortgo': sortGo(d.id, d.v); break;
+    case 'ordtrack': { const t = L.byId[d.id]; if (!t) break; const id = await orderFromDraft({ shop: shopOfTx(t.name) || t.name, name: `${shopOfTx(t.name) || t.name} order`, price: num(t.amount), ordered: t.date }, { tx: t.id }); C.render(); if (id) setTimeout(() => openRecord(id), 300); break; }
     case 'fixmode': L.fixMode = d.v; C.render(); break;
     case 'occpay': { const st = fState(), o = fOccs(addDays(st.start, -40), addDays(st.t, 60)).find(x => x.key === d.v); if (o && !o.paid) { await fPayOcc(o); C.render(); } break; }
     case 'musicok': await C.savePrefs({ musicNudgeOff: true }); C.render(); break;
@@ -9182,10 +9190,81 @@ function insuranceTop() {
   return `${rep.length ? `<p class="lnone">In Repeats ${rep.length === 1 ? 'there is 1 insurance' : `there are ${rep.length} insurances`}, together ${eur(rm)} a month. ${mLink('To Repeats', 'money/repeats')}</p>` : ''}<div class="tiles lt3">${fTile('Per month', eur(m).replace(/\.00$/, ''), plural(l.length, 'insurance'))}${fTile('Per year', eur(Math.round(m * 12)).replace(/\.00$/, ''), 'all premiums')}${fTile('Next renewal', next ? esc(shortDate(next.renews)) : 'None', next ? esc(next.name) : 'add a renewal date')}</div>
   ${mo >= 11 ? `<p class="lnone">${zorg ? `You can cancel your health insurance with ${esc(zorg.company || 'your insurer')} until 31 December. Compare now, so you're sorted on 1 January.` : 'Until 31 December you can switch health insurance. Add yours to compare.'} <a href="https://www.independer.nl/zorgverzekering/intro.aspx" target="_blank" rel="noopener">Compare on Independer</a></p>` : ''}`;
 }
+/* online orders: read a screenshot or receipt on the phone (free, in the browser), check for an order she already has, and after delivery Keep or Return per item */
+const RETURN_DAYS = [[/zalando|about you/, 100], [/asos/, 28], [/amazon|bol\b|bol\.com|coolblue|wehkamp|zara|h ?& ?m|mango|arket|cos\b|uniqlo|nike|adidas|weekday|monki|other stories|massimo|sephora|douglas|notino|lookfantastic|ikea/, 30]];
+const returnDays = shop => (RETURN_DAYS.find(([re]) => re.test(norm(shop || ''))) || [0, 14])[1];
+const ONLINE_SHOP = /zalando|about you|asos|amazon|bol\b|bol\.com|coolblue|wehkamp|shein|vinted|nakd|na-kd|lookfantastic|notino|douglas\.nl|sephora|iherb|myprotein|temu|aliexpress|etsy|ebay|otto/;
+const orderItems = r => String(r.items || '').split('\n').map(l => l.trim()).filter(Boolean).map((l, i) => { const m = l.match(/^(.*?)(?:[,·\s]+€?\s?(\d+[.,]\d{2}))?(?:[,·\s]+(?:size\s*)?([A-Z]{1,3}|\d{2}(?:\/\d{2})?))?$/i) || [l, l]; return { i, n: (m[1] || l).replace(/[,·\s]+$/, ''), p: m[2] ? num(m[2].replace(',', '.')) : null, s: m[3] || '' }; });
+// the text of a screenshot, read in the browser with tesseract.js (loaded only when you use it)
+async function ocrImage(file) {
+  if (!window.Tesseract) await new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'; sc.onload = ok; sc.onerror = no; document.head.appendChild(sc); });
+  const { data } = await window.Tesseract.recognize(file, 'eng+nld');
+  return data.text || '';
+}
+function parseOrder(text) {
+  const t = String(text || ''), lines = t.split('\n').map(l => l.trim()).filter(Boolean), money = v => num(String(v).replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
+  const top = lines.slice(0, 3).join(' '), shop = shopOfTx(top) || (lines[0] && lines[0].length < 30 && !/€|\d{3}/.test(lines[0]) ? lines[0].replace(/^./, c => c.toUpperCase()) : '') || shopOfTx(t);
+  const orderNo = (t.match(/(?:order|bestel)[\s-]*(?:nummer|number|nr\.?|no\.?|#)?\s*[:#]?\s*([A-Z0-9][A-Z0-9-]{4,})/i) || [])[1] || '';
+  const total = money((t.match(/(?:total|totaal|te betalen|amount)[^\d€]*€?\s?(\d+[.,]\d{2})/i) || [])[1] || '');
+  const MON = { jan: 1, feb: 2, mar: 3, mrt: 3, apr: 4, may: 5, mei: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, okt: 10, nov: 11, dec: 12 };
+  const dateIn = s => { if (!s) return ''; let m = s.match(/(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/); if (m) return `${m[3].length === 2 ? '20' + m[3] : m[3]}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`; m = s.match(/(\d{1,2})\s+([a-z]{3})[a-z]*/i); if (m && MON[m[2].toLowerCase()]) { const y = new Date().getFullYear(); return `${y}-${String(MON[m[2].toLowerCase()]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`; } return ''; };
+  const exp = dateIn((t.match(/(?:arriv|deliver|bezorg|levering|verwacht|expected)[^\n]*/i) || [])[0] || '');
+  const ordered = lines.filter(l => /order|besteld|datum|date/i.test(l) && !/arriv|deliver|bezorg|levering|verwacht|expected/i.test(l)).map(dateIn).find(Boolean) || today();
+  const items = lines.filter(l => /€\s?\d+[.,]\d{2}|\d+[.,]\d{2}\s?€?$/.test(l) && !/total|totaal|subtotal|verzend|shipping|delivery|bezorg|korting|discount|btw|vat/i.test(l)).map(l => { const m = l.match(/^(.*?)[\s·:-]*€?\s?(\d+[.,]\d{2})\s*€?$/); return m && m[1].trim().length > 1 ? `${m[1].trim()}, ${m[2].replace('.', ',')}` : ''; }).filter(Boolean).slice(0, 12);
+  return { shop, orderNo, price: total || items.reduce((n, l) => n + (money(l.split(', ').pop()) || 0), 0) || null, ordered, expected: exp && exp >= ordered ? exp : '', items: items.join('\n'), name: items.length ? items.map(l => l.split(', ')[0]).slice(0, 2).join(' + ') + (items.length > 2 ? ` +${items.length - 2}` : '') : (shop ? `${shop} order` : 'Order') };
+}
+// an order she might already have: same order number, or the same shop with the same amount within two days
+const sameOrder = d => recs('orders').find(o => (d.orderNo && o.orderNo && norm(o.orderNo) === norm(d.orderNo)) || (d.shop && norm(o.shop || '') === norm(d.shop) && Math.abs(diffDays(o.ordered || '2000-01-01', d.ordered || today())) <= 2 && (!d.price || !num(o.price) || Math.abs(num(o.price) - d.price) < 1)));
+async function orderFromDraft(d, extra = {}) {
+  const dup = sameOrder(d);
+  if (dup) {
+    const sh = C.sheet({ title: '📦 Already have this order?', body: `<p class="lnone">This looks like an order you already have.</p><div class="lrows"><div class="lrow"><span class="lmain"><b>${esc(dup.shop || '')} · ${esc(dup.name || '')}</b><span>${esc([dup.ordered && niceDate(dup.ordered), eur(num(dup.price)), dup.orderNo && '#' + dup.orderNo].filter(Boolean).join(' · '))}</span></span></div></div>`,
+      foot: '<button class="btn" data-ordnew>It’s a new one</button><div class="spacer"></div><button class="btn primary" data-ordadd>Add to that order</button>' });
+    return new Promise(res => sh.addEventListener('click', async e => {
+      if (e.target.closest('[data-ordadd]')) { const keep = {}; for (const [k, v] of Object.entries({ ...d, ...extra })) if (v && !dup[k]) keep[k] = v; if (d.items && dup.items && !String(dup.items).includes(d.items)) keep.items = dup.items + '\n' + d.items; await save(dup, keep); C.closeSheet(); C.toast('✓ Added to your order'); res(dup.id); }
+      if (e.target.closest('[data-ordnew]')) { C.closeSheet(); const id = await create('orders', { status: 'Ordered', ...d, ...extra }); C.toast('📦 New order added'); res(id); }
+    }));
+  }
+  const id = await create('orders', { status: 'Ordered', ...d, ...extra }); C.toast('📦 Order added'); return id;
+}
+async function orderFromShot(file) {
+  C.toast('📷 Reading your screenshot…');
+  let text = ''; try { text = await ocrImage(file); } catch { C.toast('Could not read it here. The night round reads it tonight.'); }
+  const d = parseOrder(text); let shot = '';
+  try { shot = await C.uploadPhoto(await C.photoToJpeg(file)); } catch {}
+  const id = await orderFromDraft(d, { ...(shot ? { shot } : {}), needsFill: true, fillMiss: ['items', 'photo'], fillAsked: today(), fillHow: `Read the order screenshot at ${shot ? C.photoURL(shot) : '(no photo)'}: fill shop, orderNo, ordered, expected, price (total), items (one line per item: name, price with comma, size) and track (track and trace link) when they are missing, and photo (the main product photo from the shop site).` });
+  C.render(); if (id) setTimeout(() => openRecord(id), 300);
+}
+// one typed line: "Zalando coat 89,95"
+async function orderFromLine(line) {
+  const t = String(line || '').trim(); if (!t) return;
+  const m = t.match(/(\d+[.,]\d{2})/), price = m ? num(m[1].replace(',', '.')) : null, shop = shopOfTx(t) || t.split(/\s+/)[0];
+  const name = t.replace(m?.[0] || '', '').replace(new RegExp('^' + shop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*', 'i'), '').replace(/€/g, '').trim() || `${shop} order`;
+  await orderFromDraft({ shop, name, price, ordered: today() }); C.render();
+}
+// the order as a card: status line, items with Keep or Return once it's in, the return date from the shop
+function orderCard(r) {
+  const st = r.status || 'Ordered', steps = [['🛒', 'Ordered'], ['📦', 'Shipped'], ['🚚', r.expected === today() ? 'Today' : 'On the way'], ['🏠', 'Delivered']];
+  const at = { Ordered: 0, Shipped: 1, Delivered: 3, Returning: 3, Returned: 3, Kept: 3 }[st] ?? 0, cur = st === 'Shipped' && r.expected === today() ? 2 : at;
+  const its = orderItems(r), dec = r.keep || {}, arrived = at >= 3;
+  return `<div class="ordcard"><div class="ocsteps">${steps.map(([e, l], i) => `<div class="${i <= cur ? 'on' : ''}"><span>${e}</span><small>${l}</small></div>`).join('')}</div>
+    ${its.length ? `<div class="ocitems">${its.map(x => `<div class="ocit"><span class="ocph">${esc(itemEmo({ name: x.n, kind: 'closet' }))}</span><span class="lmain"><b>${esc(x.n)}</b><small>${[x.p != null ? eur(x.p) : '', x.s ? 'size ' + x.s : ''].filter(Boolean).join(' · ')}</small></span>${arrived ? `<button type="button" class="chip" data-ordkeep="${x.i}" aria-pressed="${dec[x.i] === 'keep'}">👗 Keep</button><button type="button" class="chip" data-ordret="${x.i}" aria-pressed="${dec[x.i] === 'return'}">↩️ Return</button>` : ''}</div>`).join('')}</div>` : ''}
+    <p class="lnone">${[r.orderNo ? '#' + esc(r.orderNo) : '', !arrived && r.expected ? `Arrives ${esc(dayName(r.expected))} ${esc(niceDate(r.expected))}` : '', r.track ? `<a href="${esc(r.track)}" target="_blank" rel="noopener">Track</a>` : ''].filter(Boolean).join(' · ')}</p>
+    ${r.returnBy ? `<span class="chip ocret">↩️ Return by ${esc(niceDate(r.returnBy))}${r.shop ? ` (${returnDays(r.shop)} days at ${esc(r.shop)})` : ''}</span>` : ''}
+    ${!arrived ? `<button type="button" class="btn small" data-orddeliv>📬 It arrived</button>` : ''}</div>`;
+}
+async function orderDecide(r, i, how) {
+  const keep = { ...(r.keep || {}) }; keep[i] = keep[i] === how ? '' : how; const its = orderItems(r), x = its.find(y => y.i === i);
+  if (how === 'keep' && keep[i] === 'keep' && x && !(r.keptIds || {})[i]) { const cid = C.uuid(); await C.closetNew?.(cid, { name: x.n, price: x.p, shop: r.shop || '', bought: r.received || today(), isNew: true, size: x.s || '', ...(r.returnBy ? { returnBy: r.returnBy } : {}), needsFill: true, fillHow: `Bought online at ${r.shop || 'a web shop'}: find the product photo, brand and colour by its name.` }); r = { ...r, keptIds: { ...(r.keptIds || {}), [i]: cid } }; }
+  const vals = its.map(y => keep[y.i]), all = vals.length && vals.every(Boolean);
+  await save(L.byId[r.id], { keep, ...(r.keptIds ? { keptIds: r.keptIds } : {}), ...(all ? { status: vals.includes('return') ? 'Returning' : 'Kept' } : {}) });
+  C.toast(how === 'keep' && keep[i] ? '👗 In your closet, new and not worn yet' : how === 'return' && keep[i] ? '↩️ On your return list' : 'Changed');
+}
 function ordersTop() {
   const l = recs('orders'), way = l.filter(r => ['Ordered', 'Shipped'].includes(r.status || 'Ordered')), back = l.filter(r => r.status === 'Delivered' && r.returnBy && r.returnBy >= today());
   const ret = l.filter(r => r.status === 'Returning'), money = ret.reduce((n, r) => n + num(r.price), 0);
-  return `<div class="tiles lt3">${fTile('On the way', String(way.length), way.length ? esc(way.map(r => r.name).slice(0, 2).join(', ')) : 'nothing ordered')}${fTile('Can still return', String(back.length), back.length ? 'first by ' + esc(shortDate(back.map(r => r.returnBy).sort()[0])) : 'nothing open')}${fTile('Money back', eur(money), plural(ret.length, 'return'))}</div>`;
+  const adds = `<div class="ordadd"><label class="btn small primary">📷 From a screenshot<input type="file" accept="image/*" data-ordshot hidden></label><form class="lqadd" data-ordline><input placeholder="Or type: Zalando coat 89,95" aria-label="Type an order"><button class="btn small" type="submit">Add</button></form></div>`;
+  return adds + `<div class="tiles lt3">${fTile('On the way', String(way.length), way.length ? esc(way.map(r => r.name).slice(0, 2).join(', ')) : 'nothing ordered')}${fTile('Can still return', String(back.length), back.length ? 'first by ' + esc(shortDate(back.map(r => r.returnBy).sort()[0])) : 'nothing open')}${fTile('Money back', eur(money), plural(ret.length, 'return'))}</div>`;
 }
 function visionTop() {
   const l = recs('vision'), done = l.filter(r => r.done).length, areas = new Set(l.map(r => r.area).filter(Boolean));

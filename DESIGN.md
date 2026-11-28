@@ -174,3 +174,11 @@ Think as a personal finance coach and a home organiser: every purchase can becom
 - Finance: Loyalty cards (tab and title), Review › Months (was Reviews), Fixed costs (title too), Insurance moves under Spending.
 - Kitchen: Food log, Deals. Home: Cleaning, Moving.
 - Social: Tasks (was Work), Results (was Growth), Create › Planning (was Calendar).
+
+## Online orders (Nov 2026)
+- Add an order four ways: a screenshot of the order confirmation, from a purchase in the bank or a receipt ("Track it?"), by sharing the order mail with the "Naar A’s Life" shortcut, or by typing one line.
+- Reading: the phone reads the text right away (free, in the browser); the night round completes the rest (photos of items).
+- When an order looks like one she already has (shop, date within 2 days, amount or order number), the app asks: Add to that order or It's a new one.
+- Order card: shop, order number, a status line (Ordered, Shipped, Today, Delivered), items with price and size, expected day with track link, and the return-by date from the shop's own return period.
+- After delivery: Keep or Return per item. Keep goes into the closet (new, not worn yet); Return goes on the return list with a reminder and the refund is matched.
+- Notifications on the delivery day and 2 days before the return date.
