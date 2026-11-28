@@ -816,6 +816,7 @@ const KINDS = {
       F('glow', 'Glow', 'rating', { half: 1 }), F('smooth', 'Smoother texture', 'rating', { half: 1 }),
       F('feel', 'Texture feels nice', 'rating', { half: 1 }), F('scent', 'Scent', 'rating', { half: 1 }), F('absorbs', 'Absorbs well', 'rating', { half: 1 }),
       F('makeup', 'Works under make-up', 'rating', { half: 1 }), F('value', 'Value for money', 'rating', { half: 1 }),
+      F('verdict', 'Verdict', 'select', { options: ['💚 Holy grail', '👍 Keep', '🤷 Unsure', '🗑 Toss'] }), F('before', 'Before', 'photo', { half: 1 }), F('afterPhoto', 'After', 'photo', { half: 1 }),
       F('again', 'Buy it again?', 'select', { options: ['Yes', 'Maybe', 'No'], half: 1 }), F('reason', 'Why', 'text', { half: 1 }), F('notes', 'Notes', 'long')],
     title: r => [relName(r.product) || 'Review', r.after].filter(Boolean).join(', '), sorts: [['-date', 'Newest']],
     sub: r => [r.date && niceDate(r.date), reviewAvg(r) ? `${reviewAvg(r).toFixed(1)} / 5` : '', r.again && 'buy again: ' + r.again.toLowerCase()].filter(Boolean).join(' · ')
@@ -967,6 +968,8 @@ const KINDS = {
       F('intensity', 'Intensity', 'select', { options: ['Easy', 'Moderate', 'Hard'] }),
       F('plan', 'Workout plan', 'rel', { to: 'plans' }), F('video', 'Video workout', 'rel', { to: 'vworkouts' }), F('exercises', 'Exercises', 'rel', { to: 'exercises', multi: 1 }),
       F('done', 'Done', 'check', { half: 1 }), F('skipped', 'Skipped', 'check', { half: 1 }),
+      F('effort', 'Effort', 'rating', { half: 1 }), F('fun', 'Fun', 'rating', { half: 1 }), F('energyAfter', 'Energy after', 'rating', { half: 1 }),
+      F('felt', 'Where you felt it', 'multi', { options: ['Core', 'Glutes', 'Legs', 'Arms', 'Back', 'Shoulders', 'Chest', 'Full body'] }), F('again', 'Again?', 'select', { options: ['Yes', 'Easier', 'Harder', 'No'], half: 1 }), F('howwent', 'How did it go', 'long', { rows: 2 }),
       F('energy', 'Energy (1 to 5)', 'num', { half: 1, when: D => D.done }), F('rpe', 'How hard (1 to 10)', 'num', { half: 1, when: D => D.done }), F('mood', 'Mood after', 'select', { options: TRAIN_MOODS, half: 1, when: D => D.done }),
       ...PAIN_AREAS.flatMap(([k, l]) => [F('pb' + k, `${l} before (0 to 10)`, 'num', { half: 1, when: D => D.done }), F('pa' + k, `${l} after (0 to 10)`, 'num', { half: 1, when: D => D.done })]),
       F('notes', 'Notes', 'long')],
@@ -5935,7 +5938,29 @@ function textSugs(kind, f) {
 }
 // every shop you used anywhere in the app, for the closet's shop buttons
 const allShops = () => { const out = []; for (const r of L.all || []) for (const k of SUG_SHOP) if (r[k] && String(r[k]).trim().length <= 40) out.push(String(r[k]).trim()); return out; };
+/* a new purchase as a keypad: the amount big, a number pad, category tiles, the account; the full form is one tap away */
+function keypadSheet(preset = {}) {
+  let amt = '', cat = preset.category || '', acc = preset.account || fAccs().find(a => !isOwe(a))?.id || fAccs()[0]?.id || '', name = preset.name || '';
+  const cats = recs('fcats').filter(c => !c.nospend).sort((a, b) => recs('ftx').filter(x => x.category === b.id).length - recs('ftx').filter(x => x.category === a.id).length).slice(0, 8);
+  const draw = () => `<div class="kpamt">€ ${amt ? amt.replace('.', ',') : '0'}</div>
+    <input class="finp kpname" data-kpname placeholder="What? (optional)" value="${esc(name)}">
+    ${cats.length ? `<div class="kpcats">${cats.map(c => `<button type="button" class="kpcat ${c.id === cat ? 'on' : ''}" data-kpcat="${c.id}"><span>${esc(c.emoji || '🏷️')}</span><small>${esc(c.name || '')}</small></button>`).join('')}</div>` : ''}
+    ${fAccs().length > 1 ? `<div class="lwrap">${fAccs().slice(0, 5).map(a => `<button type="button" class="chip ${a.id === acc ? 'on' : ''}" data-kpacc="${a.id}">${esc(a.name || 'Account')}</button>`).join('')}</div>` : ''}
+    <div class="kppad">${['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', '⌫'].map(k => `<button type="button" data-kp="${k}">${k}</button>`).join('')}</div>`;
+  const sh = C.sheet({ title: 'New purchase', body: `<div data-kpbody>${draw()}</div>`, foot: '<button class="btn" data-kpfull>Full form</button><div class="spacer"></div><button class="btn primary" data-kpsave>Save</button>' });
+  const redo = () => { sh.querySelector('[data-kpbody]').innerHTML = draw(); };
+  sh.addEventListener('input', e => { if (e.target.matches('[data-kpname]')) name = e.target.value; });
+  sh.addEventListener('click', async e => { let b;
+    if ((b = e.target.closest('[data-kp]'))) { const k = b.dataset.kp; if (k === '⌫') amt = amt.slice(0, -1); else if (k === ',') { if (!amt.includes('.')) amt = (amt || '0') + '.'; } else if (!/\.\d\d$/.test(amt) && amt.length < 8) amt += k; redo(); }
+    if ((b = e.target.closest('[data-kpcat]'))) { cat = cat === b.dataset.kpcat ? '' : b.dataset.kpcat; redo(); }
+    if ((b = e.target.closest('[data-kpacc]'))) { acc = b.dataset.kpacc; redo(); }
+    if (e.target.closest('[data-kpfull]')) { C.closeSheet(); openEditor('ftx', null, { ...preset, amount: num(amt) || undefined, category: cat || undefined, account: acc || undefined, name: name || undefined, _full: 1 }); }
+    if (e.target.closest('[data-kpsave]')) { const a = num(amt); if (!a) return C.toast('Type an amount first'); await create('ftx', { date: today(), amount: a, category: cat || null, account: acc || null, name: name || L.byId[cat]?.name || 'Purchase' }); C.closeSheet(); C.toast(`💶 ${eur(a)} saved`); C.render(); }
+  });
+}
 function openEditor(kind, id, preset = {}) {
+  if (kind === 'ftx' && !id && !preset._full && !preset.bill && !preset.debt) return keypadSheet(preset);
+  if (preset._full) { preset = { ...preset }; delete preset._full; }
   if (kind === 'plans' && !preset.raw) { planBuilder(id); return; }
   const K = KINDS[kind], r = id ? L.byId[id] : null;
   const D = r ? JSON.parse(JSON.stringify(dataOf(r))) : { created: Date.now(), ...preset };
@@ -5946,7 +5971,7 @@ function openEditor(kind, id, preset = {}) {
   if (!r) for (const f of K.fields) if (f.type === 'date' && D[f.k] === undefined && ['date', 'start'].includes(f.k)) D[f.k] = today();
   const sh = C.sheet({
     title: r ? titleOf(r) : 'New ' + K.one,
-    body: `${r && WISHY[kind] && kind !== 'inventory' ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${r && kind === 'beauty' ? beautyReviews(r) : ''}${r && kind === 'inventory' ? invOptionsPanel(r) : ''}${r && kind === 'fbills' ? billPayPanel(r) : ''}${r && savedOf(r) ? `<p class="lsaved">🏷️ You ${esc(savedText(r))} on this</p>` : ''}${r && kind === 'recipes' ? cookedPanel(r) : ''}${kind === 'stips' ? '<div data-tipsteps></div>' : ''}${kind === 'posts' ? '<div data-postkit></div><div data-posttips></div>' : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}${(() => { const fh = f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}" ${f.when && !f.when(D) ? 'hidden' : ''}>${fieldInner(kind, f, D)}</div>`;
+    body: `${r && WISHY[kind] && kind !== 'inventory' ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${r && kind === 'beauty' ? beautyReviews(r) : ''}${r && kind === 'inventory' ? invOptionsPanel(r) : ''}${r && kind === 'fbills' ? billPayPanel(r) : ''}${r && savedOf(r) ? `<p class="lsaved">🏷️ You ${esc(savedText(r))} on this</p>` : ''}${r && kind === 'recipes' ? cookedPanel(r) : ''}${kind === 'stips' ? '<div data-tipsteps></div>' : ''}${kind === 'posts' ? '<div data-postkit></div><div data-posttips></div>' : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}${(() => { const fh = f => `<div class="field ${f.half && f.type !== 'rating' ? '' : 'full'}" data-f="${f.k}" ${f.when && !f.when(D) ? 'hidden' : ''}>${fieldInner(kind, f, D)}</div>`;
       // the form fits on one screen: the first fields and everything you filled in, the rest folded under More
       const has = f => { const v = D[f.k]; return v != null && v !== '' && !(Array.isArray(v) && !v.length) && v !== false; };
       const main = [], more = []; K.fields.forEach((f, i) => (i < 6 || has(f) || ['photo', 'sleepclock', 'ilines', 'steplist'].includes(f.type) ? main : more).push(f));
