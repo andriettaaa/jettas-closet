@@ -5821,7 +5821,7 @@ function fieldInner(kind, f, D) {
   const lab = `<label for="${id}">${esc(f.label)}${f.unit ? ` <span class="muted">(${esc(f.unit)})</span>` : ''}</label>`;
   const span = `<span class="lflabel">${esc(f.label)}</span>`;
   switch (f.type) {
-    case 'long': return lab + `<textarea id="${id}" data-k="${f.k}" rows="${f.rows || 4}">${esc(v || '')}</textarea>`;
+    case 'long': return lab + `<div class="lvoice"><textarea id="${id}" data-k="${f.k}" rows="${f.rows || 4}">${esc(v || '')}</textarea>${VOICE ? `<button type="button" class="iconbtn lmic" data-mic="${f.k}" aria-label="Speak instead of typing" title="Speak instead of typing">🎙️</button>` : ''}</div>`;
     case 'ilines': return span + ilinesEditor(D);
     case 'buys': return span + buysEditor(D);
     case 'steplist': return span + stepsEditor(D);
@@ -5885,6 +5885,19 @@ function fieldInner(kind, f, D) {
     default: { const sg = textSugs(kind, f), kn = !!knownFor(f.k); return lab + `<input id="${id}" type="text" data-k="${f.k}"${kind === 'ingredients' && f.k === 'name' ? ' data-sug="ing"' : ''} value="${esc(v || '')}" autocomplete="off"${sg.length || kn ? ` data-sugk="${f.k}"` : ''}>${sg.length || kn ? `<div class="lwrap ltsugs" data-sugs="${f.k}">${sg.map(o => `<button type="button" class="chip" data-tsug="${f.k}" data-v="${esc(o)}" aria-pressed="${norm(o) === norm(v || '')}">${esc(o)}</button>`).join('')}</div>` : ''}`; }
   }
 }
+/* speak instead of typing: the phone turns what you say into text (Safari and Chrome), in Dutch or English */
+const VOICE = typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+let micRec = null;
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-mic]'); if (!b) return; e.preventDefault();
+  if (micRec) { micRec.stop(); return; }
+  const ta = b.parentElement.querySelector('textarea'); if (!ta) return; const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const r = micRec = new SR(); r.lang = navigator.language?.startsWith('en') ? 'en-GB' : 'nl-NL'; r.interimResults = true; r.continuous = true;
+  const base = ta.value ? ta.value.replace(/\s*$/, ' ') : ''; b.classList.add('on');
+  r.onresult = ev => { let t = ''; for (const x of ev.results) t += x[0].transcript; ta.value = base + t; ta.dispatchEvent(new Event('input', { bubbles: true })); };
+  r.onend = r.onerror = () => { micRec = null; b.classList.remove('on'); };
+  try { r.start(); } catch { micRec = null; b.classList.remove('on'); }
+});
 /* the sleep clock: a 24-hour dial; the moon is when you went to bed, the sun when you woke up, the hours in the middle */
 const hmMin = t => { const m = String(t || '').match(/^(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : null; };
 const minHm = m => `${String(Math.floor(((m % 1440) + 1440) % 1440 / 60)).padStart(2, '0')}:${String(((m % 60) + 60) % 60).padStart(2, '0')}`;
@@ -5933,7 +5946,12 @@ function openEditor(kind, id, preset = {}) {
   if (!r) for (const f of K.fields) if (f.type === 'date' && D[f.k] === undefined && ['date', 'start'].includes(f.k)) D[f.k] = today();
   const sh = C.sheet({
     title: r ? titleOf(r) : 'New ' + K.one,
-    body: `${r && WISHY[kind] && kind !== 'inventory' ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${r && kind === 'beauty' ? beautyReviews(r) : ''}${r && kind === 'inventory' ? invOptionsPanel(r) : ''}${r && kind === 'fbills' ? billPayPanel(r) : ''}${r && savedOf(r) ? `<p class="lsaved">🏷️ You ${esc(savedText(r))} on this</p>` : ''}${r && kind === 'recipes' ? cookedPanel(r) : ''}${kind === 'stips' ? '<div data-tipsteps></div>' : ''}${kind === 'posts' ? '<div data-postkit></div><div data-posttips></div>' : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}<div class="form">${K.fields.map(f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}" ${f.when && !f.when(D) ? 'hidden' : ''}>${fieldInner(kind, f, D)}</div>`).join('')}</div>`,
+    body: `${r && WISHY[kind] && kind !== 'inventory' ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${r && kind === 'beauty' ? beautyReviews(r) : ''}${r && kind === 'inventory' ? invOptionsPanel(r) : ''}${r && kind === 'fbills' ? billPayPanel(r) : ''}${r && savedOf(r) ? `<p class="lsaved">🏷️ You ${esc(savedText(r))} on this</p>` : ''}${r && kind === 'recipes' ? cookedPanel(r) : ''}${kind === 'stips' ? '<div data-tipsteps></div>' : ''}${kind === 'posts' ? '<div data-postkit></div><div data-posttips></div>' : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}${(() => { const fh = f => `<div class="field ${f.half ? '' : 'full'}" data-f="${f.k}" ${f.when && !f.when(D) ? 'hidden' : ''}>${fieldInner(kind, f, D)}</div>`;
+      // the form fits on one screen: the first fields and everything you filled in, the rest folded under More
+      const has = f => { const v = D[f.k]; return v != null && v !== '' && !(Array.isArray(v) && !v.length) && v !== false; };
+      const main = [], more = []; K.fields.forEach((f, i) => (i < 6 || has(f) || ['photo', 'sleepclock', 'ilines', 'steplist'].includes(f.type) ? main : more).push(f));
+      if (more.length < 3) { main.push(...more); more.length = 0; }
+      return `<div class="form">${main.map(fh).join('')}</div>${more.length ? `<details class="lmore"><summary><b>➕ More</b><span>${more.map(f => f.label.split(' (')[0]).slice(0, 4).join(', ')}${more.length > 4 ? '…' : ''}</span></summary><div class="form">${more.map(fh).join('')}</div></details>` : ''}`; })()}`,
     foot: `${r ? '<button class="btn danger" data-del>Delete</button>' : ''}<span class="busy" data-msg></span><div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save</button>`,
     onClose: () => { Object.values(D._previews).forEach(u => URL.revokeObjectURL(u)); }
   });

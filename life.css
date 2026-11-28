@@ -1924,3 +1924,12 @@ details.room { border-top: 1px solid var(--line); padding: 10px 0; } details.roo
 .sctick { position: absolute; transform: translate(-50%, -50%); font-size: 10px; color: var(--muted); z-index: 1; }
 .scknob { position: absolute; transform: translate(-50%, -50%); width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--surface); box-shadow: 0 3px 10px rgba(0,0,0,.25); font-size: 20px; z-index: 3; cursor: grab; touch-action: none; }
 .sctimes { display: flex; justify-content: space-between; margin: 4px 8px 0; color: var(--muted); } .sctimes b { color: var(--ink); font-size: 16px; }
+/* forms fit on one screen */
+details.lmore { margin-top: 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+details.lmore > summary { list-style: none; cursor: pointer; padding: 12px 14px; font-weight: 700; display: flex; gap: 8px; align-items: baseline; }
+details.lmore > summary::-webkit-details-marker { display: none; } details.lmore > summary span { color: var(--muted); font-weight: 500; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+details.lmore > .form { padding: 0 14px 14px; }
+.lvoice { position: relative; } .lvoice textarea { width: 100%; padding-right: 52px; }
+.lmic { position: absolute; right: 8px; bottom: 8px; } .lmic.on { background: #d9707c; color: #fff; animation: micpulse 1.2s ease-in-out infinite; }
+@keyframes micpulse { 50% { box-shadow: 0 0 0 8px color-mix(in srgb, #d9707c 25%, transparent); } }
+details.lmore > summary > b { white-space: nowrap; flex: none; } details.lmore > summary > span { flex: 1; min-width: 0; }
