@@ -2095,3 +2095,4 @@ details.lmore > .form, .sheet .form { box-sizing: border-box; max-width: 100%; }
 .stcard span, .stcard small { font-size: 12.5px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .stcard .stbar { display: block; }
 @media (min-width: 700px) { .stcard { min-height: 0; padding: 16px; } .stcard b { font-size: 19px; } .stcard.money b { font-size: 28px; } .stcard span, .stcard small { font-size: 13.5px; } }
+.fjar.paid .jar i { background: linear-gradient(#cfe3c4, #a9c99a); } .fjar.paid small { color: #4e8a6a; }

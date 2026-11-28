@@ -7807,8 +7807,12 @@ function fEnvFill(fill) {
   const tags = {}; for (const x of recs('ftx')) for (const t of fTags(x)) tags[t.toLowerCase()] = (tags[t.toLowerCase()] || 0) + 1;
   const days = Math.max(0, diffDays(today(), w.end) + 1);
   fill.innerHTML = `${fDupNote()}<div class="tiles lt3">${fTile('Spent', eur(spent), `everyday spending this ${mode === 'month' ? 'month' : 'pay'}`)}${fTile('Planned', fEur0(planned), `in ${plural(cats.filter(c => !c.nospend).length, 'envelope')}, per ${mode === 'month' ? 'month' : 'paycheck'}`)}${spent > planned ? fTile('Over plan', eur(spent - planned), `${plural(days, 'day')} to ${mode === 'month' ? 'month end' : 'payday'}`, 'mneg') : fTile('Left in the plan', eur(planned - spent), `${plural(days, 'day')} to ${mode === 'month' ? 'month end' : 'payday'}`)}</div>
-  ${(() => { const pots = cats.filter(c => !c.nospend && num(c.budget)); if (!pots.length) return ''; return `<div class="fjars">${pots.map(c => { const b = num(c.budget) || 0, sp = fSum(recs('ftx').filter(x => x.category === c.id && x.date >= w.start && x.date <= w.end && x.date <= today())), left = Math.max(0, b - sp), pct = b ? Math.round(left / b * 100) : 0, fast = b && sp / b > 1 - days / Math.max(1, diffDays(w.start, w.end) + 1) + .15;
-      return `<div class="fjar ${fast ? 'fast' : ''}" title="${esc(c.name)}"><div class="jar"><i style="height:${pct}%"></i><span>${c.emoji || '🫙'}</span></div><b>${esc(c.name || '')}</b><small>${moneyHidden() ? '€•••' : eur(left)} left${fast ? ' · too fast' : ''}</small></div>`; }).join('')}</div>`; })()}
+  ${(() => { const pots = cats.filter(c => !c.nospend && num(c.budget)); if (!pots.length) return ''; return `<div class="fjars">${pots.map(c => { const b = num(c.budget) || 0, sp = fSum(recs('ftx').filter(x => x.category === c.id && x.date >= w.start && x.date <= w.end && x.date <= today())), left = Math.max(0, b - sp), pct = b ? Math.round(left / b * 100) : 0;
+      // an empty jar for a bill is good news: the bill is paid. Red only when you spent more than planned, "too fast" only for everyday spending
+      const txs = recs('ftx').filter(x => x.category === c.id && x.date >= w.start && x.date <= w.end), billy = recs('fbills').some(bl => bl.category === c.id) || txs.some(x => x.bill) || txs.some(x => (num(x.amount) || 0) >= b * .8);
+      const paid = b && sp >= b * .98 && sp <= b * 1.02, over = b && sp > b * 1.02, fast = !billy && !paid && !over && b && sp / b > 1 - days / Math.max(1, diffDays(w.start, w.end) + 1) + .15;
+      const money = v => moneyHidden() ? '€•••' : eur(v);
+      return `<div class="fjar ${fast || over ? 'fast' : ''} ${paid ? 'paid' : ''}" title="${esc(c.name)}"><div class="jar"><i style="height:${paid ? 100 : pct}%"></i><span>${c.emoji || '🫙'}</span></div><b>${esc(c.name || '')}</b><small>${paid ? (billy ? '✓ Paid' : '✓ All used, as planned') : over ? `${money(sp - b)} over budget` : `${money(left)} left${fast ? ' · going fast' : ''}`}</small></div>`; }).join('')}</div>`; })()}
   ${budgetCoach()}
   ${byListPanel()}
   <div class="fenvgrid">
@@ -8820,7 +8824,7 @@ function dayPlan(d = today()) {
   }
   // routines: one line per routine, its steps in the sheet
   for (const [k, min, label] of [['Morning', w + 15, 'Morning routine'], ['Evening', bed - 40, 'Evening routine']]) {
-    const steps = recs('routines').filter(r => r.routine === k && onDay(r, d)); if (!steps.length) continue;
+    const steps = recs('routines').filter(r => r.routine === k && onDay(r, d)).sort((a, b) => routineRank(a.name, k) - routineRank(b.name, k) || norm(a.name).localeCompare(norm(b.name))); if (!steps.length) continue;
     const n = steps.filter(routineDone).length;
     add({ key: 'routine:' + k, min, label, sub: `${n} of ${steps.length}`, prog: n / steps.length, done: n === steps.length, type: 'routine', steps, act: async () => { const open = steps.filter(r => !routineDone(r)); for (const r of open.length ? open : steps) await toggleDay(r); } });
   }
@@ -8848,8 +8852,32 @@ function dayPlan(d = today()) {
     const ls = lastNailSet(), age = ls ? diffDays(ls.date, d) : null; if (age != null && age >= nailFillDays() && !['Removed'].includes(byDate('naillog')[0]?.what)) add({ key: 'nails:fill', min: null, label: 'Time for a fill', sub: `your set is ${age} days old`, done: ticked.has('nails:fill'), type: 'nails', go: 'care/nails', act: tick('nails:fill') }); } catch {}
   const wgoal = Number(C?.prefs?.().waterGoal) || 8, wn = waterOn(d)?.glasses || 0;
   add({ key: 'water', min: null, label: 'Water', sub: `${wn} of ${wgoal} glasses`, done: wn >= wgoal, type: 'water' });
-  return out.sort((a, b) => (a.min ?? 1e4) - (b.min ?? 1e4) || norm(a.label).localeCompare(norm(b.label)));
+  return dedupeDay(out).sort((a, b) => (a.min ?? 1e4) - (b.min ?? 1e4) || norm(a.label).localeCompare(norm(b.label)));
 }
+/* one thing once: what a routine already holds gets no tile of its own, and two tiles that mean the same (Breakfast and Eat breakfast,
+   Morning skincare and Skincare ochtend) become one. The meal, the routine and the skin plan win over a loose habit or task. */
+const dayCanon = l => norm(String(l || '').replace(/^[^\p{L}\d]+/u, '')).replace(/[^\p{L}\d ]/gu, ' ').replace(/hoe was (je |jouw )?dag/, 'how was your day').replace(/\byour\b/g, ' ').replace(/^(ochtend|avond)(?=\S)/, '').replace(/\b(ochtend|avond|morning|evening|night|eat|take|have|daily|de|the|my|je|min|minutes|minuten|\d+)\b/g, ' ').replace(/ontbijt/g, 'breakfast').replace(/avondeten/g, 'dinner').replace(/vitamines?|supplementen?|supplements?/g, 'vitamins').replace(/\s+/g, ' ').trim();
+const canonSame = (a, b) => a && b && (a === b || (Math.min(a.length, b.length) >= 5 && (a.includes(b) || b.includes(a))));
+function dedupeDay(out) {
+  const PRI = { routine: 0, meal: 1, skin: 2, sup: 3, mood: 4, rec: 6, habit: 7 };
+  const inRoutine = [];
+  for (const x of out) if (x.type === 'routine') for (const r of x.steps || []) inRoutine.push({ c: dayCanon(r.name), eve: /Evening/.test(x.key) });
+  const keep = [];
+  for (const x of [...out].sort((a, b) => (PRI[a.type] ?? 5) - (PRI[b.type] ?? 5))) {
+    if (x.type === 'routine') { keep.push(x); continue; }
+    const c = dayCanon(x.label), eve = x.min != null ? x.min >= 15 * 60 : /avond|evening|night/i.test(x.label);
+    // a loose tile that a routine of the same part of the day already holds
+    if (['habit', 'rec', 'skin', 'meal'].includes(x.type) && inRoutine.some(r => r.eve === eve && canonSame(r.c, c))) continue;
+    if (keep.some(k => k.type !== 'routine' && canonSame(dayCanon(k.label), c))) continue;
+    keep.push(x);
+  }
+  return keep;
+}
+// the steps of a routine in an order that makes sense, whatever order they were added in
+const ROUTINE_ORDER = {
+  Morning: [/water|glas/, /bed (op)?maken|make (the )?bed|^bed/, /tong|tongue/, /tand|teeth|brush/, /floss|flos/, /stretch|yoga|mobility|beweg/, /douche|shower/, /skin|huid|serum|spf|sunscreen/, /check-?in/, /intent|dankbaar|gratitude|affirm/, /top ?3|plan|focus/, /ontbijt|breakfast/, /vitamin|supplement|pill/, /content|idee|idea/],
+  Evening: [/opruim|tidy|reset/, /dinner|avondeten/, /stretch|yoga|mobility/, /dag\?|day\?|check-?in|journal|dagboek|mood/, /douche|shower|bath/, /skin|huid|serum|retinol/, /tand|teeth|brush/, /floss|flos/, /klaarleg|outfit|clothes|kleren/, /lezen|read|book/, /phone|telefoon|scherm|screen/, /slaap|sleep|bed/] };
+const routineRank = (name, k) => { const n = norm(name), i = (ROUTINE_ORDER[k] || []).findIndex(re => re.test(n)); return i < 0 ? 50 : i; };
 const dpRow = (x, now) => `<button type="button" class="dpi ${x.done ? 'on' : ''} ${x.skipped ? 'skip' : ''} ${(x.late || (x.min != null && x.min < now - 30)) && !x.done && !x.skipped ? 'late' : ''}" data-dp="${esc(x.key)}"><span class="bx" aria-hidden="true"></span><b>${esc(x.label)}</b><small>${esc([x.min != null ? hm(x.min) : '', x.skipped ? 'skipped' : x.sub].filter(Boolean).join(' · '))}</small></button>`;
 // an emoji per kind of thing, so the tiles read at a glance
 function dpIcon(x) {
@@ -8902,7 +8930,7 @@ function dayPlanHTML(head = true, mode = '') {
     ${head ? '' : '<!--'}<div class="dphead"><span class="ring ${cheer ? 'pop' : ''}" style="--p:${pct}%"><b>${pct}%</b></span><div><b>${done.length} of ${items.length} done</b><small>${cheer ? '✨ ' + esc(cheer) : `${curOpen.length + (supNow && !supNow.done ? 1 : 0)} more this ${name}`}</small></div>${cs.start ? '<button class="btn small" data-act="crave">I have a craving</button>' : ''}</div>${head ? '' : '-->'}
     <div class="dptabs" role="tablist">${[...DP_PARTS, ['ov', '📋', 'All']].map(([k, ic, l]) => `<button type="button" role="tab" data-dptab="${k}" aria-selected="${k === tab}"><span class="dpti">${ic}</span> ${l}</button>`).join('')}</div>
     ${DP_PARTS.map(pane).join('')}
-    <div class="dppane" data-dppane="ov" ${tab === 'ov' ? '' : 'hidden'}>${todoHub()}${calStrip()}</div>
+    <div class="dppane" data-dppane="ov" ${tab === 'ov' ? '' : 'hidden'}>${todoHub()}</div>
   </section>`;
 }
 // the day's numbers for the ring next to the greeting, and confetti when a part of the day or the whole day is done
@@ -9074,7 +9102,7 @@ function todayTop() {
     ${devHidden('aff') ? '' : pnAffirmHTML()}
     ${devHidden('day') ? '' : dayPlanHTML()}
     ${devHidden('hub') ? '' : todoHub()}
-    ${devHidden('week') ? '' : calStrip()}
+    
   </div>`;
 }
 
