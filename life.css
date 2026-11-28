@@ -2218,3 +2218,16 @@ details.lmore > .form, .sheet .form { box-sizing: border-box; max-width: 100%; }
 }
 @media (min-width: 700px) and (max-width: 1099px) { .clwrap #railGrid.grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; } }
 @media (max-width: 699px) { .clwrap #railGrid.grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; } .clwrap #railGrid .card .meta { font-size: 11px; } }
+/* Kitchen (K3b): week on top, tonight big, the rest fills the screen */
+.kweek { margin-bottom: 12px; } .kweek .lph3 { margin-bottom: 8px; }
+.kwdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.kwday { display: grid; align-content: start; gap: 3px; padding: 8px; border-radius: 14px; border: 0; background: color-mix(in srgb, var(--ink) 5%, var(--surface)); font: inherit; color: var(--ink); text-align: left; cursor: pointer; min-width: 0; font-size: 12px; }
+.kwday span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .kwday .kwdin { font-weight: 700; }
+.kwday.on { background: var(--accent); color: #fff; } .kwday.on .muted { color: rgba(255,255,255,.8); }
+.ktop { display: grid; gap: 12px; margin-bottom: 12px; align-items: stretch; }
+.ktonight { padding: 0; overflow: hidden; display: grid; margin: 0; }
+.ktph { height: 180px; display: grid; place-items: center; font-size: 64px; position: relative; overflow: hidden; } .ktph img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ktbody { display: grid; gap: 4px; padding: 14px; } .ktbody b { font-size: 20px; } .ktonight.empty .ktbody { padding: 18px; }
+.kbal { min-width: 0; display: grid; gap: 8px; align-content: start; }
+@media (min-width: 1000px) { .ktop { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); } .panels.kpanels { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; } }
+@media (max-width: 699px) { .kwdays { display: flex; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory; } .kwdays::-webkit-scrollbar { display: none; } .kwday { flex: 0 0 31%; scroll-snap-align: start; } .ktph { height: 140px; } }
