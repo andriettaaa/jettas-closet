@@ -1527,18 +1527,18 @@ function renderRail(host) {
     host.innerHTML = `
       ${view === 'closet' ? '<div id="trayHost"></div>' : ''}
       <div class="viewhead"><h1>${view === 'wishlist' ? 'Closet wishes' : 'Closet'}</h1><span class="sub" id="railSub"></span></div>${view === 'wishlist' ? '' : window.LIFE?.listSpent?.('closet') || ''}
-      ${view === 'closet' ? '<div class="story ofhost" id="ofHost"></div><p class="wxline" id="wxLine" hidden></p>' : ''}
-      <div class="tools">
+      <div class="clwrap ${view}"><aside class="clside">${view === 'closet' ? '<div class="story ofhost" id="ofHost"></div><p class="wxline" id="wxLine" hidden></p>' : ''}<div id="clStats"></div></aside>
+      <div class="cltools"><div class="tools">
         <div class="search">${I.search}<input id="q" type="search" placeholder="Search name, brand, size, article no., tag" aria-label="Search"></div>
         <select class="pill" id="sort" aria-label="Sort">${SORTS[view].map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
         <button class="btn" data-selmode>Select</button>
       </div>
-      ${view === 'closet' ? `<div class="seg cview" role="group" aria-label="View">${[['grid', 'Photo grid'], ['shelves', 'Shelves'], ['rail', 'Rail']].map(([k, l]) => `<button type="button" data-cview="${k}" aria-pressed="${closetView() === k}">${l}</button>`).join('')}</div>` : ''}
-      <div class="chips" id="catChips" role="group" aria-label="Category"></div>
+      ${view === 'closet' ? `<div class="seg cview" role="group" aria-label="View">${[['grid', 'Photo grid'], ['shelves', 'Shelves'], ['rail', 'Rail']].map(([k, l]) => `<button type="button" data-cview="${k}" aria-pressed="${closetView() === k}">${l}</button>`).join('')}</div>` : ''}</div>
+      <aside class="clfilters"><div class="chips" id="catChips" role="group" aria-label="Category"></div>
       <div class="chips facets" id="facetTabs" role="group" aria-label="Filter by"></div>
       <div class="chips" id="facetVals" role="group"></div>
-      <div class="chips" id="activeF" role="group" aria-label="Active filters"></div>
-      <div id="railGrid"></div>`;
+      <div class="chips" id="activeF" role="group" aria-label="Active filters"></div></aside>
+      <div id="railGrid"></div></div>`;
     const q = $('#q', host); q.value = f.q;
     q.addEventListener('input', () => { f.q = q.value; fillRail(host); });
     const so = $('#sort', host); so.value = SORTS[view].some(s => s[0] === f.sort) ? f.sort : 'new';
@@ -1568,6 +1568,11 @@ function renderRail(host) {
   fillRail(host);
 }
 function fillRail(host) {
+  // closet stats beside the closet on wide screens (and under the outfit on a phone)
+  const cs = host.querySelector('#clStats');
+  if (cs) { if (S.view !== 'closet') cs.innerHTML = ''; else { const mine = S.items.filter(inCloset), t = today(), m0 = t.slice(0, 8) + '01', old = addDaysIso(t, -90);
+    const worn = mine.filter(i => (S.lastWorn[i.id] || '') >= m0).length, idle = mine.filter(i => !S.lastWorn[i.id] || S.lastWorn[i.id] < old).length, c = mine.map(cpw).filter(v => v != null), avg = c.length ? c.reduce((a, b) => a + b, 0) / c.length : null;
+    cs.innerHTML = mine.length ? `<section class="panel clstats"><h3 class="mh">Closet stats</h3><div class="clsgrid"><div><b>${mine.length}</b><small>pieces</small></div><div><b>${worn}</b><small>worn this month</small></div><div><b>${idle}</b><small>not worn 90 days</small></div><div><b>${avg != null ? esc(eur(avg)) : '–'}</b><small>avg per wear</small></div></div></section>` : ''; } }
   const view = S.view, f = FV();
   if (view === 'closet') {
     const tray = inboxItems();
@@ -2457,7 +2462,7 @@ async function renameIn(id, from, to) {
 }
 // Settings: the master page (menu, notifications, account) and one page per section (its tabs, its choice lists,
 // import and backup, undo and whatever only that section needs). Both share the handlers below.
-const APP_VERSION = 'hangtag-v231';
+const APP_VERSION = 'hangtag-v232';
 const LOOK_OPTS = {
   theme: [['auto', 'Automatic', 'follows your phone'], ['light', 'Light', 'always light'], ['dark', 'Dark', 'always dark']],
   accent: [['brown', 'Chocolate', '#6B4226'], ['olive', 'Olive', '#4F5D2F'], ['rose', 'Old rose', '#94445A'], ['navy', 'Navy', '#2C4A6E'], ['terracotta', 'Terracotta', '#A0432A']],
