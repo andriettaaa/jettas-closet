@@ -154,3 +154,8 @@ Think as a personal finance coach and a home organiser: every purchase can becom
 9. Notifications: right after paying (Apple Pay shortcut), in the evening at 21:00 for today, and on Sunday for the week.
 10. The night round reads receipts (not order mails).
 11. Lists: Pantry, Closet, Beauty, Supplements, Home, Kitchen gear, Nails, Train gear, Moving list, Gifts.
+
+## Last forms: wishes, Apple Pay card, closet piece (Nov 2026)
+- Wishlist: a moodboard of big photos with a rank number (drag to reorder), a "this or that" game (two wishes side by side, tap the one you want more, a few rounds give your top 5), and a 30-day wait per wish (a bar, then "still want it?" Yes or Not anymore).
+- Apple Pay purchase: both looks. Her cards as a stack to swipe for the account, the amount big with category chips; and a receipt-style view (shop, card, time, category).
+- Closet piece: link first (paste a link, photo, brand, colour and price fill in), step by step (one question per screen: kind, colour, season, occasions, photo) and a big photo on top with colour dots and chips.
