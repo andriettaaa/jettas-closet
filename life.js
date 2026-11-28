@@ -2369,12 +2369,74 @@ function inboxPage(host) {
   ${done.length ? panel('Recently sorted', `<div class="lrows">${done.map(r => `<div class="lrow"><button class="lmain" ${r.made && L.byId[r.made] ? `data-act="open" data-id="${r.made}"` : ''}><b>${esc(r.title || hostOf(r.url) || 'Link')}</b><span>${esc(INBOX_TO[r.target]?.[0] || '')}</span></button></div>`).join('')}</div>`) : ''}</div>`;
 }
 // every wish in the app on one page: the closet wishlist, beauty, kitchen, home, fitness and the rest, by where it lives
+/* the wishlist as a moodboard: big photos with a rank you drag, a this-or-that game for the order, and 30 days to wait */
+const wishDays = w => w.since ? Math.max(0, diffDays(w.since, today())) : 0;
+const wishOrder = l => [...l].sort((a, b) => (a.rank ?? 1e6) - (b.rank ?? 1e6) || (a.prio ?? 9) - (b.prio ?? 9) || (a.since || '').localeCompare(b.since || ''));
+async function wishPatch(w, patch) { if (w.closet) await C.closetPatch?.(w.id, patch); else { const r = L.byId[w.id]; if (r) await save(r, patch); } }
+async function wishDrop(w) {
+  if (w.closet) return C.closetPatch?.(w.id, { status: 'passed', passedDate: today() });
+  const r = L.byId[w.id]; if (!r) return;
+  await save(r, r.kind === 'wishes' || r.kind === 'fwait' ? { status: 'Dropped' } : ['beauty', 'supplements'].includes(r.kind) ? { wish: false } : { archived: true });
+}
+async function wishRanks(ids) { const all = allWishes(), by = new Map(all.map(w => [w.id, w])); L.batch = true; try { for (const [i, id] of ids.entries()) { const w = by.get(id); if (w && w.rank !== i + 1) await wishPatch(w, { rank: i + 1 }); } } finally { L.batch = false; } C.render(); }
+function wishTileHTML(w, i) {
+  const d = wishDays(w), wait = !w.waited && d < WAIT_DAYS, ask = !w.waited && d >= WAIT_DAYS;
+  return `<div class="wmtile" data-wid="${esc(w.id)}" style="${w.photo ? '' : `background:linear-gradient(160deg,${toneOf({ name: w.name })})`}">
+    ${w.photo ? `<img src="${esc(C.photoURL(w.photo))}" alt="" referrerpolicy="no-referrer" draggable="false" onerror="this.remove()">` : `<span class="wmemo">${esc(itemEmo({ name: w.name, kind: w.kind || 'wishes' }))}</span>`}
+    <span class="wmrank">${i + 1}</span>
+    <button type="button" class="wmopen" data-act="wmopen" data-id="${esc(w.id)}" aria-label="Open ${esc(w.name)}"></button>
+    <div class="wmfoot"><b>${esc(w.name)}</b>${w.price ? `<span>${esc(fEur0(w.price))}</span>` : ''}
+      ${wait ? `<i class="wmwait" title="Day ${d} of ${WAIT_DAYS}"><i style="width:${100 * d / WAIT_DAYS}%"></i></i>` : ''}
+      ${ask ? `<div class="wmask"><small>${d} days: still want it?</small><button type="button" class="chip" data-act="wmkeep" data-id="${esc(w.id)}">💛 Yes</button><button type="button" class="chip" data-act="wmdrop" data-id="${esc(w.id)}">👋 No</button></div>` : ''}</div></div>`;
+}
+function moodboardHTML(list) {
+  return `<p class="lnone">Hold a photo and drag it to change your order. Number 1 is what you want most.</p><div class="wmboard" data-wmboard>${wishOrder(list).map(wishTileHTML).join('')}</div>`;
+}
+// drag to reorder: hold for a moment, then the tile follows your finger and the others make room
+function wireMoodboard(host) {
+  const board = host.querySelector('[data-wmboard]'); if (!board || board.dataset.wired) return; board.dataset.wired = '1';
+  let drag = null, timer = 0, sx = 0, sy = 0;
+  const end = async () => { clearTimeout(timer); if (!drag) return; const el = drag; drag = null; el.classList.remove('wmdrag'); el.style.transform = ''; board.classList.remove('wmsorting'); await wishRanks([...board.querySelectorAll('[data-wid]')].map(x => x.dataset.wid)); };
+  board.addEventListener('pointerdown', e => { const t = e.target.closest('[data-wid]'); if (!t || e.target.closest('.wmask')) return; sx = e.clientX; sy = e.clientY; timer = setTimeout(() => { drag = t; t.classList.add('wmdrag'); board.classList.add('wmsorting'); try { t.setPointerCapture(e.pointerId); } catch {} navigator.vibrate?.(10); }, 260); });
+  board.addEventListener('pointermove', e => {
+    if (!drag) { if (Math.hypot(e.clientX - sx, e.clientY - sy) > 8) clearTimeout(timer); return; }
+    e.preventDefault(); drag.style.transform = `translate(${e.clientX - sx}px, ${e.clientY - sy}px) scale(1.04)`;
+    const over = document.elementsFromPoint(e.clientX, e.clientY).map(x => x.closest?.('[data-wid]')).find(x => x && x !== drag);
+    if (over) { const r0 = drag.getBoundingClientRect(); const all = [...board.children], a = all.indexOf(drag), b = all.indexOf(over); board.insertBefore(drag, a < b ? over.nextSibling : over); const r1 = drag.getBoundingClientRect(); sx += r1.left - r0.left; sy += r1.top - r0.top; drag.style.transform = `translate(${e.clientX - sx}px, ${e.clientY - sy}px) scale(1.04)`; board.querySelectorAll('[data-wid]').forEach((x, i) => { const n = x.querySelector('.wmrank'); if (n) n.textContent = i + 1; }); }
+  }, { passive: false });
+  board.addEventListener('pointerup', end); board.addEventListener('pointercancel', end);
+  board.addEventListener('contextmenu', e => e.preventDefault());
+  board.addEventListener('click', e => { if (board.classList.contains('wmsorting')) { e.stopPropagation(); e.preventDefault(); } }, true);
+}
+// this or that: two wishes side by side, the one you tap moves above the other; a few rounds and your top 5 stands
+function thisOrThat() {
+  const l = wishOrder(allWishes()); if (l.length < 2) { C.toast('Add at least two wishes first'); return; }
+  const pool = l.slice(0, 10), ROUNDS = Math.min(6, pool.length * (pool.length - 1) / 2), seen = new Set();
+  let order = pool.map(w => w.id), round = 0, pair = null;
+  const by = new Map(pool.map(w => [w.id, w]));
+  const pick = () => { for (let k = 0; k < 40; k++) { const i = Math.floor(Math.random() * order.length), j = Math.min(order.length - 1, i + 1 + Math.floor(Math.random() * 2)); if (i === j) continue; const key = order[i] + order[j]; if (!seen.has(key)) { seen.add(key); return [order[i], order[j]]; } } return [order[0], order[1]]; };
+  const face = w => `<button type="button" class="totpick" data-tot="${esc(w.id)}">${w.photo ? `<img src="${esc(C.photoURL(w.photo))}" alt="" referrerpolicy="no-referrer">` : `<span class="wmemo" style="background:linear-gradient(160deg,${toneOf({ name: w.name })})">${esc(itemEmo({ name: w.name, kind: w.kind || 'wishes' }))}</span>`}<b>${esc(w.name)}</b>${w.price ? `<small>${esc(fEur0(w.price))}</small>` : ''}</button>`;
+  const sh = C.sheet({ title: '⚔️ This or that', body: '<div data-tot-body></div>', foot: '<div class="spacer"></div><button class="btn" data-close>Stop</button>' });
+  const box = sh.querySelector('[data-tot-body]');
+  const draw = () => {
+    if (round >= ROUNDS) { box.innerHTML = `<p class="lnone">Your top 5</p><ol class="tottop">${order.slice(0, 5).map(id => `<li>${esc(by.get(id).name)}</li>`).join('')}</ol><button type="button" class="btn primary" data-totsave>Save this order</button>`; return; }
+    pair = pick(); box.innerHTML = `<p class="lnone">Round ${round + 1} of ${ROUNDS}: tap the one you want more</p><div class="totgrid">${face(by.get(pair[0]))}<b class="totvs">vs</b>${face(by.get(pair[1]))}</div>`;
+  };
+  sh.addEventListener('click', async e => {
+    const t = e.target.closest('[data-tot]'); if (t && pair) { const win = t.dataset.tot, lose = pair.find(x => x !== win), a = order.indexOf(win), b = order.indexOf(lose); if (a > b) { order.splice(a, 1); order.splice(b, 0, win); } round++; draw(); return; }
+    if (e.target.closest('[data-totsave]')) { const rest = wishOrder(allWishes()).map(w => w.id).filter(id => !order.includes(id)); C.closeSheet(); await wishRanks([...order, ...rest]); C.toast('✓ Your order is saved'); }
+  });
+  draw();
+}
 function masterFill(fill) {
   const pr = w => { const i = WISH_PRIO.indexOf(w.prio); return i < 0 ? 99 : i; };
   const all = allWishes(), u = uiOf('wish/master'), groups = [...new Set(all.map(w => w.source))], src = groups.includes(u.allSrc) ? u.allSrc : '';
   const list = all.filter(w => !src || w.source === src).sort((a, b) => pr(a) - pr(b) || (a.since || '').localeCompare(b.since || ''));
   const cardOf = w => w.closet ? prodCard(w, 'openitem') : L.byId[w.id] ? prodCard(L.byId[w.id]) : '';
-  fill.innerHTML = `<div class="lwrap mfilter">${['', ...groups].map(g => `<button class="chip" data-act="mallsrc" data-v="${esc(g)}" aria-pressed="${g === src}">${esc(g || 'All')} · ${all.filter(w => !g || w.source === g).length}</button>`).join('')}</div>`
+  const mv = u.mview || 'board';
+  const views = `<div class="seg lseg wmviews" role="group">${[['board', '🖼 Moodboard'], ['groups', '📋 By group']].map(([k, l]) => `<button data-act="mview" data-v="${k}" aria-pressed="${mv === k}">${l}</button>`).join('')}<button data-act="totgo">⚔️ This or that</button></div>`;
+  if (mv === 'board') { fill.innerHTML = views + `<div class="lwrap mfilter">${['', ...groups].map(g => `<button class="chip" data-act="mallsrc" data-v="${esc(g)}" aria-pressed="${g === src}">${esc(g || 'All')} · ${all.filter(w => !g || w.source === g).length}</button>`).join('')}</div>` + (list.length ? moodboardHTML(list) : quiet('No wishes yet. Add one, or share a link to your inbox.')); wireMoodboard(fill); return; }
+  fill.innerHTML = views + `<div class="lwrap mfilter">${['', ...groups].map(g => `<button class="chip" data-act="mallsrc" data-v="${esc(g)}" aria-pressed="${g === src}">${esc(g || 'All')} · ${all.filter(w => !g || w.source === g).length}</button>`).join('')}</div>`
     + (list.length ? (src ? [src] : groups).map(g => { const l = list.filter(w => w.source === g); return l.length ? `<div class="mgroup"><p class="dsub">${esc(g)} · ${l.length}</p><div class="lgrid">${l.map(cardOf).join('')}</div></div>` : ''; }).join('') : quiet('No wishes yet. Add one, or share a link to your inbox.'));
 }
 function savedFill(fill) {
@@ -5240,9 +5302,9 @@ const lastMonths = (n = 12) => { const d = new Date(), out = []; for (let k = n 
    supplements, kitchen gear, fitness gear and the home inventory. Each stays managed on its own page. */
 function allWishes() {
   const out = [], add = (list, source, page, map) => list.forEach(r => out.push({ source, page, ...map(r) }));
-  const base = r => ({ id: r.id, name: titleOf(r), price: num(r.price) || 0, photo: photoOf(r), since: r.since || r.added || (r.created ? iso(new Date(r.created)) : ''), brand: r.brand || '', shop: r.shop || '', prio: wishPrio(r.priority), plan: r.planBuy || '', kind: r.kind });
+  const base = r => ({ id: r.id, name: titleOf(r), price: num(r.price) || 0, photo: photoOf(r), rank: num(r.rank), waited: !!r.waited, since: r.since || r.added || (r.created ? iso(new Date(r.created)) : ''), brand: r.brand || '', shop: r.shop || '', prio: wishPrio(r.priority), plan: r.planBuy || '', kind: r.kind });
   for (const c of WISH_CATS) add(recs('wishes').filter(w => (w.category || 'Other') === c && !w.archived && !['Bought', 'Dropped'].includes(w.status)), c, 'wish/master', base);
-  add(C.closetWish?.() || [], 'Clothing', 'wishlist', r => ({ id: r.id, name: r.name || 'Piece', price: num(r.price) || 0, photo: r.photo, since: r.since, closet: true, kind: 'closet', brand: r.brand || '', shop: r.shop || '', prio: wishPrio(r.priority), plan: r.planBuy || '' }));
+  add(C.closetWish?.() || [], 'Clothing', 'wishlist', r => ({ id: r.id, name: r.name || 'Piece', price: num(r.price) || 0, photo: r.photo, rank: num(r.rank), waited: !!r.waited, since: r.since, closet: true, kind: 'closet', brand: r.brand || '', shop: r.shop || '', prio: wishPrio(r.priority), plan: r.planBuy || '' }));
   add(recs('beauty').filter(b => b.wish && !b.archived), 'Beauty', 'care/beauty', base);
   add(recs('supplements').filter(b => b.wish && !b.finished), 'Supplements', 'care/supplements', base);
   add(recs('gear').filter(WISHY.gear), 'Kitchen', 'kitchen/gear', base);
@@ -5997,7 +6059,7 @@ function openEditor(kind, id, preset = {}) {
   if (!r) for (const f of K.fields) if (f.type === 'date' && D[f.k] === undefined && ['date', 'start'].includes(f.k)) D[f.k] = today();
   const sh = C.sheet({
     title: r ? titleOf(r) : 'New ' + K.one,
-    body: `${kind === 'calnote' && !r ? calQuick(D) : ''}${r && WISHY[kind] && kind !== 'inventory' ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${r && kind === 'beauty' ? beautyReviews(r) : ''}${r && kind === 'inventory' ? invOptionsPanel(r) : ''}${r && kind === 'fbills' ? billPayPanel(r) : ''}${r && savedOf(r) ? `<p class="lsaved">🏷️ You ${esc(savedText(r))} on this</p>` : ''}${r && kind === 'recipes' ? cookedPanel(r) : ''}${kind === 'stips' ? '<div data-tipsteps></div>' : ''}${kind === 'posts' ? '<div data-postkit></div><div data-posttips></div>' : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}${(() => { const fh = f => `<div class="field ${f.half && f.type !== 'rating' ? '' : 'full'}" data-f="${f.k}" ${f.when && !f.when(D) ? 'hidden' : ''}>${fieldInner(kind, f, D)}</div>`;
+    body: `${kind === 'ftx' && r ? payCard({ ...r, ...D, id: r.id, kind: 'ftx' }) : ''}${kind === 'calnote' && !r ? calQuick(D) : ''}${r && WISHY[kind] && kind !== 'inventory' ? wishPanel(kind, id) : ''}${r && kind === 'recipes' ? reviewPanel(id) : ''}${r && kind === 'posts' ? postPanel(r) : ''}${r && kind === 'beauty' ? beautyReviews(r) : ''}${r && kind === 'inventory' ? invOptionsPanel(r) : ''}${r && kind === 'fbills' ? billPayPanel(r) : ''}${r && savedOf(r) ? `<p class="lsaved">🏷️ You ${esc(savedText(r))} on this</p>` : ''}${r && kind === 'recipes' ? cookedPanel(r) : ''}${kind === 'stips' ? '<div data-tipsteps></div>' : ''}${kind === 'posts' ? '<div data-postkit></div><div data-posttips></div>' : ''}${r && kind === 'cideas' ? `<div class="lpostpub"><button type="button" class="btn small primary" data-act="mkpost" data-id="${r.id}">Make it a post</button><span class="lnone">It moves to Posts, ready to plan.</span></div>` : ''}${r && kind === 'posts' && r.stage !== 'Posted' ? `<div class="lpostpub"><button type="button" class="btn small" data-act="mkidea" data-id="${r.id}">Back to ideas</button></div>` : ''}${(() => { const fh = f => `<div class="field ${f.half && f.type !== 'rating' ? '' : 'full'}" data-f="${f.k}" ${f.when && !f.when(D) ? 'hidden' : ''}>${fieldInner(kind, f, D)}</div>`;
       // the form fits on one screen: the first fields and everything you filled in, the rest folded under More
       const has = f => { const v = D[f.k]; return v != null && v !== '' && !(Array.isArray(v) && !v.length) && v !== false; };
       const main = [], more = []; K.fields.forEach((f, i) => (i < 6 || has(f) || ['photo', 'sleepclock', 'plate', 'ilines', 'steplist', 'buys'].includes(f.type) ? main : more).push(f));
@@ -6030,6 +6092,15 @@ function openEditor(kind, id, preset = {}) {
     img.src = v;
   };
   if (kind === 'meals') sh.addEventListener('input', e => { if (e.target.dataset?.k === 'what') { D.what = e.target.value; const el = sh.querySelector('[data-plate]'); if (el) el.outerHTML = plateHTML(D); } });
+  // the Apple Pay card on top of a purchase: tap or swipe a card for the account, tap a category; the form below follows
+  if (kind === 'ftx' && r) {
+    const redrawPay = () => { const box = sh.querySelector('.paycard'); if (box) box.outerHTML = payCard({ ...r, ...D, id: r.id, kind: 'ftx' }); };
+    const setAcc = id => { D.account = id; redraw('account'); redrawPay(); };
+    let x0 = null;
+    sh.addEventListener('pointerdown', e => { if (e.target.closest('[data-pcstack]')) x0 = e.clientX; });
+    sh.addEventListener('pointerup', e => { if (x0 == null) return; const dx = e.clientX - x0; x0 = null; if (Math.abs(dx) < 40) return; sh._sw = Date.now(); const accs = fAccs().filter(a => !a.archived); if (accs.length < 2) return; const k = accs.findIndex(a => a.id === D.account); setAcc(accs[(k + (dx < 0 ? 1 : accs.length - 1)) % accs.length].id); });
+    sh.addEventListener('click', e => { const pa = e.target.closest('.paycard [data-act="payacc"], .paycard [data-act="paycat"]'); if (!pa) return; e.stopPropagation(); if (Date.now() - (sh._sw || 0) < 500) return; if (pa.dataset.act === 'payacc') setAcc(pa.dataset.v); else { D.category = D.category === pa.dataset.v ? '' : pa.dataset.v; redraw('category'); redrawPay(); } }, true);
+  }
   if (kind === 'calnote') sh.addEventListener('click', e => {
     const d = e.target.closest('[data-calday]'); if (d) { D.date = d.dataset.calday; redraw('date'); sh.querySelectorAll('[data-calday]').forEach(b => b.setAttribute('aria-pressed', b === d)); return; }
     const t = e.target.closest('[data-caltpl]'); if (t) { const x = calTemplates()[+t.dataset.caltpl]; if (!x) return; for (const k of ['name', 'time', 'end', 'where', 'emoji', 'allday']) if (x[k] != null && x[k] !== '') { D[k] = x[k]; redraw(k); } }
@@ -6263,7 +6334,7 @@ function viewRecord(r) {
   const tiles = filled.filter(([f]) => ['money', 'num', 'date', 'rating', 'pct', 'time'].includes(f.type)).slice(0, 3);
   const tags = filled.filter(([f]) => ['select', 'multi'].includes(f.type)).flatMap(([f]) => [].concat(r[f.k] || [])).slice(0, 8);
   const rest = filled.filter(x => !tiles.includes(x) && !['select', 'multi'].includes(x[0].type));
-  const ring = ringOf(r, 'lg'), story = r.kind === 'posts' ? postStory(r) : r.kind === 'deals' ? dealCard(r) : '';
+  const ring = ringOf(r, 'lg'), story = r.kind === 'posts' ? postStory(r) : r.kind === 'deals' ? dealCard(r) : r.kind === 'ftx' ? payCard(r) : '';
   const body = `<div class="rview"><div class="rvhero" ${ph ? '' : `style="background:linear-gradient(160deg,${toneOf(r)})"`}>${ph ? `<img src="${esc(C.photoURL(ph))}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : `<span>${itemEmo(r)}</span>`}${ring ? `<i class="rvring">${ring}</i>` : ''}</div>
     ${tiles.length ? `<div class="rvfacts">${tiles.map(([f, v]) => `<div><b>${esc(v)}</b><small>${esc(f.label)}</small></div>`).join('')}</div>` : ''}
     <h2 class="rvtitle">${esc(titleOf(r))}</h2>${K.sub?.(r) ? `<p class="rvsub">${esc(K.sub(r))}</p>` : ''}
@@ -6274,9 +6345,12 @@ function viewRecord(r) {
     ${link ? `<a class="btn small" href="${esc(link)}" target="_blank" rel="noopener">${svg(P.link)} Open link</a>` : ''}</div>`;
   const sh = C.sheet({ title: K.one[0].toUpperCase() + K.one.slice(1), body,
     foot: `<button class="btn" data-rvedit>✏️ Edit</button><div class="spacer"></div>${r.kind === 'chores' ? `<button class="btn" data-chrun="${r.id}">⏱ Start</button>` : ''}${q ? `<button class="btn primary" data-rvq>${q.on ? '↺ ' : '✓ '}${esc(q.label)}</button>` : `<button class="btn primary" data-rvedit>Edit</button>`}` });
+  // swipe the card stack sideways for the next account
+  if (r.kind === 'ftx') { let x0 = null; sh.addEventListener('pointerdown', e => { if (e.target.closest('[data-pcstack]')) x0 = e.clientX; }); sh.addEventListener('pointerup', async e => { if (x0 == null) return; const dx = e.clientX - x0; x0 = null; if (Math.abs(dx) < 40) return; sh._sw = Date.now(); const accs = fAccs().filter(a => !a.archived); if (accs.length < 2) return; const cur = L.byId[r.id], k = accs.findIndex(a => a.id === cur.account), nx = accs[(k + (dx < 0 ? 1 : accs.length - 1)) % accs.length]; try { await save(cur, { account: nx.id }); const box = sh.querySelector('.paycard'); if (box) box.outerHTML = payCard(L.byId[r.id]); } catch (err) { failed(err); } }); }
   sh.addEventListener('click', async e => {
     if (e.target.closest('[data-rvedit]')) { C.closeSheet(); openEditor(r.kind, r.id); }
     const dv = e.target.closest('[data-dlv]'); if (dv) { const i = +dv.dataset.dlv, done = new Set([].concat(r.delivDone || [])); done.has(i) ? done.delete(i) : done.add(i); try { await save(r, { delivDone: [...done] }); dv.setAttribute('aria-pressed', done.has(i)); dv.closest('.dlcard')?.querySelector('[data-dlcount]')?.replaceChildren(`${done.size}/${dv.closest('ul').children.length}`); } catch (err) { failed(err); } }
+    const pa = e.target.closest('[data-act="payacc"], [data-act="paycat"]'); if (pa && Date.now() - (sh._sw || 0) < 500) return; if (pa) { const d = pa.dataset, x = L.byId[d.id]; if (!x) return; try { await save(x, d.act === 'payacc' ? { account: d.v } : { category: x.category === d.v ? '' : d.v }); const box = pa.closest('.paycard'); if (box) box.outerHTML = payCard(L.byId[d.id]); } catch (err) { failed(err); } return; }
     const vd = e.target.closest('[data-verdict]'); if (vd) { const v = r.verdict === vd.dataset.verdict ? '' : vd.dataset.verdict; try { await save(r, { verdict: v }); sh.querySelectorAll('[data-verdict]').forEach(b => b.setAttribute('aria-pressed', b.dataset.verdict === v)); } catch (err) { failed(err); } }
     if (e.target.closest('[data-rvq]')) { try { await q.act(); C.toast('✓ ' + titleOf(r)); C.closeSheet(); C.render(); } catch (err) { failed(err); } }
   });
@@ -6313,6 +6387,24 @@ function calQuick(D) {
   const t = today(), days = Array.from({ length: 14 }, (_, i) => addDays(t, i)), tp = calTemplates();
   return `<div class="calq"><div class="calstrip">${days.map(d => `<button type="button" class="chip" data-calday="${d}" aria-pressed="${D.date === d}"><small>${d === t ? 'Today' : dayName(d).slice(0, 3)}</small><b>${+d.slice(8)}</b></button>`).join('')}</div>
     ${tp.length ? `<div class="caltpls"><small class="muted">Your usual plans</small><div class="lwrap">${tp.map((x, i) => `<button type="button" class="chip" data-caltpl="${i}">${esc(x.emoji || '📌')} ${esc(x.name)}${x.time ? ` <span class="muted">${esc(x.time)}</span>` : ''}</button>`).join('')}</div></div>` : ''}</div>`;
+}
+/* a purchase like Apple Pay: her cards as a stack (tap or swipe for the account that paid), the amount big, the category one tap,
+   and the same purchase as a receipt below */
+const BANK_GRAD = [[/ing\b/, '#ff8a00,#ff5e3a'], [/rabo/, '#0a3a8c,#ff7a00'], [/abn/, '#00857a,#f2c200'], [/bunq/, '#2dbd6e,#1f8fe5'], [/revolut/, '#191c1f,#5b6cff'], [/sns/, '#5c2d91,#a05fd8'], [/asn/, '#0071b9,#5fb6e6'], [/knab/, '#0f2b5b,#2f6fd6'], [/credit|visa|master|amex/, '#2a1d14,#6b3f22'], [/sav|spaar/, '#4e8a6a,#7fae7a']];
+const bankGrad = a => (BANK_GRAD.find(([re]) => re.test(norm((a?.name || '') + ' ' + (a?.bank || ''))))?.[1]) || '#6b3f22,#a8673d';
+function payCard(r) {
+  const accs = fAccs().filter(a => !a.archived), cur = L.byId[r.account], cats = recs('fcats').filter(c => !c.nospend).sort((a, b) => (r.category === b.id) - (r.category === a.id) || (num(b.budget) || 0) - (num(a.budget) || 0)).slice(0, 8);
+  const t = r.created ? new Date(r.created) : null, time = t ? t.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+  const order = cur ? [cur, ...accs.filter(a => a.id !== cur.id)] : accs;
+  const stack = order.slice(0, 3).map((a, i) => `<button type="button" class="pccard${i ? ' back' : ''}" data-act="payacc" data-id="${r.id}" data-v="${a.id}" style="--g:${bankGrad(a)};--i:${i}" aria-label="Paid with ${esc(a.name)}"><b>${esc(a.name)}</b><small>${i ? 'Tap to switch' : r.card ? esc(r.card) : 'Paid with this'}</small></button>`).reverse().join('');
+  const shop = shopOfTx(r.name) || r.name || 'Purchase', items = [].concat(r.items || []);
+  return `<div class="paycard">${accs.length ? `<div class="pcstack" data-pcstack="${r.id}">${stack}</div>` : ''}
+    <div class="pcamt"><small>${cur ? `Paid with ${esc(cur.name)}` : 'Which account paid?'}</small><b>${esc(eur(num(r.amount)))}</b></div>
+    ${cats.length ? `<div class="lwrap pccats">${cats.map(c => `<button type="button" class="chip" data-act="paycat" data-id="${r.id}" data-v="${c.id}" aria-pressed="${r.category === c.id}">${esc(c.emoji || '•')} ${esc(c.name)}</button>`).join('')}</div>` : ''}
+    <div class="pcreceipt"><div><span>${esc(shop.toUpperCase())}</span><span>${esc(eur(num(r.amount)))}</span></div>
+      ${items.map(e => `<div><span>${num(e.q) > 1 ? `${num(e.q)}× ` : ''}${esc(e.n)}</span><span>${e.p != null ? esc(eur(num(e.p))) : ''}</span></div>`).join('')}
+      <div class="pcdash"></div><div><span>💳 ${esc(cur?.name || r.card || 'Card')}</span><span>${esc(niceDate(r.date))}${time ? ' ' + time : ''}</span></div>
+      <div><span>Category</span><span>${esc(L.byId[r.category] ? titleOf(L.byId[r.category]) : 'none yet')}</span></div>${r.source ? `<div><span>Via</span><span>${esc(r.source)}</span></div>` : ''}</div></div>`;
 }
 // kinds that open straight in the editor (forms more than things to look at)
 const EDIT_FIRST = new Set(['ftx', 'fincome', 'nlog', 'checkin', 'journal', 'suplog', 'drinklog', 'cyclelog', 'skinlog', 'nsteps', 'fset', 'calnote', 'sleep', 'meals']);
@@ -7539,6 +7631,11 @@ document.addEventListener('click', async e => {
     case 'mday': mealDay(d.v); break;
     case 'mealclean': mealClean(); break;
     case 'mallsrc': uiOf('wish/master').allSrc = d.v; C.render(); break;
+    case 'mview': uiOf('wish/master').mview = d.v; C.render(); break;
+    case 'totgo': thisOrThat(); break;
+    case 'wmopen': { const w = allWishes().find(x => x.id === d.id); if (!w) break; if (w.closet) C.openItem?.(w.id); else openRecord(w.id); break; }
+    case 'wmkeep': { const w = allWishes().find(x => x.id === d.id); if (w) { await wishPatch(w, { waited: true }); C.toast('💛 Still on your list'); C.render(); } break; }
+    case 'wmdrop': { const w = allWishes().find(x => x.id === d.id); if (w) { await wishDrop(w); C.toast('👋 Off your list. That money stays yours.'); C.render(); } break; }
     case 'tidy': tidyRun(); break;
     case 'dealsall': L.dealsAll = !L.dealsAll; C.render(); break;
     case 'dealsgroup': L.dealsGroup = d.v; C.render(); break;
