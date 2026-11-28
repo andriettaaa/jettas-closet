@@ -3552,6 +3552,23 @@ function weekReview() {
   sh.querySelector('[data-wrsave]').onclick = () => { const v = sh.querySelector('[data-wrfocus]').value.trim(); C.savePrefs({ intent: { week: weekMon(addDays(today(), new Date().getDay() === 0 ? 1 : 0)), text: v } }).then(() => { C.closeSheet(); C.toast('🎯 Your focus is on Today'); C.render(); }); };
 }
 const withHero = (key, html) => html.replace(/(<div class="viewhead">[\s\S]*?<\/div>)/, `$1${mixHero(key)}`);
+/* Kitchen (K3b): the week plan on top with today dark, tonight's cooking big on the left, today's meals beside it */
+function kitWeekHTML() {
+  const t = today(), mon = weekMon(t), days = Array.from({ length: 7 }, (_, i) => addDays(mon, i)), ms = recs('meals').filter(m => m.date >= mon && m.date <= days[6]);
+  const nm = m => m.away ? '🍽 Out' : `${foodEmo(relName(m.recipe) || m.what || relNames(m.ing)[0] || '')} ${relName(m.recipe) || m.what || relNames(m.ing).join(', ') || m.slot}`;
+  const planned = days.filter(d => ms.some(m => m.date === d && m.slot === 'Dinner')).length;
+  return `<section class="panel kweek"><div class="lph3"><h3 class="mh">Meal plan · this week</h3><span class="muted">${planned} of 7 dinners planned</span></div><div class="kwdays">${days.map(d => { const dm = ms.filter(m => m.date === d).sort((a, b) => MEALS.indexOf(a.slot) - MEALS.indexOf(b.slot));
+    return `<button type="button" class="kwday ${d === t ? 'on' : ''}" data-act="go" data-v="kitchen/meals"><b>${esc(dayName(d))}</b>${dm.length ? dm.slice(0, 3).map(m => `<span class="${m.slot === 'Dinner' ? 'kwdin' : ''}">${esc(nm(m))}</span>`).join('') : '<span class="muted">nothing yet</span>'}</button>`; }).join('')}</div></section>`;
+}
+function kitTonightHTML() {
+  const t = today(), din = recs('meals').find(m => m.date === t && m.slot === 'Dinner' && !m.away), r = din && L.byId[din.recipe];
+  const stock = new Set(recs('ingredients').filter(i => i.stock).map(i => i.id));
+  if (!din) return `<section class="panel ktonight empty"><div class="ktbody"><small class="muted">Tonight</small><b>No dinner planned yet</b><div class="dbtns"><button class="btn small primary" data-act="go" data-v="kitchen/meals">Plan tonight</button></div></div></section>`;
+  const name = r ? titleOf(r) : din.what || relNames(din.ing).join(', ') || 'Dinner', ph = r ? photoOf(r) : din.photo, miss = r ? (r.ingredients || []).filter(id => !stock.has(id)).map(relName).filter(Boolean) : [];
+  return `<section class="panel ktonight"><div class="ktph" style="${ph ? '' : `background:linear-gradient(160deg,${toneOf(r || din)})`}">${ph ? `<img src="${esc(C.photoURL(ph))}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : `<span>${foodEmo(name)}</span>`}</div>
+    <div class="ktbody"><small class="muted">Tonight${din.time ? ' · ' + esc(din.time) : ''}</small><b>${esc(name)}</b><span class="muted">${[r?.prep && `${r.prep} min`, r?.servings && plural(r.servings, 'portion'), miss.length ? `missing: ${miss.slice(0, 3).join(', ')}` : r ? 'all in your pantry ✓' : ''].filter(Boolean).map(esc).join(' · ')}</span>
+    <div class="dbtns">${r ? `<button class="btn small primary" data-act="open" data-id="${r.id}">👩‍🍳 Cook</button>` : ''}<button class="btn small" data-act="go" data-v="kitchen/meals">Swap</button></div></div></section>`;
+}
 function kitchenToday(host) {
   setTimeout(stapleRestock, 0);
   const t = today(), meals = recs('meals').filter(m => m.date === t);
@@ -3563,8 +3580,8 @@ function kitchenToday(host) {
   const pick = shuffle(ready.length >= 3 ? ready : rs).slice(0, 4);
   const dp = curPlan(), dn = liveOffers().length;
   const toReview = recs('meals').filter(m => m.recipe && L.byId[m.recipe] && m.date < t && m.date >= addDays(t, -7) && !recs('rreviews').some(v => v.recipe === m.recipe && v.date >= m.date)).sort((a, b) => b.date.localeCompare(a.date)).filter((m, i, a) => a.findIndex(x => x.recipe === m.recipe) === i).slice(0, 4);
-  host.innerHTML = `${head('Kitchen')}${mixHero('kitchen')}<p class="dsub">Balance today</p>${balanceHTML()}
-  <div class="panels">
+  host.innerHTML = `${head('Today')}${kitWeekHTML()}<div class="ktop">${kitTonightHTML()}<div class="kbal">${mixHero('kitchen')}<p class="dsub">Balance today</p>${balanceHTML()}</div></div>
+  <div class="panels kpanels">
     ${(() => { const soon = recs('ingredients').filter(useSoon).sort((a, b) => a.expires.localeCompare(b.expires)); if (!soon.length) return ''; const ids = new Set(soon.map(x => x.id)), use = rs.filter(r => (r.ingredients || []).some(id => ids.has(id))).sort((a, b) => (b.ingredients || []).filter(id => ids.has(id)).length - (a.ingredients || []).filter(id => ids.has(id)).length).slice(0, 4);
       return panel('Use soon', `<div class="lrows">${soon.slice(0, 6).map(x => `<div class="lrow"><button class="lmain" data-act="open" data-id="${x.id}"><b>${esc(x.name)}</b><span>${x.expires < t ? 'past its date' : x.expires === t ? 'best before today' : 'best before ' + esc(relDay(x.expires))}</span></button></div>`).join('')}</div>${use.length ? `<p class="dsub">Recipes that use them</p><div class="lwrap">${use.map(r => `<button class="chip" data-act="open" data-id="${r.id}">${esc(r.name)}</button>`).join('')}</div>` : ''}`, ['kitchen/pantry', 'Pantry']); })()}
     ${(() => { const old = inFreezer().filter(i => (freezerAge(i) ?? 0) >= FREEZE_DAYS); return old.length ? panel('Freezer', `<p class="lnone">In the freezer for 3 months or more. Use these first.</p><div class="lwrap">${old.slice(0, 8).map(i => `<button class="chip" data-act="open" data-id="${i.id}">${esc(i.name)}</button>`).join('')}</div>`, ['kitchen/pantry', 'Open freezer']) : ''; })()}
