@@ -2231,3 +2231,12 @@ details.lmore > .form, .sheet .form { box-sizing: border-box; max-width: 100%; }
 .kbal { min-width: 0; display: grid; gap: 8px; align-content: start; }
 @media (min-width: 1000px) { .ktop { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); } .panels.kpanels { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; } }
 @media (max-width: 699px) { .kwdays { display: flex; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory; } .kwdays::-webkit-scrollbar { display: none; } .kwday { flex: 0 0 31%; scroll-snap-align: start; } .ktph { height: 140px; } }
+/* Life (L2): year goal and week on the left, the four areas on the right */
+.lifesplit { display: grid; gap: 12px; align-items: start; } .lifeleft { display: grid; gap: 12px; min-width: 0; }
+.lifeyear { display: grid; gap: 6px; padding: 16px; border: 0; border-radius: 20px; text-align: left; font: inherit; color: #fff; cursor: pointer; background: linear-gradient(135deg, #7fae7a, #4e8a6a); }
+.lifeyear b { font-size: 17px; } .lifeyear small { opacity: .9; } .lifeyear .tbar { background: rgba(255,255,255,.3); } .lifeyear .tbar i { background: #fff; }
+.lifeweek { margin: 0; } .lwrow { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13.5px; } .lwrow:first-of-type { border-top: 0; }
+.lwrow > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.panels.lifeareas { margin: 0; }
+@media (min-width: 1000px) { .lifesplit { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); } }
+@media (max-width: 699px) { .panels.lifeareas { grid-template-columns: minmax(0, 1fr); } }
